@@ -51,7 +51,7 @@ Ramas e integración continua (ADR-0030):
 
 Lint con oxlint (`npm run lint`, ADR-0073).
 
-PENDIENTE DE DEFINICIÓN: herramienta de formato, convención de nombres de ramas y de mensajes de commit.
+PENDIENTE DE DEFINICIÓN (P-70): herramienta de formato, convención de nombres de ramas y de mensajes de commit.
 
 ## Configuración local
 

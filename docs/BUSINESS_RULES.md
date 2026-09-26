@@ -42,6 +42,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRD-14. Peso (gramos) y dimensiones (centímetros) de una variante son opcionales (ADR-0058).
 - BR-PRD-15. En el catálogo público, el precio de un producto para filtrar y ordenar es el más bajo entre sus variantes vendibles, con IVA incluido (ADR-0060).
 - BR-PRD-16. El slug de una categoría o marca se puede cambiar; el anterior deja de funcionar y queda libre. Riesgo aceptado: los enlaces que usaban el slug anterior se rompen (ADR-0072).
+- BR-PRD-17. Una categoría es visible si está activa y todos sus ancestros también; desactivarla oculta sus subcategorías. Los productos de una categoría oculta o de una marca inactiva siguen visibles en la tienda, pero no como parte de esa categoría; no se puede filtrar por categorías ocultas ni por marcas inactivas (ADR-0080).
 
 ## Precios
 
@@ -102,7 +103,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-CRT-08. Las cuentas de staff no tienen carrito (BR-USR-08).
 - BR-CRT-09. La fusión se dispara con un endpoint explícito después de iniciar sesión; es idempotente; si el cliente no tiene carrito activo, el de invitado pasa a su cuenta; el carrito fusionado ya no se puede modificar; solo se fusionan carritos sin dueño (ADR-0059).
 - BR-CRT-10. Al expirar una orden, sus líneas se suman al carrito activo del cliente registrado o reactivan el carrito original; tope de 30 por línea sin aviso (ADR-0054).
-- BR-CRT-11. Las líneas de una orden Cancelled o Refunded pueden copiarse a un carrito para volver a comprarlas, con precios y disponibilidad actuales; la orden no cambia. Puede hacerlo el cliente dueño o, como apoyo, el staff con `orders.manage`, siempre hacia el carrito del cliente (ADR-0055).
+- BR-CRT-11. Las líneas de una orden Cancelled o Refunded pueden copiarse a un carrito para volver a comprarlas, con precios y disponibilidad actuales; la orden no cambia. Puede hacerlo el cliente dueño o, como apoyo, el staff con `orders.manage`, siempre hacia el carrito del cliente (ADR-0055). Si la orden es de un invitado y su carrito original ya no existe, la recompra del staff no se realiza (ADR-0082).
 
 ## Pedidos
 

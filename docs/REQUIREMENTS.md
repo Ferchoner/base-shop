@@ -182,7 +182,7 @@ Criterios de aceptación:
 |---|---|---|---|
 | UC-CAT-01 | Listar y buscar productos de la tienda | Público | BR-PRD-06, BR-PRD-15, ADR-0028, ADR-0036, ADR-0060 |
 | UC-CAT-02 | Ver detalle de producto por slug | Público | BR-PRD-06, ADR-0028 |
-| UC-CAT-03 | Consultar árbol de categorías | Público | ADR-0028 |
+| UC-CAT-03 | Consultar árbol de categorías | Público | ADR-0028, BR-PRD-17 |
 | UC-CAT-04 | Crear producto (borrador) | Staff (`catalog.write`) | BR-PRD-09 |
 | UC-CAT-05 | Editar datos del producto | Staff (`catalog.write`) | — |
 | UC-CAT-06 | Agregar variante | Staff (`catalog.write`) | BR-PRD-01, BR-PRD-02, BR-PRD-14 |
@@ -199,6 +199,7 @@ Criterios de aceptación:
 
 - **UC-CAT-01 / 02:** solo productos publicados y variantes activas con precio vigente; un producto sin variantes con precio no aparece; imágenes siempre como arreglo (vacío si no hay) con URL absoluta; paginación, `sort` y filtros no declarados se rechazan; listados sin texto de búsqueda cacheados con TTL de 120 s e invalidada por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`. Cada variante se muestra como disponible o agotada, sin cantidades (ADR-0061).
 - **UC-CAT-01 (búsqueda y filtros):** búsqueda por texto en español, sin acentos y por prefijo, sobre título, marca y categorías; filtros por categoría (con subcategorías), marcas, rango de precio y solo disponibles; órdenes por relevancia, más recientes, precio y nombre; el precio de un producto es el más bajo entre sus variantes vendibles; los totales de paginación son exactos porque el filtrado ocurre en la base.
+- **UC-CAT-01 / 03 (categorías y marcas inactivas):** el árbol público muestra solo categorías visibles (activas y con todos sus ancestros activos); filtrar por una categoría oculta o una marca inactiva responde 400; los productos de categorías ocultas o marcas inactivas siguen visibles, pero no como parte de esa categoría (ADR-0080).
 - **UC-CAT-06:** SKU duplicado o reutilizado se rechaza; combinación de opciones repetida en el producto se rechaza. Peso (gramos) y dimensiones (centímetros) son opcionales y, si se capturan, deben ser positivos.
 - **UC-CAT-07:** SKU y opciones solo se editan si el producto nunca se ha publicado (el SKU anterior se libera); después se rechazan; no se agregan dimensiones de opciones a productos publicados; peso, dimensiones y estado se editan siempre.
 - **UC-CAT-09:** se rechaza sin al menos una variante activa; se permite sin precio y sin imagen.
@@ -269,7 +270,7 @@ Criterios de aceptación:
 - **UC-CRT-05:** precios calculados al leer desde Pricing; nunca se toman del carrito. Cada línea indica si la cantidad pedida puede surtirse, sin revelar la cantidad disponible (ADR-0061).
 - **UC-CRT-06:** endpoint explícito que recibe el `cartId` del invitado; suma cantidades y limita cada línea a 30 sin aviso; si el cliente no tiene carrito activo, el carrito de invitado pasa a su cuenta; el carrito fusionado queda en Merged y ya no se puede modificar; repetir la fusión no vuelve a sumar; se rechaza un carrito con dueño o una cuenta de staff.
 - **UC-CRT-08:** las líneas de la orden expirada se suman al carrito activo del cliente registrado o reactivan el carrito original (invitados, o registrados sin carrito activo); tope de 30 por línea sin aviso; idempotente ante eventos duplicados.
-- **UC-CRT-09:** solo para órdenes Cancelled o Refunded; la orden no cambia; las líneas se suman al carrito con tope de 30; precios y disponibilidad son los actuales; variantes no vendibles se omiten; cuando lo hace el staff, las líneas van al carrito del cliente y la acción se audita.
+- **UC-CRT-09:** solo para órdenes Cancelled o Refunded; la orden no cambia; las líneas se suman al carrito con tope de 30; precios y disponibilidad son los actuales; variantes no vendibles se omiten; cuando lo hace el staff, las líneas van al carrito del cliente y la acción se audita; si la orden es de un invitado y su carrito original ya no existe, la recompra del staff se rechaza sin crear otro carrito (ADR-0082).
 
 ### 5.6 Ordering
 
@@ -437,6 +438,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067) | 409 (ADR-0071) | UC-IAM-19 |
 | E-32 | Editar SKU, opciones o slug después de la primera publicación (ADR-0068) | 409 (ADR-0071) | UC-CAT-05, 07 |
 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | 409 (ADR-0071) | UC-ORD-01, 02 |
+| E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe | 409 (ADR-0082) | UC-CRT-09 |
 
 ---
 
@@ -531,3 +533,6 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-60~~ | Resuelta en ADR-0067: solicitud por canal externo, ejecutada por el staff |
 | ~~P-62~~ | Resuelta en ADR-0072: se revocan las demás sesiones y se conserva la actual |
 | ~~P-63~~ | Resuelta en ADR-0072: se permite, con riesgo aceptado de romper enlaces anteriores |
+| ~~P-66~~ | Resuelta en ADR-0080: una categoría desactivada oculta sus subcategorías; sus productos siguen visibles fuera de ella; no se filtra por marcas inactivas |
+| P-67 | Un solo almacén en el MVP: la API permite crear y desactivar almacenes y no define cuál usa la reserva si hay varios (propuesta en ADR-0081) |
+| ~~P-68~~ | Resuelta en ADR-0082: si el carrito original del invitado ya no existe, la recompra del staff se rechaza |

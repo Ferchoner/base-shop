@@ -97,6 +97,9 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
 | ADR-0078 | Envíos sin paquetería | Aceptada |
 | ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
+| ADR-0080 | Efecto de desactivar categorías y marcas en la tienda | Aceptada |
+| ADR-0081 | Un solo almacén en el MVP | Propuesta |
+| ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 
 ---
 
@@ -1601,6 +1604,54 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Modifica el modelo de datos aprobado (ADR-0066): columnas `shipping_tax_amount` y `shipping_tax_rate_bp` en `orders`; la restricción `tax_total <= subtotal` pasa a `tax_total <= subtotal + shipping_cost`, y se agrega `shipping_tax_amount <= shipping_cost`.
   - `CheckoutQuote` y `Order` agregan `shippingTaxAmount`, un cambio compatible dentro de `v1`.
-  - El tratamiento del IVA del envío se valida con el contador antes de operar con clientes reales.
+  - El tratamiento del IVA del envío se valida con el contador antes de operar con clientes reales (P-69).
 - **Revisar si:** el contador indica otro tratamiento, se emiten facturas (ADR-0027) o se habilitan promociones (ADR-0018).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0080 — Efecto de desactivar categorías y marcas en la tienda
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-66, detectada en la revisión integral de la documentación. ADR-0038 permite desactivar categorías y marcas con productos, y ADR-0076 permite reactivarlas, pero no se definía qué pasa en el catálogo público mientras están inactivas.
+- **Decisión:**
+  - **Categoría visible:** activa y con todos sus ancestros activos. Solo las categorías visibles aparecen en el árbol público.
+  - **Desactivar una categoría** la oculta junto con todas sus subcategorías, aunque estas sigan activas. Al reactivarla (ADR-0076), sus subcategorías activas vuelven a verse.
+  - **Los productos de una categoría oculta siguen publicados y visibles** en listados, búsqueda y detalle, pero dejan de mostrarse como parte de esa categoría: el detalle del producto solo lista categorías visibles y la búsqueda por texto no usa el nombre de categorías ocultas.
+  - **Desactivar una marca** la quita del listado público de marcas; sus productos siguen visibles y siguen mostrando la marca.
+  - **Filtros:** filtrar el catálogo público por una categoría oculta o por una marca inactiva responde 400 `validation-error`.
+- **Alternativas consideradas:** Ocultar los productos de categorías o marcas inactivas; mantener visibles las subcategorías activas de una categoría desactivada.
+- **Consecuencias:**
+  - La aplicación recalcula el `search_vector` de los productos afectados al desactivar o reactivar una categoría.
+  - Nueva regla BR-PRD-17.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0081 — Un solo almacén en el MVP
+
+- **Fecha:** 2026-09-26
+- **Contexto:** P-67, detectada en la revisión integral de la documentación. Operar varios almacenes ya está fuera del MVP (BR-INV-08, ADR-0011, `PROJECT.md`), y el seed crea un almacén predeterminado (`DATABASE.md`, sección 13). Sin embargo, la API permite crear y desactivar almacenes (UC-INV-01), el modelo no marca cuál es el predeterminado y no se define qué almacén usa una reserva si hay varios activos.
+- **Decisión propuesta:**
+  - En el MVP existe exactamente un almacén, creado por el seed. Es el predeterminado y el único que usan las reservas, las entradas, los ajustes y los envíos.
+  - La API de almacenes queda en consulta y edición: `GET /v1/admin/inventory/warehouses` y `PATCH …/{warehouseId}` (nombre y dirección). Se retiran del MVP la creación (`POST /v1/admin/inventory/warehouses`) y la desactivación (`POST …/{warehouseId}/deactivate`).
+  - La base garantiza a lo sumo un almacén activo con un índice único parcial `((true)) WHERE status = 'ACTIVE'`.
+  - Las entradas y los ajustes conservan `warehouseId` en la solicitud, para no cambiar el contrato cuando haya varios almacenes; en el MVP solo se acepta el almacén activo.
+  - La asignación de almacén sigue como domain service (ADR-0011). Al habilitar varios almacenes se definirán el almacén predeterminado o la prioridad y las reglas de asignación.
+- **Alternativas consideradas:** Mantener la creación de almacenes con un indicador de predeterminado; permitir almacenes inactivos adicionales sin uso.
+- **Consecuencias:** Modifica los contratos aprobados (ADR-0071) en dos endpoints y el modelo de datos (ADR-0066) en un índice; aún no hay implementación ni migraciones.
+- **Revisar si:** se decide operar más de un almacén.
+- **Estado:** Propuesta.
+
+---
+
+## ADR-0082 — Recompra del staff cuando el carrito original ya no existe
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-68, detectada en la revisión integral de la documentación. Cuando el staff copia una orden cancelada de un invitado, las líneas van al carrito original de la orden (ADR-0054, ADR-0055). Los carritos de invitado sin actividad se borran a los 30 días (BR-CRT-06), así que ese carrito puede ya no existir.
+- **Decisión:**
+  - Si el carrito original ya no existe, la recompra no se realiza: responde 409 `source-cart-unavailable`, con un `detail` que indica que el carrito de la orden ya no existe. No se crea un carrito nuevo.
+  - El invitado conserva la recompra por su cuenta (`POST /v1/orders/reorder`), que crea un carrito si no envía uno.
+- **Alternativas consideradas:** Crear un carrito nuevo y devolver su `cartId` al staff para que lo comunique al cliente.
+- **Consecuencias:** Nuevo error E-34 (`source-cart-unavailable`, 409 según ADR-0064).
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

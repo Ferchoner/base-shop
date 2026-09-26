@@ -257,13 +257,14 @@ Error de validación:
 | `active-orders-exist` | 409 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067) | — |
 | `field-locked` | 409 | E-32 | Editar SKU, opciones o slug después de la primera publicación (ADR-0068) | `fields` |
 | `empty-cart` | 409 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | — |
+| `source-cart-unavailable` | 409 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe (ADR-0082) | — |
 | `idempotency-key-mismatch` | 422 | E-25 | Llave reutilizada con otro contenido | — |
 | `payload-too-large` | 413 | E-22 | Imagen de más de 5 MB | `maxBytes` |
 | `unsupported-media-type` | 415 | E-22 | Formato de imagen o `Content-Type` no admitido | — |
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-33 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-34 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -389,7 +390,7 @@ Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `mu
 }
 ```
 
-Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-0061).
+Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-0061). `categories` lista solo categorías visibles; `brand` se muestra aunque la marca esté inactiva (ADR-0080).
 
 ### 8.6 `Cart`
 
@@ -736,14 +737,15 @@ Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al 
 | Parámetro | Tipo | Validación |
 |---|---|---|
 | `q` | texto | 2–100 caracteres; búsqueda en español, sin acentos y por prefijo sobre título, marca y categorías |
-| `category` | slug | Categoría activa; incluye subcategorías |
-| `brand` | slugs separados por coma | Hasta 20 |
+| `category` | slug | Categoría visible (activa y con todos sus ancestros activos, ADR-0080); incluye sus subcategorías visibles |
+| `brand` | slugs separados por coma | Hasta 20; solo marcas activas (ADR-0080) |
 | `minPrice`, `maxPrice` | enteros (centavos, IVA incluido) | ≥ 0; `minPrice ≤ maxPrice` |
 | `available` | boolean | `true` = solo disponibles |
 | `sort` | `relevance`, `-publishedAt`, `price`, `-price`, `title`, `-title` | `relevance` solo con `q`. Defecto: `relevance` con `q`, `-publishedAt` sin `q` |
 | `page`, `pageSize` | — | Sección 5.1 |
 
 - **Response 200:** página de `ProductSummary`. Solo productos publicados con al menos una variante vendible (BR-PRD-06).
+- **Errores:** 400 `validation-error` si `category` no existe o está oculta, o si alguna `brand` no existe o está inactiva (ADR-0080). Los productos de categorías ocultas o marcas inactivas siguen apareciendo en los demás listados.
 - **Cache:** solo sin `q` (ADR-0060), TTL de 120 s.
 
 ### 11.3 `GET /v1/catalog/products/{slug}` — Detalle (UC-CAT-02)
@@ -752,7 +754,7 @@ Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al 
 
 ### 11.4 `GET /v1/catalog/categories` — Árbol de categorías (UC-CAT-03)
 
-- **Response 200:** `{ "data": [ { "id", "name", "slug", "position", "children": [ … ] } ] }`. Solo categorías activas, ordenadas por `position` y nombre. Sin paginación. Cache con TTL de 120 s.
+- **Response 200:** `{ "data": [ { "id", "name", "slug", "position", "children": [ … ] } ] }`. Solo categorías visibles (activas y con todos sus ancestros activos, ADR-0080), ordenadas por `position` y nombre. Sin paginación. Cache con TTL de 120 s.
 
 ### 11.5 `GET /v1/catalog/brands` — Marcas
 
@@ -945,7 +947,7 @@ Una cuenta de staff en `/v1/me/cart` → 403 `staff-cannot-purchase` (E-09). Las
 |---|---|---|
 | `POST /v1/me/orders/{publicCode}/reorder` | Solo cliente | Copia las líneas a su carrito activo (lo crea si no existe). 200 `{ "cart": Cart, "skippedVariantIds": [] }` |
 | `POST /v1/orders/reorder` | Público | Request `{ "contactEmail", "publicCode", "cartId" }` (`cartId` opcional: carrito de invitado activo destino; si falta, se crea uno). 200 `{ "cart", "skippedVariantIds" }`. Rate limit de 10 por IP en 15 minutos |
-| `POST /v1/admin/orders/{orderId}/reorder` | `orders.manage` | Cliente registrado: a su carrito activo. Invitado: se reactiva el carrito original de la orden (ADR-0054). 200 `{ "cartId", "skippedVariantIds" }`. Auditado |
+| `POST /v1/admin/orders/{orderId}/reorder` | `orders.manage` | Cliente registrado: a su carrito activo. Invitado: se reactiva el carrito original de la orden (ADR-0054); si ya no existe, 409 `source-cart-unavailable` y no se crea otro (ADR-0082). 200 `{ "cartId", "skippedVariantIds" }`. Auditado |
 
 Reglas comunes: solo órdenes CANCELLED o REFUNDED (409 `invalid-state-transition` en otro caso); suma con tope de 30; `skippedVariantIds` lista variantes no vendibles omitidas; la orden no cambia. Para invitados, 404 genérico si el par email–código no coincide.
 
