@@ -173,4 +173,11 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-10. Una entrega fallida o una devolución no cambia el estado de la orden (Shipped) ni dispara reintentos, cancelaciones o reembolsos. Si la mercancía regresa, el staff marca el envío como Returned y reintegra el stock (ADR-0053).
 - BR-SHP-11. Envíos sin paquetería (entrega local, recoger en tienda): PENDIENTE DE DEFINICIÓN (P-57).
 - BR-SHP-12. IVA del costo de envío y base del umbral de envío gratis: PENDIENTE DE DEFINICIÓN (P-58).
-- BR-SHP-13. Permiso para configurar costo y umbral de envío: PENDIENTE DE DEFINICIÓN (P-48).
+- BR-SHP-13. Solo Superadministrador y Administrador configuran el costo de envío y el umbral de envío gratis, con el permiso `shipping.configure`; el Operador no lo tiene (ADR-0075).
+
+## Notificaciones
+
+- BR-NTF-01. El cliente recibe un correo por orden recibida, pago confirmado, orden enviada, orden cancelada y reembolso completado (ADR-0074).
+- BR-NTF-02. No se envía correo por orden expirada, orden entregada, entrega fallida, devolución, pago tardío sin stock ni pago fallido, y no hay notificaciones al staff (ADR-0074).
+- BR-NTF-03. El destinatario es el email de contacto de la orden; las órdenes anonimizadas no reciben correo (ADR-0067, ADR-0074).
+- BR-NTF-04. Los correos muestran solo el código público de la orden (ADR-0049), sin datos de pago ni tokens, y son transaccionales, sin contenido promocional. Un correo que no se pudo enviar no se reintenta y no afecta a la operación que lo originó (ADR-0014).

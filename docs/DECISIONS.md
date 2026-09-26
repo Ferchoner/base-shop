@@ -91,7 +91,8 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0071 | Contratos REST y convenciones de la API | Aceptada |
 | ADR-0072 | Sesiones al cambiar la contraseña y slugs de categorías y marcas | Aceptada |
 | ADR-0073 | Herramienta de lint | Aceptada |
-| ADR-0074 | Notificaciones por correo del ciclo de la orden | Propuesta |
+| ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
+| ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
 
 ---
 
@@ -824,6 +825,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `orders.manage` | Cancelar pedidos y resolver AwaitingManualFulfillment |
 | `payments.manage` | Registrar pagos manuales y emitir reembolsos |
 | `shipping.manage` | Gestionar envíos (guías y estados) |
+| `shipping.configure` | Configurar el costo de envío y el umbral de envío gratis (agregado por ADR-0075) |
 | `customers.read` | Ver datos de clientes |
 | `customers.manage` | Suspender y anonimizar clientes |
 | `staff.manage` | Gestionar cuentas del staff y roles |
@@ -1435,8 +1437,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los eventos se despachan después del commit y sin outbox; un correo puede perderse (riesgo aceptado en ADR-0014).
   - Las órdenes anonimizadas no tienen email de contacto (ADR-0067).
   - Los correos de cuenta (verificación, recuperación y aviso de cambio de contraseña) ya están decididos en ADR-0046, ADR-0056 y ADR-0072, y no forman parte de esta decisión.
-- **Decisión propuesta:**
-  - **Criterio:** se notifica al cliente todo cambio de su orden que él no provocó directamente y que le afecta, además de la confirmación de la compra.
+- **Decisión:**
+  - **Criterio:** se notifican la confirmación de la compra y los cambios de la orden que el cliente no provocó y de los que no se enteraría de otra forma: pago registrado por el staff, envío, cancelación y reembolso.
   - **Correos que se envían:**
 
     | Correo | Evento | Contenido mínimo |
@@ -1444,11 +1446,11 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     | Orden recibida | `OrderPlaced` | Código público, líneas, totales, dirección de envío resumida, instrucciones de pago en tienda y plazo de la reserva |
     | Pago confirmado | `OrderPaid` | Código público y total pagado |
     | Orden enviada | `ShipmentDispatched` | Código público; paquetería y guía, si existen |
-    | Orden entregada | `OrderDelivered` | Código público y fecha; invita a contactar a la tienda si no recibió el pedido |
     | Orden cancelada | `OrderCancelled` | Código público; si hubo pago capturado, indica que el reembolso está en proceso |
     | Reembolso completado | `RefundCompleted` | Código público y monto reembolsado |
 
   - **Correos que no se envían en el MVP:**
+    - Orden entregada (`OrderDelivered`): por decisión del equipo (2026-09-25).
     - Orden expirada (`OrderExpired`): con el pago en tienda llegaría en casi toda compra seguida de "pago confirmado", lo que confunde. Se revisa al habilitar pagos en línea.
     - Pago tardío sin stock (AwaitingManualFulfillment): con el pago en tienda el cliente está presente cuando el staff lo registra; la resolución posterior genera "pago confirmado" o "orden cancelada". No hay evento para este estado y no se crea uno.
     - Entrega fallida y devolución (`DeliveryFailed`, `ShipmentReturned`): se gestionan fuera del sistema (ADR-0053).
@@ -1463,4 +1465,21 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El correo de orden recibida no es comprobante: el código público también se entrega en la respuesta de la API. Si el negocio llega a depender de él, se revisa ADR-0014.
   - La mención de estos correos en el aviso de privacidad se valida junto con P-61.
 - **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se decide P-56 (enlaces en los correos).
-- **Estado:** Propuesta.
+- **Estado:** Aceptada (aprobación formal 2026-09-25).
+
+---
+
+## ADR-0075 — Permiso para configurar el costo de envío
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-48. El costo fijo y el umbral de envío gratis (ADR-0042) son valores monetarios que se aplican a cada orden. `shipping.manage` lo tiene también el Operador (ADR-0043), mientras que las operaciones con dinero (pagos manuales, reembolsos) y las cancelaciones quedan en Administrador y Superadministrador.
+- **Decisión:**
+  - Solo los usuarios administrativos (Superadministrador y Administrador) configuran el costo de envío y el umbral de envío gratis.
+  - Se implementa con un permiso nuevo en el catálogo de ADR-0043: `shipping.configure`. Los roles iniciales Superadministrador y Administrador lo incluyen; el Operador no.
+  - Como la autorización se basa en permisos (ADR-0017), no se comprueba el nombre del rol.
+  - Consultar el método de envío sigue con `shipping.manage`.
+- **Alternativas consideradas:** Usar `shipping.manage` (el Operador podría cambiar un valor monetario); reutilizar `payments.manage` u `orders.manage` (mezcla contextos, en contra de ADR-0017); comprobar el nombre del rol (los roles son editables y la autorización es por permisos).
+- **Consecuencias:**
+  - El catálogo de permisos pasa de 14 a 15.
+  - Como los roles se editan en base de datos, un rol creado después puede recibir `shipping.configure`; el cambio de permisos de un rol se audita (ADR-0037).
+- **Estado:** Aceptada.

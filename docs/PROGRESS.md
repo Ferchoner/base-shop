@@ -67,11 +67,13 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Especificación técnica en `REQUIREMENTS.md` con casos de uso, estados, permisos, errores y requisitos no funcionales (T-002 en REVIEW)
 - [x] oxlint como herramienta de lint (ADR-0073)
 - [x] Código alineado con el stack decidido: `docs/` y `CLAUDE.md` versionados; Yarn eliminado (solo npm, ADR-0025); Vitest reemplazado por Jest (ADR-0002); eliminados los módulos generados `product/` y `cart/` y `@nestjs/observe` (ADR-0032, P-07)
+- [x] Notificaciones por correo del ciclo de la orden (ADR-0074)
+- [x] Permiso para configurar el costo de envío (ADR-0075)
 
 ## In Progress
 
 - [ ] Revisión de la especificación técnica (T-002)
-- [ ] Resolución de ambigüedades P-45, P-48, P-49 y P-56 a P-58 (T-006); contradicciones resueltas
+- [ ] Resolución de ambigüedades P-49 y P-56 a P-58 (T-006); contradicciones resueltas
 
 ## Next
 
@@ -118,8 +120,6 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-45 | Ambigüedad | Eventos que envían notificación (propuesta en ADR-0074, pendiente de aprobación) | T-215 |
-| P-48 | Ambigüedad | Permiso para configurar el costo de envío | T-196 |
 | P-49 | Ambigüedad | Reactivación de entidades suspendidas, archivadas o desactivadas | T-130, T-140, T-150 |
 | P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo | T-186 |
 | P-57 | Ambigüedad | Envíos sin paquetería | T-195 |
@@ -170,6 +170,8 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 | P-51 | Motivos de movimientos de stock | ADR-0069 |
 | P-59 | Peso y dimensiones | ADR-0058 |
 | P-62, P-63 | Sesiones al cambiar la contraseña; slugs de categorías y marcas | ADR-0072 |
+| P-45 | Notificaciones por correo | ADR-0074 |
+| P-48 | Permiso para configurar el costo de envío | ADR-0075 |
 
 ## Notas
 

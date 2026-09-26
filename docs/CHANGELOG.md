@@ -65,3 +65,4 @@
 - Node.js 24 declarado en `engines` de `package.json` y en `.nvmrc` (ADR-0025). `tsconfig.build.tsbuildinfo` deja de versionarse.
 - Aprobación formal de ADR-0066 (modelo de datos) y ADR-0071 (contratos REST, incluidos sus valores derivados). T-004 y T-005 pasan a DONE; T-110 queda desbloqueada.
 - Agregado ADR-0074 en estado Propuesta: correos al cliente por orden recibida, pagada, enviada, entregada, cancelada y reembolso completado; sin correo por expiración, pago tardío sin stock, entrega fallida ni pago fallido en el MVP. Resuelve P-45 al aprobarse.
+- ADR-0074 aceptado sin el correo de orden entregada; P-45 cerrada; nuevas reglas BR-NTF-01 a 04. Agregado ADR-0075: permiso `shipping.configure` para configurar el costo de envío, solo Superadministrador y Administrador; P-48 cerrada. T-196 y T-215 ya no dependen de decisiones pendientes de P-45 y P-48.

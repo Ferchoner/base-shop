@@ -121,7 +121,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -1127,7 +1127,7 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 | Método | Ruta | Permiso | UC |
 |---|---|---|---|
 | GET | `/v1/admin/shipping/method` | `shipping.manage` | UC-SHI-02 |
-| PUT | `/v1/admin/shipping/method` | PENDIENTE (P-48) | UC-SHI-02 |
+| PUT | `/v1/admin/shipping/method` | `shipping.configure` | UC-SHI-02 |
 | GET | `/v1/admin/shipping/shipments` | `shipping.manage` | UC-SHI-08 |
 | GET | `/v1/admin/shipping/shipments/{shipmentId}` | `shipping.manage` | UC-SHI-08 |
 | PATCH | `/v1/admin/shipping/shipments/{shipmentId}` | `shipping.manage` | UC-SHI-04 |
@@ -1139,7 +1139,7 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 **Método de envío** (`ShippingMethod { id, name, flatFee: Money, freeShippingThreshold: Money | null, isActive, version, updatedAt }`).
 
 - `GET` — 200 el método activo.
-- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0; umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso PENDIENTE (P-48).
+- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0; umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
 
 **Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
 
@@ -1185,7 +1185,6 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| P-48 | Permiso para configurar el costo de envío | `PUT /v1/admin/shipping/method` |
 | P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | Staff, clientes, productos, variantes, categorías, marcas |
 | P-56 | Enlace de acceso al pedido por correo | `POST /v1/orders/access-links`, `POST /v1/orders/access` |
 | P-57 | Envíos sin paquetería | `POST …/shipments/{id}/dispatch` |

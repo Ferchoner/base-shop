@@ -111,12 +111,13 @@ Catálogo y roles de ADR-0043.
 | `orders.manage` | ✓ | ✓ | — |
 | `payments.manage` | ✓ | ✓ | — |
 | `shipping.manage` | ✓ | ✓ | ✓ |
+| `shipping.configure` | ✓ | ✓ | — |
 | `customers.read` | ✓ | ✓ | ✓ |
 | `customers.manage` | ✓ | ✓ | — |
 | `staff.manage` | ✓ | — | — |
 | `audit.read` | ✓ | ✓ | — |
 
-Ambigüedad (P-48): la configuración del costo de envío y del umbral de envío gratis no tiene permiso asignado. Si se asigna a `shipping.manage`, el Operador podría cambiar un valor monetario.
+`shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis.
 
 ---
 
@@ -323,7 +324,7 @@ Criterios de aceptación:
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
 | UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07; base del umbral e IVA del envío PENDIENTE (P-58) |
-| UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (permiso PENDIENTE, P-48) | ADR-0042 |
+| UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (`shipping.configure`) | ADR-0042, ADR-0075 |
 | UC-SHI-03 | Crear envío en Pending | Sistema (`OrderPaid`) | BR-SHP-01, BR-SHP-02 |
 | UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04; envío sin paquetería PENDIENTE (P-57) |
 | UC-SHI-05 | Marcar despachado | Staff (`shipping.manage`) | BR-SHP-04 |
@@ -347,7 +348,7 @@ Criterios de aceptación:
 | UC-AUD-01 | Registrar evento de auditoría | Sistema | ADR-0037 |
 | UC-AUD-02 | Consultar auditoría (últimos 3 meses) | Staff (`audit.read`) | ADR-0037 |
 | UC-AUD-03 | Exportar y depurar auditoría | Sistema (job diario) | ADR-0037 |
-| UC-NTF-01 | Enviar notificaciones por correo | Sistema | ADR-0045; qué eventos notifican PENDIENTE (P-45) |
+| UC-NTF-01 | Enviar notificaciones por correo | Sistema | ADR-0045, ADR-0074, BR-NTF-01 a 04 |
 | UC-SYS-01 | Limpieza diaria | Sistema (3:00, hora de México) | ADR-0029 |
 
 Criterios de aceptación:
@@ -355,6 +356,7 @@ Criterios de aceptación:
 - **UC-AUD-01:** toda modificación del staff y todo evento de seguridad genera un registro en la misma transacción que el cambio; los valores de campos sensibles nunca se guardan.
 - **UC-AUD-02:** paginación por cursor; ningún endpoint modifica ni borra registros.
 - **UC-AUD-03:** los registros con más de 3 meses se exportan a JSON Lines con gzip (un archivo por día) y solo se borran si la exportación se verificó; los archivos con más de 2 años se borran.
+- **UC-NTF-01:** se envía un correo al email de contacto de la orden por orden recibida, pago confirmado, orden enviada (con paquetería y guía, si existen), orden cancelada (indicando si el reembolso está en proceso) y reembolso completado; no se envía por expiración, entrega, entrega fallida, devolución, pago tardío sin stock ni pago fallido; las órdenes anonimizadas no reciben correo; solo se muestra el código público; un fallo de envío se registra en logs sin el email y no revierte ni bloquea la operación que lo originó.
 - **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
 
 ---
@@ -507,10 +509,10 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-42~~ | Resuelta en ADR-0056: enlace por correo de 30 minutos; URL base del frontend configurable; el cambio obligatorio del staff pide la contraseña temporal |
 | ~~P-43~~ | Resuelta en ADR-0057: nombres y apellidos; formato de dirección con estado y municipio de lista cerrada del INEGI |
 | ~~P-44~~ | Resuelta en ADR-0059: endpoint explícito después del login; `cartId` aleatorio |
-| P-45 | Notificaciones: ¿qué eventos envían correo (orden colocada, pagada, enviada, entregada, cancelada)? |
+| ~~P-45~~ | Resuelta en ADR-0074: correo por orden recibida, pagada, enviada, cancelada y reembolsada; sin correo por entrega ni expiración |
 | ~~P-46~~ | Resuelta en ADR-0061: disponible o agotado, sin cantidades |
 | ~~P-47~~ | Resuelta en ADR-0060: búsqueda de texto completo, filtros y órdenes; excepción de solo lectura para el catálogo público |
-| P-48 | Permiso para configurar el costo de envío y el umbral |
+| ~~P-48~~ | Resuelta en ADR-0075: permiso `shipping.configure`, solo Superadministrador y Administrador |
 | P-49 | Reactivación de staff o clientes suspendidos, productos archivados, variantes descontinuadas y categorías desactivadas |
 | ~~P-50~~ | Resuelta en ADR-0068: SKU y opciones editables solo antes de la primera publicación |
 | ~~P-51~~ | Resuelta en ADR-0069: lista cerrada en código, con nota opcional (obligatoria con "Otro") |
