@@ -94,7 +94,7 @@ Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFai
 | PriceList | Activa (la predeterminada no se desactiva) | ADR-0039 |
 | Warehouse | Activo, Inactivo | ADR-0038 |
 
-Reactivación de entidades suspendidas, archivadas o desactivadas: PENDIENTE DE DECISIÓN (P-49).
+Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT; ProductVariant Descontinuada → Activa; Category y Brand Desactivada → Activa. La anonimización es irreversible.
 
 ---
 
@@ -144,9 +144,9 @@ Columna **Acceso**: Público, Cliente (registrado autenticado), Staff (`permiso`
 | UC-IAM-13 | Crear cuenta de staff con contraseña temporal | Staff (`staff.manage`) | BR-USR-09 |
 | UC-IAM-14 | Asignar roles a staff | Staff (`staff.manage`) | BR-USR-03 |
 | UC-IAM-15 | Crear, editar y borrar roles | Staff (`staff.manage`) | BR-USR-04, BR-USR-07 |
-| UC-IAM-16 | Suspender staff | Staff (`staff.manage`) | BR-USR-03, BR-USR-06 |
+| UC-IAM-16 | Suspender y reactivar staff | Staff (`staff.manage`) | BR-USR-03, BR-USR-06, BR-USR-14 |
 | UC-IAM-17 | Consultar clientes | Staff (`customers.read`) | — |
-| UC-IAM-18 | Suspender cliente | Staff (`customers.manage`) | BR-USR-02 |
+| UC-IAM-18 | Suspender y reactivar cliente | Staff (`customers.manage`) | BR-USR-02, BR-USR-14 |
 | UC-IAM-19 | Anonimizar cliente o comprador invitado | Staff (`customers.manage`) | BR-USR-06, BR-PRIV-03, ADR-0067 |
 | UC-IAM-20 | Crear el primer superadministrador | Operador técnico (script, sin API) | ADR-0043 |
 | UC-IAM-21 | Cargar o actualizar el catálogo de estados y municipios | Operador técnico (script, sin API) | BR-ADR-03, ADR-0057 |
@@ -168,6 +168,7 @@ Criterios de aceptación:
 - **UC-IAM-13:** solo `staff.manage`; la contraseña temporal la genera el sistema con al menos 15 caracteres; la cuenta exige cambio de contraseña en el primer inicio de sesión; se audita.
 - **UC-IAM-14 / 16:** no se puede dejar al sistema sin superadministrador; se audita.
 - **UC-IAM-15:** solo permisos del catálogo en código; no se borra un rol con usuarios.
+- **UC-IAM-16 / 18 (reactivación):** solo desde SUSPENDED; exige motivo y `version`; se audita como evento de seguridad; el staff reactivado recibe una contraseña temporal nueva, mostrada solo en la respuesta, y debe cambiarla en el siguiente inicio de sesión; el cliente reactivado conserva su contraseña y su verificación de email; una cuenta anonimizada no se reactiva.
 - **UC-IAM-18:** el cliente suspendido no puede iniciar sesión ni renovar tokens.
 - **UC-IAM-19:** si hay órdenes sin concluir, no se ejecuta hasta que terminen; vacía email, nombres, apellidos y hash de contraseña (estado ANONYMIZED, email liberado); revoca y borra tokens; borra direcciones y carritos; elimina email de contacto y datos de identificación de las direcciones de órdenes y envíos, conservando estado, municipio y código postal; se audita sin valores personales.
 - **UC-IAM-20:** crea un superadministrador con datos de variables de entorno; no existe ningún usuario predeterminado en el repositorio ni en migraciones.
@@ -184,12 +185,12 @@ Criterios de aceptación:
 | UC-CAT-05 | Editar datos del producto | Staff (`catalog.write`) | — |
 | UC-CAT-06 | Agregar variante | Staff (`catalog.write`) | BR-PRD-01, BR-PRD-02, BR-PRD-14 |
 | UC-CAT-07 | Editar variante | Staff (`catalog.write`) | BR-PRD-12, ADR-0068 |
-| UC-CAT-08 | Descontinuar variante | Staff (`catalog.write`) | BR-PRD-07 |
+| UC-CAT-08 | Descontinuar y reactivar variante | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-07, BR-PRD-13 |
 | UC-CAT-09 | Publicar producto | Staff (`catalog.write`) | BR-PRD-04, BR-PRD-05 |
-| UC-CAT-10 | Archivar producto | Staff (`catalog.write`) | BR-PRD-07, BR-PRD-09 |
+| UC-CAT-10 | Archivar y reactivar producto | Staff (`catalog.write`) | BR-PRD-07, BR-PRD-09, BR-PRD-13 |
 | UC-CAT-11 | Subir, reordenar y borrar imágenes | Staff (`catalog.write`) | BR-PRD-08, ADR-0024, ADR-0038 |
-| UC-CAT-12 | Gestionar categorías | Staff (`catalog.write`) | BR-PRD-03, BR-PRD-10 |
-| UC-CAT-13 | Gestionar marcas | Staff (`catalog.write`) | BR-PRD-10 |
+| UC-CAT-12 | Gestionar categorías | Staff (`catalog.write`) | BR-PRD-03, BR-PRD-10, BR-PRD-13 |
+| UC-CAT-13 | Gestionar marcas | Staff (`catalog.write`) | BR-PRD-10, BR-PRD-13 |
 | UC-CAT-14 | Listado administrativo del catálogo | Staff (`catalog.read`) | ADR-0016 |
 
 Criterios de aceptación:
@@ -199,9 +200,10 @@ Criterios de aceptación:
 - **UC-CAT-06:** SKU duplicado o reutilizado se rechaza; combinación de opciones repetida en el producto se rechaza. Peso (gramos) y dimensiones (centímetros) son opcionales y, si se capturan, deben ser positivos.
 - **UC-CAT-07:** SKU y opciones solo se editan si el producto nunca se ha publicado (el SKU anterior se libera); después se rechazan; no se agregan dimensiones de opciones a productos publicados; peso, dimensiones y estado se editan siempre.
 - **UC-CAT-09:** se rechaza sin al menos una variante activa; se permite sin precio y sin imagen.
-- **UC-CAT-10:** el slug sigue reservado; el producto deja de mostrarse en la tienda.
+- **UC-CAT-08 (reactivación):** solo desde descontinuada; se rechaza si otra variante activa del producto tiene la misma combinación de opciones; SKU y opciones no cambian.
+- **UC-CAT-10:** el slug sigue reservado; el producto deja de mostrarse en la tienda. Reactivar lo lleva de ARCHIVED a DRAFT, conserva slug y `firstPublishedAt`, y no lo muestra en la tienda hasta que se publique.
 - **UC-CAT-11:** se aceptan JPEG, PNG y WebP validados por contenido, de hasta 5 MB; el nombre en disco lo genera el servidor; borrar una imagen borra registro y archivo.
-- **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse.
+- **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
 - **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente.
 
 ### 5.3 Pricing
@@ -513,7 +515,7 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-46~~ | Resuelta en ADR-0061: disponible o agotado, sin cantidades |
 | ~~P-47~~ | Resuelta en ADR-0060: búsqueda de texto completo, filtros y órdenes; excepción de solo lectura para el catálogo público |
 | ~~P-48~~ | Resuelta en ADR-0075: permiso `shipping.configure`, solo Superadministrador y Administrador |
-| P-49 | Reactivación de staff o clientes suspendidos, productos archivados, variantes descontinuadas y categorías desactivadas |
+| ~~P-49~~ | Resuelta en ADR-0076: reactivación explícita con el mismo permiso; staff con contraseña temporal nueva; producto a DRAFT; unicidad de opciones solo entre variantes activas |
 | ~~P-50~~ | Resuelta en ADR-0068: SKU y opciones editables solo antes de la primera publicación |
 | ~~P-51~~ | Resuelta en ADR-0069: lista cerrada en código, con nota opcional (obligatoria con "Otro") |
 | ~~P-52~~ | Resuelta en ADR-0063: obligatoria en colocar orden e iniciar pago; 400, 422 y 409 |

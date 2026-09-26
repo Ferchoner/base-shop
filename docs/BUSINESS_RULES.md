@@ -17,7 +17,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas; cambiar el email obliga a verificarlo de nuevo (ADR-0046).
 - BR-USR-12. La respuesta a una solicitud de reenvío de verificación no revela si el email existe (ADR-0046).
 - BR-USR-13. Las contraseñas temporales del staff las genera el sistema con al menos 15 caracteres (ADR-0047).
-- BR-USR-14. Reactivación de cuentas suspendidas: PENDIENTE DE DEFINICIÓN (P-49).
+- BR-USR-14. Una cuenta suspendida se reactiva con una acción explícita, con motivo y auditada, por el mismo permiso que la suspende. El staff reactivado recibe una contraseña temporal nueva con cambio obligatorio y conserva sus roles; el cliente reactivado conserva su contraseña. Una cuenta anonimizada no se reactiva (ADR-0076).
 - BR-USR-15. El registro de cliente pide email, contraseña, nombres y apellidos; el teléfono se pide en cada dirección (ADR-0057).
 - BR-USR-16. La contraseña se recupera con un enlace enviado al email, de un solo uso y vigente 30 minutos; la respuesta no revela si el email existe; las cuentas suspendidas no reciben el correo; restablecer revoca todas las sesiones y envía un aviso (ADR-0056).
 - BR-USR-17. El cambio obligatorio de contraseña del staff pide la contraseña temporal (ADR-0056).
@@ -27,7 +27,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 ## Productos
 
 - BR-PRD-01. El SKU es único a nivel global.
-- BR-PRD-02. No puede haber dos variantes de un producto con la misma combinación de opciones.
+- BR-PRD-02. No puede haber dos variantes activas de un producto con la misma combinación de opciones; las descontinuadas no cuentan (ADR-0076).
 - BR-PRD-03. Mover una categoría no puede crear ciclos en el árbol.
 - BR-PRD-04. Solo se publica un producto con al menos una variante activa.
 - BR-PRD-05. Publicar no exige precio vigente ni imagen (ADR-0016).
@@ -38,7 +38,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRD-10. Una categoría o marca solo se borra si no tiene productos ni subcategorías; si no, se desactiva.
 - BR-PRD-11. Una variante es vendible si su producto está publicado, la variante está activa y tiene precio vigente en la lista predeterminada (deriva de BR-PRD-06 y ADR-0016). El carrito y el checkout rechazan variantes no vendibles.
 - BR-PRD-12. SKU y opciones de una variante solo se editan mientras su producto nunca se ha publicado; el SKU anterior se libera en ese caso. Después quedan fijos, y no se agregan dimensiones de opciones a un producto publicado. Peso, dimensiones y estado se editan siempre (ADR-0068).
-- BR-PRD-13. Reactivación de productos archivados, variantes descontinuadas y categorías desactivadas: PENDIENTE DE DEFINICIÓN (P-49).
+- BR-PRD-13. Un producto archivado se reactiva a DRAFT y se publica con el flujo normal; una variante descontinuada se reactiva solo si ninguna variante activa del producto tiene su combinación de opciones; una categoría se reactiva solo si su padre está activa o es raíz, sin reactivar subcategorías; una marca se reactiva sin condiciones. Todas con `catalog.write` (ADR-0076).
 - BR-PRD-14. Peso (gramos) y dimensiones (centímetros) de una variante son opcionales (ADR-0058).
 - BR-PRD-15. En el catálogo público, el precio de un producto para filtrar y ordenar es el más bajo entre sus variantes vendibles, con IVA incluido (ADR-0060).
 - BR-PRD-16. El slug de una categoría o marca se puede cambiar; el anterior deja de funcionar y queda libre. Riesgo aceptado: los enlaces que usaban el slug anterior se rompen (ADR-0072).

@@ -236,7 +236,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | length_cm, width_cm, height_cm | numeric(7,1) | Sí | `CHECK (> 0)` cada una |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `UNIQUE (product_id, options)`: `jsonb` normaliza el orden de las llaves, así que dos combinaciones iguales chocan (BR-PRD-02).
+- **Restricciones:** índice único parcial `(product_id, options) WHERE status = 'ACTIVE'` (ADR-0076): `jsonb` normaliza el orden de las llaves, así que dos combinaciones iguales entre variantes activas chocan (BR-PRD-02). Las descontinuadas no cuentan, lo que permite corregir una variante descontinuándola y creando otra con las mismas opciones (ADR-0068).
 - **Índices:** `(product_id)`.
 - **Integridad:** nunca se borra; se descontinúa. SKU y opciones son editables solo mientras el producto no tiene `first_published_at`; peso, dimensiones y estado, siempre (ADR-0068).
 

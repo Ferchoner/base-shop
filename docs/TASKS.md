@@ -19,7 +19,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-002 | Definir actores y alcance | REVIEW | T-006 | Especificación técnica en `REQUIREMENTS.md`: actores, módulos, estados, permisos, casos de uso con criterios de aceptación, flujos, errores, dependencias y requisitos no funcionales. Pasa a DONE cuando se aprueba y se resuelven P-34 a P-60 |
 | T-003 | Aprobar arquitectura | DONE | — | ADR-0004, ADR-0005 y ADR-0019 en estado Aceptada |
 | T-004 | Aprobar modelo de datos | DONE | T-003; aprobación de ADR-0066 | Esquema por contexto, diagrama ER, índices y restricciones documentados en `DATABASE.md` |
-| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-49, P-56 a P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
+| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-56 a P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
 | T-005 | Aprobar contratos API | DONE | T-003; aprobación de ADR-0071 | Endpoints del MVP documentados en `API_SPEC.md` (método, ruta, autenticación, permiso, request, parámetros, response, códigos, errores, validaciones, paginación, filtros, orden e idempotencia), con cobertura de todos los casos de uso |
 
 ## Fundaciones técnicas (sin lógica de negocio)
@@ -55,12 +55,12 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-122 | Puerto de envío de correos con adaptador al capturador local; URL base del frontend configurable para los enlaces (ADR-0056) | TODO | T-102 |
 | T-123 | Identity & Access: recuperación de contraseña por enlace (ADR-0056); UC-IAM-07, 08 | TODO | T-120, T-122 |
 | T-124 | Catálogo geográfico del INEGI: tablas, script de importación idempotente y consulta pública de estados y municipios; UC-IAM-21, 22 | TODO | T-110 |
-| T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); UC-IAM-11 a 19 | TODO | T-110, T-112, T-124, P-49 |
+| T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); UC-IAM-11 a 19 | TODO | T-110, T-112, T-124 |
 | T-131 | Identity & Access: script manual para crear el primer superadministrador y alta de staff con contraseña temporal; UC-IAM-13, UC-IAM-20 | TODO | T-130, T-120 |
-| T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141, P-49 |
+| T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141 |
 | T-141 | Almacenamiento de imágenes: puerto y adaptador de disco local con URL base configurable; validación de formato (JPEG, PNG, WebP) y tamaño (5 MB) | TODO | T-100 |
 | T-145 | Pricing: lista predeterminada, precios y periodos; formato de carga masiva; UC-PRC-01 a 06 | TODO | T-140 |
-| T-150 | Catalog: categorías y marcas; UC-CAT-03, 12, 13 | TODO | T-110, P-49 |
+| T-150 | Catalog: categorías y marcas; UC-CAT-03, 12, 13 | TODO | T-110 |
 | T-160 | Inventory: almacenes, stock y reservas (incluye pruebas de concurrencia); UC-INV-01 a 07 | TODO | T-140, T-111 |
 | T-161 | Inventory: reintegro de stock de órdenes canceladas o con envío devuelto (independiente, y opcional al cancelar o al registrar el reembolso sin reintegro previo, ADR-0052); UC-INV-09 | TODO | T-160, T-180, T-190, T-195 |
 | T-170 | Shopping: carrito, con `cartId` aleatorio y fusión explícita (ADR-0059); UC-CRT-01 a 06 | TODO | T-140, T-145, T-160 |

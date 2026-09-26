@@ -31,7 +31,7 @@ Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de doma
 | Value Objects | `Email`, `PermissionCode`, `Address` (formato de ADR-0057), `PersonName` (nombres y apellidos) |
 | Eventos | `UserRegistered`, `UserSuspended`, `RolePermissionsChanged` |
 | Repositories | `UserRepository`, `RoleRepository`, `AddressBookRepository` |
-| Casos de uso | RegisterCustomer, Authenticate, RefreshSession, Logout, ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ManageAddresses |
+| Casos de uso | RegisterCustomer, Authenticate, RefreshSession, Logout, ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ReactivateUser (ADR-0076), ManageAddresses |
 | No sale del contexto | passwordHash, tokens, intentos de login, datos de recuperación |
 
 Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del contexto; su revocación responde a `UserSuspended`.
@@ -44,7 +44,7 @@ Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del 
 | Value Objects | `Sku`, `Slug`, `VariantOptions` |
 | Eventos | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` |
 | Repositories | `ProductRepository`, `CategoryRepository`, `BrandRepository`; `CatalogQueryService` (lectura) |
-| Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, PublishProduct, ArchiveProduct, AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug |
+| Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, ReactivateVariant, PublishProduct, ArchiveProduct, ReactivateProduct (ADR-0076), AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug |
 | Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado |
 
 ## Pricing

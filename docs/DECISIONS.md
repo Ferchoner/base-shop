@@ -93,7 +93,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0073 | Herramienta de lint | Aceptada |
 | ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
-| ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Propuesta |
+| ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
 
 ---
 
@@ -1279,7 +1279,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean.
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076: la unicidad de opciones de `product_variants` cuenta solo variantes activas.
 
 ---
 
@@ -1496,7 +1496,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una cuenta de staff puede suspenderse por sospecha de que su contraseña está comprometida.
   - La anonimización es irreversible (ADR-0067) y queda fuera de esta decisión.
   - La restricción `UNIQUE (product_id, options)` de `product_variants` (ADR-0066) incluye las variantes descontinuadas. Con ella, la corrección que prevé ADR-0068 (descontinuar una variante y crear otra con las mismas opciones y el SKU correcto) es imposible.
-- **Decisión propuesta:**
+- **Decisión:**
   - **Criterio general:** cada desactivación de P-49 se revierte con una acción explícita `POST …/reactivate`, con el mismo permiso que la desactivación. Se audita. No se emiten eventos nuevos (no tienen consumidor) y la cache refleja la reactivación al vencer su TTL (ADR-0028).
 
     | Entidad | Transición | Permiso | Reglas |
@@ -1516,4 +1516,4 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se retiran las notas "irreversible mientras P-49 esté abierta" (descontinuar variante) y "archivado mientras P-49 esté abierta" (publicar producto): un producto archivado primero se reactiva a DRAFT y luego se publica.
   - La reactivación de staff y clientes es un evento de seguridad auditado, igual que la suspensión (ADR-0037).
   - Fuera de alcance: almacenes y listas de precios desactivados (ADR-0038) tampoco tienen reactivación, pero no forman parte de P-49.
-- **Estado:** Propuesta.
+- **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`.
