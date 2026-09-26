@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-INITIALIZATION — Sprint 0 (Discovery and Architecture)
+INITIALIZATION — Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26; Sprint Review en `SPRINT.md`. Siguiente: Sprint 1 (fundaciones técnicas), pendiente de aprobación.
 
 ## Completed
 
@@ -86,7 +86,7 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 
 ## Next
 
-- [ ] Fundaciones técnicas (T-100 a T-119, T-126 y T-127)
+- [ ] Sprint 1: fundaciones técnicas (T-100 a T-107, T-110 a T-119, T-126 y T-127); propuesta en `SPRINT.md`, pendiente de aprobación
 
 ## Blocked
 

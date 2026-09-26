@@ -92,4 +92,4 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 ## 8. Estado
 
-Fase: Inicialización / Sprint 0 (Discovery and Architecture). Diseño de dominio y decisiones de arquitectura aprobados formalmente. Especificación técnica (T-002), modelo de datos (T-004) y contratos de la API (T-005) aprobados; tareas del Sprint 0 completadas. Ver `PROGRESS.md`.
+Fase: Inicialización. Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Siguiente: Sprint 1 (fundaciones técnicas), pendiente de aprobación. Ver `SPRINT.md` y `PROGRESS.md`.
