@@ -102,6 +102,8 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 | ADR-0083 | Plazo de entrega estimado | Aceptada |
 | ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
+| ADR-0085 | CORS | Aceptada |
+| ADR-0086 | Encabezados de seguridad de las respuestas HTTP | Aceptada |
 
 ---
 
@@ -1697,4 +1699,66 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - T-104 queda sin decisiones pendientes; `.prettierignore` y los scripts de formato ya existen.
   - El paso "lint y formato" de la CI ejecuta `npm run lint` y `npm run format:check`.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0085 — CORS
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-65. CORS solo aplica a clientes que corren en un navegador desde otro origen (un frontend web); las aplicaciones móviles, los servicios y los webhooks no pasan por él. Hechos relevantes:
+  - La API no usa cookies: el token de acceso viaja en `Authorization: Bearer` (ADR-0023). Por eso no se necesita `Access-Control-Allow-Credentials`, que es la configuración más riesgosa de CORS, y otro sitio no puede usar la sesión de un usuario.
+  - El frontend aún no existe y el proyecto solo corre en local (ADR-0031), así que los orígenes concretos no se conocen.
+  - CORS no es control de acceso: un origen no permitido no recibe los encabezados CORS y el navegador bloquea la respuesta, pero la autorización sigue dependiendo del token y de los permisos.
+  - El navegador solo deja leer al código del frontend los encabezados de respuesta básicos; `Location`, `Retry-After` y `X-Correlation-Id` (sección 2.4 de `API_SPEC.md`) deben exponerse explícitamente.
+- **Decisión:**
+  - **Lista de orígenes permitidos** en una variable de entorno (`CORS_ALLOWED_ORIGINS`), con orígenes exactos separados por coma (esquema, host y puerto; por ejemplo, `http://localhost:5173`), declarada en `.env.example` con un valor de ejemplo no real.
+  - **Vacía por defecto:** sin orígenes configurados, la API no permite acceso desde navegadores de otros orígenes.
+  - **Sin comodín:** la validación de configuración al arrancar rechaza `*` y los orígenes mal formados, y la API no inicia (ADR-0032).
+  - **Una sola lista** para todos los grupos de rutas (público, cuenta y administración); los webhooks no dependen de CORS.
+  - **Configuración fija:**
+
+    | Parámetro | Valor |
+    |---|---|
+    | Credenciales | No (`Access-Control-Allow-Credentials` ausente) |
+    | Métodos | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+    | Encabezados de solicitud | `Authorization`, `Content-Type`, `Idempotency-Key` |
+    | Encabezados expuestos | `Location`, `Retry-After`, `X-Correlation-Id` |
+    | Caché de la solicitud previa (preflight) | 600 segundos |
+
+  - La URL base del frontend para los enlaces de correo (ADR-0056) es otra variable; su origen normalmente también estará en la lista, pero no se deriva automáticamente.
+- **Alternativas consideradas:** Comodín `*` (aceptable sin cookies, pero deja el acceso abierto a cualquier sitio y no se puede combinar con credenciales si algún día se usan); listas separadas para rutas públicas y administrativas (más configuración sin ganancia real mientras la autorización sea por token); posponer la decisión hasta tener frontend (el mecanismo no depende de los orígenes concretos).
+- **Consecuencias:**
+  - La implementación forma parte de T-100 (configuración validada al arrancar).
+  - Cuando exista el frontend, habilitarlo es un cambio de configuración, no de código.
+  - Si algún día se usan cookies, hay que revisar este ADR y la protección contra CSRF (`SECURITY.md`).
+- **Revisar si:** se usan cookies, se agrega un encabezado de solicitud o de respuesta nuevo, o el panel de administración necesita una lista propia.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0086 — Encabezados de seguridad de las respuestas HTTP
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-71. Solo estaba decidido `Cache-Control: no-store` en respuestas autenticadas o con datos personales (ADR-0071). La API responde casi siempre JSON; las excepciones son Swagger UI, que solo se sirve en local (ADR-0031), y las imágenes de productos si las sirve la API (ADR-0024, P-06). HTTPS lo termina quien se elija con el hosting.
+- **Decisión:**
+  - **Encabezados que pone la API en todas sus respuestas:**
+
+    | Encabezado | Valor |
+    |---|---|
+    | `X-Content-Type-Options` | `nosniff` |
+    | `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'` |
+    | `X-Frame-Options` | `DENY` |
+    | `Referrer-Policy` | `no-referrer` |
+    | `X-Powered-By` | Se elimina |
+    | `Cache-Control` | `no-store` donde lo exige ADR-0071 |
+
+  - **A cargo de quien termine HTTPS**, definido con el hosting (P-06): HSTS, configuración TLS y redirección de HTTP a HTTPS. La API no envía HSTS.
+  - **Swagger UI:** política CSP más permisiva solo en su ruta, que existe únicamente en local.
+  - **Implementación:** `helmet` con configuración explícita, no la de fábrica. En particular, no se envía `Cross-Origin-Resource-Policy: same-origin`, porque bloquearía las imágenes que la tienda cargue desde otro origen, ni HSTS, que corresponde al proxy.
+- **Alternativas consideradas:** `helmet` con su configuración de fábrica (bloquea imágenes entre orígenes y duplica HSTS); middleware propio (menos dependencias, pero hay que mantener lo que `helmet` ya resuelve); HSTS desde la API.
+- **Consecuencias:**
+  - Los encabezados se configuran en T-100; la política de Swagger UI, en T-114.
+  - Al elegir hosting (P-06) se configuran HSTS, TLS y la redirección a HTTPS, y se revisa que las imágenes lleven `X-Content-Type-Options: nosniff` las sirva quien las sirva.
+- **Revisar si:** la API empieza a servir HTML, se usan cookies o cambia quién sirve las imágenes.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

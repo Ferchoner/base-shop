@@ -481,13 +481,14 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Observabilidad | Logs en consola con nivel configurable e identificador de correlación | ADR-0032, ADR-0033 |
 | Compatibilidad | Solo cambios compatibles dentro de `v1` | ADR-0034 |
 | Independencia del frontend | Sin cookies ni supuestos de cliente | ADR-0010, ADR-0023 |
+| CORS | Orígenes exactos en variable de entorno, vacía por defecto; sin comodín ni credenciales | ADR-0085 |
+| Encabezados de seguridad | `nosniff`, CSP restrictiva, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, sin `X-Powered-By`; HSTS a cargo de quien termine HTTPS | ADR-0086 |
 | Escalado | Una sola instancia (disco local, cache y jobs en proceso) | ADR-0024, ADR-0028, ADR-0029 |
 
 ### 9.2 Pendientes
 
 - Disponibilidad, tiempos de respuesta y volumen esperado: PENDIENTE DE DECISIÓN (P-14).
 - Métricas, trazas y seguimiento de errores: PENDIENTE DE DECISIÓN (P-07).
-- CORS: PENDIENTE DE DECISIÓN (P-65; depende de clientes que aún no existen).
 - Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, fuera del MVP; plazos PENDIENTES DE VALIDACIÓN LEGAL (P-61).
 
 ---

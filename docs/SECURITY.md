@@ -100,7 +100,21 @@ ADR-0032:
 
 CSRF: no aplica a la autenticación, porque las credenciales viajan en el encabezado `Authorization` y no en cookies (ADR-0023). Si en el futuro se usan cookies, revisar.
 
-CORS: orígenes permitidos PENDIENTES DE DEFINICIÓN (P-65); dependen de clientes que aún no existen.
+CORS (ADR-0085):
+
+- Orígenes permitidos: lista de orígenes exactos en `CORS_ALLOWED_ORIGINS`, vacía por defecto; sin configurarla, ningún navegador de otro origen puede usar la API.
+- Sin comodín: la validación de configuración rechaza `*` y los orígenes mal formados, y la API no inicia.
+- Sin credenciales; métodos `GET`, `POST`, `PUT`, `PATCH` y `DELETE`; encabezados de solicitud `Authorization`, `Content-Type` e `Idempotency-Key`; encabezados expuestos `Location`, `Retry-After` y `X-Correlation-Id`; preflight en caché 600 segundos.
+- Una sola lista para todas las rutas. CORS no sustituye la autorización: cada solicitud sigue validando token y permisos.
+
+## Encabezados de seguridad
+
+ADR-0086, con `helmet` y configuración explícita:
+
+- En todas las respuestas de la API: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, sin `X-Powered-By`, y `Cache-Control: no-store` donde lo exige ADR-0071.
+- Swagger UI (solo en local): política CSP más permisiva únicamente en su ruta.
+- Sin `Cross-Origin-Resource-Policy: same-origin`, para no bloquear las imágenes que la tienda cargue desde otro origen.
+- HSTS, TLS y redirección a HTTPS: a cargo de quien termine HTTPS, definido con el hosting (P-06). La API no envía HSTS.
 
 ## Rate limiting
 

@@ -93,6 +93,10 @@ Las operaciones del cliente sobre su carrito no exigen `version`; el servidor re
 | `Retry-After` | Respuesta | En 429 y en 409 `idempotency-request-in-progress` |
 | `Cache-Control: no-store` | Respuesta | En toda respuesta autenticada y en las que contienen datos personales o tokens (ADR-0071) |
 
+CORS (ADR-0085): solo los orígenes de `CORS_ALLOWED_ORIGINS` (vacía por defecto, sin comodín ni credenciales). Un navegador puede enviar `Authorization`, `Content-Type` e `Idempotency-Key`, y leer `Location`, `Retry-After` y `X-Correlation-Id`. Un encabezado nuevo de solicitud o de respuesta obliga a revisar esta lista.
+
+Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`, y no lleva `X-Powered-By`. Swagger UI, solo en local, tiene una CSP más permisiva en su ruta.
+
 ---
 
 ## 3. Autenticación y autorización

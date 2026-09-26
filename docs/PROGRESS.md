@@ -74,9 +74,11 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Entrega propia sin paquetería; recoger en tienda fuera del MVP (ADR-0078)
 - [x] IVA incluido en el costo de envío y umbral de envío gratis sobre el subtotal con IVA (ADR-0079)
 - [x] Contradicciones y ambigüedades de la especificación resueltas (T-006)
-- [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas) , ADR-0081 (un solo almacén en el MVP) y ADR-0082 (recompra sin carrito original)
+- [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas), ADR-0081 (un solo almacén en el MVP) y ADR-0082 (recompra sin carrito original)
 - [x] Plazo de entrega estimado en días hábiles, configurable (ADR-0083)
 - [x] Formato con Prettier; ramas, commits y pull requests en inglés con Conventional Commits (ADR-0084)
+- [x] CORS con lista de orígenes por variable de entorno, sin comodín ni credenciales (ADR-0085)
+- [x] Encabezados de seguridad de las respuestas con `helmet` y configuración explícita; HSTS a cargo del proxy (ADR-0086)
 
 ## In Progress
 
@@ -98,16 +100,14 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-05 | CD: entornos, disparador, registro de imágenes, migraciones en el despliegue, reversión. Pospuesta hasta tener hosting | T-330 |
-| P-06 | Hosting para entorno compartido o producción (hoy solo local, ADR-0031) | T-330 |
+| P-06 | Hosting para entorno compartido o producción (hoy solo local, ADR-0031); incluye HSTS, TLS y redirección a HTTPS (ADR-0086) | T-330 |
 | P-07 | Métricas, trazas y seguimiento de errores (logs locales ya decididos, ADR-0032) | — |
 | P-13 | Almacén de secretos en el servidor (local ya decidido, ADR-0032) | — |
 | P-31 | Pruebas de webhooks de pago: herramienta de túnel y procedimiento por proveedor | T-191 |
 
 ### API
 
-| ID | Decisión | Bloquea |
-|---|---|---|
-| P-65 | CORS: orígenes permitidos; dependen de clientes que aún no existen | — |
+Ninguna pendiente.
 
 ### Negocio
 
@@ -182,6 +182,8 @@ Ninguna pendiente.
 | P-58 | IVA del envío y base del umbral de envío gratis | ADR-0079 |
 | P-66 | Efecto de desactivar categorías y marcas en la tienda | ADR-0080 |
 | P-64 | Plazo de entrega estimado | ADR-0083 |
+| P-65 | CORS | ADR-0085 |
+| P-71 | Encabezados de seguridad de las respuestas HTTP | ADR-0086 |
 | P-70 | Formato de código, ramas y mensajes de commit | ADR-0084 |
 | P-67 | Un solo almacén en el MVP | ADR-0081 |
 | P-68 | Recompra del staff sin carrito original | ADR-0082 |
