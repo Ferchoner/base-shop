@@ -90,6 +90,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0070 | Ciclo de conservación de datos personales en órdenes | Aceptada |
 | ADR-0071 | Contratos REST y convenciones de la API | Propuesta |
 | ADR-0072 | Sesiones al cambiar la contraseña y slugs de categorías y marcas | Aceptada |
+| ADR-0073 | Herramienta de lint | Aceptada |
 
 ---
 
@@ -1406,4 +1407,18 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Riesgo aceptado:** cambiar el slug de una categoría o marca rompe los enlaces públicos que usaban el anterior (responden 404), y si el slug liberado se reutiliza, un enlace antiguo puede llevar a otra categoría o marca. No se implementan redirecciones.
 - **Alternativas consideradas:** Conservar las demás sesiones; revocar todas, incluida la actual; slugs inmutables; historial de slugs con redirección.
 - **Consecuencias:** La regla de slugs de productos no cambia: el slug de un producto se bloquea tras su primera publicación y nunca se reutiliza (BR-PRD-09, ADR-0071).
+- **Estado:** Aceptada.
+
+---
+
+## ADR-0073 — Herramienta de lint
+
+- **Fecha:** 2026-09-25
+- **Contexto:** ADR-0030 dejó la herramienta de lint para T-104. El proyecto inicial de NestJS ya trae oxlint configurado (`oxlint.json`, script `npm run lint`).
+- **Decisión:** oxlint como herramienta de lint.
+- **Alternativas consideradas:** ESLint con `typescript-eslint`.
+- **Consecuencias:**
+  - El paso "lint y formato" de la CI (ADR-0030) ejecuta oxlint.
+  - oxlint no admite `eslint-plugin-boundaries`, así que la verificación de límites entre módulos (ADR-0005, T-103) se hace con otra herramienta, por ejemplo `dependency-cruiser`.
+  - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier).
 - **Estado:** Aceptada.

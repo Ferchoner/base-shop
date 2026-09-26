@@ -59,6 +59,7 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 | Colas / jobs | Definido parcialmente | Sin colas de mensajes; eventos en proceso sin outbox. Jobs con `@nestjs/schedule` en el proceso de la API: expiración cada minuto, conciliación de pagos cada 5 minutos, limpieza diaria a las 3:00 | ADR-0014, ADR-0029 |
 | Testing | Definido | Jest. Tests de integración contra PostgreSQL 18 real en Docker, sin mocks de base de datos | ADR-0002, ADR-0033 |
 | Docker | Definido parcialmente | Docker forma parte del stack. Uso concreto (desarrollo, imagen de producción) pendiente de definir | ADR-0002 |
+| Lint | Definido | oxlint. Formato pendiente de confirmar en T-104 | ADR-0073 |
 | CI | Definido | GitHub Actions; pipeline en cada pull request; rama principal protegida; GitHub Flow; Dependabot semanal | ADR-0030 |
 | CD | Pospuesto | Sin hosting no hay a dónde desplegar (P-05) | ADR-0031 |
 | Hosting | Definido (temporal) | Solo entorno local con Docker Compose. Candidatos futuros: Oracle Cloud Always Free o VPS de bajo costo (P-06) | ADR-0031 |

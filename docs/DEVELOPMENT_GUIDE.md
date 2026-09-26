@@ -46,7 +46,9 @@ Ramas e integración continua (ADR-0030):
 - El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
 - Dependabot abre actualizaciones de dependencias agrupadas cada semana.
 
-PENDIENTE DE DEFINICIÓN: herramientas de lint y formato, convención de nombres de ramas y de mensajes de commit.
+Lint con oxlint (`npm run lint`, ADR-0073).
+
+PENDIENTE DE DEFINICIÓN: herramienta de formato, convención de nombres de ramas y de mensajes de commit.
 
 ## Configuración local
 

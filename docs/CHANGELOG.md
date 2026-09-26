@@ -59,3 +59,5 @@
 - Agregado ADR-0070: ciclo de conservación de datos personales en órdenes (operativa, bloqueo, anonimización) con plazos configurables, fuera del MVP, y preguntas para validación legal. P-61 queda abierta solo para la validación legal; nueva tarea T-232 (DEFERRED).
 - `API_SPEC.md`: contratos REST completos propuestos (convenciones, autenticación, idempotencia, listados, catálogo de 36 tipos de error RFC 9457, rate limiting, representaciones compartidas y endpoints de todos los contextos, con cobertura de casos de uso). Agregado ADR-0071 en estado Propuesta; nuevos errores E-27 a E-33 y pendientes P-62 y P-63. T-005 en REVIEW; sin endpoints implementados.
 - Agregado ADR-0072: cambiar la contraseña revoca las demás sesiones y conserva la actual; el slug de categorías y marcas se puede cambiar con riesgo aceptado de romper enlaces. P-62 y P-63 cerradas; nuevas reglas BR-USR-19 y BR-PRD-16.
+- `docs/` y `CLAUDE.md` pasan a versionarse en Git.
+- Agregado ADR-0073: oxlint como herramienta de lint; la verificación de límites (T-103) usará otra herramienta.
