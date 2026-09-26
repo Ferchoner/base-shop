@@ -17,7 +17,10 @@
 Definidas por el stack (ADR-0002, ADR-0003):
 
 - TypeScript en modo estricto.
-- Un módulo de NestJS por bounded context, con capas `domain`, `application`, `infrastructure` y `presentation` (ver `ARCHITECTURE.md`).
+- Un módulo de NestJS por bounded context en `src/modules/<contexto>/`, con capas `domain`, `application`, `infrastructure` y `presentation`, un `<contexto>.module.ts` y un `index.ts` como API pública (ADR-0088, `ARCHITECTURE.md`).
+- Infraestructura técnica transversal en `src/platform/`; `Money`, IDs, errores y eventos base en `src/shared-kernel/`.
+- Imports relativos, sin alias de rutas. Entre módulos, solo desde el `index.ts` del otro módulo.
+- Nombres de archivo en kebab-case con sufijo de rol: `order.ts`, `order.repository.ts` (interfaz en `domain`), `prisma-order.repository.ts` (en `infrastructure`), `place-order.use-case.ts`, `ordering.facade.ts`, `order.controller.ts`, `place-order.dto.ts`. Tests unitarios junto al código, como `*.spec.ts`.
 - Domain no importa NestJS ni Prisma. `@prisma/client` solo en Infrastructure.
 - Interfaces de repositories en Domain; implementaciones en Infrastructure.
 - DTOs HTTP solo en Presentation.
@@ -62,7 +65,7 @@ Ramas y commits (ADR-0084), en inglés:
 ## Configuración local
 
 - Copiar `.env.example` a `.env` y completar los valores. `.env` nunca se versiona. Sin `.env` (o sin las variables en el entorno), la API no arranca: la configuración se valida al iniciar y el error indica qué variable falta o es inválida (ADR-0032, ADR-0087).
-- El código lee la configuración tipada con `ConfigService`, nunca `process.env` directamente. Las variables se declaran en `src/config/environment.ts` y en `.env.example`.
+- El código lee la configuración tipada con `ConfigService`, nunca `process.env` directamente. Las variables se declaran en `src/platform/config/environment.ts` y en `.env.example`.
 - Los tests no leen `.env`: toman las variables del proceso, para que la configuración local no cambie sus resultados.
 - Toda variable nueva se agrega a `.env.example` en el mismo cambio, con descripción y valor de ejemplo no real.
 - El proyecto corre solo en local por ahora (ADR-0031).

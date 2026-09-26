@@ -80,6 +80,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] CORS con lista de orígenes por variable de entorno, sin comodín ni credenciales (ADR-0085)
 - [x] Encabezados de seguridad de las respuestas con `helmet` y configuración explícita; HSTS a cargo del proxy (ADR-0086)
 - [x] T-100: configuración validada al arrancar con `@nestjs/config` y class-validator (ADR-0087), `.env.example`, CORS (ADR-0085) y encabezados de seguridad (ADR-0086)
+- [x] T-101: estructura de carpetas (`platform`, `shared-kernel`, `modules/<contexto>` con cuatro capas) y convenciones de nombres (ADR-0088)
 
 ## In Progress
 

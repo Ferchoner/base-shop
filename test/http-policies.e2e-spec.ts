@@ -4,6 +4,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 
 const ALLOWED_ORIGIN = 'https://shop.example.test';
+// Policies apply to every response, including 404s, so an unknown route is enough to check them.
+const ANY_PATH = '/v1/any-route';
 
 describe('HTTP policies (e2e)', () => {
   let app: INestApplication<App>;
@@ -12,7 +14,8 @@ describe('HTTP policies (e2e)', () => {
     // ConfigModule validates the environment when AppModule is loaded, so set it first.
     process.env.CORS_ALLOWED_ORIGINS = ALLOWED_ORIGIN;
     const { AppModule } = await import('../src/app.module.js');
-    const { configureHttp } = await import('../src/http/configure-http.js');
+    const { configureHttp } =
+      await import('../src/platform/http/configure-http.js');
 
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
@@ -29,7 +32,9 @@ describe('HTTP policies (e2e)', () => {
 
   describe('security headers (ADR-0086)', () => {
     it('sends the agreed headers and nothing that belongs to other layers', async () => {
-      const response = await request(app.getHttpServer()).get('/').expect(200);
+      const response = await request(app.getHttpServer())
+        .get(ANY_PATH)
+        .expect(404);
 
       expect(response.headers['x-content-type-options']).toBe('nosniff');
       expect(response.headers['content-security-policy']).toBe(
@@ -49,9 +54,9 @@ describe('HTTP policies (e2e)', () => {
   describe('CORS (ADR-0085)', () => {
     it('allows a configured origin and exposes the agreed headers', async () => {
       const response = await request(app.getHttpServer())
-        .get('/')
+        .get(ANY_PATH)
         .set('Origin', ALLOWED_ORIGIN)
-        .expect(200);
+        .expect(404);
 
       expect(response.headers['access-control-allow-origin']).toBe(
         ALLOWED_ORIGIN,
@@ -66,9 +71,9 @@ describe('HTTP policies (e2e)', () => {
 
     it('does not allow an origin outside the list', async () => {
       const response = await request(app.getHttpServer())
-        .get('/')
+        .get(ANY_PATH)
         .set('Origin', 'https://evil.example.test')
-        .expect(200);
+        .expect(404);
 
       expect(response.headers).not.toHaveProperty(
         'access-control-allow-origin',
@@ -77,7 +82,7 @@ describe('HTTP policies (e2e)', () => {
 
     it('answers the preflight with the agreed methods, headers and cache time', async () => {
       const response = await request(app.getHttpServer())
-        .options('/')
+        .options(ANY_PATH)
         .set('Origin', ALLOWED_ORIGIN)
         .set('Access-Control-Request-Method', 'POST')
         .set('Access-Control-Request-Headers', 'Authorization, Idempotency-Key')
