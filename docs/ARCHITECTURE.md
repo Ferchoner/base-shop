@@ -131,6 +131,10 @@ Requisitos mínimos ya identificados:
 
 Lista de orígenes permitidos en `CORS_ALLOWED_ORIGINS`, vacía por defecto y sin comodín; sin credenciales, porque la API no usa cookies. Métodos, encabezados permitidos y expuestos, y caché del preflight son fijos (ADR-0085).
 
+## Encabezados de seguridad
+
+`helmet` con configuración explícita (ADR-0086): `nosniff`, CSP restrictiva para respuestas JSON, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` y sin `X-Powered-By`. HSTS, TLS y redirección a HTTPS los pone quien termine HTTPS (hosting, P-06).
+
 ## Reloj
 
 Las reglas dependientes del tiempo (precios programados, expiraciones) usan un puerto `Clock` inyectado para poder probarse.

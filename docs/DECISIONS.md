@@ -103,6 +103,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0083 | Plazo de entrega estimado | Aceptada |
 | ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
 | ADR-0085 | CORS | Aceptada |
+| ADR-0086 | Encabezados de seguridad de las respuestas HTTP | Aceptada |
 
 ---
 
@@ -1732,4 +1733,32 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cuando exista el frontend, habilitarlo es un cambio de configuración, no de código.
   - Si algún día se usan cookies, hay que revisar este ADR y la protección contra CSRF (`SECURITY.md`).
 - **Revisar si:** se usan cookies, se agrega un encabezado de solicitud o de respuesta nuevo, o el panel de administración necesita una lista propia.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0086 — Encabezados de seguridad de las respuestas HTTP
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-71. Solo estaba decidido `Cache-Control: no-store` en respuestas autenticadas o con datos personales (ADR-0071). La API responde casi siempre JSON; las excepciones son Swagger UI, que solo se sirve en local (ADR-0031), y las imágenes de productos si las sirve la API (ADR-0024, P-06). HTTPS lo termina quien se elija con el hosting.
+- **Decisión:**
+  - **Encabezados que pone la API en todas sus respuestas:**
+
+    | Encabezado | Valor |
+    |---|---|
+    | `X-Content-Type-Options` | `nosniff` |
+    | `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'` |
+    | `X-Frame-Options` | `DENY` |
+    | `Referrer-Policy` | `no-referrer` |
+    | `X-Powered-By` | Se elimina |
+    | `Cache-Control` | `no-store` donde lo exige ADR-0071 |
+
+  - **A cargo de quien termine HTTPS**, definido con el hosting (P-06): HSTS, configuración TLS y redirección de HTTP a HTTPS. La API no envía HSTS.
+  - **Swagger UI:** política CSP más permisiva solo en su ruta, que existe únicamente en local.
+  - **Implementación:** `helmet` con configuración explícita, no la de fábrica. En particular, no se envía `Cross-Origin-Resource-Policy: same-origin`, porque bloquearía las imágenes que la tienda cargue desde otro origen, ni HSTS, que corresponde al proxy.
+- **Alternativas consideradas:** `helmet` con su configuración de fábrica (bloquea imágenes entre orígenes y duplica HSTS); middleware propio (menos dependencias, pero hay que mantener lo que `helmet` ya resuelve); HSTS desde la API.
+- **Consecuencias:**
+  - Los encabezados se configuran en T-100; la política de Swagger UI, en T-114.
+  - Al elegir hosting (P-06) se configuran HSTS, TLS y la redirección a HTTPS, y se revisa que las imágenes lleven `X-Content-Type-Options: nosniff` las sirva quien las sirva.
+- **Revisar si:** la API empieza a servir HTML, se usan cookies o cambia quién sirve las imágenes.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
