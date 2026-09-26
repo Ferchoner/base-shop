@@ -435,6 +435,7 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
   "discountTotal": { "amount": 0, "currency": "MXN" },
   "grandTotal": { "amount": 129700, "currency": "MXN" },
   "freeShippingThreshold": { "amount": 150000, "currency": "MXN" },
+  "estimatedDelivery": { "minBusinessDays": 3, "maxBusinessDays": 7 },
   "readyToPlace": true
 }
 ```
@@ -442,6 +443,7 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
 - `taxTotal` informativo: IVA contenido en el subtotal y en el costo de envío; `shippingTaxAmount` es la parte del envío (ADR-0008, ADR-0079, BR-ORD-16).
 - `readyToPlace`: todas las líneas vendibles y surtibles.
 - `grandTotal.amount` es el valor que el cliente envía como `expectedTotal`.
+- `estimatedDelivery`: plazo de entrega estimado en días hábiles, contado desde la confirmación del pago; es un estimado, no una fecha comprometida (ADR-0083).
 - `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
 
 ### 8.8 `Order` (vista de cliente)
@@ -454,6 +456,7 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
   "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {} } ],
   "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
   "shippingAddress": { "…": "Address" },
+  "estimatedDelivery": { "minBusinessDays": 3, "maxBusinessDays": 7 },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
   "shipment": { "status": "DISPATCHED", "carrierName": "…", "trackingNumber": "…", "ownDelivery": false, "dispatchedAt": "…", "deliveredAt": null },
   "placedAt": "…",
@@ -1144,10 +1147,10 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 | POST | `/v1/admin/shipping/shipments/{shipmentId}/delivery-failure` | `shipping.manage` | UC-SHI-07 |
 | POST | `/v1/admin/shipping/shipments/{shipmentId}/return` | `shipping.manage` | UC-SHI-09 |
 
-**Método de envío** (`ShippingMethod { id, name, flatFee: Money, freeShippingThreshold: Money | null, isActive, version, updatedAt }`).
+**Método de envío** (`ShippingMethod { id, name, flatFee: Money, freeShippingThreshold: Money | null, deliveryMinBusinessDays, deliveryMaxBusinessDays, isActive, version, updatedAt }`).
 
 - `GET` — 200 el método activo.
-- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0, con IVA incluido (ADR-0079); umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
+- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "deliveryMinBusinessDays": 3, "deliveryMaxBusinessDays": 7, "version" }`; `flatFee` ≥ 0, con IVA incluido (ADR-0079); umbral `null` (sin envío gratis) o > 0; plazo en días hábiles, enteros con mínimo ≥ 1 y máximo ≥ mínimo (ADR-0083). Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
 
 **Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
 

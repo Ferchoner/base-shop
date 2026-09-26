@@ -108,7 +108,7 @@ Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del 
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Shipment` (orderId, almacén, destino, ítems, paquetería, guía o entrega propia (ADR-0078), status: Pending, Dispatched, Delivered, DeliveryFailed, Returned — ADR-0050, ADR-0053); `ShippingMethod` (costo fijo y monto mínimo para envío gratis) |
+| Aggregates | `Shipment` (orderId, almacén, destino, ítems, paquetería, guía o entrega propia (ADR-0078), status: Pending, Dispatched, Delivered, DeliveryFailed, Returned — ADR-0050, ADR-0053); `ShippingMethod` (costo fijo, monto mínimo para envío gratis y plazo de entrega estimado, ADR-0083) |
 | Domain services | `ShippingRateCalculator` |
 | Eventos | `ShipmentCreated`, `ShipmentDispatched`, `ShipmentDelivered`, `DeliveryFailed`, `ShipmentReturned` |
 | Repositories | `ShipmentRepository`, `ShippingMethodRepository` |

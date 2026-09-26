@@ -76,7 +76,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
 | T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
-| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079), configurables; UC-SHI-01, 02 | TODO | T-110, T-112 |
+| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 | TODO | T-110, T-112 |
 | T-200 | Promotions | DEFERRED | ADR-0018 |
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |
 | T-215 | Notificaciones (ADR-0074); UC-NTF-01 | TODO | T-116, T-122, T-180, T-190, T-195 |

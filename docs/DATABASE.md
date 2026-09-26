@@ -2,7 +2,7 @@
 
 **Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Las migraciones se crean en T-110.
 
-Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079, ADR-0081).
+Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079, ADR-0081, ADR-0083).
 
 ---
 
@@ -436,6 +436,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | shipping_cost | integer | No | Snapshot, IVA incluido (ADR-0042, ADR-0079) |
 | shipping_tax_amount | integer | No | IVA contenido en `shipping_cost`; 0 con envío gratis (ADR-0079) |
 | shipping_tax_rate_bp | integer | No | Tasa aplicada al envío, en puntos base (ADR-0079) |
+| delivery_min_business_days, delivery_max_business_days | integer | No | Snapshot del plazo de entrega estimado, en días hábiles desde la confirmación del pago (ADR-0083) |
 | discount_total | integer | No | Default 0 (ADR-0018) |
 | grand_total | integer | No | — |
 | shipping_address | jsonb | No | Snapshot con el formato de ADR-0057 |
@@ -448,7 +449,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso).
+- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso).
 - **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
 
@@ -556,6 +557,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | name | text | No | — |
 | flat_fee | integer | No | `CHECK (flat_fee >= 0)`; IVA incluido (ADR-0042, ADR-0079) |
 | free_shipping_threshold | integer | Sí | `CHECK (free_shipping_threshold IS NULL OR free_shipping_threshold > 0)` |
+| delivery_min_business_days, delivery_max_business_days | integer | No | Plazo de entrega estimado en días hábiles desde la confirmación del pago; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083) |
 | is_active | boolean | No | — |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
@@ -670,7 +672,7 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 - **Riesgo a validar en T-110:** Prisma no conoce estos objetos; hay que comprobar que la verificación de migraciones de la CI (ADR-0030) no los detecte como diferencias ni intente eliminarlos.
 - **Sin migraciones de reversión:** Prisma solo avanza. Un error se corrige con una migración nueva; antes de aplicar migraciones con datos reales se toma un respaldo.
 - **Cambios incompatibles:** en dos pasos (primero agregar, migrar datos y actualizar el código; después retirar lo viejo). Toda migración destructiva requiere aprobación humana (`TEAM_GUIDE.md`).
-- **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
+- **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío (con plazo estimado inicial de 3 a 7 días hábiles, ADR-0083). Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** se genera en T-110, después de aprobar este diseño.
 
 ---
