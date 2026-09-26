@@ -106,6 +106,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0086 | Encabezados de seguridad de las respuestas HTTP | Aceptada |
 | ADR-0087 | Validación de entrada y de configuración con class-validator | Aceptada |
 | ADR-0088 | Estructura de carpetas y convenciones de nombres | Aceptada |
+| ADR-0089 | Uso de Docker: desarrollo local e imagen de producción | Aceptada |
 
 ---
 
@@ -1801,4 +1802,30 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - T-103 verifica automáticamente las dependencias entre capas y que un módulo solo importe de otro a través de su `index.ts`.
   - Las carpetas de capa vacías se conservan en Git con un archivo `.gitkeep` hasta tener código.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0089 — Uso de Docker: desarrollo local e imagen de producción
+
+- **Fecha:** 2026-09-26
+- **Contexto:** T-102. ADR-0002 incluye Docker en el stack, pero su uso concreto estaba pendiente (`PROJECT.md`). El entorno local necesita PostgreSQL 18 y un capturador de correos (ADR-0045), y la CI construirá una imagen (ADR-0030, paso 10).
+- **Decisión:**
+  - **`Dockerfile` con dos etapas** sobre `node:24-bookworm-slim` (ADR-0025):
+    - `development`: la usa Docker Compose; el proyecto se monta en el contenedor y la API corre con `npm run start:dev` (recarga automática).
+    - `production`: solo el código compilado, las dependencias de producción y `package.json`; corre como usuario `node` con `NODE_ENV=production`. La construye la CI (T-106).
+  - **`docker-compose.yml` para desarrollo local** con tres servicios:
+    - `postgres`: `postgres:18`, datos en un volumen con nombre y chequeo de salud con `pg_isready`.
+    - `mailpit`: `axllent/mailpit:v1`, bandeja web en el puerto 8025 y SMTP en el 1025.
+    - `api`: etapa `development`; arranca cuando PostgreSQL está sano.
+  - **Versiones:** se fija la versión mayor de cada imagen y se usa la última menor, igual que en ADR-0025.
+  - **Alternativa documentada:** la API puede correr en el equipo (`npm run start:dev`) con solo PostgreSQL y Mailpit en contenedores.
+  - **Credenciales:** `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` en `.env`, con valores de ejemplo en `.env.example`. `docker-compose.yml` no tiene valores por defecto para ellas: si faltan, Compose se detiene con un mensaje.
+  - **Recarga automática en el contenedor:** detección de cambios por sondeo (`TSC_WATCHFILE` y `TSC_WATCHDIRECTORY`) solo dentro del contenedor, porque los cambios hechos desde Windows o macOS no siempre se detectan.
+  - **`node_modules` del contenedor** en un volumen anónimo, separado del `node_modules` del equipo, para que `docker compose up --build -V` lo regenere tras cambiar dependencias.
+- **Alternativas consideradas:** `Dockerfile` solo de desarrollo (la CI necesitaría otro después); la API solo en el equipo (no cumple T-102); imágenes Alpine (musl puede dar problemas con módulos nativos); `node_modules` en un volumen con nombre (no se actualiza al cambiar dependencias).
+- **Consecuencias:**
+  - T-106 construye la etapa `production`; hoy pesa unos 400 MB y se puede reducir más adelante.
+  - La API todavía no usa PostgreSQL ni Mailpit: `DATABASE_URL` llega con T-110 y la configuración SMTP con T-122.
+  - `docker compose down -v` borra los datos locales de PostgreSQL.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

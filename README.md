@@ -10,15 +10,16 @@ Sprint 0 (análisis y arquitectura) completado: especificación, modelo de datos
 
 - Node.js 24 (versión fijada en `.nvmrc` y en `engines` de `package.json`).
 - npm (el proyecto versiona `package-lock.json`; no se usan otros gestores).
-- PostgreSQL 18 y Docker: se incorporan en T-102 y T-110.
+- Docker Desktop (o Docker Engine con Compose) para PostgreSQL 18 y el capturador de correos.
 
 ## Uso
 
 ```bash
-npm ci
-npm run build
-npm run start:dev
+cp .env.example .env
+docker compose up --build
 ```
+
+Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en `http://localhost:3000`. Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
 
 | Script | Uso |
 |---|---|

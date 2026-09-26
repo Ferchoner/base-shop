@@ -1,0 +1,13 @@
+# Keep the build context small and free of secrets and host-specific files.
+.git
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+prompts
+docs
+*.md
