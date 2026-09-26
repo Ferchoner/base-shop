@@ -325,7 +325,7 @@ Criterios de aceptación:
 
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
-| UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07; base del umbral e IVA del envío PENDIENTE (P-58) |
+| UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07, BR-SHP-12, ADR-0079 |
 | UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (`shipping.configure`) | ADR-0042, ADR-0075 |
 | UC-SHI-03 | Crear envío en Pending | Sistema (`OrderPaid`) | BR-SHP-01, BR-SHP-02 |
 | UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04, ADR-0078 |
@@ -337,7 +337,7 @@ Criterios de aceptación:
 
 Criterios de aceptación:
 
-- **UC-SHI-01:** el costo es el fijo configurado, o 0 si se alcanza el umbral; queda como snapshot en la orden.
+- **UC-SHI-01:** el costo es el fijo configurado, con IVA incluido, o 0 si el subtotal con IVA menos el descuento es mayor o igual al umbral; el IVA contenido en el envío se calcula con la tasa configurada y se redondea como una línea; costo, IVA y tasa quedan como snapshot en la orden.
 - **UC-SHI-03:** un solo envío por orden, creado de forma idempotente al recibir `OrderPaid`.
 - **UC-SHI-05:** se despacha con paquetería y guía, o como entrega propia marcada explícitamente y sin paquetería ni guía; cualquier otra combinación se rechaza; la orden pasa a Shipped.
 - **UC-SHI-06:** la orden pasa a Delivered; el envío queda en estado terminal.
@@ -524,7 +524,7 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-55~~ | Resuelta en ADR-0062: el registro indica que el email ya existe |
 | ~~P-56~~ | Resuelta en ADR-0077: no se implementa en el MVP; el contrato provisional duplicaba la consulta con email y código |
 | ~~P-57~~ | Resuelta en ADR-0078: entrega propia en el MVP, marcada explícitamente al despachar; recoger en tienda fuera del MVP |
-| P-58 | ¿El costo de envío lleva IVA? ¿El umbral de envío gratis se compara contra el subtotal con IVA? |
+| ~~P-58~~ | Resuelta en ADR-0079: el costo de envío incluye IVA; el umbral se compara con el subtotal con IVA menos el descuento |
 | ~~P-59~~ | Resuelta en ADR-0058: opcionales, en gramos y centímetros |
 | ~~P-60~~ | Resuelta en ADR-0067: solicitud por canal externo, ejecutada por el staff |
 | ~~P-62~~ | Resuelta en ADR-0072: se revocan las demás sesiones y se conserva la actual |

@@ -428,8 +428,9 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
 {
   "lines": [ { "variantId": "…", "quantity": 2, "sku": "…", "productTitle": "…", "options": {}, "unitPrice": {}, "lineTotal": {}, "taxRateBp": 1600, "taxAmount": {}, "sellable": true, "canFulfill": true } ],
   "subtotal": { "amount": 119800, "currency": "MXN" },
-  "taxTotal": { "amount": 16524, "currency": "MXN" },
+  "taxTotal": { "amount": 17890, "currency": "MXN" },
   "shippingCost": { "amount": 9900, "currency": "MXN" },
+  "shippingTaxAmount": { "amount": 1366, "currency": "MXN" },
   "discountTotal": { "amount": 0, "currency": "MXN" },
   "grandTotal": { "amount": 129700, "currency": "MXN" },
   "freeShippingThreshold": { "amount": 150000, "currency": "MXN" },
@@ -437,10 +438,10 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
 }
 ```
 
-- `taxTotal` informativo: el IVA está contenido en el subtotal (ADR-0008, BR-ORD-16).
+- `taxTotal` informativo: IVA contenido en el subtotal y en el costo de envío; `shippingTaxAmount` es la parte del envío (ADR-0008, ADR-0079, BR-ORD-16).
 - `readyToPlace`: todas las líneas vendibles y surtibles.
 - `grandTotal.amount` es el valor que el cliente envía como `expectedTotal`.
-- IVA del envío y base del umbral: PENDIENTE (P-58); no cambian la forma de la respuesta.
+- `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
 
 ### 8.8 `Order` (vista de cliente)
 
@@ -450,7 +451,7 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
   "status": "PENDING_PAYMENT",
   "contactEmail": "cliente@example.com",
   "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {} } ],
-  "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "discountTotal": {}, "grandTotal": {},
+  "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
   "shippingAddress": { "…": "Address" },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
   "shipment": { "status": "DISPATCHED", "carrierName": "…", "trackingNumber": "…", "ownDelivery": false, "dispatchedAt": "…", "deliveredAt": null },
@@ -1145,7 +1146,7 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 **Método de envío** (`ShippingMethod { id, name, flatFee: Money, freeShippingThreshold: Money | null, isActive, version, updatedAt }`).
 
 - `GET` — 200 el método activo.
-- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0; umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
+- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0, con IVA incluido (ADR-0079); umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
 
 **Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
 
@@ -1191,7 +1192,6 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| P-58 | IVA del envío y base del umbral | Valores de `CheckoutQuote` (no su forma) |
 | T-145 | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |
 
 ---

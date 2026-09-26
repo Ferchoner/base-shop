@@ -430,8 +430,10 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | status | enum `order_status` (PENDING_PAYMENT, PAID, AWAITING_MANUAL_FULFILLMENT, SHIPPED, DELIVERED, CANCELLED, EXPIRED, REFUNDED) | No | ADR-0009, ADR-0051 |
 | currency | char(3) | No | `CHECK (currency = 'MXN')` |
 | subtotal | integer | No | Suma de líneas, IVA incluido |
-| tax_total | integer | No | IVA contenido en el subtotal (informativo) |
-| shipping_cost | integer | No | Snapshot (ADR-0042) |
+| tax_total | integer | No | IVA contenido en el subtotal y en el costo de envío (informativo, ADR-0079) |
+| shipping_cost | integer | No | Snapshot, IVA incluido (ADR-0042, ADR-0079) |
+| shipping_tax_amount | integer | No | IVA contenido en `shipping_cost`; 0 con envío gratis (ADR-0079) |
+| shipping_tax_rate_bp | integer | No | Tasa aplicada al envío, en puntos base (ADR-0079) |
 | discount_total | integer | No | Default 0 (ADR-0018) |
 | grand_total | integer | No | — |
 | shipping_address | jsonb | No | Snapshot con el formato de ADR-0057 |
@@ -444,7 +446,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso).
+- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso).
 - **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
 
@@ -550,13 +552,13 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 |---|---|---|---|
 | id | uuid | No | PK |
 | name | text | No | — |
-| flat_fee | integer | No | `CHECK (flat_fee >= 0)` (ADR-0042) |
+| flat_fee | integer | No | `CHECK (flat_fee >= 0)`; IVA incluido (ADR-0042, ADR-0079) |
 | free_shipping_threshold | integer | Sí | `CHECK (free_shipping_threshold IS NULL OR free_shipping_threshold > 0)` |
 | is_active | boolean | No | — |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** único parcial `(is_active) WHERE is_active` (un solo método activo en el MVP). Base del umbral e IVA del envío: PENDIENTE (P-58).
+- **Restricciones:** único parcial `(is_active) WHERE is_active` (un solo método activo en el MVP). El umbral se compara con el subtotal con IVA menos el descuento (ADR-0079).
 
 ### 10.2 `shipments`
 

@@ -72,11 +72,12 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Reactivación de entidades suspendidas, archivadas o desactivadas (ADR-0076)
 - [x] Enlace de acceso al pedido fuera del MVP (ADR-0077)
 - [x] Entrega propia sin paquetería; recoger en tienda fuera del MVP (ADR-0078)
+- [x] IVA incluido en el costo de envío y umbral de envío gratis sobre el subtotal con IVA (ADR-0079)
+- [x] Contradicciones y ambigüedades de la especificación resueltas (T-006)
 
 ## In Progress
 
-- [ ] Revisión de la especificación técnica (T-002)
-- [ ] Resolución de la ambigüedad P-58 (T-006); contradicciones resueltas
+- [ ] Revisión de la especificación técnica (T-002): P-34 a P-60 resueltas; pendiente de aprobación
 
 ## Next
 
@@ -120,9 +121,7 @@ Ninguna pendiente.
 
 Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENTS.md`, sección 10).
 
-| ID | Tipo | Decisión | Afecta |
-|---|---|---|---|
-| P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
+Ninguna pendiente.
 
 ### Decisiones cerradas
 
@@ -174,6 +173,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 | P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | ADR-0076 |
 | P-56 | Enlace de acceso al pedido por correo (fuera del MVP) | ADR-0077 |
 | P-57 | Envíos sin paquetería | ADR-0078 |
+| P-58 | IVA del envío y base del umbral de envío gratis | ADR-0079 |
 
 ## Notas
 

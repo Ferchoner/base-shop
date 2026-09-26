@@ -121,7 +121,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío, el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042).
 - BR-ORD-14. Cuando una orden expira, sus líneas regresan al carrito del cliente (ADR-0054). Una orden cancelada nunca se reactiva (ADR-0055).
 - BR-ORD-15. Colocar orden e iniciar pago exigen `Idempotency-Key`, ligada a quien la envía y al endpoint; un reintento con la misma llave y el mismo contenido no repite la operación (ADR-0063).
-- BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal (precios con IVA incluido, ADR-0008). La base de datos verifica esta igualdad (ADR-0066).
+- BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal y en el costo de envío (precios y envío con IVA incluido, ADR-0008, ADR-0079). La base de datos verifica esta igualdad (ADR-0066).
 
 ## Pagos
 
@@ -158,6 +158,7 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-TAX-03. El país de operación es México. Todos los productos llevan IVA del 16%; la tasa es configurable (ADR-0026, ADR-0027).
 - BR-TAX-04. Cada línea de orden guarda la tasa aplicada y el monto de impuesto como snapshot.
 - BR-TAX-05. No se emiten facturas electrónicas (CFDI) por ahora (ADR-0027).
+- BR-TAX-06. El costo de envío lleva IVA con la misma tasa, incluido en su monto; el IVA total de la orden suma el de las líneas y el del envío (ADR-0079).
 
 ## Envíos
 
@@ -166,13 +167,13 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-03. Delivered es un estado terminal.
 - BR-SHP-04. Un envío se despacha por paquetería, con paquetería y número de guía, o como entrega propia de la tienda, marcada explícitamente y sin paquetería ni guía; la base de datos lo garantiza (ADR-0078).
 - BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending al pagarse la orden, y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
-- BR-SHP-06. El costo de envío es fijo por orden y es gratis a partir de un monto mínimo de compra; ambos valores los configura el administrador (ADR-0042).
+- BR-SHP-06. El costo de envío es fijo por orden y es gratis cuando el subtotal con IVA menos el descuento alcanza un monto mínimo; ambos valores los configura el administrador (ADR-0042, ADR-0079).
 - BR-SHP-07. El costo de envío se calcula al cotizar y queda como snapshot en la orden.
 - BR-SHP-08. Tiempos de entrega comprometidos: PENDIENTE DE DEFINICIÓN.
 - BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053).
 - BR-SHP-10. Una entrega fallida o una devolución no cambia el estado de la orden (Shipped) ni dispara reintentos, cancelaciones o reembolsos. Si la mercancía regresa, el staff marca el envío como Returned y reintegra el stock (ADR-0053).
 - BR-SHP-11. Se permite la entrega propia de la tienda, con el mismo costo de envío, la misma dirección y los mismos estados que un envío por paquetería. Recoger en tienda queda fuera del MVP (ADR-0078).
-- BR-SHP-12. IVA del costo de envío y base del umbral de envío gratis: PENDIENTE DE DEFINICIÓN (P-58).
+- BR-SHP-12. El costo de envío configurado incluye IVA. El IVA contenido se calcula con la tasa configurada, se redondea como una línea y queda como snapshot en la orden; con envío gratis es 0. El costo de envío no cuenta para alcanzar el umbral (ADR-0079).
 - BR-SHP-13. Solo Superadministrador y Administrador configuran el costo de envío y el umbral de envío gratis, con el permiso `shipping.configure`; el Operador no lo tiene (ADR-0075).
 
 ## Notificaciones

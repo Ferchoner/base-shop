@@ -96,6 +96,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
 | ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
 | ADR-0078 | Envíos sin paquetería | Aceptada |
+| ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
 
 ---
 
@@ -1281,7 +1282,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas) y por ADR-0078 (columna `own_delivery` en `shipments`).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`) y ADR-0079 (IVA del envío en `orders`).
 
 ---
 
@@ -1579,4 +1580,25 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambia el contrato de `POST …/shipments/{id}/dispatch` (acepta `ownDelivery`) y agrega `ownDelivery` a `AdminShipment` y a `shipment` de `Order`.
   - `PATCH …/shipments/{id}` no puede capturar paquetería ni guía en un envío despachado como entrega propia.
 - **Revisar si:** el negocio quiere ofrecer recoger en tienda, o se integra una paquetería (ADR-0041).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0079 — IVA del costo de envío y base del umbral de envío gratis
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-58 (UC-SHI-01, T-196). Los precios incluyen IVA (ADR-0008), todo lleva IVA del 16% configurable (ADR-0027) y el total es subtotal + envío − descuento (BR-ORD-16). ADR-0042 no decía si el costo de envío incluye IVA ni contra qué monto se compara el umbral de envío gratis. Cuando el vendedor cobra el envío junto con la venta, ese cobro suele gravarse con el mismo IVA que la mercancía; el tratamiento fiscal lo confirma el contador del negocio.
+- **Decisión:**
+  - **IVA del envío:** el costo de envío configurado incluye IVA, igual que los precios de productos; el cliente paga el monto configurado.
+    - El IVA contenido en el envío se calcula con la misma tasa configurada (ADR-0027) y con la misma regla de redondeo por línea (ADR-0008), y se guarda como snapshot en la orden junto con la tasa aplicada.
+    - `taxTotal` de la orden es el IVA de las líneas más el del envío. La fórmula del total no cambia.
+  - **Umbral de envío gratis:** el envío es gratis cuando subtotal con IVA − descuento ≥ umbral. El costo de envío no cuenta para alcanzarlo. En el MVP el descuento siempre es 0 (ADR-0018).
+  - Con envío gratis, el costo de envío y su IVA son 0.
+  - **Ejemplo:** productos por $1,198.00 (IVA $165.24) y envío de $99.00 (IVA $13.66): total $1,297.00 e IVA total $178.90. Con un umbral de $1,500, un carrito de $1,600 con IVA tiene envío gratis.
+- **Alternativas consideradas:** Sumar el IVA al costo configurado ($99 + $15.84); envío sin IVA; comparar el umbral contra el subtotal sin IVA (un cliente que ve $1,600 en su carrito pagaría envío con un umbral anunciado de $1,500).
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066): columnas `shipping_tax_amount` y `shipping_tax_rate_bp` en `orders`; la restricción `tax_total <= subtotal` pasa a `tax_total <= subtotal + shipping_cost`, y se agrega `shipping_tax_amount <= shipping_cost`.
+  - `CheckoutQuote` y `Order` agregan `shippingTaxAmount`, un cambio compatible dentro de `v1`.
+  - El tratamiento del IVA del envío se valida con el contador antes de operar con clientes reales.
+- **Revisar si:** el contador indica otro tratamiento, se emiten facturas (ADR-0027) o se habilitan promociones (ADR-0018).
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

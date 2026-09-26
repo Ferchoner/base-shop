@@ -113,7 +113,7 @@ Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del 
 | Eventos | `ShipmentCreated`, `ShipmentDispatched`, `ShipmentDelivered`, `DeliveryFailed`, `ShipmentReturned` |
 | Repositories | `ShipmentRepository`, `ShippingMethodRepository` |
 | Puertos | Ninguno por ahora; `CarrierGateway` se crea con la primera integración real (ADR-0041) |
-| Casos de uso | QuoteShippingOptions (costo fijo o gratis por monto, ADR-0042), CreateShipmentForOrder (automático al pagarse la orden), RegisterTracking (paquetería y guía, manual), MarkDispatched, MarkDelivered, MarkDeliveryFailed, MarkReturned (ADR-0053) |
+| Casos de uso | QuoteShippingOptions (costo fijo con IVA incluido o gratis por monto, ADR-0042, ADR-0079), CreateShipmentForOrder (automático al pagarse la orden), RegisterTracking (paquetería y guía, manual), MarkDispatched, MarkDelivered, MarkDeliveryFailed, MarkReturned (ADR-0053) |
 
 Envíos manuales (ADR-0041). Costo de envío fijo, gratis a partir de un monto mínimo (ADR-0042).
 
