@@ -67,11 +67,17 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Especificación técnica en `REQUIREMENTS.md` con casos de uso, estados, permisos, errores y requisitos no funcionales (T-002 en REVIEW)
 - [x] oxlint como herramienta de lint (ADR-0073)
 - [x] Código alineado con el stack decidido: `docs/` y `CLAUDE.md` versionados; Yarn eliminado (solo npm, ADR-0025); Vitest reemplazado por Jest (ADR-0002); eliminados los módulos generados `product/` y `cart/` y `@nestjs/observe` (ADR-0032, P-07)
+- [x] Notificaciones por correo del ciclo de la orden (ADR-0074)
+- [x] Permiso para configurar el costo de envío (ADR-0075)
+- [x] Reactivación de entidades suspendidas, archivadas o desactivadas (ADR-0076)
+- [x] Enlace de acceso al pedido fuera del MVP (ADR-0077)
+- [x] Entrega propia sin paquetería; recoger en tienda fuera del MVP (ADR-0078)
+- [x] IVA incluido en el costo de envío y umbral de envío gratis sobre el subtotal con IVA (ADR-0079)
+- [x] Contradicciones y ambigüedades de la especificación resueltas (T-006)
 
 ## In Progress
 
-- [ ] Revisión de la especificación técnica (T-002)
-- [ ] Resolución de ambigüedades P-45, P-48, P-49 y P-56 a P-58 (T-006); contradicciones resueltas
+- [ ] Revisión de la especificación técnica (T-002): P-34 a P-60 resueltas; pendiente de aprobación
 
 ## Next
 
@@ -79,7 +85,6 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 
 ## Blocked
 
-- T-186 enlace de acceso al pedido por P-56
 - T-191 verificación de PayPal por P-31 y por falta de cuenta y sandbox
 - T-330 deployment (pospuesta, ADR-0031)
 
@@ -116,14 +121,7 @@ Ninguna pendiente.
 
 Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENTS.md`, sección 10).
 
-| ID | Tipo | Decisión | Afecta |
-|---|---|---|---|
-| P-45 | Ambigüedad | Eventos que envían notificación | T-215 |
-| P-48 | Ambigüedad | Permiso para configurar el costo de envío | T-196 |
-| P-49 | Ambigüedad | Reactivación de entidades suspendidas, archivadas o desactivadas | T-130, T-140, T-150 |
-| P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo | T-186 |
-| P-57 | Ambigüedad | Envíos sin paquetería | T-195 |
-| P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
+Ninguna pendiente.
 
 ### Decisiones cerradas
 
@@ -170,6 +168,12 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 | P-51 | Motivos de movimientos de stock | ADR-0069 |
 | P-59 | Peso y dimensiones | ADR-0058 |
 | P-62, P-63 | Sesiones al cambiar la contraseña; slugs de categorías y marcas | ADR-0072 |
+| P-45 | Notificaciones por correo | ADR-0074 |
+| P-48 | Permiso para configurar el costo de envío | ADR-0075 |
+| P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | ADR-0076 |
+| P-56 | Enlace de acceso al pedido por correo (fuera del MVP) | ADR-0077 |
+| P-57 | Envíos sin paquetería | ADR-0078 |
+| P-58 | IVA del envío y base del umbral de envío gratis | ADR-0079 |
 
 ## Notas
 

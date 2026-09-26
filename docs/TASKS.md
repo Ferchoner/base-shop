@@ -19,7 +19,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-002 | Definir actores y alcance | REVIEW | T-006 | Especificación técnica en `REQUIREMENTS.md`: actores, módulos, estados, permisos, casos de uso con criterios de aceptación, flujos, errores, dependencias y requisitos no funcionales. Pasa a DONE cuando se aprueba y se resuelven P-34 a P-60 |
 | T-003 | Aprobar arquitectura | DONE | — | ADR-0004, ADR-0005 y ADR-0019 en estado Aceptada |
 | T-004 | Aprobar modelo de datos | DONE | T-003; aprobación de ADR-0066 | Esquema por contexto, diagrama ER, índices y restricciones documentados en `DATABASE.md` |
-| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-45, P-48, P-49, P-56 a P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
+| T-006 | Resolver contradicciones y ambigüedades de la especificación | DONE | — | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
 | T-005 | Aprobar contratos API | DONE | T-003; aprobación de ADR-0071 | Endpoints del MVP documentados en `API_SPEC.md` (método, ruta, autenticación, permiso, request, parámetros, response, códigos, errores, validaciones, paginación, filtros, orden e idempotencia), con cobertura de todos los casos de uso |
 
 ## Fundaciones técnicas (sin lógica de negocio)
@@ -55,28 +55,28 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-122 | Puerto de envío de correos con adaptador al capturador local; URL base del frontend configurable para los enlaces (ADR-0056) | TODO | T-102 |
 | T-123 | Identity & Access: recuperación de contraseña por enlace (ADR-0056); UC-IAM-07, 08 | TODO | T-120, T-122 |
 | T-124 | Catálogo geográfico del INEGI: tablas, script de importación idempotente y consulta pública de estados y municipios; UC-IAM-21, 22 | TODO | T-110 |
-| T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); UC-IAM-11 a 19 | TODO | T-110, T-112, T-124, P-49 |
+| T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); UC-IAM-11 a 19 | TODO | T-110, T-112, T-124 |
 | T-131 | Identity & Access: script manual para crear el primer superadministrador y alta de staff con contraseña temporal; UC-IAM-13, UC-IAM-20 | TODO | T-130, T-120 |
-| T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141, P-49 |
+| T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141 |
 | T-141 | Almacenamiento de imágenes: puerto y adaptador de disco local con URL base configurable; validación de formato (JPEG, PNG, WebP) y tamaño (5 MB) | TODO | T-100 |
 | T-145 | Pricing: lista predeterminada, precios y periodos; formato de carga masiva; UC-PRC-01 a 06 | TODO | T-140 |
-| T-150 | Catalog: categorías y marcas; UC-CAT-03, 12, 13 | TODO | T-110, P-49 |
+| T-150 | Catalog: categorías y marcas; UC-CAT-03, 12, 13 | TODO | T-110 |
 | T-160 | Inventory: almacenes, stock y reservas (incluye pruebas de concurrencia); UC-INV-01 a 07 | TODO | T-140, T-111 |
 | T-161 | Inventory: reintegro de stock de órdenes canceladas o con envío devuelto (independiente, y opcional al cancelar o al registrar el reembolso sin reintegro previo, ADR-0052); UC-INV-09 | TODO | T-160, T-180, T-190, T-195 |
 | T-170 | Shopping: carrito, con `cartId` aleatorio y fusión explícita (ADR-0059); UC-CRT-01 a 06 | TODO | T-140, T-145, T-160 |
 | T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09 | TODO | T-170 |
 | T-181 | Shopping: restaurar carrito al expirar una orden y copiar órdenes canceladas a un carrito; UC-CRT-08, UC-CRT-09 | TODO | T-170, T-180 |
 | T-185 | Ordering: consulta de pedido de invitado (email + código público, con rate limiting); UC-ORD-04 | TODO | T-180 |
-| T-186 | Ordering: enlace de acceso al pedido por correo (condicionado a su costo); UC-ORD-05 | BLOCKED | T-185, T-122, P-56 |
+| T-186 | Ordering: enlace de acceso al pedido por correo; UC-ORD-05 | DEFERRED | ADR-0077 |
 | T-190 | Payments: modelo, pago manual en tienda para pruebas (ADR-0055) y reembolso total al cancelar (ADR-0051); UC-PAY-01 a 03, 06, 07 | TODO | T-180 |
 | T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04 | TODO | T-190 |
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
-| T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180, P-57 |
-| T-196 | Shipping: costo fijo y envío gratis por monto, configurables; UC-SHI-01, 02 | TODO | T-195, P-48, P-58 |
+| T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
+| T-196 | Shipping: costo fijo y envío gratis por monto, configurables; UC-SHI-01, 02 | TODO | T-195 |
 | T-200 | Promotions | DEFERRED | ADR-0018 |
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |
-| T-215 | Notificaciones; UC-NTF-01 | TODO | T-116, T-122, P-45 |
+| T-215 | Notificaciones; UC-NTF-01 | TODO | T-116, T-122 |
 | T-220 | Auditoría técnica (UC-AUD-01 a 03): registro en la misma transacción, eventos de seguridad, consulta con `audit.read`, exportación a archivos comprimidos de registros con más de 3 meses (sin borrar si la exportación falla) y borrado de archivos a 2 años | TODO | T-110, T-111, T-117 |
 | T-230 | Jobs: expiración de reservas y órdenes (cada minuto), conciliación de pagos (cada 5 min); UC-INV-08, UC-ORD-10, UC-PAY-05 | BLOCKED | T-117, T-180, T-190 |
 | T-231 | Job de limpieza diaria (refresh tokens, idempotencia, webhooks, carritos de invitado); UC-SYS-01, UC-CRT-07 | TODO | T-117, T-115, T-120, T-170 |

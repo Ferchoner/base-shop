@@ -47,7 +47,7 @@ Mecanismo (ADR-0023):
 
 Ya definido:
 
-- Un usuario suspendido no puede autenticarse (BR-USR-02).
+- Un usuario suspendido no puede autenticarse (BR-USR-02). Al reactivarlo, el staff recibe una contraseña temporal nueva con cambio obligatorio, porque la suspensión pudo deberse a una contraseña comprometida; la reactivación se audita como evento de seguridad (ADR-0076).
 - El hash de contraseña, los tokens y los intentos de login nunca salen del contexto Identity & Access.
 - Se permite compra como invitado (ADR-0010): los endpoints de checkout y carrito deben funcionar sin usuario autenticado, y el invitado consulta su orden con email de contacto y el código público aleatorio de la orden (ADR-0020, ADR-0049); el número interno consecutivo nunca se expone a clientes. Ese endpoint requiere rate limiting y respuestas de error que no revelen si la orden existe. El enlace de acceso por correo, si se implementa, usa un token firmado con expiración.
 

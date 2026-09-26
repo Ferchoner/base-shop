@@ -31,7 +31,7 @@ Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de doma
 | Value Objects | `Email`, `PermissionCode`, `Address` (formato de ADR-0057), `PersonName` (nombres y apellidos) |
 | Eventos | `UserRegistered`, `UserSuspended`, `RolePermissionsChanged` |
 | Repositories | `UserRepository`, `RoleRepository`, `AddressBookRepository` |
-| Casos de uso | RegisterCustomer, Authenticate, RefreshSession, Logout, ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ManageAddresses |
+| Casos de uso | RegisterCustomer, Authenticate, RefreshSession, Logout, ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ReactivateUser (ADR-0076), ManageAddresses |
 | No sale del contexto | passwordHash, tokens, intentos de login, datos de recuperación |
 
 Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del contexto; su revocación responde a `UserSuspended`.
@@ -44,7 +44,7 @@ Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del 
 | Value Objects | `Sku`, `Slug`, `VariantOptions` |
 | Eventos | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` |
 | Repositories | `ProductRepository`, `CategoryRepository`, `BrandRepository`; `CatalogQueryService` (lectura) |
-| Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, PublishProduct, ArchiveProduct, AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug |
+| Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, ReactivateVariant, PublishProduct, ArchiveProduct, ReactivateProduct (ADR-0076), AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug |
 | Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado |
 
 ## Pricing
@@ -108,12 +108,12 @@ Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del 
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Shipment` (orderId, almacén, destino, ítems, paquetería, guía, status: Pending, Dispatched, Delivered, DeliveryFailed, Returned — ADR-0050, ADR-0053); `ShippingMethod` (costo fijo y monto mínimo para envío gratis) |
+| Aggregates | `Shipment` (orderId, almacén, destino, ítems, paquetería, guía o entrega propia (ADR-0078), status: Pending, Dispatched, Delivered, DeliveryFailed, Returned — ADR-0050, ADR-0053); `ShippingMethod` (costo fijo y monto mínimo para envío gratis) |
 | Domain services | `ShippingRateCalculator` |
 | Eventos | `ShipmentCreated`, `ShipmentDispatched`, `ShipmentDelivered`, `DeliveryFailed`, `ShipmentReturned` |
 | Repositories | `ShipmentRepository`, `ShippingMethodRepository` |
 | Puertos | Ninguno por ahora; `CarrierGateway` se crea con la primera integración real (ADR-0041) |
-| Casos de uso | QuoteShippingOptions (costo fijo o gratis por monto, ADR-0042), CreateShipmentForOrder (automático al pagarse la orden), RegisterTracking (paquetería y guía, manual), MarkDispatched, MarkDelivered, MarkDeliveryFailed, MarkReturned (ADR-0053) |
+| Casos de uso | QuoteShippingOptions (costo fijo con IVA incluido o gratis por monto, ADR-0042, ADR-0079), CreateShipmentForOrder (automático al pagarse la orden), RegisterTracking (paquetería y guía, manual), MarkDispatched, MarkDelivered, MarkDeliveryFailed, MarkReturned (ADR-0053) |
 
 Envíos manuales (ADR-0041). Costo de envío fijo, gratis a partir de un monto mínimo (ADR-0042).
 

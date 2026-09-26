@@ -94,7 +94,7 @@ Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFai
 | PriceList | Activa (la predeterminada no se desactiva) | ADR-0039 |
 | Warehouse | Activo, Inactivo | ADR-0038 |
 
-Reactivación de entidades suspendidas, archivadas o desactivadas: PENDIENTE DE DECISIÓN (P-49).
+Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT; ProductVariant Descontinuada → Activa; Category y Brand Desactivada → Activa. La anonimización es irreversible.
 
 ---
 
@@ -111,12 +111,13 @@ Catálogo y roles de ADR-0043.
 | `orders.manage` | ✓ | ✓ | — |
 | `payments.manage` | ✓ | ✓ | — |
 | `shipping.manage` | ✓ | ✓ | ✓ |
+| `shipping.configure` | ✓ | ✓ | — |
 | `customers.read` | ✓ | ✓ | ✓ |
 | `customers.manage` | ✓ | ✓ | — |
 | `staff.manage` | ✓ | — | — |
 | `audit.read` | ✓ | ✓ | — |
 
-Ambigüedad (P-48): la configuración del costo de envío y del umbral de envío gratis no tiene permiso asignado. Si se asigna a `shipping.manage`, el Operador podría cambiar un valor monetario.
+`shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis.
 
 ---
 
@@ -143,9 +144,9 @@ Columna **Acceso**: Público, Cliente (registrado autenticado), Staff (`permiso`
 | UC-IAM-13 | Crear cuenta de staff con contraseña temporal | Staff (`staff.manage`) | BR-USR-09 |
 | UC-IAM-14 | Asignar roles a staff | Staff (`staff.manage`) | BR-USR-03 |
 | UC-IAM-15 | Crear, editar y borrar roles | Staff (`staff.manage`) | BR-USR-04, BR-USR-07 |
-| UC-IAM-16 | Suspender staff | Staff (`staff.manage`) | BR-USR-03, BR-USR-06 |
+| UC-IAM-16 | Suspender y reactivar staff | Staff (`staff.manage`) | BR-USR-03, BR-USR-06, BR-USR-14 |
 | UC-IAM-17 | Consultar clientes | Staff (`customers.read`) | — |
-| UC-IAM-18 | Suspender cliente | Staff (`customers.manage`) | BR-USR-02 |
+| UC-IAM-18 | Suspender y reactivar cliente | Staff (`customers.manage`) | BR-USR-02, BR-USR-14 |
 | UC-IAM-19 | Anonimizar cliente o comprador invitado | Staff (`customers.manage`) | BR-USR-06, BR-PRIV-03, ADR-0067 |
 | UC-IAM-20 | Crear el primer superadministrador | Operador técnico (script, sin API) | ADR-0043 |
 | UC-IAM-21 | Cargar o actualizar el catálogo de estados y municipios | Operador técnico (script, sin API) | BR-ADR-03, ADR-0057 |
@@ -167,6 +168,7 @@ Criterios de aceptación:
 - **UC-IAM-13:** solo `staff.manage`; la contraseña temporal la genera el sistema con al menos 15 caracteres; la cuenta exige cambio de contraseña en el primer inicio de sesión; se audita.
 - **UC-IAM-14 / 16:** no se puede dejar al sistema sin superadministrador; se audita.
 - **UC-IAM-15:** solo permisos del catálogo en código; no se borra un rol con usuarios.
+- **UC-IAM-16 / 18 (reactivación):** solo desde SUSPENDED; exige motivo y `version`; se audita como evento de seguridad; el staff reactivado recibe una contraseña temporal nueva, mostrada solo en la respuesta, y debe cambiarla en el siguiente inicio de sesión; el cliente reactivado conserva su contraseña y su verificación de email; una cuenta anonimizada no se reactiva.
 - **UC-IAM-18:** el cliente suspendido no puede iniciar sesión ni renovar tokens.
 - **UC-IAM-19:** si hay órdenes sin concluir, no se ejecuta hasta que terminen; vacía email, nombres, apellidos y hash de contraseña (estado ANONYMIZED, email liberado); revoca y borra tokens; borra direcciones y carritos; elimina email de contacto y datos de identificación de las direcciones de órdenes y envíos, conservando estado, municipio y código postal; se audita sin valores personales.
 - **UC-IAM-20:** crea un superadministrador con datos de variables de entorno; no existe ningún usuario predeterminado en el repositorio ni en migraciones.
@@ -183,12 +185,12 @@ Criterios de aceptación:
 | UC-CAT-05 | Editar datos del producto | Staff (`catalog.write`) | — |
 | UC-CAT-06 | Agregar variante | Staff (`catalog.write`) | BR-PRD-01, BR-PRD-02, BR-PRD-14 |
 | UC-CAT-07 | Editar variante | Staff (`catalog.write`) | BR-PRD-12, ADR-0068 |
-| UC-CAT-08 | Descontinuar variante | Staff (`catalog.write`) | BR-PRD-07 |
+| UC-CAT-08 | Descontinuar y reactivar variante | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-07, BR-PRD-13 |
 | UC-CAT-09 | Publicar producto | Staff (`catalog.write`) | BR-PRD-04, BR-PRD-05 |
-| UC-CAT-10 | Archivar producto | Staff (`catalog.write`) | BR-PRD-07, BR-PRD-09 |
+| UC-CAT-10 | Archivar y reactivar producto | Staff (`catalog.write`) | BR-PRD-07, BR-PRD-09, BR-PRD-13 |
 | UC-CAT-11 | Subir, reordenar y borrar imágenes | Staff (`catalog.write`) | BR-PRD-08, ADR-0024, ADR-0038 |
-| UC-CAT-12 | Gestionar categorías | Staff (`catalog.write`) | BR-PRD-03, BR-PRD-10 |
-| UC-CAT-13 | Gestionar marcas | Staff (`catalog.write`) | BR-PRD-10 |
+| UC-CAT-12 | Gestionar categorías | Staff (`catalog.write`) | BR-PRD-03, BR-PRD-10, BR-PRD-13 |
+| UC-CAT-13 | Gestionar marcas | Staff (`catalog.write`) | BR-PRD-10, BR-PRD-13 |
 | UC-CAT-14 | Listado administrativo del catálogo | Staff (`catalog.read`) | ADR-0016 |
 
 Criterios de aceptación:
@@ -198,9 +200,10 @@ Criterios de aceptación:
 - **UC-CAT-06:** SKU duplicado o reutilizado se rechaza; combinación de opciones repetida en el producto se rechaza. Peso (gramos) y dimensiones (centímetros) son opcionales y, si se capturan, deben ser positivos.
 - **UC-CAT-07:** SKU y opciones solo se editan si el producto nunca se ha publicado (el SKU anterior se libera); después se rechazan; no se agregan dimensiones de opciones a productos publicados; peso, dimensiones y estado se editan siempre.
 - **UC-CAT-09:** se rechaza sin al menos una variante activa; se permite sin precio y sin imagen.
-- **UC-CAT-10:** el slug sigue reservado; el producto deja de mostrarse en la tienda.
+- **UC-CAT-08 (reactivación):** solo desde descontinuada; se rechaza si otra variante activa del producto tiene la misma combinación de opciones; SKU y opciones no cambian.
+- **UC-CAT-10:** el slug sigue reservado; el producto deja de mostrarse en la tienda. Reactivar lo lleva de ARCHIVED a DRAFT, conserva slug y `firstPublishedAt`, y no lo muestra en la tienda hasta que se publique.
 - **UC-CAT-11:** se aceptan JPEG, PNG y WebP validados por contenido, de hasta 5 MB; el nombre en disco lo genera el servidor; borrar una imagen borra registro y archivo.
-- **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse.
+- **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
 - **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente.
 
 ### 5.3 Pricing
@@ -274,7 +277,7 @@ Criterios de aceptación:
 | UC-ORD-02 | Colocar orden | Público o Cliente | BR-ORD-01 a BR-ORD-06, BR-USR-05, BR-USR-08 |
 | UC-ORD-03 | Consultar mis pedidos | Cliente | ADR-0036 |
 | UC-ORD-04 | Consultar pedido de invitado | Público | BR-ORD-10, ADR-0020 |
-| UC-ORD-05 | Acceder al pedido con enlace por correo | Público | ADR-0020; implementación PENDIENTE (P-56) |
+| UC-ORD-05 | Acceder al pedido con enlace por correo | Fuera del MVP | ADR-0020, ADR-0077 |
 | UC-ORD-06 | Listar y ver pedidos | Staff (`orders.read`) | — |
 | UC-ORD-07 | Cancelar pedido | Staff (`orders.manage`) | BR-CAN-01 a BR-CAN-03, ADR-0051 |
 | UC-ORD-08 | Resolver pedido en AwaitingManualFulfillment | Staff (`orders.manage`) | ADR-0012 |
@@ -322,10 +325,10 @@ Criterios de aceptación:
 
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
-| UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07; base del umbral e IVA del envío PENDIENTE (P-58) |
-| UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (permiso PENDIENTE, P-48) | ADR-0042 |
+| UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07, BR-SHP-12, ADR-0079 |
+| UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (`shipping.configure`) | ADR-0042, ADR-0075 |
 | UC-SHI-03 | Crear envío en Pending | Sistema (`OrderPaid`) | BR-SHP-01, BR-SHP-02 |
-| UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04; envío sin paquetería PENDIENTE (P-57) |
+| UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04, ADR-0078 |
 | UC-SHI-05 | Marcar despachado | Staff (`shipping.manage`) | BR-SHP-04 |
 | UC-SHI-06 | Marcar entregado | Staff (`shipping.manage`) | BR-SHP-03 |
 | UC-SHI-07 | Marcar entrega fallida | Staff (`shipping.manage`) | ADR-0053 |
@@ -334,9 +337,9 @@ Criterios de aceptación:
 
 Criterios de aceptación:
 
-- **UC-SHI-01:** el costo es el fijo configurado, o 0 si se alcanza el umbral; queda como snapshot en la orden.
+- **UC-SHI-01:** el costo es el fijo configurado, con IVA incluido, o 0 si el subtotal con IVA menos el descuento es mayor o igual al umbral; el IVA contenido en el envío se calcula con la tasa configurada y se redondea como una línea; costo, IVA y tasa quedan como snapshot en la orden.
 - **UC-SHI-03:** un solo envío por orden, creado de forma idempotente al recibir `OrderPaid`.
-- **UC-SHI-05:** sin guía no se despacha cuando hay paquetería; la orden pasa a Shipped.
+- **UC-SHI-05:** se despacha con paquetería y guía, o como entrega propia marcada explícitamente y sin paquetería ni guía; cualquier otra combinación se rechaza; la orden pasa a Shipped.
 - **UC-SHI-06:** la orden pasa a Delivered; el envío queda en estado terminal.
 - **UC-SHI-07 / 09:** solo desde Dispatched (fallida) y desde DeliveryFailed (devuelto); la orden permanece en Shipped; sin reintento, cancelación ni reembolso automáticos; el stock que regresa se reintegra con UC-INV-09.
 
@@ -347,7 +350,7 @@ Criterios de aceptación:
 | UC-AUD-01 | Registrar evento de auditoría | Sistema | ADR-0037 |
 | UC-AUD-02 | Consultar auditoría (últimos 3 meses) | Staff (`audit.read`) | ADR-0037 |
 | UC-AUD-03 | Exportar y depurar auditoría | Sistema (job diario) | ADR-0037 |
-| UC-NTF-01 | Enviar notificaciones por correo | Sistema | ADR-0045; qué eventos notifican PENDIENTE (P-45) |
+| UC-NTF-01 | Enviar notificaciones por correo | Sistema | ADR-0045, ADR-0074, BR-NTF-01 a 04 |
 | UC-SYS-01 | Limpieza diaria | Sistema (3:00, hora de México) | ADR-0029 |
 
 Criterios de aceptación:
@@ -355,6 +358,7 @@ Criterios de aceptación:
 - **UC-AUD-01:** toda modificación del staff y todo evento de seguridad genera un registro en la misma transacción que el cambio; los valores de campos sensibles nunca se guardan.
 - **UC-AUD-02:** paginación por cursor; ningún endpoint modifica ni borra registros.
 - **UC-AUD-03:** los registros con más de 3 meses se exportan a JSON Lines con gzip (un archivo por día) y solo se borran si la exportación se verificó; los archivos con más de 2 años se borran.
+- **UC-NTF-01:** se envía un correo al email de contacto de la orden por orden recibida, pago confirmado, orden enviada (con paquetería y guía, si existen), orden cancelada (indicando si el reembolso está en proceso) y reembolso completado; no se envía por expiración, entrega, entrega fallida, devolución, pago tardío sin stock ni pago fallido; las órdenes anonimizadas no reciben correo; solo se muestra el código público; un fallo de envío se registra en logs sin el email y no revierte ni bloquea la operación que lo originó.
 - **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
 
 ---
@@ -507,20 +511,20 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-42~~ | Resuelta en ADR-0056: enlace por correo de 30 minutos; URL base del frontend configurable; el cambio obligatorio del staff pide la contraseña temporal |
 | ~~P-43~~ | Resuelta en ADR-0057: nombres y apellidos; formato de dirección con estado y municipio de lista cerrada del INEGI |
 | ~~P-44~~ | Resuelta en ADR-0059: endpoint explícito después del login; `cartId` aleatorio |
-| P-45 | Notificaciones: ¿qué eventos envían correo (orden colocada, pagada, enviada, entregada, cancelada)? |
+| ~~P-45~~ | Resuelta en ADR-0074: correo por orden recibida, pagada, enviada, cancelada y reembolsada; sin correo por entrega ni expiración |
 | ~~P-46~~ | Resuelta en ADR-0061: disponible o agotado, sin cantidades |
 | ~~P-47~~ | Resuelta en ADR-0060: búsqueda de texto completo, filtros y órdenes; excepción de solo lectura para el catálogo público |
-| P-48 | Permiso para configurar el costo de envío y el umbral |
-| P-49 | Reactivación de staff o clientes suspendidos, productos archivados, variantes descontinuadas y categorías desactivadas |
+| ~~P-48~~ | Resuelta en ADR-0075: permiso `shipping.configure`, solo Superadministrador y Administrador |
+| ~~P-49~~ | Resuelta en ADR-0076: reactivación explícita con el mismo permiso; staff con contraseña temporal nueva; producto a DRAFT; unicidad de opciones solo entre variantes activas |
 | ~~P-50~~ | Resuelta en ADR-0068: SKU y opciones editables solo antes de la primera publicación |
 | ~~P-51~~ | Resuelta en ADR-0069: lista cerrada en código, con nota opcional (obligatoria con "Otro") |
 | ~~P-52~~ | Resuelta en ADR-0063: obligatoria en colocar orden e iniciar pago; 400, 422 y 409 |
 | ~~P-53~~ | Resuelta en ADR-0064 (códigos, `type` y extensiones) y ADR-0065 (rate limiting) |
 | ~~P-54~~ | Resuelta en ADR-0062: el login solo indica credenciales no válidas |
 | ~~P-55~~ | Resuelta en ADR-0062: el registro indica que el email ya existe |
-| P-56 | Enlace de acceso al pedido por correo: ¿se implementa? Con el capturador local su costo de desarrollo es bajo |
-| P-57 | ¿Existen envíos sin paquetería (entrega local, recoger en tienda)? BR-SHP-04 lo sugiere |
-| P-58 | ¿El costo de envío lleva IVA? ¿El umbral de envío gratis se compara contra el subtotal con IVA? |
+| ~~P-56~~ | Resuelta en ADR-0077: no se implementa en el MVP; el contrato provisional duplicaba la consulta con email y código |
+| ~~P-57~~ | Resuelta en ADR-0078: entrega propia en el MVP, marcada explícitamente al despachar; recoger en tienda fuera del MVP |
+| ~~P-58~~ | Resuelta en ADR-0079: el costo de envío incluye IVA; el umbral se compara con el subtotal con IVA menos el descuento |
 | ~~P-59~~ | Resuelta en ADR-0058: opcionales, en gramos y centímetros |
 | ~~P-60~~ | Resuelta en ADR-0067: solicitud por canal externo, ejecutada por el staff |
 | ~~P-62~~ | Resuelta en ADR-0072: se revocan las demás sesiones y se conserva la actual |

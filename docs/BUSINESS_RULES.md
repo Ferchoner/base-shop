@@ -17,7 +17,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas; cambiar el email obliga a verificarlo de nuevo (ADR-0046).
 - BR-USR-12. La respuesta a una solicitud de reenvío de verificación no revela si el email existe (ADR-0046).
 - BR-USR-13. Las contraseñas temporales del staff las genera el sistema con al menos 15 caracteres (ADR-0047).
-- BR-USR-14. Reactivación de cuentas suspendidas: PENDIENTE DE DEFINICIÓN (P-49).
+- BR-USR-14. Una cuenta suspendida se reactiva con una acción explícita, con motivo y auditada, por el mismo permiso que la suspende. El staff reactivado recibe una contraseña temporal nueva con cambio obligatorio y conserva sus roles; el cliente reactivado conserva su contraseña. Una cuenta anonimizada no se reactiva (ADR-0076).
 - BR-USR-15. El registro de cliente pide email, contraseña, nombres y apellidos; el teléfono se pide en cada dirección (ADR-0057).
 - BR-USR-16. La contraseña se recupera con un enlace enviado al email, de un solo uso y vigente 30 minutos; la respuesta no revela si el email existe; las cuentas suspendidas no reciben el correo; restablecer revoca todas las sesiones y envía un aviso (ADR-0056).
 - BR-USR-17. El cambio obligatorio de contraseña del staff pide la contraseña temporal (ADR-0056).
@@ -27,7 +27,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 ## Productos
 
 - BR-PRD-01. El SKU es único a nivel global.
-- BR-PRD-02. No puede haber dos variantes de un producto con la misma combinación de opciones.
+- BR-PRD-02. No puede haber dos variantes activas de un producto con la misma combinación de opciones; las descontinuadas no cuentan (ADR-0076).
 - BR-PRD-03. Mover una categoría no puede crear ciclos en el árbol.
 - BR-PRD-04. Solo se publica un producto con al menos una variante activa.
 - BR-PRD-05. Publicar no exige precio vigente ni imagen (ADR-0016).
@@ -38,7 +38,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRD-10. Una categoría o marca solo se borra si no tiene productos ni subcategorías; si no, se desactiva.
 - BR-PRD-11. Una variante es vendible si su producto está publicado, la variante está activa y tiene precio vigente en la lista predeterminada (deriva de BR-PRD-06 y ADR-0016). El carrito y el checkout rechazan variantes no vendibles.
 - BR-PRD-12. SKU y opciones de una variante solo se editan mientras su producto nunca se ha publicado; el SKU anterior se libera en ese caso. Después quedan fijos, y no se agregan dimensiones de opciones a un producto publicado. Peso, dimensiones y estado se editan siempre (ADR-0068).
-- BR-PRD-13. Reactivación de productos archivados, variantes descontinuadas y categorías desactivadas: PENDIENTE DE DEFINICIÓN (P-49).
+- BR-PRD-13. Un producto archivado se reactiva a DRAFT y se publica con el flujo normal; una variante descontinuada se reactiva solo si ninguna variante activa del producto tiene su combinación de opciones; una categoría se reactiva solo si su padre está activa o es raíz, sin reactivar subcategorías; una marca se reactiva sin condiciones. Todas con `catalog.write` (ADR-0076).
 - BR-PRD-14. Peso (gramos) y dimensiones (centímetros) de una variante son opcionales (ADR-0058).
 - BR-PRD-15. En el catálogo público, el precio de un producto para filtrar y ordenar es el más bajo entre sus variantes vendibles, con IVA incluido (ADR-0060).
 - BR-PRD-16. El slug de una categoría o marca se puede cambiar; el anterior deja de funcionar y queda libre. Riesgo aceptado: los enlaces que usaban el slug anterior se rompen (ADR-0072).
@@ -115,13 +115,13 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-07. Una orden en PendingPayment expira cuando vence su reserva.
 - BR-ORD-08. Solo se marca pagada si el monto capturado es igual al total.
 - BR-ORD-09. Si llega un pago para una orden expirada, se intenta reservar; si no hay stock, la orden pasa a AwaitingManualFulfillment (ADR-0012).
-- BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden; opcionalmente, con un enlace enviado por correo (ADR-0020).
+- BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden. Si perdió el código, lo atiende el staff por un canal externo; el enlace de acceso por correo queda fuera del MVP (ADR-0020, ADR-0077).
 - BR-ORD-11. La consulta de invitado responde con el mismo error si la orden no existe o el email no coincide, y tiene rate limiting obligatorio (ADR-0020).
 - BR-ORD-12. Cada orden tiene un número interno consecutivo, visible solo para el staff, y un código público aleatorio (`XXXX-XXXX`, Base32 Crockford) que es el único que ven los clientes (ADR-0049).
 - BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío, el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042).
 - BR-ORD-14. Cuando una orden expira, sus líneas regresan al carrito del cliente (ADR-0054). Una orden cancelada nunca se reactiva (ADR-0055).
 - BR-ORD-15. Colocar orden e iniciar pago exigen `Idempotency-Key`, ligada a quien la envía y al endpoint; un reintento con la misma llave y el mismo contenido no repite la operación (ADR-0063).
-- BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal (precios con IVA incluido, ADR-0008). La base de datos verifica esta igualdad (ADR-0066).
+- BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal y en el costo de envío (precios y envío con IVA incluido, ADR-0008, ADR-0079). La base de datos verifica esta igualdad (ADR-0066).
 
 ## Pagos
 
@@ -158,19 +158,27 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-TAX-03. El país de operación es México. Todos los productos llevan IVA del 16%; la tasa es configurable (ADR-0026, ADR-0027).
 - BR-TAX-04. Cada línea de orden guarda la tasa aplicada y el monto de impuesto como snapshot.
 - BR-TAX-05. No se emiten facturas electrónicas (CFDI) por ahora (ADR-0027).
+- BR-TAX-06. El costo de envío lleva IVA con la misma tasa, incluido en su monto; el IVA total de la orden suma el de las líneas y el del envío (ADR-0079).
 
 ## Envíos
 
 - BR-SHP-01. No se crea un envío para una orden no pagada.
 - BR-SHP-02. Una orden genera un solo envío en el MVP.
 - BR-SHP-03. Delivered es un estado terminal.
-- BR-SHP-04. No se despacha sin número de guía cuando interviene una paquetería.
+- BR-SHP-04. Un envío se despacha por paquetería, con paquetería y número de guía, o como entrega propia de la tienda, marcada explícitamente y sin paquetería ni guía; la base de datos lo garantiza (ADR-0078).
 - BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending al pagarse la orden, y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
-- BR-SHP-06. El costo de envío es fijo por orden y es gratis a partir de un monto mínimo de compra; ambos valores los configura el administrador (ADR-0042).
+- BR-SHP-06. El costo de envío es fijo por orden y es gratis cuando el subtotal con IVA menos el descuento alcanza un monto mínimo; ambos valores los configura el administrador (ADR-0042, ADR-0079).
 - BR-SHP-07. El costo de envío se calcula al cotizar y queda como snapshot en la orden.
 - BR-SHP-08. Tiempos de entrega comprometidos: PENDIENTE DE DEFINICIÓN.
 - BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053).
 - BR-SHP-10. Una entrega fallida o una devolución no cambia el estado de la orden (Shipped) ni dispara reintentos, cancelaciones o reembolsos. Si la mercancía regresa, el staff marca el envío como Returned y reintegra el stock (ADR-0053).
-- BR-SHP-11. Envíos sin paquetería (entrega local, recoger en tienda): PENDIENTE DE DEFINICIÓN (P-57).
-- BR-SHP-12. IVA del costo de envío y base del umbral de envío gratis: PENDIENTE DE DEFINICIÓN (P-58).
-- BR-SHP-13. Permiso para configurar costo y umbral de envío: PENDIENTE DE DEFINICIÓN (P-48).
+- BR-SHP-11. Se permite la entrega propia de la tienda, con el mismo costo de envío, la misma dirección y los mismos estados que un envío por paquetería. Recoger en tienda queda fuera del MVP (ADR-0078).
+- BR-SHP-12. El costo de envío configurado incluye IVA. El IVA contenido se calcula con la tasa configurada, se redondea como una línea y queda como snapshot en la orden; con envío gratis es 0. El costo de envío no cuenta para alcanzar el umbral (ADR-0079).
+- BR-SHP-13. Solo Superadministrador y Administrador configuran el costo de envío y el umbral de envío gratis, con el permiso `shipping.configure`; el Operador no lo tiene (ADR-0075).
+
+## Notificaciones
+
+- BR-NTF-01. El cliente recibe un correo por orden recibida, pago confirmado, orden enviada, orden cancelada y reembolso completado (ADR-0074).
+- BR-NTF-02. No se envía correo por orden expirada, orden entregada, entrega fallida, devolución, pago tardío sin stock ni pago fallido, y no hay notificaciones al staff (ADR-0074).
+- BR-NTF-03. El destinatario es el email de contacto de la orden; las órdenes anonimizadas no reciben correo (ADR-0067, ADR-0074).
+- BR-NTF-04. Los correos muestran solo el código público de la orden (ADR-0049), sin datos de pago ni tokens, y son transaccionales, sin contenido promocional. Un correo que no se pudo enviar no se reintenta y no afecta a la operación que lo originó (ADR-0014).

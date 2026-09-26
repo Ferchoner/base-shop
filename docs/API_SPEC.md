@@ -121,7 +121,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -285,7 +285,7 @@ Cada endpoint lista solo sus errores específicos.
 | 5 por IP por hora | `POST /v1/auth/register` |
 | 3 por email y 10 por IP por hora | `POST /v1/auth/password-reset/request` |
 | 3 por email por hora | `POST /v1/auth/email-verification/resend`, `POST /v1/me/email` |
-| 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder`, `POST /v1/orders/access-links` |
+| 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder` |
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 100 por minuto por IP | Resto de endpoints |
 
@@ -428,8 +428,9 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
 {
   "lines": [ { "variantId": "…", "quantity": 2, "sku": "…", "productTitle": "…", "options": {}, "unitPrice": {}, "lineTotal": {}, "taxRateBp": 1600, "taxAmount": {}, "sellable": true, "canFulfill": true } ],
   "subtotal": { "amount": 119800, "currency": "MXN" },
-  "taxTotal": { "amount": 16524, "currency": "MXN" },
+  "taxTotal": { "amount": 17890, "currency": "MXN" },
   "shippingCost": { "amount": 9900, "currency": "MXN" },
+  "shippingTaxAmount": { "amount": 1366, "currency": "MXN" },
   "discountTotal": { "amount": 0, "currency": "MXN" },
   "grandTotal": { "amount": 129700, "currency": "MXN" },
   "freeShippingThreshold": { "amount": 150000, "currency": "MXN" },
@@ -437,10 +438,10 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
 }
 ```
 
-- `taxTotal` informativo: el IVA está contenido en el subtotal (ADR-0008, BR-ORD-16).
+- `taxTotal` informativo: IVA contenido en el subtotal y en el costo de envío; `shippingTaxAmount` es la parte del envío (ADR-0008, ADR-0079, BR-ORD-16).
 - `readyToPlace`: todas las líneas vendibles y surtibles.
 - `grandTotal.amount` es el valor que el cliente envía como `expectedTotal`.
-- IVA del envío y base del umbral: PENDIENTE (P-58); no cambian la forma de la respuesta.
+- `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
 
 ### 8.8 `Order` (vista de cliente)
 
@@ -450,10 +451,10 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
   "status": "PENDING_PAYMENT",
   "contactEmail": "cliente@example.com",
   "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {} } ],
-  "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "discountTotal": {}, "grandTotal": {},
+  "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
   "shippingAddress": { "…": "Address" },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
-  "shipment": { "status": "DISPATCHED", "carrierName": "…", "trackingNumber": "…", "dispatchedAt": "…", "deliveredAt": null },
+  "shipment": { "status": "DISPATCHED", "carrierName": "…", "trackingNumber": "…", "ownDelivery": false, "dispatchedAt": "…", "deliveredAt": null },
   "placedAt": "…",
   "paymentDueAt": "…",
   "paidAt": null, "shippedAt": null, "deliveredAt": null, "cancelledAt": null, "expiredAt": null, "refundedAt": null
@@ -532,13 +533,15 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
 | GET | `/v1/admin/identity/staff/{userId}` | `staff.manage` | — |
 | PUT | `/v1/admin/identity/staff/{userId}/roles` | `staff.manage` | UC-IAM-14 |
 | POST | `/v1/admin/identity/staff/{userId}/suspend` | `staff.manage` | UC-IAM-16 |
+| POST | `/v1/admin/identity/staff/{userId}/reactivate` | `staff.manage` | UC-IAM-16 |
 | GET | `/v1/admin/identity/customers` | `customers.read` | UC-IAM-17 |
 | GET | `/v1/admin/identity/customers/{userId}` | `customers.read` | UC-IAM-17 |
 | POST | `/v1/admin/identity/customers/{userId}/suspend` | `customers.manage` | UC-IAM-18 |
+| POST | `/v1/admin/identity/customers/{userId}/reactivate` | `customers.manage` | UC-IAM-18 |
 | POST | `/v1/admin/identity/customers/{userId}/anonymize` | `customers.manage` | UC-IAM-19 |
 | POST | `/v1/admin/identity/guest-anonymizations` | `customers.manage` | UC-IAM-19 |
 
-UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR-0057, ADR-0067). Reactivación de cuentas suspendidas: PENDIENTE (P-49).
+UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR-0057, ADR-0067). Las cuentas anonimizadas no se reactivan (ADR-0076).
 
 ### 9.2 `POST /v1/auth/register` — Registrar cliente (UC-IAM-01)
 
@@ -662,6 +665,7 @@ Representación `StaffUser`: `{ "id", "email", "firstNames", "lastNames", "statu
 | `GET /v1/admin/identity/staff/{userId}` | 200 `StaffUser` |
 | `PUT /v1/admin/identity/staff/{userId}/roles` | Request `{ "roleIds": [], "version" }` (reemplaza el conjunto; mínimo uno). 200 `StaffUser`. Errores: 409 `last-superadmin` |
 | `POST /v1/admin/identity/staff/{userId}/suspend` | Request `{ "reason", "version" }`. Revoca sus sesiones. 200 `StaffUser`. Errores: 409 `last-superadmin`; 409 `invalid-state-transition` si no está ACTIVE; un staff no puede suspenderse a sí mismo (409 `invalid-state-transition`) |
+| `POST /v1/admin/identity/staff/{userId}/reactivate` | Request `{ "reason", "version" }`. Desde SUSPENDED. Genera una contraseña temporal nueva (BR-USR-13) y marca `mustChangePassword`; conserva los roles (ADR-0076). 200 `{ "user": StaffUser, "temporaryPassword": "…" }`; la contraseña temporal se muestra solo en esta respuesta, con `Cache-Control: no-store`. Errores: 409 `invalid-state-transition` si no está SUSPENDED |
 
 La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitación por correo (ADR-0043).
 
@@ -674,6 +678,7 @@ Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "s
 | `GET /v1/admin/identity/customers` | `customers.read`. Paginado. Filtros: `q` (email, nombres o apellidos), `status`, `emailVerified`, `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `-createdAt`), `email`, `lastLoginAt` |
 | `GET /v1/admin/identity/customers/{userId}` | `customers.read`. 200 `AdminCustomer` |
 | `POST /v1/admin/identity/customers/{userId}/suspend` | `customers.manage`. Request `{ "reason", "version" }`. Revoca sesiones. 200. Errores: 409 `invalid-state-transition` |
+| `POST /v1/admin/identity/customers/{userId}/reactivate` | `customers.manage`. Request `{ "reason", "version" }`. Desde SUSPENDED; conserva contraseña y verificación de email (ADR-0076). 200 `AdminCustomer`. Errores: 409 `invalid-state-transition` (no está SUSPENDED, incluido un cliente anonimizado) |
 | `POST /v1/admin/identity/customers/{userId}/anonymize` | `customers.manage`. Request `{ "reason", "version" }` (`reason`: referencia de la solicitud ARCO, 1–250 caracteres). 200 `AdminCustomer` anonimizado. Irreversible. Errores: 409 `active-orders-exist`; 409 `invalid-state-transition` si ya está anonimizado |
 | `POST /v1/admin/identity/guest-anonymizations` | `customers.manage`. Request `{ "contactEmail", "publicCode", "reason" }`. Anonimiza todas las órdenes de invitado con ese email (ADR-0067). 200 `{ "anonymizedOrderCount": 3 }`. Errores: 404 `not-found` si el par email–código no coincide; 409 `active-orders-exist` |
 
@@ -704,20 +709,24 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071).
 | GET, PATCH | `/v1/admin/catalog/products/{productId}` | `catalog.read` / `catalog.write` | UC-CAT-05 |
 | POST | `/v1/admin/catalog/products/{productId}/publish` | `catalog.write` | UC-CAT-09 |
 | POST | `/v1/admin/catalog/products/{productId}/archive` | `catalog.write` | UC-CAT-10 |
+| POST | `/v1/admin/catalog/products/{productId}/reactivate` | `catalog.write` | UC-CAT-10 |
 | POST | `/v1/admin/catalog/products/{productId}/variants` | `catalog.write` | UC-CAT-06 |
 | PATCH | `/v1/admin/catalog/products/{productId}/variants/{variantId}` | `catalog.write` | UC-CAT-07 |
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/discontinue` | `catalog.write` | UC-CAT-08 |
+| POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/reactivate` | `catalog.write` | UC-CAT-08 |
 | POST | `/v1/admin/catalog/products/{productId}/images` | `catalog.write` | UC-CAT-11 |
 | PATCH, DELETE | `/v1/admin/catalog/products/{productId}/images/{imageId}` | `catalog.write` | UC-CAT-11 |
 | PUT | `/v1/admin/catalog/products/{productId}/images/order` | `catalog.write` | UC-CAT-11 |
 | GET, POST | `/v1/admin/catalog/categories` | `catalog.read` / `catalog.write` | UC-CAT-12 |
 | PATCH, DELETE | `/v1/admin/catalog/categories/{categoryId}` | `catalog.write` | UC-CAT-12 |
 | POST | `/v1/admin/catalog/categories/{categoryId}/deactivate` | `catalog.write` | UC-CAT-12 |
+| POST | `/v1/admin/catalog/categories/{categoryId}/reactivate` | `catalog.write` | UC-CAT-12 |
 | GET, POST | `/v1/admin/catalog/brands` | `catalog.read` / `catalog.write` | UC-CAT-13 |
 | PATCH, DELETE | `/v1/admin/catalog/brands/{brandId}` | `catalog.write` | UC-CAT-13 |
 | POST | `/v1/admin/catalog/brands/{brandId}/deactivate` | `catalog.write` | UC-CAT-13 |
+| POST | `/v1/admin/catalog/brands/{brandId}/reactivate` | `catalog.write` | UC-CAT-13 |
 
-Reactivación de productos archivados, variantes descontinuadas y categorías o marcas desactivadas: PENDIENTE (P-49).
+Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al vencer el TTL de la cache (ADR-0028).
 
 ### 11.2 `GET /v1/catalog/products` — Listar y buscar (UC-CAT-01, ADR-0060)
 
@@ -776,8 +785,9 @@ Representación `AdminProduct`:
 | `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [] }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
 | `GET /v1/admin/catalog/products/{productId}` | `catalog.read`. 200 `AdminProduct` |
 | `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
-| `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, o archivado mientras P-49 esté abierta, o sin variante activa, con `detail` que lo explica) |
+| `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, archivado —se reactiva primero a DRAFT— o sin variante activa, con `detail` que lo explica) |
 | `POST …/{productId}/archive` | `catalog.write`. Request `{ "version" }`. Desde DRAFT o PUBLISHED. Invalida cache. 200. Errores: 409 `invalid-state-transition` |
+| `POST …/{productId}/reactivate` | `catalog.write`. Request `{ "version" }`. De ARCHIVED a DRAFT; conserva slug y `firstPublishedAt` (ADR-0076). 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |
 
 La generación automática del slug y su bloqueo tras la primera publicación se fijan en ADR-0071, por analogía con ADR-0068.
 
@@ -787,7 +797,8 @@ La generación automática del slug y su bloqueo tras la primera publicación se
 |---|---|
 | `POST …/products/{productId}/variants` | `catalog.write`. Request `{ "sku", "options": {}, "weightGrams", "lengthCm", "widthCm", "heightCm", "version" }` (`version` del producto). `sku` 1–64 caracteres, letras, dígitos, `-`, `_` y `.`, se normaliza a mayúsculas, único y nunca reutilizado (BR-PRD-09); `options`: hasta 3 atributos, nombres 1–30 y valores 1–50 caracteres; mismas claves que las demás variantes del producto; combinación única (BR-PRD-02). Peso en gramos (entero > 0) y dimensiones en cm (> 0, un decimal), opcionales (ADR-0058). No se agregan dimensiones de opciones a un producto con `firstPublishedAt` (ADR-0068). 201 `AdminProduct` con la variante. Errores: 409 `duplicate-value` (`sku` u `options`); 409 `field-locked` |
 | `PATCH …/variants/{variantId}` | `catalog.write`. Request: `sku`, `options`, `weightGrams`, `lengthCm`, `widthCm`, `heightCm`, `version` (del producto). `sku` y `options` solo si el producto no tiene `firstPublishedAt`; al corregir el SKU, el anterior se libera (ADR-0068). 200 `AdminProduct`. Errores: 409 `field-locked`; 409 `duplicate-value` |
-| `POST …/variants/{variantId}/discontinue` | `catalog.write`. Request `{ "version" }`. Irreversible mientras P-49 esté abierta. Invalida cache. 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |
+| `POST …/variants/{variantId}/discontinue` | `catalog.write`. Request `{ "version" }`. Invalida cache. 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |
+| `POST …/variants/{variantId}/reactivate` | `catalog.write`. Request `{ "version" }` (del producto). De DISCONTINUED a ACTIVE; SKU y opciones no cambian (ADR-0076). 200 `AdminProduct`. Errores: 409 `invalid-state-transition`; 409 `duplicate-value` (`options`) si otra variante activa tiene la misma combinación |
 
 La cantidad máxima de atributos y las longitudes se fijan en ADR-0071.
 
@@ -812,11 +823,13 @@ Representaciones: `AdminCategory { id, parentId, name, slug, status, position, p
 | `POST /v1/admin/catalog/categories` | `catalog.write`. Request `{ "name", "slug", "parentId", "position" }`. `name` 1–100; `slug` opcional y único; `parentId` activa. 201. Errores: 409 `duplicate-value` |
 | `PATCH /v1/admin/catalog/categories/{categoryId}` | `catalog.write`. Request `{ "name", "slug", "parentId", "position" }`. Mover no puede crear ciclos (BR-PRD-03) → 409 `invalid-state-transition` con `detail`. 200 |
 | `POST …/categories/{categoryId}/deactivate` | `catalog.write`. 200 |
+| `POST …/categories/{categoryId}/reactivate` | `catalog.write`. Solo si su padre está activa o es raíz; no reactiva subcategorías (ADR-0076). 200. Errores: 409 `invalid-state-transition` (ya activa o padre inactiva, con `detail`) |
 | `DELETE /v1/admin/catalog/categories/{categoryId}` | `catalog.write`. 204. Errores: 409 `resource-in-use` (productos o subcategorías, BR-PRD-10) |
 | `GET /v1/admin/catalog/brands` | `catalog.read`. Paginado. Filtros `q`, `status`. Orden `name` |
 | `POST /v1/admin/catalog/brands` | `catalog.write`. Request `{ "name", "slug" }`. 201. Errores: 409 `duplicate-value` |
 | `PATCH /v1/admin/catalog/brands/{brandId}` | `catalog.write`. Request `{ "name", "slug" }`. 200 |
 | `POST …/brands/{brandId}/deactivate` | `catalog.write`. 200 |
+| `POST …/brands/{brandId}/reactivate` | `catalog.write`. 200. Errores: 409 `invalid-state-transition` si ya está activa |
 | `DELETE /v1/admin/catalog/brands/{brandId}` | `catalog.write`. 204. Errores: 409 `resource-in-use` |
 
 Categorías y marcas no tienen columna `version` en el modelo; se actualizan sin concurrencia optimista (último en escribir gana). Su slug se puede cambiar: el anterior deja de funcionar (404) y queda libre, con el riesgo aceptado de romper enlaces públicos anteriores (ADR-0072).
@@ -951,8 +964,6 @@ Reglas comunes: solo órdenes CANCELLED o REFUNDED (409 `invalid-state-transitio
 | GET | `/v1/me/orders` | Solo cliente | UC-ORD-03 |
 | GET | `/v1/me/orders/{publicCode}` | Solo cliente | UC-ORD-03 |
 | POST | `/v1/orders/lookup` | Público | UC-ORD-04 |
-| POST | `/v1/orders/access-links` | Público | UC-ORD-05 (PENDIENTE, P-56) |
-| POST | `/v1/orders/access` | Público (token) | UC-ORD-05 (PENDIENTE, P-56) |
 | GET | `/v1/admin/orders` | `orders.read` | UC-ORD-06 |
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
@@ -1014,13 +1025,9 @@ o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección
 - Errores: 404 `not-found` idéntico si la orden no existe, el email no coincide o la orden pertenece a una cuenta (BR-ORD-11).
 - Rate limit obligatorio: 10 por IP en 15 minutos.
 
-### 15.6 Enlace de acceso por correo (UC-ORD-05) — PENDIENTE (P-56)
+### 15.6 Enlace de acceso por correo (UC-ORD-05) — fuera del MVP
 
-Contrato provisional, sujeto a la decisión de implementarlo:
-
-- `POST /v1/orders/access-links` — Request `{ "contactEmail", "publicCode" }`; 202 sin cuerpo, coincida o no; envía un enlace con token de un solo uso.
-- `POST /v1/orders/access` — Request `{ "token" }`; 200 `Order`; 400 `invalid-or-expired-token`.
-- Vigencia del token y rate limit: pendientes con P-56.
+No se implementa en el MVP (ADR-0077). El invitado consulta su pedido con email y código público (15.5); si perdió el código, lo atiende el staff por un canal externo. El diseño previsto para implementarlo después (recuperación solo con email) está en ADR-0077.
 
 ### 15.7 Administración de órdenes (UC-ORD-06 a 08)
 
@@ -1127,7 +1134,7 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 | Método | Ruta | Permiso | UC |
 |---|---|---|---|
 | GET | `/v1/admin/shipping/method` | `shipping.manage` | UC-SHI-02 |
-| PUT | `/v1/admin/shipping/method` | PENDIENTE (P-48) | UC-SHI-02 |
+| PUT | `/v1/admin/shipping/method` | `shipping.configure` | UC-SHI-02 |
 | GET | `/v1/admin/shipping/shipments` | `shipping.manage` | UC-SHI-08 |
 | GET | `/v1/admin/shipping/shipments/{shipmentId}` | `shipping.manage` | UC-SHI-08 |
 | PATCH | `/v1/admin/shipping/shipments/{shipmentId}` | `shipping.manage` | UC-SHI-04 |
@@ -1139,16 +1146,16 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 **Método de envío** (`ShippingMethod { id, name, flatFee: Money, freeShippingThreshold: Money | null, isActive, version, updatedAt }`).
 
 - `GET` — 200 el método activo.
-- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0; umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso PENDIENTE (P-48).
+- `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0, con IVA incluido (ADR-0079); umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
 
-**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
+**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
 
 | Endpoint | Detalle |
 |---|---|
 | `GET …/shipments` | Paginado. Filtros: `status` (defecto PENDING, UC-SHI-08), `orderId`, `q` (código de orden o guía), `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `createdAt` ascendente: primero los más antiguos), `dispatchedAt` |
 | `GET …/shipments/{shipmentId}` | 200 `AdminShipment` |
-| `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100). Permitido en PENDING y DISPATCHED. 200. Errores: 409 `invalid-state-transition` |
-| `POST …/dispatch` | Request `{ "version" }`. Desde PENDING. Si hay `carrierName`, exige `trackingNumber` (BR-SHP-04). La orden pasa a SHIPPED. 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta guía). Envíos sin paquetería: PENDIENTE (P-57) |
+| `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100). Permitido en PENDING y DISPATCHED, salvo en envíos despachados como entrega propia. 200. Errores: 409 `invalid-state-transition` |
+| `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED. 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
 | `POST …/deliver` | Request `{ "version" }`. Desde DISPATCHED. La orden pasa a DELIVERED. 200 |
 | `POST …/delivery-failure` | Request `{ "note", "version" }`. Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
 | `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/inventory/restocks`. 200 |
@@ -1185,11 +1192,6 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| P-48 | Permiso para configurar el costo de envío | `PUT /v1/admin/shipping/method` |
-| P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | Staff, clientes, productos, variantes, categorías, marcas |
-| P-56 | Enlace de acceso al pedido por correo | `POST /v1/orders/access-links`, `POST /v1/orders/access` |
-| P-57 | Envíos sin paquetería | `POST …/shipments/{id}/dispatch` |
-| P-58 | IVA del envío y base del umbral | Valores de `CheckoutQuote` (no su forma) |
 | T-145 | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |
 
 ---

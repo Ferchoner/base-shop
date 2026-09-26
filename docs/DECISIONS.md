@@ -91,6 +91,12 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0071 | Contratos REST y convenciones de la API | Aceptada |
 | ADR-0072 | Sesiones al cambiar la contraseña y slugs de categorías y marcas | Aceptada |
 | ADR-0073 | Herramienta de lint | Aceptada |
+| ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
+| ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
+| ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
+| ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
+| ADR-0078 | Envíos sin paquetería | Aceptada |
+| ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
 
 ---
 
@@ -352,7 +358,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El identificador que usa el invitado no es adivinable (código aleatorio, ADR-0049); junto con el email y el rate limiting, impide la enumeración.
   - La respuesta de error no debe revelar si existe una orden con ese número o ese email.
   - El enlace por correo depende del proveedor de correo (P-24).
-- **Estado:** Aceptada. El enlace por correo queda condicionado a su costo.
+- **Estado:** Aceptada. El enlace por correo queda fuera del MVP (ADR-0077).
 
 ---
 
@@ -823,6 +829,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `orders.manage` | Cancelar pedidos y resolver AwaitingManualFulfillment |
 | `payments.manage` | Registrar pagos manuales y emitir reembolsos |
 | `shipping.manage` | Gestionar envíos (guías y estados) |
+| `shipping.configure` | Configurar el costo de envío y el umbral de envío gratis (agregado por ADR-0075) |
 | `customers.read` | Ver datos de clientes |
 | `customers.manage` | Suspender y anonimizar clientes |
 | `staff.manage` | Gestionar cuentas del staff y roles |
@@ -1275,7 +1282,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean.
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`) y ADR-0079 (IVA del envío en `orders`).
 
 ---
 
@@ -1422,3 +1429,176 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - oxlint no admite `eslint-plugin-boundaries`, así que la verificación de límites entre módulos (ADR-0005, T-103) se hace con otra herramienta, por ejemplo `dependency-cruiser`.
   - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier).
 - **Estado:** Aceptada.
+
+---
+
+## ADR-0074 — Notificaciones por correo del ciclo de la orden
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-45 (UC-NTF-01, T-215). Las notificaciones son un módulo que reacciona a eventos, sin dominio propio (ADR-0004). Condiciones que ya están decididas:
+  - El cliente no puede cancelar desde la API; solo el staff (ADR-0021). Sin correo, el cliente no se entera de una cancelación.
+  - Con el pago manual en tienda y un TTL de 20 minutos, el pago casi siempre llega después de que la orden expiró (ADR-0055).
+  - Los eventos se despachan después del commit y sin outbox; un correo puede perderse (riesgo aceptado en ADR-0014).
+  - Las órdenes anonimizadas no tienen email de contacto (ADR-0067).
+  - Los correos de cuenta (verificación, recuperación y aviso de cambio de contraseña) ya están decididos en ADR-0046, ADR-0056 y ADR-0072, y no forman parte de esta decisión.
+- **Decisión:**
+  - **Criterio:** se notifican la confirmación de la compra y los cambios de la orden que el cliente no provocó y de los que no se enteraría de otra forma: pago registrado por el staff, envío, cancelación y reembolso.
+  - **Correos que se envían:**
+
+    | Correo | Evento | Contenido mínimo |
+    |---|---|---|
+    | Orden recibida | `OrderPlaced` | Código público, líneas, totales, dirección de envío resumida, instrucciones de pago en tienda y plazo de la reserva |
+    | Pago confirmado | `OrderPaid` | Código público y total pagado |
+    | Orden enviada | `ShipmentDispatched` | Código público; paquetería y guía, o "entrega de la tienda" (ADR-0078) |
+    | Orden cancelada | `OrderCancelled` | Código público; si hubo pago capturado, indica que el reembolso está en proceso |
+    | Reembolso completado | `RefundCompleted` | Código público y monto reembolsado |
+
+  - **Correos que no se envían en el MVP:**
+    - Orden entregada (`OrderDelivered`): por decisión del equipo (2026-09-25).
+    - Orden expirada (`OrderExpired`): con el pago en tienda llegaría en casi toda compra seguida de "pago confirmado", lo que confunde. Se revisa al habilitar pagos en línea.
+    - Pago tardío sin stock (AwaitingManualFulfillment): con el pago en tienda el cliente está presente cuando el staff lo registra; la resolución posterior genera "pago confirmado" o "orden cancelada". No hay evento para este estado y no se crea uno.
+    - Entrega fallida y devolución (`DeliveryFailed`, `ShipmentReturned`): se gestionan fuera del sistema (ADR-0053).
+    - Pago fallido (`PaymentFailed`): el pago manual no falla y PayPal no está habilitado (ADR-0040).
+    - Notificaciones al staff: el staff trabaja con las vistas administrativas (órdenes en AwaitingManualFulfillment y canceladas con reembolso pendiente).
+  - **Destinatario:** el email de contacto de la orden (en clientes registrados es el email de la cuenta al colocarla). Si la orden está anonimizada, no se envía.
+  - **Contenido:** en español; solo el código público, nunca el número interno (ADR-0049); sin datos de pago, tokens ni enlaces a la orden (ADR-0077). Son correos transaccionales, sin opción de baja ni contenido promocional.
+  - **Entrega:** asíncrona, al recibir el evento después del commit (ADR-0014). Como máximo un envío por evento; sin reintentos; los fallos se registran en logs sin el email del destinatario. No se agrega tabla de notificaciones: el modelo de datos aprobado (ADR-0066) no cambia.
+- **Alternativas consideradas:** Solo confirmación de compra y de envío (el cliente no se entera de cancelaciones ni reembolsos); notificar todo cambio de estado, incluidos expiración y entrega fallida; registro de notificaciones enviadas con reintentos (requiere tabla nueva y un job).
+- **Consecuencias:**
+  - T-215 queda desbloqueada. El módulo de notificaciones consume eventos de Ordering, Payments y Shipping, y obtiene el email de contacto y los datos de la orden mediante la fachada de Ordering (ADR-0005).
+  - El correo de orden recibida no es comprobante: el código público también se entrega en la respuesta de la API. Si el negocio llega a depender de él, se revisa ADR-0014.
+  - La mención de estos correos en el aviso de privacidad se valida junto con P-61.
+- **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se implementa el enlace de acceso al pedido (ADR-0077).
+- **Estado:** Aceptada (aprobación formal 2026-09-25).
+
+---
+
+## ADR-0075 — Permiso para configurar el costo de envío
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-48. El costo fijo y el umbral de envío gratis (ADR-0042) son valores monetarios que se aplican a cada orden. `shipping.manage` lo tiene también el Operador (ADR-0043), mientras que las operaciones con dinero (pagos manuales, reembolsos) y las cancelaciones quedan en Administrador y Superadministrador.
+- **Decisión:**
+  - Solo los usuarios administrativos (Superadministrador y Administrador) configuran el costo de envío y el umbral de envío gratis.
+  - Se implementa con un permiso nuevo en el catálogo de ADR-0043: `shipping.configure`. Los roles iniciales Superadministrador y Administrador lo incluyen; el Operador no.
+  - Como la autorización se basa en permisos (ADR-0017), no se comprueba el nombre del rol.
+  - Consultar el método de envío sigue con `shipping.manage`.
+- **Alternativas consideradas:** Usar `shipping.manage` (el Operador podría cambiar un valor monetario); reutilizar `payments.manage` u `orders.manage` (mezcla contextos, en contra de ADR-0017); comprobar el nombre del rol (los roles son editables y la autorización es por permisos).
+- **Consecuencias:**
+  - El catálogo de permisos pasa de 14 a 15.
+  - Como los roles se editan en base de datos, un rol creado después puede recibir `shipping.configure`; el cambio de permisos de un rol se audita (ADR-0037).
+- **Estado:** Aceptada.
+
+---
+
+## ADR-0076 — Reactivación de entidades suspendidas, archivadas o desactivadas
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-49. ADR-0038 define suspender, archivar, descontinuar y desactivar como alternativas al borrado, pero no el camino de regreso; hoy esas operaciones son irreversibles. Condiciones:
+  - Un error de operación (archivar el producto equivocado, suspender a otra persona) no tiene corrección, y la única salida es crear duplicados.
+  - El email de un usuario suspendido, el slug de un producto archivado y el SKU de una variante descontinuada siguen reservados (ADR-0038), así que reactivar no choca con otros registros por esos valores.
+  - Una cuenta de staff puede suspenderse por sospecha de que su contraseña está comprometida.
+  - La anonimización es irreversible (ADR-0067) y queda fuera de esta decisión.
+  - La restricción `UNIQUE (product_id, options)` de `product_variants` (ADR-0066) incluye las variantes descontinuadas. Con ella, la corrección que prevé ADR-0068 (descontinuar una variante y crear otra con las mismas opciones y el SKU correcto) es imposible.
+- **Decisión:**
+  - **Criterio general:** cada desactivación de P-49 se revierte con una acción explícita `POST …/reactivate`, con el mismo permiso que la desactivación. Se audita. No se emiten eventos nuevos (no tienen consumidor) y la cache refleja la reactivación al vencer su TTL (ADR-0028).
+
+    | Entidad | Transición | Permiso | Reglas |
+    |---|---|---|---|
+    | Staff | SUSPENDED → ACTIVE | `staff.manage` | Requiere motivo. Se genera una contraseña temporal nueva, devuelta una sola vez como en el alta, con cambio obligatorio en el siguiente inicio de sesión. Conserva sus roles |
+    | Cliente | SUSPENDED → ACTIVE | `customers.manage` | Requiere motivo. Conserva su contraseña y el estado de verificación del email; si no la recuerda, usa la recuperación. Un cliente anonimizado no se reactiva |
+    | Producto | ARCHIVED → DRAFT | `catalog.write` | No vuelve directo a la tienda: se publica con el flujo normal (BR-PRD-04). Conserva slug y `firstPublishedAt`, y con ello el bloqueo de SKU y opciones (ADR-0068) |
+    | Variante | DISCONTINUED → ACTIVE | `catalog.write` | Solo si ninguna variante activa del producto tiene la misma combinación de opciones. Vuelve a ser vendible cuando cumple BR-PRD-11 |
+    | Categoría | INACTIVE → ACTIVE | `catalog.write` | Solo si su categoría padre está activa o es raíz. No reactiva subcategorías |
+    | Marca | INACTIVE → ACTIVE | `catalog.write` | — |
+
+  - **Modelo de datos:** la restricción `UNIQUE (product_id, options)` pasa a índice único parcial `(product_id, options) WHERE status = 'ACTIVE'`. La combinación de opciones es única entre variantes activas (BR-PRD-02), lo que permite la corrección de ADR-0068 y hace que la base garantice la regla de reactivación de variantes.
+- **Alternativas consideradas:** Mantener las operaciones irreversibles; reactivar al staff con su contraseña anterior (riesgoso si la suspensión fue por compromiso); reactivar el producto directamente en PUBLISHED; permitir la reactivación solo al Superadministrador.
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066) en un índice de `product_variants`; T-110 aún no crea migraciones, así que no hay datos que migrar.
+  - Nuevos endpoints, todos `POST` y con respuesta 200: `/v1/admin/identity/staff/{userId}/reactivate` (devuelve la contraseña temporal con `Cache-Control: no-store`), `/v1/admin/identity/customers/{userId}/reactivate`, `/v1/admin/catalog/products/{productId}/reactivate`, `…/variants/{variantId}/reactivate`, `/v1/admin/catalog/categories/{categoryId}/reactivate` y `/v1/admin/catalog/brands/{brandId}/reactivate`. Errores: 409 `invalid-state-transition` (estado de origen incorrecto o categoría padre inactiva) y 409 `duplicate-value` (combinación de opciones ocupada).
+  - Se retiran las notas "irreversible mientras P-49 esté abierta" (descontinuar variante) y "archivado mientras P-49 esté abierta" (publicar producto): un producto archivado primero se reactiva a DRAFT y luego se publica.
+  - La reactivación de staff y clientes es un evento de seguridad auditado, igual que la suspensión (ADR-0037).
+  - Fuera de alcance: almacenes y listas de precios desactivados (ADR-0038) tampoco tienen reactivación, pero no forman parte de P-49.
+- **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`.
+
+---
+
+## ADR-0077 — Enlace de acceso al pedido por correo
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-56 (UC-ORD-05, T-186). ADR-0020 dejó el enlace por correo como mecanismo adicional "si su costo es bajo". Hechos relevantes:
+  - El invitado ya consulta su pedido con email y código público (UC-ORD-04, `POST /v1/orders/lookup`), con rate limiting.
+  - El código público se entrega en la respuesta de la API al colocar la orden y en el correo de orden recibida (ADR-0074).
+  - El contrato provisional de `API_SPEC.md` pide para solicitar el enlace **los mismos datos** que la consulta directa (email y código). Quien puede pedir el enlace ya puede consultar el pedido, así que el enlace solo agrega la prueba de que el solicitante controla el buzón.
+  - El caso que la consulta directa no resuelve es el invitado que perdió el código (borró o no recibió el correo de orden recibida, que puede perderse según ADR-0014).
+  - El staff puede buscar órdenes por email de contacto (ADR-0049) y atender ese caso por un canal externo.
+  - No hay frontend todavía: el enlace se armaría con la URL base del frontend, como la recuperación de contraseña (ADR-0056).
+- **Decisión:**
+  - No se implementa el enlace de acceso en el MVP. UC-ORD-05 y T-186 pasan a DEFERRED.
+  - Se retira del contrato el diseño provisional (`POST /v1/orders/access-links` y `POST /v1/orders/access`), porque duplica la consulta directa.
+  - Los correos de la orden no llevan enlaces a la orden; muestran el código público (ADR-0074).
+  - Un invitado que perdió su código se atiende por un canal externo: el staff busca la orden por email con `orders.read`.
+  - **Diseño previsto si se implementa después** (recuperación por email):
+    - `POST /v1/orders/access-links` con solo `{ "contactEmail" }`; responde 202 sin cuerpo exista o no una orden, y envía al buzón un enlace que da acceso a las órdenes de invitado de ese email.
+    - Token aleatorio de un solo uso, guardado como hash, vigente 30 minutos, con límite por email y por IP (como ADR-0056). Requiere una tabla nueva en Ordering.
+    - Lo usaría también un comprador que perdió el correo de orden recibida.
+- **Alternativas consideradas:**
+  - Implementar el contrato provisional (email y código): costo de tabla, token, correo y endpoints sin resolver el código perdido.
+  - Implementar ya la recuperación por email: resuelve el código perdido, pero agrega una tabla al modelo de datos aprobado, un tipo de token, un correo y dos endpoints, sin frontend para probar el flujo completo.
+  - Token firmado sin estado (lo que menciona ADR-0020): evita la tabla, pero no se puede invalidar ni usar una sola vez, a diferencia de los demás tokens del sistema.
+- **Consecuencias:**
+  - T-186 deja de estar bloqueada y pasa a DEFERRED; el MVP no depende de la entrega de correos para que un invitado consulte su pedido.
+  - Se actualizan ADR-0020 (el enlace queda fuera del MVP), BR-ORD-10 y ADR-0074 (sin enlaces en los correos).
+  - El modelo de datos aprobado (ADR-0066) no cambia.
+- **Revisar si:** el staff recibe solicitudes frecuentes de invitados que perdieron su código, o existe frontend y proveedor de correo real (P-24).
+- **Estado:** Aceptada (aprobación formal 2026-09-25).
+
+---
+
+## ADR-0078 — Envíos sin paquetería
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-57 (T-195). BR-SHP-04 exige guía "cuando interviene una paquetería", lo que sugiere envíos sin ella. Son dos casos distintos:
+  - **Entrega propia:** la tienda lleva el pedido con su personal o un mensajero, a la dirección de la orden. Solo cambia quién entrega; el flujo de pago, envío y estados es el mismo.
+  - **Recoger en tienda:** el cliente elige no recibir envío. Cambia el checkout (dirección opcional, costo 0, elección del método), los estados (listo para recoger, recogido), la identificación de quien recoge y los correos.
+  - El modelo actual ya permite despachar sin paquetería: `carrier_name` y `tracking_number` son opcionales y la guía solo se exige si hay paquetería. Pero no distingue "entrega propia" de "olvidé capturar la paquetería", así que un envío por paquetería puede despacharse sin guía por error.
+  - Hay un solo método de envío activo (ADR-0042, índice único parcial en `shipping_methods`), y la dirección de envío es obligatoria en el checkout.
+- **Decisión:**
+  - **Entrega propia: sí en el MVP.** Es una decisión operativa del staff al despachar, no una opción del cliente. Aplican el mismo costo de envío (ADR-0042), los mismos estados (ADR-0050, ADR-0053) y la misma dirección de la orden.
+  - Al despachar, el staff indica una de dos formas:
+    - Paquetería: `carrierName` y `trackingNumber` obligatorios (BR-SHP-04).
+    - Entrega propia: `ownDelivery: true`, sin paquetería ni guía.
+  - Nueva columna `shipments.own_delivery boolean NOT NULL DEFAULT false`, con `CHECK (status = 'PENDING' OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))` y `CHECK (NOT own_delivery OR (carrier_name IS NULL AND tracking_number IS NULL))`. La base garantiza que no se despacha por paquetería sin guía, validación que hoy solo hace la aplicación.
+  - Las vistas de envío (`AdminShipment` y `shipment` de la orden del cliente) incluyen `ownDelivery`. El correo de orden enviada (ADR-0074) indica "entrega de la tienda" en lugar de paquetería y guía.
+  - **Recoger en tienda: fuera del MVP.** Se agrega a la lista de alcance excluido. Requiere su propia decisión: elección en el checkout, dirección opcional, costo, estados, identificación al recoger y correo de "listo para recoger".
+- **Alternativas consideradas:**
+  - Mantener la regla actual (sin paquetería no se exige guía): no requiere cambios, pero no distingue la entrega propia de un olvido.
+  - Registrar la entrega propia como texto en `carrierName` (por ejemplo, "Entrega propia"): evita la columna, pero no se puede validar ni distinguir de forma fiable.
+  - Implementar también recoger en tienda en el MVP: cambia checkout, órdenes, envíos, estados y correos.
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066) en una columna y una restricción de `shipments`; aún no hay migraciones.
+  - Cambia el contrato de `POST …/shipments/{id}/dispatch` (acepta `ownDelivery`) y agrega `ownDelivery` a `AdminShipment` y a `shipment` de `Order`.
+  - `PATCH …/shipments/{id}` no puede capturar paquetería ni guía en un envío despachado como entrega propia.
+- **Revisar si:** el negocio quiere ofrecer recoger en tienda, o se integra una paquetería (ADR-0041).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0079 — IVA del costo de envío y base del umbral de envío gratis
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-58 (UC-SHI-01, T-196). Los precios incluyen IVA (ADR-0008), todo lleva IVA del 16% configurable (ADR-0027) y el total es subtotal + envío − descuento (BR-ORD-16). ADR-0042 no decía si el costo de envío incluye IVA ni contra qué monto se compara el umbral de envío gratis. Cuando el vendedor cobra el envío junto con la venta, ese cobro suele gravarse con el mismo IVA que la mercancía; el tratamiento fiscal lo confirma el contador del negocio.
+- **Decisión:**
+  - **IVA del envío:** el costo de envío configurado incluye IVA, igual que los precios de productos; el cliente paga el monto configurado.
+    - El IVA contenido en el envío se calcula con la misma tasa configurada (ADR-0027) y con la misma regla de redondeo por línea (ADR-0008), y se guarda como snapshot en la orden junto con la tasa aplicada.
+    - `taxTotal` de la orden es el IVA de las líneas más el del envío. La fórmula del total no cambia.
+  - **Umbral de envío gratis:** el envío es gratis cuando subtotal con IVA − descuento ≥ umbral. El costo de envío no cuenta para alcanzarlo. En el MVP el descuento siempre es 0 (ADR-0018).
+  - Con envío gratis, el costo de envío y su IVA son 0.
+  - **Ejemplo:** productos por $1,198.00 (IVA $165.24) y envío de $99.00 (IVA $13.66): total $1,297.00 e IVA total $178.90. Con un umbral de $1,500, un carrito de $1,600 con IVA tiene envío gratis.
+- **Alternativas consideradas:** Sumar el IVA al costo configurado ($99 + $15.84); envío sin IVA; comparar el umbral contra el subtotal sin IVA (un cliente que ve $1,600 en su carrito pagaría envío con un umbral anunciado de $1,500).
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066): columnas `shipping_tax_amount` y `shipping_tax_rate_bp` en `orders`; la restricción `tax_total <= subtotal` pasa a `tax_total <= subtotal + shipping_cost`, y se agrega `shipping_tax_amount <= shipping_cost`.
+  - `CheckoutQuote` y `Order` agregan `shippingTaxAmount`, un cambio compatible dentro de `v1`.
+  - El tratamiento del IVA del envío se valida con el contador antes de operar con clientes reales.
+- **Revisar si:** el contador indica otro tratamiento, se emiten facturas (ADR-0027) o se habilitan promociones (ADR-0018).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
