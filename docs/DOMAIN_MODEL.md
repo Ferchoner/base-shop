@@ -17,7 +17,7 @@ Convención: los nombres de código (aggregates, eventos, casos de uso) van en i
 | Payments | Generic | Cobros vía proveedores, intentos, reembolsos, conciliación |
 | Shipping | Supporting | Cotización de envíos, envíos, rastreo |
 
-Capacidades transversales (no son contextos): auditoría técnica, notificaciones y catálogo geográfico de estados y municipios del INEGI (dato de referencia de solo lectura, ADR-0057).
+Capacidades transversales (no son contextos): auditoría técnica, notificaciones por correo (ADR-0074) y catálogo geográfico de estados y municipios del INEGI (dato de referencia de solo lectura, ADR-0057).
 
 Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de domain event.
 
@@ -121,13 +121,11 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 
 ---
 
----
-
 ## Relaciones entre contextos
 
 | Upstream → Downstream | Qué fluye | Mecanismo |
 |---|---|---|
-| Identity → todos | userId y permisos | Token (mecanismo PENDIENTE DE DECISIÓN) |
+| Identity → todos | userId y permisos | Token de acceso JWT de corta duración en `Authorization: Bearer`, emitido por Identity; los permisos se resuelven desde los roles del usuario (ADR-0017, ADR-0022, ADR-0023) |
 | Catalog → Pricing, Inventory, Shopping, Ordering, Shipping | variantId, snapshot de variante | Fachada síncrona; eventos `VariantDiscontinued`, `ProductArchived` |
 | Pricing → Shopping, Ordering | Precios cotizados | Fachada síncrona `QuotePrices` |
 | Ordering → Inventory | Reservar, confirmar, liberar | Comando síncrono en checkout; comandos por eventos |
@@ -135,6 +133,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051) |
 | Ordering → Shipping | Orden pagada | Evento `OrderPaid` |
 | Shipping → Ordering | Progreso del envío | Eventos `ShipmentDispatched`, `ShipmentDelivered` |
+| Ordering, Payments, Shipping → Notificaciones | Datos para los correos al cliente | Eventos `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `RefundCompleted`, `ShipmentDispatched`; email de contacto y datos de la orden por la fachada de Ordering (ADR-0074) |
 
 ## Flujo de checkout y pago (ADR-0019)
 

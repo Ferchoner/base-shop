@@ -1,6 +1,8 @@
 # REQUIREMENTS — Especificación técnica
 
-Especificación funcional del MVP derivada de las decisiones registradas (`DECISIONS.md`, ADR-0001 a ADR-0048), el modelo de dominio (`DOMAIN_MODEL.md`) y las reglas de negocio (`BUSINESS_RULES.md`).
+Especificación funcional del MVP derivada de las decisiones registradas (`DECISIONS.md`, ADR-0001 a ADR-0079), el modelo de dominio (`DOMAIN_MODEL.md`) y las reglas de negocio (`BUSINESS_RULES.md`).
+
+**Estado:** aprobada (T-002, 2026-09-26).
 
 Convenciones:
 
@@ -482,7 +484,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 
 - Disponibilidad, tiempos de respuesta y volumen esperado: PENDIENTE DE DECISIÓN (P-14).
 - Métricas, trazas y seguimiento de errores: PENDIENTE DE DECISIÓN (P-07).
-- CORS: PENDIENTE DE DECISIÓN (depende de clientes que aún no existen).
+- CORS: PENDIENTE DE DECISIÓN (P-65; depende de clientes que aún no existen).
 - Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, fuera del MVP; plazos PENDIENTES DE VALIDACIÓN LEGAL (P-61).
 
 ---

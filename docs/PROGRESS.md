@@ -64,7 +64,7 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Ciclo de conservación de datos personales diseñado, fuera del MVP (ADR-0070)
 - [x] Contratos REST en `API_SPEC.md` aprobados (ADR-0071, T-005, 2026-09-25)
 - [x] Sesiones al cambiar la contraseña y slugs de categorías y marcas (ADR-0072)
-- [x] Especificación técnica en `REQUIREMENTS.md` con casos de uso, estados, permisos, errores y requisitos no funcionales (T-002 en REVIEW)
+- [x] Especificación técnica en `REQUIREMENTS.md` con casos de uso, estados, permisos, errores y requisitos no funcionales (T-002 aprobada, 2026-09-26)
 - [x] oxlint como herramienta de lint (ADR-0073)
 - [x] Código alineado con el stack decidido: `docs/` y `CLAUDE.md` versionados; Yarn eliminado (solo npm, ADR-0025); Vitest reemplazado por Jest (ADR-0002); eliminados los módulos generados `product/` y `cart/` y `@nestjs/observe` (ADR-0032, P-07)
 - [x] Notificaciones por correo del ciclo de la orden (ADR-0074)
@@ -77,7 +77,7 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 
 ## In Progress
 
-- [ ] Revisión de la especificación técnica (T-002): P-34 a P-60 resueltas; pendiente de aprobación
+Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 
 ## Next
 
@@ -102,13 +102,16 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 
 ### API
 
-Ninguna pendiente.
+| ID | Decisión | Bloquea |
+|---|---|---|
+| P-65 | CORS: orígenes permitidos; dependen de clientes que aún no existen | — |
 
 ### Negocio
 
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting | — |
+| P-64 | Tiempos de entrega comprometidos (BR-SHP-08) | — |
 
 ### Arquitectura, datos y seguridad
 

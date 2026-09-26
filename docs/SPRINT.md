@@ -10,7 +10,7 @@ Definir requisitos, decisiones tecnológicas, arquitectura, modelo de datos y co
 
 ## Tasks
 
-Ver `docs/TASKS.md`, sección "Inicialización (Sprint 0)": T-001 a T-005.
+Ver `docs/TASKS.md`, sección "Inicialización (Sprint 0)": T-001 a T-006, todas en DONE.
 
 Las fundaciones técnicas (T-100 a T-118) ya pueden iniciar (T-003 aprobada y P-20 decidida), siempre que no incluyan lógica de negocio. Las bloqueadas por otras decisiones se indican en `TASKS.md`.
 
