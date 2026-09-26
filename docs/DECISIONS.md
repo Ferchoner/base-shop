@@ -105,6 +105,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0085 | CORS | Aceptada |
 | ADR-0086 | Encabezados de seguridad de las respuestas HTTP | Aceptada |
 | ADR-0087 | Validación de entrada y de configuración con class-validator | Aceptada |
+| ADR-0088 | Estructura de carpetas y convenciones de nombres | Aceptada |
 
 ---
 
@@ -1778,4 +1779,26 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - El plugin de Swagger de NestJS puede leer los decoradores de los DTOs (T-114).
   - Domain no depende de estas librerías: los DTOs y la configuración viven fuera del dominio (ADR-0003).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0088 — Estructura de carpetas y convenciones de nombres
+
+- **Fecha:** 2026-09-26
+- **Contexto:** T-101. ADR-0003 fija un módulo de NestJS por bounded context con cuatro capas, pero la estructura concreta de carpetas quedaba pendiente (`ARCHITECTURE.md`). T-100 había dejado `src/config/` y `src/http/` en ubicaciones provisionales, y el proyecto conservaba el ejemplo "Hello World" de NestJS.
+- **Decisión:**
+  - **Carpetas de primer nivel en `src/`:**
+    - `platform/`: infraestructura técnica transversal, sin reglas de negocio (configuración, políticas HTTP y, después, persistencia, eventos, jobs, logs y cache).
+    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112). TypeScript puro, sin NestJS.
+    - `modules/<contexto>/`: un módulo por bounded context, con nombre en inglés y kebab-case: `identity-access`, `catalog`, `pricing`, `inventory`, `shopping`, `ordering`, `payments` y `shipping`.
+  - **Cada contexto** tiene las carpetas `domain/`, `application/`, `infrastructure/` y `presentation/`, un `<contexto>.module.ts` que conecta las capas y un `index.ts` que es su API pública: solo exporta el módulo de NestJS, la fachada y sus tipos públicos (ADR-0005).
+  - **Capacidades transversales** (auditoría, notificaciones y catálogo geográfico): módulos bajo `modules/` con solo las capas que necesiten, creados en sus tareas (T-127, T-215 y T-124).
+  - **Imports relativos**, sin alias de rutas: con ESM y `nodenext`, TypeScript no reescribe los alias y habría que agregar otra herramienta de compilación.
+  - **Nombres de archivo** en kebab-case con sufijo de rol: `order.ts` (aggregate o entidad), `order.repository.ts` (interfaz en `domain`), `prisma-order.repository.ts` (implementación en `infrastructure`), `place-order.use-case.ts`, `ordering.facade.ts`, `order.controller.ts`, `place-order.dto.ts`. Los tests unitarios van junto al código como `*.spec.ts`.
+  - Se retira el ejemplo "Hello World" (`AppController` y `AppService`), que no forma parte de la API.
+- **Alternativas consideradas:** Carpetas por capa en la raíz con subcarpetas por contexto (dispersa cada contexto); alias de rutas (`@modules/...`); crear desde ahora los módulos transversales vacíos.
+- **Consecuencias:**
+  - T-103 verifica automáticamente las dependencias entre capas y que un módulo solo importe de otro a través de su `index.ts`.
+  - Las carpetas de capa vacías se conservan en Git con un archivo `.gitkeep` hasta tener código.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

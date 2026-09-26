@@ -16,7 +16,7 @@
 
 Monolito modular con DDD pragmático (ADR-0003). Sin microservicios, Event Sourcing ni CQRS complejo. Una base de datos PostgreSQL (ADR-0006).
 
-## Estructura propuesta
+## Estructura
 
 Cada bounded context es un módulo de NestJS con cuatro capas:
 
@@ -27,7 +27,29 @@ Cada bounded context es un módulo de NestJS con cuatro capas:
 | `infrastructure` | Implementaciones de repositories con Prisma, mapeadores, adaptadores (pagos, paqueterías, almacenamiento), consultas de lectura | `application`, `domain`, Prisma |
 | `presentation` | Controladores REST, DTOs HTTP, validación de entrada, guards de permisos, decoradores de Swagger | `application` |
 
-La estructura concreta de carpetas se definirá en la tarea T-101.
+Estructura de carpetas (ADR-0088):
+
+```text
+src/
+├── main.ts
+├── app.module.ts              importa la plataforma y los módulos de contexto
+├── platform/                  infraestructura técnica transversal, sin reglas de negocio
+│   ├── config/                variables de entorno (T-100)
+│   └── http/                  CORS y encabezados de seguridad (T-100)
+├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112); sin NestJS
+└── modules/
+    └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
+        ├── domain/
+        ├── application/
+        ├── infrastructure/
+        ├── presentation/
+        ├── <contexto>.module.ts
+        └── index.ts           API pública del contexto: módulo, fachada y tipos públicos (ADR-0005)
+```
+
+- `platform` puede ser usado por `infrastructure` y `presentation`; `shared-kernel`, por todas las capas.
+- Un módulo solo importa de otro a través de su `index.ts`; la verificación automática llega con T-103.
+- Las capacidades transversales (auditoría, notificaciones y catálogo geográfico) son módulos bajo `modules/`, con solo las capas que necesitan (T-127, T-215, T-124).
 
 ## Módulos (bounded contexts)
 

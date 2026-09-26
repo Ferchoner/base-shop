@@ -1,8 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-import { validateEnvironment } from './config/environment.js';
+import { CatalogModule } from './modules/catalog/index.js';
+import { IdentityAccessModule } from './modules/identity-access/index.js';
+import { InventoryModule } from './modules/inventory/index.js';
+import { OrderingModule } from './modules/ordering/index.js';
+import { PaymentsModule } from './modules/payments/index.js';
+import { PricingModule } from './modules/pricing/index.js';
+import { ShippingModule } from './modules/shipping/index.js';
+import { ShoppingModule } from './modules/shopping/index.js';
+import { validateEnvironment } from './platform/config/environment.js';
 
 @Module({
   imports: [
@@ -13,8 +19,14 @@ import { validateEnvironment } from './config/environment.js';
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate: validateEnvironment,
     }),
+    IdentityAccessModule,
+    CatalogModule,
+    PricingModule,
+    InventoryModule,
+    ShoppingModule,
+    OrderingModule,
+    PaymentsModule,
+    ShippingModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
