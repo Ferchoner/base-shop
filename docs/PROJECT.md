@@ -35,6 +35,7 @@ Fuera del MVP (ver ADR-0018):
 - Métodos de pago asíncronos (efectivo en tienda, transferencia).
 - Múltiples almacenes en operación (el modelo los soporta).
 - Múltiples monedas.
+- Enlace de acceso al pedido por correo para invitados (ADR-0077).
 
 "Administración" no es un módulo propio: cada contexto expone sus operaciones administrativas protegidas por permisos (ver ADR-0004).
 

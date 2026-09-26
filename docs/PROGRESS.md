@@ -70,11 +70,12 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Notificaciones por correo del ciclo de la orden (ADR-0074)
 - [x] Permiso para configurar el costo de envío (ADR-0075)
 - [x] Reactivación de entidades suspendidas, archivadas o desactivadas (ADR-0076)
+- [x] Enlace de acceso al pedido fuera del MVP (ADR-0077)
 
 ## In Progress
 
 - [ ] Revisión de la especificación técnica (T-002)
-- [ ] Resolución de ambigüedades P-56 a P-58 (T-006); contradicciones resueltas
+- [ ] Resolución de ambigüedades P-57 y P-58 (T-006); contradicciones resueltas
 
 ## Next
 
@@ -82,7 +83,6 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 
 ## Blocked
 
-- T-186 enlace de acceso al pedido por P-56
 - T-191 verificación de PayPal por P-31 y por falta de cuenta y sandbox
 - T-330 deployment (pospuesta, ADR-0031)
 
@@ -121,7 +121,6 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo (propuesta en ADR-0077, pendiente de aprobación) | T-186 |
 | P-57 | Ambigüedad | Envíos sin paquetería | T-195 |
 | P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
 
@@ -173,6 +172,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 | P-45 | Notificaciones por correo | ADR-0074 |
 | P-48 | Permiso para configurar el costo de envío | ADR-0075 |
 | P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | ADR-0076 |
+| P-56 | Enlace de acceso al pedido por correo (fuera del MVP) | ADR-0077 |
 
 ## Notas
 

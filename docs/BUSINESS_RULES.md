@@ -115,7 +115,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-07. Una orden en PendingPayment expira cuando vence su reserva.
 - BR-ORD-08. Solo se marca pagada si el monto capturado es igual al total.
 - BR-ORD-09. Si llega un pago para una orden expirada, se intenta reservar; si no hay stock, la orden pasa a AwaitingManualFulfillment (ADR-0012).
-- BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden; opcionalmente, con un enlace enviado por correo (ADR-0020).
+- BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden. Si perdió el código, lo atiende el staff por un canal externo; el enlace de acceso por correo queda fuera del MVP (ADR-0020, ADR-0077).
 - BR-ORD-11. La consulta de invitado responde con el mismo error si la orden no existe o el email no coincide, y tiene rate limiting obligatorio (ADR-0020).
 - BR-ORD-12. Cada orden tiene un número interno consecutivo, visible solo para el staff, y un código público aleatorio (`XXXX-XXXX`, Base32 Crockford) que es el único que ven los clientes (ADR-0049).
 - BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío, el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042).

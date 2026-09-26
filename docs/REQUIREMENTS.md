@@ -277,7 +277,7 @@ Criterios de aceptación:
 | UC-ORD-02 | Colocar orden | Público o Cliente | BR-ORD-01 a BR-ORD-06, BR-USR-05, BR-USR-08 |
 | UC-ORD-03 | Consultar mis pedidos | Cliente | ADR-0036 |
 | UC-ORD-04 | Consultar pedido de invitado | Público | BR-ORD-10, ADR-0020 |
-| UC-ORD-05 | Acceder al pedido con enlace por correo | Público | ADR-0020; implementación PENDIENTE (P-56) |
+| UC-ORD-05 | Acceder al pedido con enlace por correo | Fuera del MVP | ADR-0020, ADR-0077 |
 | UC-ORD-06 | Listar y ver pedidos | Staff (`orders.read`) | — |
 | UC-ORD-07 | Cancelar pedido | Staff (`orders.manage`) | BR-CAN-01 a BR-CAN-03, ADR-0051 |
 | UC-ORD-08 | Resolver pedido en AwaitingManualFulfillment | Staff (`orders.manage`) | ADR-0012 |
@@ -522,7 +522,7 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-53~~ | Resuelta en ADR-0064 (códigos, `type` y extensiones) y ADR-0065 (rate limiting) |
 | ~~P-54~~ | Resuelta en ADR-0062: el login solo indica credenciales no válidas |
 | ~~P-55~~ | Resuelta en ADR-0062: el registro indica que el email ya existe |
-| P-56 | Enlace de acceso al pedido por correo: ¿se implementa? Con el capturador local su costo de desarrollo es bajo |
+| ~~P-56~~ | Resuelta en ADR-0077: no se implementa en el MVP; el contrato provisional duplicaba la consulta con email y código |
 | P-57 | ¿Existen envíos sin paquetería (entrega local, recoger en tienda)? BR-SHP-04 lo sugiere |
 | P-58 | ¿El costo de envío lleva IVA? ¿El umbral de envío gratis se compara contra el subtotal con IVA? |
 | ~~P-59~~ | Resuelta en ADR-0058: opcionales, en gramos y centímetros |

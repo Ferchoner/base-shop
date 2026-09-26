@@ -285,7 +285,7 @@ Cada endpoint lista solo sus errores específicos.
 | 5 por IP por hora | `POST /v1/auth/register` |
 | 3 por email y 10 por IP por hora | `POST /v1/auth/password-reset/request` |
 | 3 por email por hora | `POST /v1/auth/email-verification/resend`, `POST /v1/me/email` |
-| 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder`, `POST /v1/orders/access-links` |
+| 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder` |
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 100 por minuto por IP | Resto de endpoints |
 
@@ -963,8 +963,6 @@ Reglas comunes: solo órdenes CANCELLED o REFUNDED (409 `invalid-state-transitio
 | GET | `/v1/me/orders` | Solo cliente | UC-ORD-03 |
 | GET | `/v1/me/orders/{publicCode}` | Solo cliente | UC-ORD-03 |
 | POST | `/v1/orders/lookup` | Público | UC-ORD-04 |
-| POST | `/v1/orders/access-links` | Público | UC-ORD-05 (PENDIENTE, P-56) |
-| POST | `/v1/orders/access` | Público (token) | UC-ORD-05 (PENDIENTE, P-56) |
 | GET | `/v1/admin/orders` | `orders.read` | UC-ORD-06 |
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
@@ -1026,13 +1024,9 @@ o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección
 - Errores: 404 `not-found` idéntico si la orden no existe, el email no coincide o la orden pertenece a una cuenta (BR-ORD-11).
 - Rate limit obligatorio: 10 por IP en 15 minutos.
 
-### 15.6 Enlace de acceso por correo (UC-ORD-05) — PENDIENTE (P-56)
+### 15.6 Enlace de acceso por correo (UC-ORD-05) — fuera del MVP
 
-Contrato provisional, sujeto a la decisión de implementarlo:
-
-- `POST /v1/orders/access-links` — Request `{ "contactEmail", "publicCode" }`; 202 sin cuerpo, coincida o no; envía un enlace con token de un solo uso.
-- `POST /v1/orders/access` — Request `{ "token" }`; 200 `Order`; 400 `invalid-or-expired-token`.
-- Vigencia del token y rate limit: pendientes con P-56.
+No se implementa en el MVP (ADR-0077). El invitado consulta su pedido con email y código público (15.5); si perdió el código, lo atiende el staff por un canal externo. El diseño previsto para implementarlo después (recuperación solo con email) está en ADR-0077.
 
 ### 15.7 Administración de órdenes (UC-ORD-06 a 08)
 
@@ -1197,7 +1191,6 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| P-56 | Enlace de acceso al pedido por correo | `POST /v1/orders/access-links`, `POST /v1/orders/access` |
 | P-57 | Envíos sin paquetería | `POST …/shipments/{id}/dispatch` |
 | P-58 | IVA del envío y base del umbral | Valores de `CheckoutQuote` (no su forma) |
 | T-145 | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |

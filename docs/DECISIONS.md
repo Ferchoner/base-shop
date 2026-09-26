@@ -94,7 +94,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
 | ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
-| ADR-0077 | Enlace de acceso al pedido por correo | Propuesta |
+| ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
 
 ---
 
@@ -356,7 +356,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El identificador que usa el invitado no es adivinable (código aleatorio, ADR-0049); junto con el email y el rate limiting, impide la enumeración.
   - La respuesta de error no debe revelar si existe una orden con ese número o ese email.
   - El enlace por correo depende del proveedor de correo (P-24).
-- **Estado:** Aceptada. El enlace por correo queda condicionado a su costo.
+- **Estado:** Aceptada. El enlace por correo queda fuera del MVP (ADR-0077).
 
 ---
 
@@ -1459,14 +1459,14 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - Pago fallido (`PaymentFailed`): el pago manual no falla y PayPal no está habilitado (ADR-0040).
     - Notificaciones al staff: el staff trabaja con las vistas administrativas (órdenes en AwaitingManualFulfillment y canceladas con reembolso pendiente).
   - **Destinatario:** el email de contacto de la orden (en clientes registrados es el email de la cuenta al colocarla). Si la orden está anonimizada, no se envía.
-  - **Contenido:** en español; solo el código público, nunca el número interno (ADR-0049); sin datos de pago, tokens ni enlaces a la orden mientras P-56 esté abierta. Son correos transaccionales, sin opción de baja ni contenido promocional.
+  - **Contenido:** en español; solo el código público, nunca el número interno (ADR-0049); sin datos de pago, tokens ni enlaces a la orden (ADR-0077). Son correos transaccionales, sin opción de baja ni contenido promocional.
   - **Entrega:** asíncrona, al recibir el evento después del commit (ADR-0014). Como máximo un envío por evento; sin reintentos; los fallos se registran en logs sin el email del destinatario. No se agrega tabla de notificaciones: el modelo de datos aprobado (ADR-0066) no cambia.
 - **Alternativas consideradas:** Solo confirmación de compra y de envío (el cliente no se entera de cancelaciones ni reembolsos); notificar todo cambio de estado, incluidos expiración y entrega fallida; registro de notificaciones enviadas con reintentos (requiere tabla nueva y un job).
 - **Consecuencias:**
   - T-215 queda desbloqueada. El módulo de notificaciones consume eventos de Ordering, Payments y Shipping, y obtiene el email de contacto y los datos de la orden mediante la fachada de Ordering (ADR-0005).
   - El correo de orden recibida no es comprobante: el código público también se entrega en la respuesta de la API. Si el negocio llega a depender de él, se revisa ADR-0014.
   - La mención de estos correos en el aviso de privacidad se valida junto con P-61.
-- **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se decide P-56 (enlaces en los correos).
+- **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se implementa el enlace de acceso al pedido (ADR-0077).
 - **Estado:** Aceptada (aprobación formal 2026-09-25).
 
 ---
@@ -1531,7 +1531,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El caso que la consulta directa no resuelve es el invitado que perdió el código (borró o no recibió el correo de orden recibida, que puede perderse según ADR-0014).
   - El staff puede buscar órdenes por email de contacto (ADR-0049) y atender ese caso por un canal externo.
   - No hay frontend todavía: el enlace se armaría con la URL base del frontend, como la recuperación de contraseña (ADR-0056).
-- **Decisión propuesta:**
+- **Decisión:**
   - No se implementa el enlace de acceso en el MVP. UC-ORD-05 y T-186 pasan a DEFERRED.
   - Se retira del contrato el diseño provisional (`POST /v1/orders/access-links` y `POST /v1/orders/access`), porque duplica la consulta directa.
   - Los correos de la orden no llevan enlaces a la orden; muestran el código público (ADR-0074).
@@ -1549,4 +1549,4 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se actualizan ADR-0020 (el enlace queda fuera del MVP), BR-ORD-10 y ADR-0074 (sin enlaces en los correos).
   - El modelo de datos aprobado (ADR-0066) no cambia.
 - **Revisar si:** el staff recibe solicitudes frecuentes de invitados que perdieron su código, o existe frontend y proveedor de correo real (P-24).
-- **Estado:** Propuesta.
+- **Estado:** Aceptada (aprobación formal 2026-09-25).

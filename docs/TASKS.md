@@ -19,7 +19,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-002 | Definir actores y alcance | REVIEW | T-006 | Especificación técnica en `REQUIREMENTS.md`: actores, módulos, estados, permisos, casos de uso con criterios de aceptación, flujos, errores, dependencias y requisitos no funcionales. Pasa a DONE cuando se aprueba y se resuelven P-34 a P-60 |
 | T-003 | Aprobar arquitectura | DONE | — | ADR-0004, ADR-0005 y ADR-0019 en estado Aceptada |
 | T-004 | Aprobar modelo de datos | DONE | T-003; aprobación de ADR-0066 | Esquema por contexto, diagrama ER, índices y restricciones documentados en `DATABASE.md` |
-| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-56 a P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
+| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-57, P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
 | T-005 | Aprobar contratos API | DONE | T-003; aprobación de ADR-0071 | Endpoints del MVP documentados en `API_SPEC.md` (método, ruta, autenticación, permiso, request, parámetros, response, códigos, errores, validaciones, paginación, filtros, orden e idempotencia), con cobertura de todos los casos de uso |
 
 ## Fundaciones técnicas (sin lógica de negocio)
@@ -67,7 +67,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09 | TODO | T-170 |
 | T-181 | Shopping: restaurar carrito al expirar una orden y copiar órdenes canceladas a un carrito; UC-CRT-08, UC-CRT-09 | TODO | T-170, T-180 |
 | T-185 | Ordering: consulta de pedido de invitado (email + código público, con rate limiting); UC-ORD-04 | TODO | T-180 |
-| T-186 | Ordering: enlace de acceso al pedido por correo (condicionado a su costo); UC-ORD-05 | BLOCKED | T-185, T-122, P-56 |
+| T-186 | Ordering: enlace de acceso al pedido por correo; UC-ORD-05 | DEFERRED | ADR-0077 |
 | T-190 | Payments: modelo, pago manual en tienda para pruebas (ADR-0055) y reembolso total al cancelar (ADR-0051); UC-PAY-01 a 03, 06, 07 | TODO | T-180 |
 | T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04 | TODO | T-190 |
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
