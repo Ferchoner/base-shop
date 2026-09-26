@@ -1,0 +1,61 @@
+# CHANGELOG
+
+## Unreleased
+
+- Creado paquete inicial de documentación y prompts.
+- Registradas decisiones de arquitectura y negocio ADR-0002 a ADR-0019.
+- Agregado `docs/DOMAIN_MODEL.md` con el modelo de dominio por contexto.
+- Actualizados `PROJECT.md`, `REQUIREMENTS.md`, `ARCHITECTURE.md`, `DATABASE.md`, `API_SPEC.md`, `BUSINESS_RULES.md`, `SECURITY.md`, `DEVELOPMENT_GUIDE.md`, `TASKS.md`, `PROGRESS.md` y `SPRINT.md` con las decisiones cerradas.
+- `CLAUDE.md` incluye `docs/DOMAIN_MODEL.md` como fuente de verdad.
+- Aprobación formal de ADR-0004, ADR-0005, ADR-0009 y ADR-0019.
+- Agregados ADR-0020 (acceso de invitados a su pedido) y ADR-0021 (cancelación de órdenes).
+- T-003 marcada como DONE. Agregadas T-185 y T-186.
+- Agregado ADR-0022: autenticación con Passport (`@nestjs/passport`). P-01 cerrada parcialmente.
+- Agregado ADR-0023: mecanismo de autenticación (estrategia local, JWT en `Authorization: Bearer`, refresh token rotado, Argon2id). P-01 cerrada; se agrega P-28.
+- ADR-0023 completado: refresh token de 7 días y detección de reutilización. P-28 cerrada.
+- Agregado ADR-0024: imágenes en disco del servidor, preparadas para migrar a CDN. P-02 cerrada; se agrega P-29. Nueva tarea T-141.
+- ADR-0024 completado: imágenes JPEG, PNG y WebP de hasta 5 MB (configurable). P-29 cerrada.
+- Agregado ADR-0025: Node.js 24, PostgreSQL 18 y npm. P-20 cerrada; T-100 desbloqueada.
+- Agregado ADR-0026: país de operación México y moneda MXN. P-10 queda abierta solo para las tasas de IVA; se agrega P-30 (facturación electrónica).
+- Agregado ADR-0027: IVA del 16% para todos los productos (configurable) y sin facturación electrónica. P-10 y P-30 cerradas.
+- Agregado ADR-0028: cache con `@nestjs/cache-manager`. P-03 cerrada parcialmente. Nueva tarea T-119.
+- ADR-0028 completado: cache en memoria del proceso, solo lecturas públicas del catálogo, TTL de 120 s e invalidación por eventos. P-03 cerrada; T-119 desbloqueada.
+- Agregado ADR-0029: jobs con `@nestjs/schedule`, expiración de reservas cada minuto. P-04 cerrada parcialmente; T-117 desbloqueada.
+- ADR-0029 completado: conciliación de pagos cada 5 minutos y limpieza diaria con retenciones. P-04 cerrada. Nueva tarea T-231.
+- Agregado ADR-0030: CI con GitHub Actions, rama principal protegida, GitHub Flow y Dependabot. P-05 queda abierta solo para CD. T-106 desbloqueada; nueva tarea T-107.
+- Agregados ADR-0031 (hosting solo local por ahora) y ADR-0032 (configuración, secretos y observabilidad con `.env` y `.env.example`). P-05, P-06, P-07 y P-13 quedan pendientes hasta elegir hosting; se agrega P-31 (pruebas de webhooks) y T-191. T-118 desbloqueada; T-001 cerrada para entorno local.
+- Agregados ADR-0033 (Prisma Migrate, `nestjs-cls`, tests con PostgreSQL real, identificador de correlación) y ADR-0034 (versionado con prefijo `/v1`). P-26 y P-08 cerradas.
+- Agregado ADR-0035: errores en formato RFC 9457 (Problem Details). P-09 cerrada; T-113 desbloqueada.
+- Agregado ADR-0036: paginación por página con `data` y `meta`, ordenamiento, filtros, grupos de rutas (`/v1`, `/v1/me`, `/v1/admin`, `/v1/webhooks`) y convenciones de nombres. P-27 cerrada; T-005 sin decisiones pendientes.
+- Agregados ADR-0037 (auditoría técnica con 3 meses en tabla principal y archivo hasta 2 años) y ADR-0038 (eliminación lógica por estados de negocio). P-18 cerrada; T-004 sin decisiones pendientes.
+- ADR-0037 actualizado: la auditoría con más de 3 meses se exporta a archivos comprimidos en un directorio privado, en lugar de una tabla de archivo.
+- Agregados ADR-0039 (una sola lista de precios), ADR-0040 (pago manual para pruebas y PayPal semiimplementado) y ADR-0041 (envíos manuales). P-25 y P-12 cerradas; P-11 queda abierta solo para el costo de envío. Nuevas tareas T-192, T-193 y T-196.
+- Agregados ADR-0042 (costo de envío fijo con envío gratis por monto) y ADR-0043 (catálogo de permisos, roles Superadministrador, Administrador y Operador, tipo de cuenta, primer superadministrador por script, 2FA pospuesto). P-11 y P-15 cerradas. Nueva tarea T-131.
+- Agregado ADR-0044: email verificado para que un cliente registrado compre. P-23 cerrada; se agrega P-32 y T-121. P-24 pasa a bloquear el checkout de clientes registrados.
+- ADR-0044 actualizado: invitados exentos de verificación. Agregado ADR-0045: capturador de correos local para desarrollo. P-24 deja de bloquear el desarrollo; T-186 y T-215 desbloqueadas; nueva tarea T-122.
+- Agregados ADR-0046 (verificación de email por enlace de 24 horas) y ADR-0047 (política de contraseñas). P-32 cerrada; se agrega P-33 (ajustes propuestos a la política). T-121 desbloqueada.
+- ADR-0047 actualizado: contraseñas de 15 a 64 caracteres, sin reglas de composición y con lista de contraseñas comunes. Agregado ADR-0048: autenticación preparada para 2FA. P-33 cerrada.
+- ADR-0047: se documenta explícitamente el listado ampliado de caracteres aceptados.
+- `REQUIREMENTS.md` convertido en especificación técnica: actores, módulos, estados, permisos, 83 casos de uso con criterios de aceptación, flujos, catálogo de errores, dependencias externas y requisitos no funcionales. Detectadas 4 contradicciones y 23 ambigüedades (P-34 a P-60). `BUSINESS_RULES.md`, `TASKS.md` y `PROGRESS.md` actualizados; T-002 en REVIEW; nueva tarea T-006.
+- Agregado ADR-0049: número interno consecutivo y código público aleatorio por orden. P-35 cerrada.
+- Agregado ADR-0050: estados del envío del MVP; estados de paquetería documentados como previstos. P-34 cerrada.
+- Agregado ADR-0051: cancelación de órdenes pagadas en dos pasos (Cancelled y, al confirmarse el reembolso, Refunded); reembolso manual registrado con `payments.manage`; sin reembolsos independientes. P-36 y P-37 cerradas; nuevos casos de uso UC-PAY-06 y UC-PAY-07. Confirmada la regla de tolerancia a estados desconocidos (ADR-0050).
+- Agregado ADR-0052: reintegro de stock independiente de la cancelación, con opción de reintegro completo al cancelar. P-38 cerrada; nuevo caso de uso UC-INV-09 y tarea T-161.
+- ADR-0052 ampliado: opción de reintegro al registrar el reembolso, solo sin reintegros previos. Agregado ADR-0053: entrega fallida sin efecto en la orden y devolución manual del envío (estado Returned). P-39 cerrada; nuevo caso de uso UC-SHI-09.
+- Agregados ADR-0054 (restauración del carrito al expirar una orden) y ADR-0055 (pago manual en tienda, solo en PendingPayment o Expired, y copia de órdenes canceladas a un carrito). P-40 y P-41 cerradas; nuevos casos de uso UC-CRT-08 y UC-CRT-09 y tarea T-181.
+- ADR-0055 completado: el staff con `orders.manage` también puede copiar una orden cancelada al carrito del cliente; se acepta el riesgo del TTL de 20 minutos con pago en tienda.
+- Agregado ADR-0056: recuperación de contraseña por enlace de 30 minutos, URL base del frontend configurable para enlaces y cambio obligatorio del staff con contraseña temporal. P-42 cerrada; nueva tarea T-123.
+- Agregado ADR-0057: registro con nombres y apellidos; formato de dirección mexicana con estado y municipio de lista cerrada (catálogo del INEGI) y máximo 10 direcciones. P-43 cerrada; nuevos casos de uso UC-IAM-21 y UC-IAM-22, reglas BR-ADR-01 a 05 y tarea T-124.
+- ADR-0057: confirmado el nombre de quien recibe en un solo campo. Agregado ADR-0058: peso y dimensiones de variantes opcionales. P-59 cerrada; el modelo de datos (T-004) queda sin decisiones pendientes.
+- Agregado ADR-0059: fusión de carritos con endpoint explícito e idempotente; `cartId` de invitado aleatorio y no adivinable. P-44 cerrada.
+- Agregado ADR-0060: búsqueda de texto completo en español, filtros y órdenes del catálogo público, con excepción de solo lectura a ADR-0005 para su consulta. P-47 cerrada. `PROGRESS.md`: decisiones cerradas reorganizadas en tabla, aclarando que P-16 y P-17 se cerraron por aprobación formal.
+- Agregados ADR-0061 (disponibilidad pública como disponible/agotado) y ADR-0062 (login con respuesta única; registro que indica email existente, con rate limiting). P-46, P-54 y P-55 cerradas.
+- Agregado ADR-0063: `Idempotency-Key` obligatorio en colocar orden e iniciar pago, ligado a quien lo envía; 400, 422 y 409. P-52 cerrada. Confirmado el indicador por línea del carrito (ADR-0061).
+- Agregados ADR-0064 (criterio de códigos HTTP, `type` y extensiones de Problem Details) y ADR-0065 (rate limiting con `@nestjs/throttler`). P-53 cerrada; los contratos de la API (T-005) quedan sin decisiones pendientes; nueva tarea T-126.
+- `DATABASE.md`: modelo de datos completo propuesto (38 tablas por contexto con campos, tipos, llaves, restricciones, índices e integridad; estrategia de migraciones, auditoría, concurrencia e integridad de inventario; diagrama ER). Agregado ADR-0066 en estado Propuesta. Nuevas reglas BR-PRC-11, BR-INV-13, BR-INV-14, BR-ORD-16 y BR-PAY-14. T-004 en REVIEW; sin migraciones hasta su aprobación.
+- Agregado ADR-0067: aviso de privacidad versionado, derechos ARCO por canal externo, detalle de anonimización y auditoría sin valores personales. P-19 y P-60 cerradas; se agrega P-61 (plazo de retención, validación legal). Modelo de datos ajustado (`users`, `orders`, `shipments`, `audit_logs`); nuevas reglas BR-PRIV-01 a 05.
+- Agregado ADR-0068: SKU y opciones editables solo antes de la primera publicación. P-50 cerrada; `products.first_published_at` agregado al modelo.
+- Agregado ADR-0069: motivos de ajuste y reintegro de stock como lista cerrada en código con nota opcional. P-51 cerrada; `stock_movements` usa `reason_code` y `note`.
+- Agregado ADR-0070: ciclo de conservación de datos personales en órdenes (operativa, bloqueo, anonimización) con plazos configurables, fuera del MVP, y preguntas para validación legal. P-61 queda abierta solo para la validación legal; nueva tarea T-232 (DEFERRED).
+- `API_SPEC.md`: contratos REST completos propuestos (convenciones, autenticación, idempotencia, listados, catálogo de 36 tipos de error RFC 9457, rate limiting, representaciones compartidas y endpoints de todos los contextos, con cobertura de casos de uso). Agregado ADR-0071 en estado Propuesta; nuevos errores E-27 a E-33 y pendientes P-62 y P-63. T-005 en REVIEW; sin endpoints implementados.
+- Agregado ADR-0072: cambiar la contraseña revoca las demás sesiones y conserva la actual; el slug de categorías y marcas se puede cambiar con riesgo aceptado de romper enlaces. P-62 y P-63 cerradas; nuevas reglas BR-USR-19 y BR-PRD-16.
