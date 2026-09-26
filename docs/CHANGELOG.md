@@ -62,3 +62,4 @@
 - `docs/` y `CLAUDE.md` pasan a versionarse en Git.
 - Agregado ADR-0073: oxlint como herramienta de lint; la verificación de límites (T-103) usará otra herramienta.
 - Código alineado con el stack: eliminados Yarn, los módulos generados `product/` y `cart/` y `@nestjs/observe` (tenía claves de relleno en el código y enviaba telemetría externa); Vitest reemplazado por Jest con `ts-jest` en modo ESM; `rootDir` explícito en `tsconfig.json` (requerido por TypeScript 6); corregido el import de `supertest/types.js` en el test e2e.
+- Node.js 24 declarado en `engines` de `package.json` y en `.nvmrc` (ADR-0025). `tsconfig.build.tsbuildinfo` deja de versionarse.
