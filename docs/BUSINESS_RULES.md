@@ -67,7 +67,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-INV-05. Todo ajuste de stock requiere motivo y genera un movimiento.
 - BR-INV-06. `onHand` disminuye al confirmarse el pago (ADR-0011).
 - BR-INV-07. La reserva tiene un TTL fijo configurable; valor inicial de 20 minutos.
-- BR-INV-08. Opera un solo almacén en el MVP.
+- BR-INV-08. En el MVP existe exactamente un almacén, creado por el seed; es el predeterminado y el único que usan reservas, entradas, ajustes y envíos. La API no crea ni desactiva almacenes, y la base impide más de un almacén activo (ADR-0011, ADR-0081).
 - BR-INV-09. Cancelar una orden en PendingPayment libera su reserva (DOMAIN_MODEL, flujo Ordering → Inventory).
 - BR-INV-10. El reintegro de stock de una orden cancelada o con envío devuelto es independiente: una entrada con motivo y referencia a la orden, total o parcial. Además, como opción, el staff con `inventory.write` puede reintegrar todas las líneas completas al cancelar una orden en Paid, o al registrar o reintentar su reembolso si la orden no tiene ningún reintegro previo. La suma reintegrada por línea no supera lo vendido (ADR-0052).
 - BR-INV-11. Ajustes y reintegros llevan un motivo obligatorio de una lista cerrada y una nota opcional (obligatoria con "Otro"); las entradas solo llevan nota opcional. Los motivos Dañado, Pérdida o robo y Uso interno solo restan stock; los reintegros solo suman (ADR-0069).

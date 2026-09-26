@@ -98,7 +98,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0078 | Envíos sin paquetería | Aceptada |
 | ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
 | ADR-0080 | Efecto de desactivar categorías y marcas en la tienda | Aceptada |
-| ADR-0081 | Un solo almacén en el MVP | Propuesta |
+| ADR-0081 | Un solo almacén en el MVP | Aceptada |
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 
 ---
@@ -1287,7 +1287,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`) y ADR-0079 (IVA del envío en `orders`).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`) y ADR-0081 (a lo sumo un almacén activo).
 
 ---
 
@@ -1632,7 +1632,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 
 - **Fecha:** 2026-09-26
 - **Contexto:** P-67, detectada en la revisión integral de la documentación. Operar varios almacenes ya está fuera del MVP (BR-INV-08, ADR-0011, `PROJECT.md`), y el seed crea un almacén predeterminado (`DATABASE.md`, sección 13). Sin embargo, la API permite crear y desactivar almacenes (UC-INV-01), el modelo no marca cuál es el predeterminado y no se define qué almacén usa una reserva si hay varios activos.
-- **Decisión propuesta:**
+- **Decisión:**
   - En el MVP existe exactamente un almacén, creado por el seed. Es el predeterminado y el único que usan las reservas, las entradas, los ajustes y los envíos.
   - La API de almacenes queda en consulta y edición: `GET /v1/admin/inventory/warehouses` y `PATCH …/{warehouseId}` (nombre y dirección). Se retiran del MVP la creación (`POST /v1/admin/inventory/warehouses`) y la desactivación (`POST …/{warehouseId}/deactivate`).
   - La base garantiza a lo sumo un almacén activo con un índice único parcial `((true)) WHERE status = 'ACTIVE'`.
@@ -1641,7 +1641,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Mantener la creación de almacenes con un indicador de predeterminado; permitir almacenes inactivos adicionales sin uso.
 - **Consecuencias:** Modifica los contratos aprobados (ADR-0071) en dos endpoints y el modelo de datos (ADR-0066) en un índice; aún no hay implementación ni migraciones.
 - **Revisar si:** se decide operar más de un almacén.
-- **Estado:** Propuesta.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
 
 ---
 

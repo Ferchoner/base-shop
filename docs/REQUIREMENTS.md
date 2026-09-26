@@ -94,7 +94,7 @@ Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFai
 | Category, Brand | Activa, Desactivada (o borrada si está vacía) | ADR-0038 |
 | Cart | Active, CheckedOut, Merged | DOMAIN_MODEL |
 | PriceList | Activa (la predeterminada no se desactiva) | ADR-0039 |
-| Warehouse | Activo, Inactivo | ADR-0038 |
+| Warehouse | Activo (exactamente uno en el MVP; la API no crea ni desactiva almacenes) | ADR-0038, ADR-0081 |
 
 Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT; ProductVariant Descontinuada → Activa; Category y Brand Desactivada → Activa. La anonimización es irreversible.
 
@@ -231,7 +231,7 @@ Criterios de aceptación:
 
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
-| UC-INV-01 | Gestionar almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0038 |
+| UC-INV-01 | Consultar y editar el almacén | Staff (`inventory.read` / `inventory.write`) | BR-INV-08, ADR-0081 |
 | UC-INV-02 | Registrar entrada de stock | Staff (`inventory.write`) | BR-INV-05 |
 | UC-INV-03 | Ajustar stock con motivo | Staff (`inventory.write`) | BR-INV-01, BR-INV-05, BR-INV-11, ADR-0069 |
 | UC-INV-04 | Consultar stock y movimientos | Staff (`inventory.read`) | — |
@@ -534,5 +534,5 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-62~~ | Resuelta en ADR-0072: se revocan las demás sesiones y se conserva la actual |
 | ~~P-63~~ | Resuelta en ADR-0072: se permite, con riesgo aceptado de romper enlaces anteriores |
 | ~~P-66~~ | Resuelta en ADR-0080: una categoría desactivada oculta sus subcategorías; sus productos siguen visibles fuera de ella; no se filtra por marcas inactivas |
-| P-67 | Un solo almacén en el MVP: la API permite crear y desactivar almacenes y no define cuál usa la reserva si hay varios (propuesta en ADR-0081) |
+| ~~P-67~~ | Resuelta en ADR-0081: exactamente un almacén en el MVP, creado por el seed; la API solo lo consulta y edita |
 | ~~P-68~~ | Resuelta en ADR-0082: si el carrito original del invitado ya no existe, la recompra del staff se rechaza |

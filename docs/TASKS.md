@@ -64,7 +64,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-141 | Almacenamiento de imágenes: puerto y adaptador de disco local con URL base configurable; validación de formato (JPEG, PNG, WebP) y tamaño (5 MB) | TODO | T-100 |
 | T-145 | Pricing: lista predeterminada, precios y periodos; formato de carga masiva; UC-PRC-01 a 06 | TODO | T-140 |
 | T-150 | Catalog: categorías y marcas; UC-CAT-03, 12, 13 | TODO | T-110 |
-| T-160 | Inventory: almacenes, stock y reservas (incluye pruebas de concurrencia); UC-INV-01 a 07 | TODO | T-140, T-111, P-67 |
+| T-160 | Inventory: almacenes, stock y reservas (incluye pruebas de concurrencia); UC-INV-01 a 07 | TODO | T-140, T-111 |
 | T-161 | Inventory: reintegro de stock de órdenes canceladas o con envío devuelto (independiente, y opcional al cancelar o al registrar el reembolso sin reintegro previo, ADR-0052); UC-INV-09 | TODO | T-160, T-180, T-190, T-195 |
 | T-170 | Shopping: carrito, con `cartId` aleatorio y fusión explícita (ADR-0059); UC-CRT-01 a 06 | TODO | T-140, T-145, T-160 |
 | T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09 | TODO | T-170, T-196 |

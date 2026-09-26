@@ -74,7 +74,7 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Entrega propia sin paquetería; recoger en tienda fuera del MVP (ADR-0078)
 - [x] IVA incluido en el costo de envío y umbral de envío gratis sobre el subtotal con IVA (ADR-0079)
 - [x] Contradicciones y ambigüedades de la especificación resueltas (T-006)
-- [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas) y ADR-0082 (recompra sin carrito original)
+- [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas) , ADR-0081 (un solo almacén en el MVP) y ADR-0082 (recompra sin carrito original)
 
 ## In Progress
 
@@ -127,9 +127,7 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 
 Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENTS.md`, sección 10).
 
-| ID | Tipo | Decisión | Afecta |
-|---|---|---|---|
-| P-67 | Ambigüedad | Un solo almacén en el MVP (propuesta en ADR-0081, pendiente de aprobación) | T-160 |
+Ninguna pendiente.
 
 ### Decisiones cerradas
 
@@ -183,6 +181,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 | P-57 | Envíos sin paquetería | ADR-0078 |
 | P-58 | IVA del envío y base del umbral de envío gratis | ADR-0079 |
 | P-66 | Efecto de desactivar categorías y marcas en la tienda | ADR-0080 |
+| P-67 | Un solo almacén en el MVP | ADR-0081 |
 | P-68 | Recompra del staff sin carrito original | ADR-0082 |
 
 ## Notas

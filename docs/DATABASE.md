@@ -2,7 +2,7 @@
 
 **Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Las migraciones se crean en T-110.
 
-Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079).
+Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079, ADR-0081).
 
 ---
 
@@ -324,6 +324,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | address | jsonb | Sí | Formato de ADR-0057 |
 | status | enum `catalog_status` | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
+
+- **Restricciones:** índice único parcial `((true)) WHERE status = 'ACTIVE'`: a lo sumo un almacén activo. En el MVP existe exactamente uno, creado por el seed; la API no crea ni desactiva almacenes (ADR-0081).
 
 ### 6.2 `stock_items` (inventory)
 
@@ -695,7 +697,7 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 
 ADR-0038: sin columna `deleted_at` genérica. Estados de negocio para entidades con valor histórico y borrado físico donde nada las referencia.
 
-- Archivar o desactivar: productos, variantes (descontinuar), almacenes, listas de precios; categorías y marcas con productos o subcategorías.
+- Archivar o desactivar: productos, variantes (descontinuar), almacenes (fuera del MVP, ADR-0081), listas de precios; categorías y marcas con productos o subcategorías.
 - Suspender: staff (nunca se borra) y clientes. Un cliente que pide eliminar su cuenta se anonimiza (ADR-0067): se vacían sus datos en `users`, se borran tokens, direcciones y carritos, y se eliminan los identificadores directos de sus órdenes y envíos, conservando estado, municipio y código postal.
 - Borrado físico: imágenes (registro y archivo), direcciones del cliente, periodos de precio futuros no iniciados, roles sin usuarios, categorías y marcas vacías.
 - Nunca se borran: órdenes, pagos, envíos, movimientos de stock, periodos de precio iniciados.

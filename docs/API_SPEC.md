@@ -872,16 +872,15 @@ En el MVP existe solo la lista predeterminada (ADR-0039); no hay endpoints para 
 
 | Método | Ruta | Permiso | UC |
 |---|---|---|---|
-| GET, POST | `/v1/admin/inventory/warehouses` | `inventory.read` / `inventory.write` | UC-INV-01 |
+| GET | `/v1/admin/inventory/warehouses` | `inventory.read` | UC-INV-01 |
 | PATCH | `/v1/admin/inventory/warehouses/{warehouseId}` | `inventory.write` | UC-INV-01 |
-| POST | `/v1/admin/inventory/warehouses/{warehouseId}/deactivate` | `inventory.write` | UC-INV-01 |
 | GET | `/v1/admin/inventory/stock-items` | `inventory.read` | UC-INV-04 |
 | GET | `/v1/admin/inventory/stock-items/{stockItemId}/movements` | `inventory.read` | UC-INV-04 |
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
 | POST | `/v1/admin/inventory/adjustments` | `inventory.write` | UC-INV-03 |
 | POST | `/v1/admin/inventory/restocks` | `inventory.write` | UC-INV-09 |
 
-**Almacenes.** `Warehouse { id, code, name, address: Address | null, status, createdAt, updatedAt }`. POST `{ "code", "name", "address" }` (`code` 1–20, único); PATCH `{ "name", "address" }`. Desactivar el único almacén activo → 409 `invalid-state-transition` (BR-INV-08). Errores de creación: 409 `duplicate-value`.
+**Almacenes.** `Warehouse { id, code, name, address: Address | null, status, createdAt, updatedAt }`. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081): `GET` devuelve `{ "data": [Warehouse] }` sin paginación y `PATCH` acepta `{ "name", "address" }`. La API no crea ni desactiva almacenes. En entradas y ajustes, `warehouseId` debe ser el almacén activo; otro valor → 404.
 
 **`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku`, `warehouseId`, `q` (SKU o título), `availableMax` (entero, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
 
