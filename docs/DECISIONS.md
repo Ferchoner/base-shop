@@ -95,6 +95,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
 | ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
 | ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
+| ADR-0078 | Envíos sin paquetería | Propuesta |
 
 ---
 
@@ -1550,3 +1551,32 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El modelo de datos aprobado (ADR-0066) no cambia.
 - **Revisar si:** el staff recibe solicitudes frecuentes de invitados que perdieron su código, o existe frontend y proveedor de correo real (P-24).
 - **Estado:** Aceptada (aprobación formal 2026-09-25).
+
+---
+
+## ADR-0078 — Envíos sin paquetería
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-57 (T-195). BR-SHP-04 exige guía "cuando interviene una paquetería", lo que sugiere envíos sin ella. Son dos casos distintos:
+  - **Entrega propia:** la tienda lleva el pedido con su personal o un mensajero, a la dirección de la orden. Solo cambia quién entrega; el flujo de pago, envío y estados es el mismo.
+  - **Recoger en tienda:** el cliente elige no recibir envío. Cambia el checkout (dirección opcional, costo 0, elección del método), los estados (listo para recoger, recogido), la identificación de quien recoge y los correos.
+  - El modelo actual ya permite despachar sin paquetería: `carrier_name` y `tracking_number` son opcionales y la guía solo se exige si hay paquetería. Pero no distingue "entrega propia" de "olvidé capturar la paquetería", así que un envío por paquetería puede despacharse sin guía por error.
+  - Hay un solo método de envío activo (ADR-0042, índice único parcial en `shipping_methods`), y la dirección de envío es obligatoria en el checkout.
+- **Decisión propuesta:**
+  - **Entrega propia: sí en el MVP.** Es una decisión operativa del staff al despachar, no una opción del cliente. Aplican el mismo costo de envío (ADR-0042), los mismos estados (ADR-0050, ADR-0053) y la misma dirección de la orden.
+  - Al despachar, el staff indica una de dos formas:
+    - Paquetería: `carrierName` y `trackingNumber` obligatorios (BR-SHP-04).
+    - Entrega propia: `ownDelivery: true`, sin paquetería ni guía.
+  - Nueva columna `shipments.own_delivery boolean NOT NULL DEFAULT false`, con `CHECK (status = 'PENDING' OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))`. La base garantiza que no se despacha por paquetería sin guía, validación que hoy solo hace la aplicación.
+  - Las vistas de envío (`AdminShipment` y `shipment` de la orden del cliente) incluyen `ownDelivery`. El correo de orden enviada (ADR-0074) indica "entrega de la tienda" en lugar de paquetería y guía.
+  - **Recoger en tienda: fuera del MVP.** Se agrega a la lista de alcance excluido. Requiere su propia decisión: elección en el checkout, dirección opcional, costo, estados, identificación al recoger y correo de "listo para recoger".
+- **Alternativas consideradas:**
+  - Mantener la regla actual (sin paquetería no se exige guía): no requiere cambios, pero no distingue la entrega propia de un olvido.
+  - Registrar la entrega propia como texto en `carrierName` (por ejemplo, "Entrega propia"): evita la columna, pero no se puede validar ni distinguir de forma fiable.
+  - Implementar también recoger en tienda en el MVP: cambia checkout, órdenes, envíos, estados y correos.
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066) en una columna y una restricción de `shipments`; aún no hay migraciones.
+  - Cambia el contrato de `POST …/shipments/{id}/dispatch` (acepta `ownDelivery`) y agrega `ownDelivery` a `AdminShipment` y a `shipment` de `Order`.
+  - `PATCH …/shipments/{id}` no puede capturar paquetería ni guía en un envío despachado como entrega propia.
+- **Revisar si:** el negocio quiere ofrecer recoger en tienda, o se integra una paquetería (ADR-0041).
+- **Estado:** Propuesta.

@@ -121,7 +121,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-57 | Ambigüedad | Envíos sin paquetería | T-195 |
+| P-57 | Ambigüedad | Envíos sin paquetería (propuesta en ADR-0078, pendiente de aprobación) | T-195 |
 | P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
 
 ### Decisiones cerradas
