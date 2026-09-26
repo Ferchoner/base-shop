@@ -61,3 +61,4 @@
 - Agregado ADR-0072: cambiar la contraseña revoca las demás sesiones y conserva la actual; el slug de categorías y marcas se puede cambiar con riesgo aceptado de romper enlaces. P-62 y P-63 cerradas; nuevas reglas BR-USR-19 y BR-PRD-16.
 - `docs/` y `CLAUDE.md` pasan a versionarse en Git.
 - Agregado ADR-0073: oxlint como herramienta de lint; la verificación de límites (T-103) usará otra herramienta.
+- Código alineado con el stack: eliminados Yarn, los módulos generados `product/` y `cart/` y `@nestjs/observe` (tenía claves de relleno en el código y enviaba telemetría externa); Vitest reemplazado por Jest con `ts-jest` en modo ESM; `rootDir` explícito en `tsconfig.json` (requerido por TypeScript 6); corregido el import de `supertest/types.js` en el test e2e.

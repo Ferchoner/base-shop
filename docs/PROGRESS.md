@@ -65,6 +65,8 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Contratos REST propuestos en `API_SPEC.md` (ADR-0071, T-005 en REVIEW)
 - [x] Sesiones al cambiar la contraseña y slugs de categorías y marcas (ADR-0072)
 - [x] Especificación técnica en `REQUIREMENTS.md` con casos de uso, estados, permisos, errores y requisitos no funcionales (T-002 en REVIEW)
+- [x] oxlint como herramienta de lint (ADR-0073)
+- [x] Código alineado con el stack decidido: `docs/` y `CLAUDE.md` versionados; Yarn eliminado (solo npm, ADR-0025); Vitest reemplazado por Jest (ADR-0002); eliminados los módulos generados `product/` y `cart/` y `@nestjs/observe` (ADR-0032, P-07)
 
 ## In Progress
 

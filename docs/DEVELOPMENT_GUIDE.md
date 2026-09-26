@@ -31,6 +31,7 @@ Tests (Jest):
 - Unitarios para Domain, sin base de datos.
 - Integración para repositories y flujos transaccionales contra PostgreSQL 18 real en Docker, sin mocks de base de datos (ADR-0033).
 - Pruebas de concurrencia obligatorias para reservas de inventario y checkout.
+- El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
 Entorno (ADR-0025):
 
