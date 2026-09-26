@@ -75,6 +75,8 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] IVA incluido en el costo de envío y umbral de envío gratis sobre el subtotal con IVA (ADR-0079)
 - [x] Contradicciones y ambigüedades de la especificación resueltas (T-006)
 - [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas) , ADR-0081 (un solo almacén en el MVP) y ADR-0082 (recompra sin carrito original)
+- [x] Plazo de entrega estimado en días hábiles, configurable (ADR-0083)
+- [x] Formato con Prettier; ramas, commits y pull requests en inglés con Conventional Commits (ADR-0084)
 
 ## In Progress
 
@@ -100,7 +102,6 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 | P-07 | Métricas, trazas y seguimiento de errores (logs locales ya decididos, ADR-0032) | — |
 | P-13 | Almacén de secretos en el servidor (local ya decidido, ADR-0032) | — |
 | P-31 | Pruebas de webhooks de pago: herramienta de túnel y procedimiento por proveedor | T-191 |
-| P-70 | Herramienta de formato, convención de nombres de ramas y de mensajes de commit (`DEVELOPMENT_GUIDE.md`) | T-104 (formato) |
 
 ### API
 
@@ -113,7 +114,6 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting | — |
-| P-64 | Tiempos de entrega comprometidos (BR-SHP-08) | — |
 | P-69 | Validación con el contador del IVA del costo de envío (ADR-0079), antes de operar con clientes reales | — |
 
 ### Arquitectura, datos y seguridad
@@ -121,7 +121,7 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-14 | Objetivos no funcionales cuantitativos | — |
-| P-61 | Validación legal con especialista: valores de los plazos de fase operativa y bloqueo, y las preguntas de ADR-0070 (incluidas retención de auditoría y cuentas inactivas) | T-232 |
+| P-61 | Validación legal con especialista: valores de los plazos de fase operativa y bloqueo, y las preguntas de ADR-0070 (incluidas retención de auditoría y cuentas inactivas); además, la presentación del plazo de entrega estimado (ADR-0083) | T-232 |
 
 ### Contradicciones y ambigüedades de la especificación
 
@@ -181,11 +181,14 @@ Ninguna pendiente.
 | P-57 | Envíos sin paquetería | ADR-0078 |
 | P-58 | IVA del envío y base del umbral de envío gratis | ADR-0079 |
 | P-66 | Efecto de desactivar categorías y marcas en la tienda | ADR-0080 |
+| P-64 | Plazo de entrega estimado | ADR-0083 |
+| P-70 | Formato de código, ramas y mensajes de commit | ADR-0084 |
 | P-67 | Un solo almacén en el MVP | ADR-0081 |
 | P-68 | Recompra del staff sin carrito original | ADR-0082 |
 
 ## Notas
 
+- T-104 está avanzada: `npm run lint` (oxlint), `npm run format` y `npm run format:check` (Prettier) ya existen; falta integrarlos en la CI (T-106).
 - T-100 está avanzada: `engines`, `.nvmrc` y `package-lock.json` ya existen; faltan la validación de la configuración al arrancar y `.env.example`.
 - La carpeta `prompts/` existe solo en local (está en `.gitignore`) y está desactualizada: por ejemplo, `03-base-datos.md` pide la tabla `promotions`, fuera del MVP. Por decisión del equipo, se trabaja sin ella por ahora. La tarea "Run Prompt 00" queda en pausa.
 - Mejora pendiente a mediano o largo plazo: segundo factor (2FA), con el diseño preparado (ADR-0043, ADR-0048).

@@ -100,6 +100,8 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0080 | Efecto de desactivar categorías y marcas en la tienda | Aceptada |
 | ADR-0081 | Un solo almacén en el MVP | Aceptada |
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
+| ADR-0083 | Plazo de entrega estimado | Aceptada |
+| ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
 
 ---
 
@@ -1287,7 +1289,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`) y ADR-0081 (a lo sumo un almacén activo).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`).
 
 ---
 
@@ -1432,7 +1434,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - El paso "lint y formato" de la CI (ADR-0030) ejecuta oxlint.
   - oxlint no admite `eslint-plugin-boundaries`, así que la verificación de límites entre módulos (ADR-0005, T-103) se hace con otra herramienta, por ejemplo `dependency-cruiser`.
-  - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier).
+  - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier). Resuelta en ADR-0084: Prettier.
 - **Estado:** Aceptada.
 
 ---
@@ -1452,7 +1454,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 
     | Correo | Evento | Contenido mínimo |
     |---|---|---|
-    | Orden recibida | `OrderPlaced` | Código público, líneas, totales, dirección de envío resumida, instrucciones de pago en tienda y plazo de la reserva |
+    | Orden recibida | `OrderPlaced` | Código público, líneas, totales, dirección de envío resumida, instrucciones de pago en tienda, plazo de la reserva y plazo de entrega estimado (agregado por ADR-0083) |
     | Pago confirmado | `OrderPaid` | Código público y total pagado |
     | Orden enviada | `ShipmentDispatched` | Código público; paquetería y guía, o "entrega de la tienda" (ADR-0078) |
     | Orden cancelada | `OrderCancelled` | Código público; si hubo pago capturado, indica que el reembolso está en proceso |
@@ -1654,4 +1656,45 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El invitado conserva la recompra por su cuenta (`POST /v1/orders/reorder`), que crea un carrito si no envía uno.
 - **Alternativas consideradas:** Crear un carrito nuevo y devolver su `cartId` al staff para que lo comunique al cliente.
 - **Consecuencias:** Nuevo error E-34 (`source-cart-unavailable`, 409 según ADR-0064).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0083 — Plazo de entrega estimado
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-64 (BR-SHP-08). El sistema no informaba al cliente cuándo recibiría su pedido. La Ley Federal de Protección al Consumidor obliga al proveedor a informar y respetar los plazos de entrega que ofrece (art. 7) y a informar las condiciones antes de la compra en el comercio electrónico (art. 76 BIS), así que el plazo que se muestra funciona como compromiso. Los envíos son manuales (ADR-0041, ADR-0078), con un solo método de envío y costo fijo para todo México (ADR-0042).
+- **Decisión:**
+  - Se informa al cliente un **plazo de entrega estimado**, no una fecha comprometida: un rango en días hábiles (mínimo y máximo), contado desde la confirmación del pago.
+  - El rango se configura en el método de envío, con el permiso `shipping.configure` (ADR-0075). Valor inicial: 3 a 7 días hábiles.
+  - Se muestra en la cotización del checkout y en el correo de orden recibida (ADR-0074), y la orden lo guarda como snapshot al colocarse; un cambio posterior del rango no afecta a órdenes colocadas.
+  - No se calcula una fecha: al ser un rango en días hábiles, no se necesita calendario de festivos ni hora de corte.
+  - Un retraso no dispara acciones automáticas, igual que una entrega fallida (ADR-0053).
+  - Sin plazo interno de despacho para el staff ni indicador de envíos atrasados en el MVP: la lista de envíos pendientes ya muestra primero los más antiguos.
+- **Alternativas consideradas:** Texto informativo fuera de la API (la orden no guardaría lo prometido); fecha comprometida calculada con calendario de festivos y hora de corte; plazo interno de despacho con indicador de atrasados.
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066): columnas `delivery_min_business_days` y `delivery_max_business_days` en `shipping_methods` y en `orders`.
+  - `ShippingMethod`, `CheckoutQuote` y `Order` agregan el rango, un cambio compatible dentro de `v1`.
+  - La forma de presentar el plazo al cliente se valida con el especialista legal junto con P-61.
+- **Revisar si:** se integra una paquetería (plazos por servicio o zona), se ofrecen varios métodos de envío o se requiere una fecha comprometida.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0084 — Formato de código, ramas y mensajes de commit
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-70. ADR-0030 exige "lint y formato" en la CI y ADR-0073 eligió oxlint para el lint, pero faltaban la herramienta de formato y las convenciones de ramas y commits. El proyecto ya traía Prettier configurado, y el historial mezclaba mensajes en inglés y en español.
+- **Decisión:**
+  - **Formato:** Prettier, con la configuración existente (comillas simples y coma final) y fin de línea LF.
+    - Alcance: código y configuración (`.ts`, `.js`, `.json`, `.yml`). La documentación Markdown queda fuera mediante `.prettierignore`, porque alinear columnas reescribiría tablas completas en cada cambio.
+    - Scripts: `npm run format` (escribe) y `npm run format:check` (verifica; es el que usa la CI).
+  - **Ramas:** `tipo/T-xxx-descripcion-corta`, en minúsculas y con guiones, con los mismos tipos que los commits. Se incluye el ID de la tarea cuando existe; si el cambio resuelve una decisión, su ID (`p-xx`).
+  - **Commits:** Conventional Commits: `tipo: descripción` en imperativo, en una línea corta, con cuerpo opcional y pie opcional con referencias (`Refs: T-100, ADR-0084`). Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore` y `ci`.
+  - **Idioma:** ramas, commits y pull requests (título y descripción) en inglés a partir del 2026-09-26. El historial anterior no se reescribe. La documentación del proyecto sigue en español.
+  - **Verificación automática:** sin hooks de Git por ahora; la convención queda documentada y se revisa al configurar la CI (T-106), donde se puede agregar una comprobación de los mensajes.
+- **Alternativas consideradas:** Biome (formatea y hace lint, pero se solapa con oxlint); oxfmt (más reciente); Prettier también sobre Markdown; commits en español; hooks con husky y commitlint desde el inicio.
+- **Consecuencias:**
+  - T-104 queda sin decisiones pendientes; `.prettierignore` y los scripts de formato ya existen.
+  - El paso "lint y formato" de la CI ejecuta `npm run lint` y `npm run format:check`.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

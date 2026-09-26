@@ -289,13 +289,13 @@ Criterios de aceptación:
 
 Criterios de aceptación:
 
-- **UC-ORD-01:** sin efectos secundarios; devuelve subtotal, IVA por línea, costo de envío con su IVA (0 si se alcanza el umbral, ADR-0079), total y disponibilidad; no usa cache.
+- **UC-ORD-01:** sin efectos secundarios; devuelve subtotal, IVA por línea, costo de envío con su IVA (0 si se alcanza el umbral, ADR-0079), total, plazo de entrega estimado (ADR-0083) y disponibilidad; no usa cache.
 - **UC-ORD-02:**
   - Exige el encabezado `Idempotency-Key` (ADR-0063): sin él responde 400; un reintento con la misma llave y el mismo contenido devuelve la misma respuesta sin crear otra orden; con contenido distinto responde 422; si la solicitud original sigue en proceso responde 409.
   - Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 y no crea la orden.
   - Rechaza la orden de un cliente registrado sin email verificado, de una cuenta de staff, o con variantes no vendibles.
   - Reserva todo el stock o falla sin reservar nada.
-  - En una sola transacción: reserva, crea la orden en PendingPayment con snapshots (SKU, nombre, opciones, precio, tasa e importe de IVA, dirección, costo de envío con su IVA y tasa, descuento en 0) y marca el carrito como CheckedOut.
+  - En una sola transacción: reserva, crea la orden en PendingPayment con snapshots (SKU, nombre, opciones, precio, tasa e importe de IVA, dirección, costo de envío con su IVA y tasa, plazo de entrega estimado, descuento en 0) y marca el carrito como CheckedOut.
   - Un invitado debe indicar email de contacto, una dirección con el formato de ADR-0057 y la versión del aviso de privacidad presentada (ADR-0067).
   - La orden recibe un número interno consecutivo y un código público aleatorio único; la respuesta al cliente incluye solo el código público (ADR-0049).
 - **UC-ORD-04:** requiere email y código público de la orden (ADR-0049); acepta el código sin distinguir mayúsculas y minúsculas; el error es idéntico si la orden no existe o el email no coincide; tiene rate limiting obligatorio.
@@ -341,6 +341,7 @@ Criterios de aceptación:
 Criterios de aceptación:
 
 - **UC-SHI-01:** el costo es el fijo configurado, con IVA incluido, o 0 si el subtotal con IVA menos el descuento es mayor o igual al umbral; el IVA contenido en el envío se calcula con la tasa configurada y se redondea como una línea; costo, IVA y tasa quedan como snapshot en la orden.
+- **UC-SHI-02:** el costo fijo, el umbral y el plazo de entrega estimado (rango en días hábiles, mínimo ≥ 1 y máximo ≥ mínimo) solo los cambia quien tiene `shipping.configure`; los cambios no afectan órdenes colocadas (ADR-0042, ADR-0075, ADR-0083).
 - **UC-SHI-03:** un solo envío por orden, creado de forma idempotente al recibir `OrderPaid`.
 - **UC-SHI-05:** se despacha con paquetería y guía, o como entrega propia marcada explícitamente y sin paquetería ni guía; cualquier otra combinación se rechaza; la orden pasa a Shipped.
 - **UC-SHI-06:** la orden pasa a Delivered; el envío queda en estado terminal.
@@ -361,7 +362,7 @@ Criterios de aceptación:
 - **UC-AUD-01:** toda modificación del staff y todo evento de seguridad genera un registro en la misma transacción que el cambio; los valores de campos sensibles nunca se guardan.
 - **UC-AUD-02:** paginación por cursor; ningún endpoint modifica ni borra registros.
 - **UC-AUD-03:** los registros con más de 3 meses se exportan a JSON Lines con gzip (un archivo por día) y solo se borran si la exportación se verificó; los archivos con más de 2 años se borran.
-- **UC-NTF-01:** se envía un correo al email de contacto de la orden por orden recibida, pago confirmado, orden enviada (con paquetería y guía, si existen), orden cancelada (indicando si el reembolso está en proceso) y reembolso completado; no se envía por expiración, entrega, entrega fallida, devolución, pago tardío sin stock ni pago fallido; las órdenes anonimizadas no reciben correo; solo se muestra el código público; un fallo de envío se registra en logs sin el email y no revierte ni bloquea la operación que lo originó.
+- **UC-NTF-01:** se envía un correo al email de contacto de la orden por orden recibida, pago confirmado, orden enviada (con paquetería y guía, si existen), orden cancelada (indicando si el reembolso está en proceso) y reembolso completado; no se envía por expiración, entrega, entrega fallida, devolución, pago tardío sin stock ni pago fallido; las órdenes anonimizadas no reciben correo; solo se muestra el código público; un fallo de envío se registra en logs sin el email y no revierte ni bloquea la operación que lo originó. El correo de orden recibida incluye el plazo de entrega estimado (ADR-0083).
 - **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), tokens de verificación de email y de recuperación de contraseña vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
 
 ---

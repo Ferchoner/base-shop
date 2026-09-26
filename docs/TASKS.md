@@ -30,7 +30,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-101 | Estructura de módulos y capas | TODO | T-003 | Un módulo por contexto con carpetas `domain`, `application`, `infrastructure`, `presentation`; convención documentada en `DEVELOPMENT_GUIDE.md` |
 | T-102 | Docker para desarrollo | TODO | T-100 | `docker compose` levanta PostgreSQL 18, la API (Node.js 24) y un capturador de correos local; instrucciones en `DEVELOPMENT_GUIDE.md` |
 | T-103 | Verificación de límites entre módulos | TODO | T-101 | Regla automática que falla si Domain importa NestJS o Prisma, si `@prisma/client` se usa fuera de Infrastructure, o si un módulo importa internos de otro La única excepción permitida es el servicio de consultas del catálogo público (ADR-0060) |
-| T-104 | Linting y formato | TODO | T-100, P-70 (formato) | Configuración de lint y formato ejecutable con un comando |
+| T-104 | Linting y formato | TODO | T-100 | Configuración de lint y formato ejecutable con un comando |
 | T-105 | Infraestructura de tests | TODO | T-102 | Jest con tests unitarios y de integración contra PostgreSQL 18 real en Docker, sin mocks de base de datos |
 | T-106 | Pipeline de CI en GitHub Actions | TODO | T-102 a T-105, T-110 | Los 10 pasos de ADR-0030 corren en cada pull request y en la rama principal; PostgreSQL 18 como servicio para los tests de integración |
 | T-107 | Configuración del repositorio en GitHub | TODO | T-106 | Rama principal protegida exigiendo el pipeline en verde; Dependabot semanal con actualizaciones agrupadas (requiere administrador del repositorio) |
@@ -76,7 +76,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
 | T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
-| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079), configurables; UC-SHI-01, 02 | TODO | T-110, T-112 |
+| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 | TODO | T-110, T-112 |
 | T-200 | Promotions | DEFERRED | ADR-0018 |
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |
 | T-215 | Notificaciones (ADR-0074); UC-NTF-01 | TODO | T-116, T-122, T-180, T-190, T-195 |
