@@ -73,3 +73,6 @@
 - Agregado ADR-0078 en estado Propuesta: entrega propia de la tienda en el MVP, marcada explícitamente al despachar (`own_delivery` con restricción en la base); recoger en tienda fuera del MVP. Resuelve P-57 al aprobarse.
 - ADR-0078 aceptado: P-57 cerrada. `shipments.own_delivery` con sus restricciones en `DATABASE.md` (modifica ADR-0066); `dispatch` acepta `ownDelivery`; BR-SHP-04 y BR-SHP-11 actualizadas; recoger en tienda en la lista de fuera del MVP; T-195 sin decisiones pendientes.
 - Agregado ADR-0079: el costo de envío incluye IVA y el umbral de envío gratis se compara con el subtotal con IVA menos el descuento. P-58 cerrada; `orders` agrega `shipping_tax_amount` y `shipping_tax_rate_bp` (modifica ADR-0066); `CheckoutQuote` y `Order` agregan `shippingTaxAmount`; nuevas reglas BR-SHP-12 y BR-TAX-06. T-006 pasa a DONE.
+- Aprobación formal de la especificación técnica: T-002 pasa a DONE; tareas del Sprint 0 completadas.
+- `DOMAIN_MODEL.md`: el mecanismo de token entre contextos refleja ADR-0022 y ADR-0023 (ya no figura como pendiente); se agrega la relación de los contextos con las notificaciones (ADR-0074) y se quita un separador duplicado.
+- Nuevas decisiones pendientes con número: P-64 (tiempos de entrega comprometidos, BR-SHP-08) y P-65 (orígenes permitidos de CORS).

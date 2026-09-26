@@ -169,7 +169,7 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending al pagarse la orden, y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
 - BR-SHP-06. El costo de envío es fijo por orden y es gratis cuando el subtotal con IVA menos el descuento alcanza un monto mínimo; ambos valores los configura el administrador (ADR-0042, ADR-0079).
 - BR-SHP-07. El costo de envío se calcula al cotizar y queda como snapshot en la orden.
-- BR-SHP-08. Tiempos de entrega comprometidos: PENDIENTE DE DEFINICIÓN.
+- BR-SHP-08. Tiempos de entrega comprometidos: PENDIENTE DE DEFINICIÓN (P-64).
 - BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053).
 - BR-SHP-10. Una entrega fallida o una devolución no cambia el estado de la orden (Shipped) ni dispara reintentos, cancelaciones o reembolsos. Si la mercancía regresa, el staff marca el envío como Returned y reintegra el stock (ADR-0053).
 - BR-SHP-11. Se permite la entrega propia de la tienda, con el mismo costo de envío, la misma dirección y los mismos estados que un envío por paquetería. Recoger en tienda queda fuera del MVP (ADR-0078).

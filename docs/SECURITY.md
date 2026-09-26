@@ -100,7 +100,7 @@ ADR-0032:
 
 CSRF: no aplica a la autenticación, porque las credenciales viajan en el encabezado `Authorization` y no en cookies (ADR-0023). Si en el futuro se usan cookies, revisar.
 
-CORS: orígenes permitidos PENDIENTES DE DEFINICIÓN; dependen de clientes que aún no existen.
+CORS: orígenes permitidos PENDIENTES DE DEFINICIÓN (P-65); dependen de clientes que aún no existen.
 
 ## Rate limiting
 

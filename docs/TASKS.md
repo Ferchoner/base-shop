@@ -16,7 +16,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | ID | Tarea | Estado | Depende de | Criterios de aceptación |
 |---|---|---|---|---|
 | T-001 | Definir stack | DONE (para entorno local) | — | Todas las filas de la tabla de stack en `PROJECT.md` tienen decisión y ADR |
-| T-002 | Definir actores y alcance | REVIEW | T-006 | Especificación técnica en `REQUIREMENTS.md`: actores, módulos, estados, permisos, casos de uso con criterios de aceptación, flujos, errores, dependencias y requisitos no funcionales. Pasa a DONE cuando se aprueba y se resuelven P-34 a P-60 |
+| T-002 | Definir actores y alcance | DONE | T-006 | Especificación técnica en `REQUIREMENTS.md`: actores, módulos, estados, permisos, casos de uso con criterios de aceptación, flujos, errores, dependencias y requisitos no funcionales. Pasa a DONE cuando se aprueba y se resuelven P-34 a P-60 |
 | T-003 | Aprobar arquitectura | DONE | — | ADR-0004, ADR-0005 y ADR-0019 en estado Aceptada |
 | T-004 | Aprobar modelo de datos | DONE | T-003; aprobación de ADR-0066 | Esquema por contexto, diagrama ER, índices y restricciones documentados en `DATABASE.md` |
 | T-006 | Resolver contradicciones y ambigüedades de la especificación | DONE | — | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
