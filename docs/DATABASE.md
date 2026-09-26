@@ -1,6 +1,6 @@
 # DATABASE — Modelo de datos
 
-**Estado del diseño: PROPUESTA, pendiente de aprobación (ADR-0066).** No se crean migraciones definitivas hasta que se apruebe (T-004 en REVIEW).
+**Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Las migraciones se crean en T-110.
 
 Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a ADR-0065.
 
