@@ -97,6 +97,9 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
 | ADR-0078 | Envíos sin paquetería | Aceptada |
 | ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
+| ADR-0080 | Efecto de desactivar categorías y marcas en la tienda | Aceptada |
+| ADR-0081 | Un solo almacén en el MVP | Aceptada |
+| ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 
 ---
 
@@ -209,7 +212,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Fecha:** 2026-09-24
 - **Decisión:** Cada lista de precios indica si sus precios incluyen impuesto; el valor por defecto es "incluido". El impuesto se calcula y redondea por línea de orden.
 - **Alternativas consideradas:** Precios siempre sin impuesto; redondeo sobre el total.
-- **Consecuencias:** El desglose por línea es consistente con el total. Tasas aplicables y reglas por producto: PENDIENTE DE DECISIÓN.
+- **Consecuencias:** El desglose por línea es consistente con el total. Tasas aplicables y reglas por producto: resueltas en ADR-0027.
 - **Estado:** Aceptada.
 
 ---
@@ -342,6 +345,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `PlaceOrder`: recibe cartId, dirección, opción de envío, `expectedTotal` e `Idempotency-Key`. Si el total recalculado no coincide con `expectedTotal`, responde 409.
   - Una transacción cubre: validar carrito, cotizar precios, reservar stock, crear la orden en PendingPayment y marcar el carrito. La llamada al proveedor de pagos ocurre fuera de la transacción.
   - Esta transacción toca Ordering, Inventory y Shopping: es un acoplamiento transaccional consciente, aceptable en el monolito. Si se separa Inventory, se convierte en saga.
+- **Nota de la revisión del 2026-09-26:** en el MVP hay un solo método de envío (ADR-0042), así que la cotización no ofrece opciones de envío y la colocación de la orden no recibe una.
 - **Estado:** Aceptada (aprobación formal 2026-09-24).
 
 ---
@@ -528,6 +532,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
       - Llaves de idempotencia: se borran después de 24 horas.
       - Eventos de webhooks procesados: se borran después de 30 días.
       - Carritos de invitado sin actividad: se borran después de 30 días. Los carritos de usuarios registrados se conservan.
+      - Tokens de verificación de email y de recuperación de contraseña vencidos o usados (ADR-0056; agregado en la revisión del 2026-09-26).
   - No requieren job: los precios programados (se resuelven al consultar) y la cache (expira por TTL).
 - **Reglas para todos los jobs:**
   - El job es solo un punto de entrada en Infrastructure: llama a un caso de uso de Application, igual que un controlador.
@@ -890,7 +895,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Fecha:** 2026-09-24
 - **Contexto:** Cierra P-32.
 - **Decisión:**
-  - Se envía un enlace con un token firmado de un solo uso, vigente 24 horas (configurable).
+  - Se envía un enlace con un token firmado de un solo uso, vigente 24 horas (configurable). *Nota de la revisión del 2026-09-26: el modelo de datos (ADR-0066) guarda un token aleatorio con hash, igual que ADR-0056; no se usa un token firmado.*
   - El cliente puede solicitar el reenvío, con límite de frecuencia; un reenvío invalida el enlace anterior.
   - Si el cliente cambia su email, debe verificarlo de nuevo antes de volver a comprar.
   - El enlace apunta a la URL base del frontend configurada por variable de entorno (ADR-0056).
@@ -1282,7 +1287,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`) y ADR-0079 (IVA del envío en `orders`).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`) y ADR-0081 (a lo sumo un almacén activo).
 
 ---
 
@@ -1599,6 +1604,54 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Modifica el modelo de datos aprobado (ADR-0066): columnas `shipping_tax_amount` y `shipping_tax_rate_bp` en `orders`; la restricción `tax_total <= subtotal` pasa a `tax_total <= subtotal + shipping_cost`, y se agrega `shipping_tax_amount <= shipping_cost`.
   - `CheckoutQuote` y `Order` agregan `shippingTaxAmount`, un cambio compatible dentro de `v1`.
-  - El tratamiento del IVA del envío se valida con el contador antes de operar con clientes reales.
+  - El tratamiento del IVA del envío se valida con el contador antes de operar con clientes reales (P-69).
 - **Revisar si:** el contador indica otro tratamiento, se emiten facturas (ADR-0027) o se habilitan promociones (ADR-0018).
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0080 — Efecto de desactivar categorías y marcas en la tienda
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-66, detectada en la revisión integral de la documentación. ADR-0038 permite desactivar categorías y marcas con productos, y ADR-0076 permite reactivarlas, pero no se definía qué pasa en el catálogo público mientras están inactivas.
+- **Decisión:**
+  - **Categoría visible:** activa y con todos sus ancestros activos. Solo las categorías visibles aparecen en el árbol público.
+  - **Desactivar una categoría** la oculta junto con todas sus subcategorías, aunque estas sigan activas. Al reactivarla (ADR-0076), sus subcategorías activas vuelven a verse.
+  - **Los productos de una categoría oculta siguen publicados y visibles** en listados, búsqueda y detalle, pero dejan de mostrarse como parte de esa categoría: el detalle del producto solo lista categorías visibles y la búsqueda por texto no usa el nombre de categorías ocultas.
+  - **Desactivar una marca** la quita del listado público de marcas; sus productos siguen visibles y siguen mostrando la marca.
+  - **Filtros:** filtrar el catálogo público por una categoría oculta o por una marca inactiva responde 400 `validation-error`.
+- **Alternativas consideradas:** Ocultar los productos de categorías o marcas inactivas; mantener visibles las subcategorías activas de una categoría desactivada.
+- **Consecuencias:**
+  - La aplicación recalcula el `search_vector` de los productos afectados al desactivar o reactivar una categoría.
+  - Nueva regla BR-PRD-17.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0081 — Un solo almacén en el MVP
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-67, detectada en la revisión integral de la documentación. Operar varios almacenes ya está fuera del MVP (BR-INV-08, ADR-0011, `PROJECT.md`), y el seed crea un almacén predeterminado (`DATABASE.md`, sección 13). Sin embargo, la API permite crear y desactivar almacenes (UC-INV-01), el modelo no marca cuál es el predeterminado y no se define qué almacén usa una reserva si hay varios activos.
+- **Decisión:**
+  - En el MVP existe exactamente un almacén, creado por el seed. Es el predeterminado y el único que usan las reservas, las entradas, los ajustes y los envíos.
+  - La API de almacenes queda en consulta y edición: `GET /v1/admin/inventory/warehouses` y `PATCH …/{warehouseId}` (nombre y dirección). Se retiran del MVP la creación (`POST /v1/admin/inventory/warehouses`) y la desactivación (`POST …/{warehouseId}/deactivate`).
+  - La base garantiza a lo sumo un almacén activo con un índice único parcial `((true)) WHERE status = 'ACTIVE'`.
+  - Las entradas y los ajustes conservan `warehouseId` en la solicitud, para no cambiar el contrato cuando haya varios almacenes; en el MVP solo se acepta el almacén activo.
+  - La asignación de almacén sigue como domain service (ADR-0011). Al habilitar varios almacenes se definirán el almacén predeterminado o la prioridad y las reglas de asignación.
+- **Alternativas consideradas:** Mantener la creación de almacenes con un indicador de predeterminado; permitir almacenes inactivos adicionales sin uso.
+- **Consecuencias:** Modifica los contratos aprobados (ADR-0071) en dos endpoints y el modelo de datos (ADR-0066) en un índice; aún no hay implementación ni migraciones.
+- **Revisar si:** se decide operar más de un almacén.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0082 — Recompra del staff cuando el carrito original ya no existe
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-68, detectada en la revisión integral de la documentación. Cuando el staff copia una orden cancelada de un invitado, las líneas van al carrito original de la orden (ADR-0054, ADR-0055). Los carritos de invitado sin actividad se borran a los 30 días (BR-CRT-06), así que ese carrito puede ya no existir.
+- **Decisión:**
+  - Si el carrito original ya no existe, la recompra no se realiza: responde 409 `source-cart-unavailable`, con un `detail` que indica que el carrito de la orden ya no existe. No se crea un carrito nuevo.
+  - El invitado conserva la recompra por su cuenta (`POST /v1/orders/reorder`), que crea un carrito si no envía uno.
+- **Alternativas consideradas:** Crear un carrito nuevo y devolver su `cartId` al staff para que lo comunique al cliente.
+- **Consecuencias:** Nuevo error E-34 (`source-cart-unavailable`, 409 según ADR-0064).
 - **Estado:** Aceptada (aprobación formal 2026-09-26).

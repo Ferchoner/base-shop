@@ -38,6 +38,8 @@ Entorno (ADR-0025):
 - Node.js 24 y PostgreSQL 18, siempre en su última actualización menor.
 - npm como gestor de paquetes; `package-lock.json` se versiona y las instalaciones en CI usan `npm ci`.
 - La versión de Node.js se declara en el campo `engines` de `package.json` y en un archivo de versión para el entorno local.
+- Fin de línea LF en todos los archivos de texto, forzado por `.gitattributes` (`* text=auto eol=lf`), igual que `.editorconfig` y Prettier.
+- `npm audit` debe quedar sin vulnerabilidades altas ni críticas, igual que en la CI (ADR-0030).
 
 Ramas e integración continua (ADR-0030):
 
@@ -49,7 +51,7 @@ Ramas e integración continua (ADR-0030):
 
 Lint con oxlint (`npm run lint`, ADR-0073).
 
-PENDIENTE DE DEFINICIÓN: herramienta de formato, convención de nombres de ramas y de mensajes de commit.
+PENDIENTE DE DEFINICIÓN (P-70): herramienta de formato, convención de nombres de ramas y de mensajes de commit.
 
 ## Configuración local
 

@@ -39,9 +39,9 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Pricing | Una lista predeterminada, precios inmediatos y programados | Listas adicionales (modelo preparado, ADR-0039) |
 | Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
-| Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones |
+| Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077) |
 | Payments | Pago manual (solo pruebas), PayPal semiimplementado | Mercado Pago, Stripe, métodos asíncronos |
-| Shipping | Envíos manuales, costo fijo con envío gratis por monto | Integración con paqueterías, envíos parciales |
+| Shipping | Envíos manuales (por paquetería o entrega propia), costo fijo con envío gratis por monto | Integración con paqueterías, envíos parciales, recoger en tienda (ADR-0078) |
 | Transversales | Auditoría técnica, notificaciones, jobs | Facturación electrónica (CFDI) |
 
 ---
@@ -82,19 +82,19 @@ Estados: Active → Committed (pago confirmado) | Released (orden cancelada) | E
 
 ### 3.4 Shipment (ADR-0041)
 
-Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (manual, cuando la mercancía regresa). Delivered y Returned son terminales. Ninguno de estos cambios modifica el estado de la orden, que permanece en Shipped. Los estados de paquetería (guía generada, en tránsito) están previstos pero no se implementan en el MVP.
+Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (manual, cuando la mercancía regresa). Delivered y Returned son terminales. Despachar lleva la orden a Shipped y entregar la lleva a Delivered (sección 3.1); la entrega fallida y la devolución no cambian el estado de la orden, que permanece en Shipped (ADR-0053). Un envío se despacha por paquetería o como entrega propia (ADR-0078). Los estados de paquetería (guía generada, en tránsito) están previstos pero no se implementan en el MVP.
 
 ### 3.5 Otras entidades
 
 | Entidad | Estados | Fuente |
 |---|---|---|
-| User | Active, Suspended, PendingVerification (clientes); indicador de cambio de contraseña obligatorio (staff); cliente anonimizado | ADR-0038, ADR-0043, ADR-0044 |
+| User | Active, Suspended, Anonymized (solo clientes). El email verificado es un dato (`emailVerifiedAt`), no un estado; el cambio de contraseña obligatorio del staff es un indicador | ADR-0038, ADR-0043, ADR-0044, ADR-0067 |
 | Product | Draft, Published, Archived | DOMAIN_MODEL |
 | ProductVariant | Activa, Descontinuada | ADR-0038 |
 | Category, Brand | Activa, Desactivada (o borrada si está vacía) | ADR-0038 |
 | Cart | Active, CheckedOut, Merged | DOMAIN_MODEL |
 | PriceList | Activa (la predeterminada no se desactiva) | ADR-0039 |
-| Warehouse | Activo, Inactivo | ADR-0038 |
+| Warehouse | Activo (exactamente uno en el MVP; la API no crea ni desactiva almacenes) | ADR-0038, ADR-0081 |
 
 Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT; ProductVariant Descontinuada → Activa; Category y Brand Desactivada → Activa. La anonimización es irreversible.
 
@@ -182,7 +182,7 @@ Criterios de aceptación:
 |---|---|---|---|
 | UC-CAT-01 | Listar y buscar productos de la tienda | Público | BR-PRD-06, BR-PRD-15, ADR-0028, ADR-0036, ADR-0060 |
 | UC-CAT-02 | Ver detalle de producto por slug | Público | BR-PRD-06, ADR-0028 |
-| UC-CAT-03 | Consultar árbol de categorías | Público | ADR-0028 |
+| UC-CAT-03 | Consultar árbol de categorías | Público | ADR-0028, BR-PRD-17 |
 | UC-CAT-04 | Crear producto (borrador) | Staff (`catalog.write`) | BR-PRD-09 |
 | UC-CAT-05 | Editar datos del producto | Staff (`catalog.write`) | — |
 | UC-CAT-06 | Agregar variante | Staff (`catalog.write`) | BR-PRD-01, BR-PRD-02, BR-PRD-14 |
@@ -199,6 +199,7 @@ Criterios de aceptación:
 
 - **UC-CAT-01 / 02:** solo productos publicados y variantes activas con precio vigente; un producto sin variantes con precio no aparece; imágenes siempre como arreglo (vacío si no hay) con URL absoluta; paginación, `sort` y filtros no declarados se rechazan; listados sin texto de búsqueda cacheados con TTL de 120 s e invalidada por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`. Cada variante se muestra como disponible o agotada, sin cantidades (ADR-0061).
 - **UC-CAT-01 (búsqueda y filtros):** búsqueda por texto en español, sin acentos y por prefijo, sobre título, marca y categorías; filtros por categoría (con subcategorías), marcas, rango de precio y solo disponibles; órdenes por relevancia, más recientes, precio y nombre; el precio de un producto es el más bajo entre sus variantes vendibles; los totales de paginación son exactos porque el filtrado ocurre en la base.
+- **UC-CAT-01 / 03 (categorías y marcas inactivas):** el árbol público muestra solo categorías visibles (activas y con todos sus ancestros activos); filtrar por una categoría oculta o una marca inactiva responde 400; los productos de categorías ocultas o marcas inactivas siguen visibles, pero no como parte de esa categoría (ADR-0080).
 - **UC-CAT-06:** SKU duplicado o reutilizado se rechaza; combinación de opciones repetida en el producto se rechaza. Peso (gramos) y dimensiones (centímetros) son opcionales y, si se capturan, deben ser positivos.
 - **UC-CAT-07:** SKU y opciones solo se editan si el producto nunca se ha publicado (el SKU anterior se libera); después se rechazan; no se agregan dimensiones de opciones a productos publicados; peso, dimensiones y estado se editan siempre.
 - **UC-CAT-09:** se rechaza sin al menos una variante activa; se permite sin precio y sin imagen.
@@ -230,7 +231,7 @@ Criterios de aceptación:
 
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
-| UC-INV-01 | Gestionar almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0038 |
+| UC-INV-01 | Consultar y editar el almacén | Staff (`inventory.read` / `inventory.write`) | BR-INV-08, ADR-0081 |
 | UC-INV-02 | Registrar entrada de stock | Staff (`inventory.write`) | BR-INV-05 |
 | UC-INV-03 | Ajustar stock con motivo | Staff (`inventory.write`) | BR-INV-01, BR-INV-05, BR-INV-11, ADR-0069 |
 | UC-INV-04 | Consultar stock y movimientos | Staff (`inventory.read`) | — |
@@ -269,7 +270,7 @@ Criterios de aceptación:
 - **UC-CRT-05:** precios calculados al leer desde Pricing; nunca se toman del carrito. Cada línea indica si la cantidad pedida puede surtirse, sin revelar la cantidad disponible (ADR-0061).
 - **UC-CRT-06:** endpoint explícito que recibe el `cartId` del invitado; suma cantidades y limita cada línea a 30 sin aviso; si el cliente no tiene carrito activo, el carrito de invitado pasa a su cuenta; el carrito fusionado queda en Merged y ya no se puede modificar; repetir la fusión no vuelve a sumar; se rechaza un carrito con dueño o una cuenta de staff.
 - **UC-CRT-08:** las líneas de la orden expirada se suman al carrito activo del cliente registrado o reactivan el carrito original (invitados, o registrados sin carrito activo); tope de 30 por línea sin aviso; idempotente ante eventos duplicados.
-- **UC-CRT-09:** solo para órdenes Cancelled o Refunded; la orden no cambia; las líneas se suman al carrito con tope de 30; precios y disponibilidad son los actuales; variantes no vendibles se omiten; cuando lo hace el staff, las líneas van al carrito del cliente y la acción se audita.
+- **UC-CRT-09:** solo para órdenes Cancelled o Refunded; la orden no cambia; las líneas se suman al carrito con tope de 30; precios y disponibilidad son los actuales; variantes no vendibles se omiten; cuando lo hace el staff, las líneas van al carrito del cliente y la acción se audita; si la orden es de un invitado y su carrito original ya no existe, la recompra del staff se rechaza sin crear otro carrito (ADR-0082).
 
 ### 5.6 Ordering
 
@@ -288,13 +289,13 @@ Criterios de aceptación:
 
 Criterios de aceptación:
 
-- **UC-ORD-01:** sin efectos secundarios; devuelve subtotal, IVA por línea, costo de envío (0 si se alcanza el umbral), total y disponibilidad; no usa cache.
+- **UC-ORD-01:** sin efectos secundarios; devuelve subtotal, IVA por línea, costo de envío con su IVA (0 si se alcanza el umbral, ADR-0079), total y disponibilidad; no usa cache.
 - **UC-ORD-02:**
   - Exige el encabezado `Idempotency-Key` (ADR-0063): sin él responde 400; un reintento con la misma llave y el mismo contenido devuelve la misma respuesta sin crear otra orden; con contenido distinto responde 422; si la solicitud original sigue en proceso responde 409.
   - Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 y no crea la orden.
   - Rechaza la orden de un cliente registrado sin email verificado, de una cuenta de staff, o con variantes no vendibles.
   - Reserva todo el stock o falla sin reservar nada.
-  - En una sola transacción: reserva, crea la orden en PendingPayment con snapshots (SKU, nombre, opciones, precio, tasa e importe de IVA, dirección, costo de envío, descuento en 0) y marca el carrito como CheckedOut.
+  - En una sola transacción: reserva, crea la orden en PendingPayment con snapshots (SKU, nombre, opciones, precio, tasa e importe de IVA, dirección, costo de envío con su IVA y tasa, descuento en 0) y marca el carrito como CheckedOut.
   - Un invitado debe indicar email de contacto, una dirección con el formato de ADR-0057 y la versión del aviso de privacidad presentada (ADR-0067).
   - La orden recibe un número interno consecutivo y un código público aleatorio único; la respuesta al cliente incluye solo el código público (ADR-0049).
 - **UC-ORD-04:** requiere email y código público de la orden (ADR-0049); acepta el código sin distinguir mayúsculas y minúsculas; el error es idéntico si la orden no existe o el email no coincide; tiene rate limiting obligatorio.
@@ -361,7 +362,7 @@ Criterios de aceptación:
 - **UC-AUD-02:** paginación por cursor; ningún endpoint modifica ni borra registros.
 - **UC-AUD-03:** los registros con más de 3 meses se exportan a JSON Lines con gzip (un archivo por día) y solo se borran si la exportación se verificó; los archivos con más de 2 años se borran.
 - **UC-NTF-01:** se envía un correo al email de contacto de la orden por orden recibida, pago confirmado, orden enviada (con paquetería y guía, si existen), orden cancelada (indicando si el reembolso está en proceso) y reembolso completado; no se envía por expiración, entrega, entrega fallida, devolución, pago tardío sin stock ni pago fallido; las órdenes anonimizadas no reciben correo; solo se muestra el código público; un fallo de envío se registra en logs sin el email y no revierte ni bloquea la operación que lo originó.
-- **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
+- **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), tokens de verificación de email y de recuperación de contraseña vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
 
 ---
 
@@ -374,7 +375,7 @@ Criterios de aceptación:
 3. Un administrador registra el pago (UC-PAY-02) → `PaymentCaptured`.
 4. Si la reserva sigue vigente: se confirma y la orden pasa a Paid. Si ya expiró: aplica ADR-0012 (reservar de nuevo o AwaitingManualFulfillment).
 5. `OrderPaid` crea el envío en Pending (UC-SHI-03).
-6. El staff registra guía, despacha y marca entregado (UC-SHI-04 a 06).
+6. El staff registra paquetería y guía, o marca el envío como entrega propia, lo despacha y lo marca entregado (UC-SHI-04 a 06, ADR-0078).
 
 ### 6.2 Compra con PayPal (futuro, no habilitado)
 
@@ -400,7 +401,7 @@ Script para el primer superadministrador (UC-IAM-20) → el superadministrador c
 
 ## 7. Catálogo de errores
 
-Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-0035). Códigos según el criterio de ADR-0064; cada tipo de error tiene un `type` estable (URI relativa, por ejemplo `/problems/insufficient-stock`) cuyo slug exacto se fija en T-005. Todas incluyen `correlationId`; los errores de validación incluyen `errors` y el de stock insuficiente, `lines`.
+Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-0035). Códigos según el criterio de ADR-0064; cada tipo de error tiene un `type` estable (URI relativa, por ejemplo `/problems/insufficient-stock`) cuyo slug está en `API_SPEC.md` (sección 6.2). Todas incluyen `correlationId`; los errores de validación incluyen `errors` y el de stock insuficiente, `lines`.
 
 | ID | Condición | HTTP | Casos de uso |
 |---|---|---|---|
@@ -415,7 +416,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-09 | Cuenta de staff intenta comprar | 403 | UC-CRT-01, UC-ORD-02 |
 | E-10 | Variante no vendible (no publicada, descontinuada o sin precio) | 409 | UC-CRT-02, UC-ORD-02 |
 | E-11 | Cantidad fuera de 1–30 | 400 | UC-CRT-02, UC-CRT-03 |
-| E-12 | Transición de estado inválida (por ejemplo, cancelar una orden enviada) | 409 | UC-ORD-07, UC-SHI-05 a 07 |
+| E-12 | Transición de estado inválida (por ejemplo, cancelar una orden enviada) | 409 | UC-ORD-07, 08, UC-SHI-05 a 07, 09, UC-IAM-16, 18, 19, UC-CAT-08 a 10, 12, 13, UC-PAY-02, 06, 07, UC-CRT-09 |
 | E-13 | Valor único duplicado (email en el registro, SKU, slug) | 409 | UC-IAM-01, UC-CAT-04, UC-CAT-06 |
 | E-14 | Borrado de entidad con referencias (rol con usuarios, categoría con productos) | 409 | UC-IAM-15, UC-CAT-12 |
 | E-15 | Periodo de precio superpuesto o ya iniciado | 409 | UC-PRC-02 a 04 |
@@ -437,6 +438,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067) | 409 (ADR-0071) | UC-IAM-19 |
 | E-32 | Editar SKU, opciones o slug después de la primera publicación (ADR-0068) | 409 (ADR-0071) | UC-CAT-05, 07 |
 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | 409 (ADR-0071) | UC-ORD-01, 02 |
+| E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe | 409 (ADR-0082) | UC-CRT-09 |
 
 ---
 
@@ -470,7 +472,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Rendimiento del catálogo | Cache en memoria de lecturas públicas con TTL de 120 s | ADR-0028 |
 | Listados | Paginación por página, 20 por defecto, máximo 100 | ADR-0036 |
 | Tiempos de negocio | Reserva de 20 minutos; expiración cada minuto; conciliación cada 5 minutos | ADR-0011, ADR-0029 |
-| Retención | Auditoría 3 meses en base y 2 años en archivos; carritos de invitado 30 días; refresh tokens 30 días tras vencer | ADR-0029, ADR-0037 |
+| Retención | Auditoría 3 meses en base y 2 años en archivos; carritos de invitado 30 días; refresh tokens 30 días tras vencer; tokens de verificación y recuperación hasta vencer o usarse | ADR-0029, ADR-0037, ADR-0056 |
 | Datos personales | Aviso de privacidad versionado; derechos ARCO por canal externo; anonimización definida; auditoría sin valores personales | ADR-0067 |
 | Archivos | Imágenes JPEG, PNG, WebP de hasta 5 MB | ADR-0024 |
 | Mantenibilidad | Monolito modular con límites verificados en CI | ADR-0003, ADR-0005, ADR-0030 |
@@ -531,3 +533,6 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-60~~ | Resuelta en ADR-0067: solicitud por canal externo, ejecutada por el staff |
 | ~~P-62~~ | Resuelta en ADR-0072: se revocan las demás sesiones y se conserva la actual |
 | ~~P-63~~ | Resuelta en ADR-0072: se permite, con riesgo aceptado de romper enlaces anteriores |
+| ~~P-66~~ | Resuelta en ADR-0080: una categoría desactivada oculta sus subcategorías; sus productos siguen visibles fuera de ella; no se filtra por marcas inactivas |
+| ~~P-67~~ | Resuelta en ADR-0081: exactamente un almacén en el MVP, creado por el seed; la API solo lo consulta y edita |
+| ~~P-68~~ | Resuelta en ADR-0082: si el carrito original del invitado ya no existe, la recompra del staff se rechaza |

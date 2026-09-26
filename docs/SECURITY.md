@@ -19,7 +19,7 @@
 - Email y código de orden de invitados viajan en el cuerpo, nunca en la URL.
 - Cuerpos con campos no declarados se rechazan (400).
 - `Cache-Control: no-store` en respuestas autenticadas o con datos personales o tokens.
-- La contraseña temporal del staff se muestra una sola vez, en la respuesta de creación.
+- La contraseña temporal del staff se muestra una sola vez, en la respuesta de creación o de reactivación (ADR-0076).
 - Un staff con cambio de contraseña pendiente solo accede a su cuenta, al cambio de contraseña y al cierre de sesión.
 - Las rutas públicas de carrito solo operan sobre carritos sin dueño.
 - El pago de un invitado exige el `cartId` de origen de la orden.
@@ -49,7 +49,7 @@ Ya definido:
 
 - Un usuario suspendido no puede autenticarse (BR-USR-02). Al reactivarlo, el staff recibe una contraseña temporal nueva con cambio obligatorio, porque la suspensión pudo deberse a una contraseña comprometida; la reactivación se audita como evento de seguridad (ADR-0076).
 - El hash de contraseña, los tokens y los intentos de login nunca salen del contexto Identity & Access.
-- Se permite compra como invitado (ADR-0010): los endpoints de checkout y carrito deben funcionar sin usuario autenticado, y el invitado consulta su orden con email de contacto y el código público aleatorio de la orden (ADR-0020, ADR-0049); el número interno consecutivo nunca se expone a clientes. Ese endpoint requiere rate limiting y respuestas de error que no revelen si la orden existe. El enlace de acceso por correo, si se implementa, usa un token firmado con expiración.
+- Se permite compra como invitado (ADR-0010): los endpoints de checkout y carrito deben funcionar sin usuario autenticado, y el invitado consulta su orden con email de contacto y el código público aleatorio de la orden (ADR-0020, ADR-0049); el número interno consecutivo nunca se expone a clientes. Ese endpoint requiere rate limiting y respuestas de error que no revelen si la orden existe. El enlace de acceso por correo queda fuera del MVP (ADR-0077).
 
 ## Autorización
 
@@ -112,10 +112,12 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 | Registro | 5 por IP por hora |
 | Recuperación de contraseña | 3 por email y 10 por IP por hora |
 | Reenvío de verificación | 3 por email por hora |
-| Consulta de pedido de invitado | 10 por IP en 15 minutos |
+| Cambio de email | 3 por hora (ADR-0071) |
+| Consulta de pedido y recompra de invitado | 10 por IP en 15 minutos (ADR-0071) |
 | Colocar orden | 10 por usuario o carrito en 10 minutos |
 | Resto de endpoints | 100 solicitudes por minuto por IP |
 
+- La tabla de referencia por endpoint está en `API_SPEC.md` (sección 7).
 - Se frena por tiempo; nunca se bloquean cuentas por intentos fallidos.
 - 429 con `Retry-After` al exceder un límite.
 - Detrás de un proxy, la IP a considerar se configura al elegir hosting (P-06).

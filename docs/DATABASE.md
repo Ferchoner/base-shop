@@ -2,7 +2,7 @@
 
 **Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Las migraciones se crean en T-110.
 
-Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a ADR-0065.
+Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079, ADR-0081).
 
 ---
 
@@ -85,7 +85,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a 
 | password_hash | text | Sí | Argon2id; `NULL` en anonimizados |
 | status | enum `user_status` (ACTIVE, SUSPENDED, ANONYMIZED) | No | Default ACTIVE |
 | email_verified_at | timestamptz(3) | Sí | Solo relevante para clientes (ADR-0044) |
-| must_change_password | boolean | No | Default false; true al crear staff con contraseña temporal |
+| must_change_password | boolean | No | Default false; true al crear o reactivar staff con contraseña temporal (ADR-0076) |
 | password_changed_at | timestamptz(3) | Sí | — |
 | last_login_at | timestamptz(3) | Sí | — |
 | suspended_at, anonymized_at | timestamptz(3) | Sí | — |
@@ -150,7 +150,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a 
 | is_default | boolean | No | Default false |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** índice único parcial `(user_id) WHERE is_default` (una predeterminada por cliente). La pertenencia del municipio al estado y el máximo de 10 direcciones se validan en la aplicación, dentro de una transacción que bloquea la fila del usuario (BR-ADR-02, BR-ADR-04).
+- **Restricciones:** índice único parcial `(user_id) WHERE is_default` (una predeterminada por cliente). La pertenencia del municipio al estado y el máximo de 10 direcciones se validan en la aplicación, dentro de una transacción que bloquea la fila del usuario (BR-ADR-02, BR-ADR-04). Los nombres de estado y municipio se obtienen del catálogo geográfico; los snapshots de órdenes y envíos guardan clave y nombre (ADR-0057).
 - **Índices:** `(user_id)`.
 - **Integridad:** borrado físico (ADR-0038); las órdenes guardan su propio snapshot.
 
@@ -192,7 +192,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | position | integer | No | Orden entre hermanas; default 0 |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (parent_id <> id)`; único `(parent_id, lower(name))`. La ausencia de ciclos se valida en la aplicación al mover (BR-PRD-03). Solo se borra sin productos ni subcategorías (BR-PRD-10), garantizado por las FK `RESTRICT`.
+- **Restricciones:** `CHECK (parent_id <> id)`; índice único `(parent_id, lower(name)) NULLS NOT DISTINCT` (PostgreSQL 15 o posterior): sin `NULLS NOT DISTINCT`, dos categorías raíz podrían tener el mismo nombre, porque los `NULL` cuentan como distintos. La ausencia de ciclos se valida en la aplicación al mover (BR-PRD-03). Solo se borra sin productos ni subcategorías (BR-PRD-10), garantizado por las FK `RESTRICT`.
 - **Índices:** `(parent_id)`.
 
 ### 4.3 `products`
@@ -207,7 +207,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | status | enum `product_status` (DRAFT, PUBLISHED, ARCHIVED) | No | Default DRAFT |
 | published_at, archived_at | timestamptz(3) | Sí | `published_at` alimenta el orden "más recientes" (ADR-0060) |
 | first_published_at | timestamptz(3) | Sí | Se fija en la primera publicación y no cambia; mientras es `NULL`, SKU y opciones de sus variantes son editables (ADR-0068) |
-| search_vector | tsvector | Sí | Título, marca y categorías; configuración en español con `unaccent`; lo actualiza la aplicación al cambiar esos datos |
+| search_vector | tsvector | Sí | Título, marca y categorías visibles (ADR-0080); configuración en español con `unaccent`; lo actualiza la aplicación al cambiar esos datos, incluida la visibilidad de sus categorías |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
@@ -325,6 +325,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | status | enum `catalog_status` | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
+- **Restricciones:** índice único parcial `((true)) WHERE status = 'ACTIVE'`: a lo sumo un almacén activo. En el MVP existe exactamente uno, creado por el seed; la API no crea ni desactiva almacenes (ADR-0081).
+
 ### 6.2 `stock_items` (inventory)
 
 | Campo | Tipo | Nulo | Notas |
@@ -338,7 +340,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01).
 - **Índices:** el único cubre la búsqueda por variante.
-- **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 11).
+- **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 12).
 
 ### 6.3 `stock_movements` (inventory_movements)
 
@@ -695,7 +697,7 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 
 ADR-0038: sin columna `deleted_at` genérica. Estados de negocio para entidades con valor histórico y borrado físico donde nada las referencia.
 
-- Archivar o desactivar: productos, variantes (descontinuar), almacenes, listas de precios; categorías y marcas con productos o subcategorías.
+- Archivar o desactivar: productos, variantes (descontinuar), almacenes (fuera del MVP, ADR-0081), listas de precios; categorías y marcas con productos o subcategorías.
 - Suspender: staff (nunca se borra) y clientes. Un cliente que pide eliminar su cuenta se anonimiza (ADR-0067): se vacían sus datos en `users`, se borran tokens, direcciones y carritos, y se eliminan los identificadores directos de sus órdenes y envíos, conservando estado, municipio y código postal.
 - Borrado físico: imágenes (registro y archivo), direcciones del cliente, periodos de precio futuros no iniciados, roles sin usuarios, categorías y marcas vacías.
 - Nunca se borran: órdenes, pagos, envíos, movimientos de stock, periodos de precio iniciados.
