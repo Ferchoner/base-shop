@@ -2,7 +2,7 @@
 
 **Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Las migraciones se crean en T-110.
 
-Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a ADR-0065.
+Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079).
 
 ---
 
@@ -85,7 +85,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a 
 | password_hash | text | Sí | Argon2id; `NULL` en anonimizados |
 | status | enum `user_status` (ACTIVE, SUSPENDED, ANONYMIZED) | No | Default ACTIVE |
 | email_verified_at | timestamptz(3) | Sí | Solo relevante para clientes (ADR-0044) |
-| must_change_password | boolean | No | Default false; true al crear staff con contraseña temporal |
+| must_change_password | boolean | No | Default false; true al crear o reactivar staff con contraseña temporal (ADR-0076) |
 | password_changed_at | timestamptz(3) | Sí | — |
 | last_login_at | timestamptz(3) | Sí | — |
 | suspended_at, anonymized_at | timestamptz(3) | Sí | — |
@@ -150,7 +150,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md` y ADR-0001 a 
 | is_default | boolean | No | Default false |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** índice único parcial `(user_id) WHERE is_default` (una predeterminada por cliente). La pertenencia del municipio al estado y el máximo de 10 direcciones se validan en la aplicación, dentro de una transacción que bloquea la fila del usuario (BR-ADR-02, BR-ADR-04).
+- **Restricciones:** índice único parcial `(user_id) WHERE is_default` (una predeterminada por cliente). La pertenencia del municipio al estado y el máximo de 10 direcciones se validan en la aplicación, dentro de una transacción que bloquea la fila del usuario (BR-ADR-02, BR-ADR-04). Los nombres de estado y municipio se obtienen del catálogo geográfico; los snapshots de órdenes y envíos guardan clave y nombre (ADR-0057).
 - **Índices:** `(user_id)`.
 - **Integridad:** borrado físico (ADR-0038); las órdenes guardan su propio snapshot.
 
@@ -192,7 +192,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | position | integer | No | Orden entre hermanas; default 0 |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (parent_id <> id)`; único `(parent_id, lower(name))`. La ausencia de ciclos se valida en la aplicación al mover (BR-PRD-03). Solo se borra sin productos ni subcategorías (BR-PRD-10), garantizado por las FK `RESTRICT`.
+- **Restricciones:** `CHECK (parent_id <> id)`; índice único `(parent_id, lower(name)) NULLS NOT DISTINCT` (PostgreSQL 15 o posterior): sin `NULLS NOT DISTINCT`, dos categorías raíz podrían tener el mismo nombre, porque los `NULL` cuentan como distintos. La ausencia de ciclos se valida en la aplicación al mover (BR-PRD-03). Solo se borra sin productos ni subcategorías (BR-PRD-10), garantizado por las FK `RESTRICT`.
 - **Índices:** `(parent_id)`.
 
 ### 4.3 `products`
@@ -338,7 +338,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01).
 - **Índices:** el único cubre la búsqueda por variante.
-- **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 11).
+- **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 12).
 
 ### 6.3 `stock_movements` (inventory_movements)
 

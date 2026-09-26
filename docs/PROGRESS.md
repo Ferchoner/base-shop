@@ -81,7 +81,7 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 
 ## Next
 
-- [ ] Fundaciones técnicas (T-100 a T-118)
+- [ ] Fundaciones técnicas (T-100 a T-119, T-126 y T-127)
 
 ## Blocked
 
@@ -180,5 +180,6 @@ Ninguna pendiente.
 
 ## Notas
 
-- La carpeta `prompts/` existe en el repositorio pero no se ha revisado. Por decisión del equipo, se trabaja sin ella por ahora. La tarea "Run Prompt 00" queda en pausa.
+- T-100 está avanzada: `engines`, `.nvmrc` y `package-lock.json` ya existen; faltan la validación de la configuración al arrancar y `.env.example`.
+- La carpeta `prompts/` existe solo en local (está en `.gitignore`) y está desactualizada: por ejemplo, `03-base-datos.md` pide la tabla `promotions`, fuera del MVP. Por decisión del equipo, se trabaja sin ella por ahora. La tarea "Run Prompt 00" queda en pausa.
 - Mejora pendiente a mediano o largo plazo: segundo factor (2FA), con el diseño preparado (ADR-0043, ADR-0048).

@@ -209,7 +209,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Fecha:** 2026-09-24
 - **Decisión:** Cada lista de precios indica si sus precios incluyen impuesto; el valor por defecto es "incluido". El impuesto se calcula y redondea por línea de orden.
 - **Alternativas consideradas:** Precios siempre sin impuesto; redondeo sobre el total.
-- **Consecuencias:** El desglose por línea es consistente con el total. Tasas aplicables y reglas por producto: PENDIENTE DE DECISIÓN.
+- **Consecuencias:** El desglose por línea es consistente con el total. Tasas aplicables y reglas por producto: resueltas en ADR-0027.
 - **Estado:** Aceptada.
 
 ---
@@ -342,6 +342,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `PlaceOrder`: recibe cartId, dirección, opción de envío, `expectedTotal` e `Idempotency-Key`. Si el total recalculado no coincide con `expectedTotal`, responde 409.
   - Una transacción cubre: validar carrito, cotizar precios, reservar stock, crear la orden en PendingPayment y marcar el carrito. La llamada al proveedor de pagos ocurre fuera de la transacción.
   - Esta transacción toca Ordering, Inventory y Shopping: es un acoplamiento transaccional consciente, aceptable en el monolito. Si se separa Inventory, se convierte en saga.
+- **Nota de la revisión del 2026-09-26:** en el MVP hay un solo método de envío (ADR-0042), así que la cotización no ofrece opciones de envío y la colocación de la orden no recibe una.
 - **Estado:** Aceptada (aprobación formal 2026-09-24).
 
 ---
@@ -528,6 +529,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
       - Llaves de idempotencia: se borran después de 24 horas.
       - Eventos de webhooks procesados: se borran después de 30 días.
       - Carritos de invitado sin actividad: se borran después de 30 días. Los carritos de usuarios registrados se conservan.
+      - Tokens de verificación de email y de recuperación de contraseña vencidos o usados (ADR-0056; agregado en la revisión del 2026-09-26).
   - No requieren job: los precios programados (se resuelven al consultar) y la cache (expira por TTL).
 - **Reglas para todos los jobs:**
   - El job es solo un punto de entrada en Infrastructure: llama a un caso de uso de Application, igual que un controlador.
@@ -890,7 +892,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Fecha:** 2026-09-24
 - **Contexto:** Cierra P-32.
 - **Decisión:**
-  - Se envía un enlace con un token firmado de un solo uso, vigente 24 horas (configurable).
+  - Se envía un enlace con un token firmado de un solo uso, vigente 24 horas (configurable). *Nota de la revisión del 2026-09-26: el modelo de datos (ADR-0066) guarda un token aleatorio con hash, igual que ADR-0056; no se usa un token firmado.*
   - El cliente puede solicitar el reenvío, con límite de frecuencia; un reenvío invalida el enlace anterior.
   - Si el cliente cambia su email, debe verificarlo de nuevo antes de volver a comprar.
   - El enlace apunta a la URL base del frontend configurada por variable de entorno (ADR-0056).

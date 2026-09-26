@@ -32,7 +32,7 @@ Fuera del MVP (ver ADR-0018):
 - Promociones y cupones. La orden guarda un campo de descuento desde el inicio.
 - Devoluciones y reembolsos parciales como proceso de negocio. `Refund` queda modelado dentro de `Payment`.
 - Envíos parciales.
-- Métodos de pago asíncronos (efectivo en tienda, transferencia).
+- Métodos de pago asíncronos (efectivo en tiendas de conveniencia y transferencia a través de un proveedor, ADR-0013). El pago manual en tienda (ADR-0055) es solo para pruebas.
 - Múltiples almacenes en operación (el modelo los soporta).
 - Múltiples monedas.
 - Enlace de acceso al pedido por correo para invitados (ADR-0077).

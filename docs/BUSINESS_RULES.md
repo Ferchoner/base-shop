@@ -118,7 +118,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden. Si perdió el código, lo atiende el staff por un canal externo; el enlace de acceso por correo queda fuera del MVP (ADR-0020, ADR-0077).
 - BR-ORD-11. La consulta de invitado responde con el mismo error si la orden no existe o el email no coincide, y tiene rate limiting obligatorio (ADR-0020).
 - BR-ORD-12. Cada orden tiene un número interno consecutivo, visible solo para el staff, y un código público aleatorio (`XXXX-XXXX`, Base32 Crockford) que es el único que ven los clientes (ADR-0049).
-- BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío, el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042).
+- BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío con su IVA y tasa, el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042, ADR-0079).
 - BR-ORD-14. Cuando una orden expira, sus líneas regresan al carrito del cliente (ADR-0054). Una orden cancelada nunca se reactiva (ADR-0055).
 - BR-ORD-15. Colocar orden e iniciar pago exigen `Idempotency-Key`, ligada a quien la envía y al endpoint; un reintento con la misma llave y el mismo contenido no repite la operación (ADR-0063).
 - BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal y en el costo de envío (precios y envío con IVA incluido, ADR-0008, ADR-0079). La base de datos verifica esta igualdad (ADR-0066).

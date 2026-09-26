@@ -69,7 +69,7 @@ Ver ADR-0005.
 - Un aggregate por transacción como regla general; las excepciones se documentan (ADR-0019).
 - Nunca se llaman servicios externos dentro de una transacción de base de datos.
 - Las transacciones se propagan a los repositorios mediante un contexto transaccional (AsyncLocalStorage), sin exponer Prisma a Application ni Domain. Librería: `nestjs-cls` con su plugin transaccional para Prisma (ADR-0033).
-- Bloqueo optimista con columna `version` en Order, Cart, Payment, VariantPrice y Reservation.
+- Bloqueo optimista con columna `version` en los aggregates editables; la lista está en `DATABASE.md` (sección 12).
 - Reserva de inventario con actualización condicional atómica y restricción `CHECK` (ADR-0011).
 - Idempotencia con encabezado `Idempotency-Key` en PlaceOrder e InitiatePayment.
 - Nivel de aislamiento: Read Committed (predeterminado de PostgreSQL).
@@ -96,6 +96,7 @@ Ver ADR-0005.
 
 - Expiración de reservas y de órdenes impagas.
 - Conciliación de pagos.
+- Limpieza diaria y archivo de la auditoría.
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
@@ -103,7 +104,7 @@ Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs 
 |---|---|---|
 | Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011 |
 | Conciliación de pagos | Cada 5 minutos | Pagos con más de 10 minutos sin resolver (ADR-0014) |
-| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días); exporta a archivos comprimidos los registros de auditoría de más de 3 meses, los borra de la base y elimina los archivos de más de 2 años |
+| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días); exporta a archivos comprimidos los registros de auditoría de más de 3 meses, los borra de la base y elimina los archivos de más de 2 años |
 
 ## Integraciones externas
 

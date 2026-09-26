@@ -74,7 +74,7 @@ Las transiciones de estado nunca se hacen con `PATCH` del campo `status`: cada u
 
 ### 2.3 Concurrencia optimista
 
-Los recursos con columna `version` (`products`, `roles`, `users` de staff, `orders`, `shipments`, `shipping_methods`, `price_lists`) devuelven `version` en su representación. Toda modificación administrativa de esos recursos (PATCH y acciones) exige `version` en el cuerpo:
+Los recursos con columna `version` (`users`, `roles`, `products`, `price_lists`, `orders`, `payments`, `shipments`, `shipping_methods`) devuelven `version` en su representación. `variant_prices`, `reservations` y `carts` también la tienen, pero solo para la concurrencia interna (`DATABASE.md`, sección 12). Toda modificación administrativa de esos recursos (PATCH y acciones) exige `version` en el cuerpo:
 
 - `version` ausente → 400 `validation-error`.
 - `version` distinta de la actual → 409 `version-conflict` (E-05); el cliente vuelve a leer y reintenta.
@@ -263,7 +263,7 @@ Error de validación:
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-33 son derivados de reglas existentes y se agregan al catálogo de `REQUIREMENTS.md`.
+E-27 a E-33 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -1212,7 +1212,8 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
-| UC-ORD-01 a 08 | Sección 15 |
+| UC-ORD-01 a 04, 06 a 08 | Sección 15 |
+| UC-ORD-05 | Fuera del MVP (ADR-0077) |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
 | UC-PAY-01, 02, 04, 06, 07 | Secciones 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |
