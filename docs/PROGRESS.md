@@ -74,7 +74,7 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Entrega propia sin paquetería; recoger en tienda fuera del MVP (ADR-0078)
 - [x] IVA incluido en el costo de envío y umbral de envío gratis sobre el subtotal con IVA (ADR-0079)
 - [x] Contradicciones y ambigüedades de la especificación resueltas (T-006)
-- [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas) , ADR-0081 (un solo almacén en el MVP) y ADR-0082 (recompra sin carrito original)
+- [x] Revisión integral de la documentación (2026-09-26): contradicciones corregidas y nuevas decisiones ADR-0080 (categorías y marcas inactivas), ADR-0081 (un solo almacén en el MVP) y ADR-0082 (recompra sin carrito original)
 - [x] Plazo de entrega estimado en días hábiles, configurable (ADR-0083)
 - [x] Formato con Prettier; ramas, commits y pull requests en inglés con Conventional Commits (ADR-0084)
 
@@ -107,7 +107,7 @@ Ninguna. Las tareas del Sprint 0 (T-001 a T-006) están en DONE.
 
 | ID | Decisión | Bloquea |
 |---|---|---|
-| P-65 | CORS: orígenes permitidos; dependen de clientes que aún no existen | — |
+| P-65 | CORS: orígenes permitidos; dependen de clientes que aún no existen (propuesta en ADR-0085, pendiente de aprobación) | — |
 
 ### Negocio
 

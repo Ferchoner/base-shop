@@ -102,6 +102,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 | ADR-0083 | Plazo de entrega estimado | Aceptada |
 | ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
+| ADR-0085 | CORS | Propuesta |
 
 ---
 
@@ -1698,3 +1699,37 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-104 queda sin decisiones pendientes; `.prettierignore` y los scripts de formato ya existen.
   - El paso "lint y formato" de la CI ejecuta `npm run lint` y `npm run format:check`.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0085 — CORS
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-65. CORS solo aplica a clientes que corren en un navegador desde otro origen (un frontend web); las aplicaciones móviles, los servicios y los webhooks no pasan por él. Hechos relevantes:
+  - La API no usa cookies: el token de acceso viaja en `Authorization: Bearer` (ADR-0023). Por eso no se necesita `Access-Control-Allow-Credentials`, que es la configuración más riesgosa de CORS, y otro sitio no puede usar la sesión de un usuario.
+  - El frontend aún no existe y el proyecto solo corre en local (ADR-0031), así que los orígenes concretos no se conocen.
+  - CORS no es control de acceso: un origen no permitido no recibe los encabezados CORS y el navegador bloquea la respuesta, pero la autorización sigue dependiendo del token y de los permisos.
+  - El navegador solo deja leer al código del frontend los encabezados de respuesta básicos; `Location`, `Retry-After` y `X-Correlation-Id` (sección 2.4 de `API_SPEC.md`) deben exponerse explícitamente.
+- **Decisión propuesta:**
+  - **Lista de orígenes permitidos** en una variable de entorno (`CORS_ALLOWED_ORIGINS`), con orígenes exactos separados por coma (esquema, host y puerto; por ejemplo, `http://localhost:5173`), declarada en `.env.example` con un valor de ejemplo no real.
+  - **Vacía por defecto:** sin orígenes configurados, la API no permite acceso desde navegadores de otros orígenes.
+  - **Sin comodín:** la validación de configuración al arrancar rechaza `*` y los orígenes mal formados, y la API no inicia (ADR-0032).
+  - **Una sola lista** para todos los grupos de rutas (público, cuenta y administración); los webhooks no dependen de CORS.
+  - **Configuración fija:**
+
+    | Parámetro | Valor |
+    |---|---|
+    | Credenciales | No (`Access-Control-Allow-Credentials` ausente) |
+    | Métodos | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+    | Encabezados de solicitud | `Authorization`, `Content-Type`, `Idempotency-Key` |
+    | Encabezados expuestos | `Location`, `Retry-After`, `X-Correlation-Id` |
+    | Caché de la solicitud previa (preflight) | 600 segundos |
+
+  - La URL base del frontend para los enlaces de correo (ADR-0056) es otra variable; su origen normalmente también estará en la lista, pero no se deriva automáticamente.
+- **Alternativas consideradas:** Comodín `*` (aceptable sin cookies, pero deja el acceso abierto a cualquier sitio y no se puede combinar con credenciales si algún día se usan); listas separadas para rutas públicas y administrativas (más configuración sin ganancia real mientras la autorización sea por token); posponer la decisión hasta tener frontend (el mecanismo no depende de los orígenes concretos).
+- **Consecuencias:**
+  - La implementación forma parte de T-100 (configuración validada al arrancar).
+  - Cuando exista el frontend, habilitarlo es un cambio de configuración, no de código.
+  - Si algún día se usan cookies, hay que revisar este ADR y la protección contra CSRF (`SECURITY.md`).
+- **Revisar si:** se usan cookies, se agrega un encabezado de solicitud o de respuesta nuevo, o el panel de administración necesita una lista propia.
+- **Estado:** Propuesta.
