@@ -127,6 +127,10 @@ Requisitos mínimos ya identificados:
 - No registrar datos sensibles (ver `SECURITY.md`).
 - Identificador de correlación por solicitud HTTP en todos sus logs (ADR-0033).
 
+## Configuración
+
+`@nestjs/config` valida las variables de entorno al arrancar con class-validator (ADR-0032, ADR-0087); si falta una obligatoria o una es inválida, la API no inicia. El código lee la configuración tipada con `ConfigService`. Las políticas HTTP (CORS y encabezados de seguridad) se aplican en una función compartida por el arranque y los tests end-to-end.
+
 ## CORS
 
 Lista de orígenes permitidos en `CORS_ALLOWED_ORIGINS`, vacía por defecto y sin comodín; sin credenciales, porque la API no usa cookies. Métodos, encabezados permitidos y expuestos, y caché del preflight son fijos (ADR-0085).

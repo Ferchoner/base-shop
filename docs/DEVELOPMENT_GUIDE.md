@@ -61,7 +61,9 @@ Ramas y commits (ADR-0084), en inglés:
 
 ## Configuración local
 
-- Copiar `.env.example` a `.env` y completar los valores. `.env` nunca se versiona.
+- Copiar `.env.example` a `.env` y completar los valores. `.env` nunca se versiona. Sin `.env` (o sin las variables en el entorno), la API no arranca: la configuración se valida al iniciar y el error indica qué variable falta o es inválida (ADR-0032, ADR-0087).
+- El código lee la configuración tipada con `ConfigService`, nunca `process.env` directamente. Las variables se declaran en `src/config/environment.ts` y en `.env.example`.
+- Los tests no leen `.env`: toman las variables del proceso, para que la configuración local no cambie sus resultados.
 - Toda variable nueva se agrega a `.env.example` en el mismo cambio, con descripción y valor de ejemplo no real.
 - El proyecto corre solo en local por ahora (ADR-0031).
 - Los correos que envía la API llegan a un capturador local en Docker Compose y se revisan en su bandeja web; no salen a internet (ADR-0045).

@@ -1,0 +1,112 @@
+// class-transformer's @Type reads decorator metadata; load the polyfill here so this module works on its own.
+import 'reflect-metadata';
+import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
+import {
+  buildMessage,
+  IsIn,
+  IsInt,
+  Max,
+  Min,
+  ValidateBy,
+  validateSync,
+  type ValidationError,
+  type ValidationOptions,
+} from 'class-validator';
+
+export const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
+export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
+
+/**
+ * Environment variables read at startup (ADR-0032). Every variable declared here
+ * must also be listed in `.env.example` with a description and a non-real example.
+ */
+export class EnvironmentVariables {
+  @Expose()
+  @IsIn(NODE_ENVIRONMENTS)
+  NODE_ENV: NodeEnvironment;
+
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  PORT: number = 3000;
+
+  /** Exact origins allowed by CORS; empty means no cross-origin browser access (ADR-0085). */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) => parseCommaSeparatedList(value))
+  @IsExactOrigin({ each: true })
+  CORS_ALLOWED_ORIGINS: string[] = [];
+}
+
+/**
+ * Validates and types the raw environment. Throws when a variable is missing or invalid,
+ * so the API does not start with a broken configuration. Error messages name the variable
+ * and the rule, never the value, so secrets do not end up in logs.
+ */
+export function validateEnvironment(
+  raw: Record<string, unknown>,
+): EnvironmentVariables {
+  const environment = plainToInstance(EnvironmentVariables, raw, {
+    excludeExtraneousValues: true,
+    exposeDefaultValues: true,
+  });
+  const errors = validateSync(environment);
+  if (errors.length > 0) {
+    throw new Error(`Invalid environment variables:\n${formatErrors(errors)}`);
+  }
+  return environment;
+}
+
+function formatErrors(errors: ValidationError[]): string {
+  return errors
+    .map((error) => `- ${Object.values(error.constraints ?? {}).join('; ')}`)
+    .join('\n');
+}
+
+function parseCommaSeparatedList(value: unknown): unknown {
+  if (value === undefined || value === null) {
+    return [];
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+/** An exact origin: `http` or `https` scheme, host and optional port; no path, wildcard or trailing slash. */
+export function isExactOrigin(value: unknown): boolean {
+  // The URL parser accepts "*" in host names (https://*.example.com), so wildcards are rejected explicitly.
+  if (typeof value !== 'string' || value.includes('*')) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.origin === value
+    );
+  } catch {
+    return false;
+  }
+}
+
+function IsExactOrigin(options?: ValidationOptions): PropertyDecorator {
+  return ValidateBy(
+    {
+      name: 'isExactOrigin',
+      validator: {
+        validate: isExactOrigin,
+        defaultMessage: buildMessage(
+          (eachPrefix) =>
+            `${eachPrefix}$property must list exact origins such as https://shop.example.com (http or https, lowercase host, optional port; no "*", path or trailing slash)`,
+          options,
+        ),
+      },
+    },
+    options,
+  );
+}
