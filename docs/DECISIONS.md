@@ -102,7 +102,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 | ADR-0083 | Plazo de entrega estimado | Aceptada |
 | ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
-| ADR-0085 | CORS | Propuesta |
+| ADR-0085 | CORS | Aceptada |
 
 ---
 
@@ -1710,7 +1710,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El frontend aún no existe y el proyecto solo corre en local (ADR-0031), así que los orígenes concretos no se conocen.
   - CORS no es control de acceso: un origen no permitido no recibe los encabezados CORS y el navegador bloquea la respuesta, pero la autorización sigue dependiendo del token y de los permisos.
   - El navegador solo deja leer al código del frontend los encabezados de respuesta básicos; `Location`, `Retry-After` y `X-Correlation-Id` (sección 2.4 de `API_SPEC.md`) deben exponerse explícitamente.
-- **Decisión propuesta:**
+- **Decisión:**
   - **Lista de orígenes permitidos** en una variable de entorno (`CORS_ALLOWED_ORIGINS`), con orígenes exactos separados por coma (esquema, host y puerto; por ejemplo, `http://localhost:5173`), declarada en `.env.example` con un valor de ejemplo no real.
   - **Vacía por defecto:** sin orígenes configurados, la API no permite acceso desde navegadores de otros orígenes.
   - **Sin comodín:** la validación de configuración al arrancar rechaza `*` y los orígenes mal formados, y la API no inicia (ADR-0032).
@@ -1732,4 +1732,4 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cuando exista el frontend, habilitarlo es un cambio de configuración, no de código.
   - Si algún día se usan cookies, hay que revisar este ADR y la protección contra CSRF (`SECURITY.md`).
 - **Revisar si:** se usan cookies, se agrega un encabezado de solicitud o de respuesta nuevo, o el panel de administración necesita una lista propia.
-- **Estado:** Propuesta.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).

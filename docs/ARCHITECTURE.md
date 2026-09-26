@@ -127,6 +127,10 @@ Requisitos mínimos ya identificados:
 - No registrar datos sensibles (ver `SECURITY.md`).
 - Identificador de correlación por solicitud HTTP en todos sus logs (ADR-0033).
 
+## CORS
+
+Lista de orígenes permitidos en `CORS_ALLOWED_ORIGINS`, vacía por defecto y sin comodín; sin credenciales, porque la API no usa cookies. Métodos, encabezados permitidos y expuestos, y caché del preflight son fijos (ADR-0085).
+
 ## Reloj
 
 Las reglas dependientes del tiempo (precios programados, expiraciones) usan un puerto `Clock` inyectado para poder probarse.

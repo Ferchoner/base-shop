@@ -100,7 +100,14 @@ ADR-0032:
 
 CSRF: no aplica a la autenticación, porque las credenciales viajan en el encabezado `Authorization` y no en cookies (ADR-0023). Si en el futuro se usan cookies, revisar.
 
-CORS: orígenes permitidos PENDIENTES DE DEFINICIÓN (P-65); dependen de clientes que aún no existen.
+CORS (ADR-0085):
+
+- Orígenes permitidos: lista de orígenes exactos en `CORS_ALLOWED_ORIGINS`, vacía por defecto; sin configurarla, ningún navegador de otro origen puede usar la API.
+- Sin comodín: la validación de configuración rechaza `*` y los orígenes mal formados, y la API no inicia.
+- Sin credenciales; métodos `GET`, `POST`, `PUT`, `PATCH` y `DELETE`; encabezados de solicitud `Authorization`, `Content-Type` e `Idempotency-Key`; encabezados expuestos `Location`, `Retry-After` y `X-Correlation-Id`; preflight en caché 600 segundos.
+- Una sola lista para todas las rutas. CORS no sustituye la autorización: cada solicitud sigue validando token y permisos.
+
+Encabezados de seguridad de las respuestas (por ejemplo, `X-Content-Type-Options`, HSTS o política de referer), y cuáles pone la API y cuáles el proxy: PENDIENTE DE DECISIÓN (P-71).
 
 ## Rate limiting
 
