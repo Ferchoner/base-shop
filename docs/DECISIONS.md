@@ -104,6 +104,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
 | ADR-0085 | CORS | Aceptada |
 | ADR-0086 | Encabezados de seguridad de las respuestas HTTP | Aceptada |
+| ADR-0087 | Validación de entrada y de configuración con class-validator | Aceptada |
 
 ---
 
@@ -1761,4 +1762,20 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los encabezados se configuran en T-100; la política de Swagger UI, en T-114.
   - Al elegir hosting (P-06) se configuran HSTS, TLS y la redirección a HTTPS, y se revisa que las imágenes lleven `X-Content-Type-Options: nosniff` las sirva quien las sirva.
 - **Revisar si:** la API empieza a servir HTML, se usan cookies o cambia quién sirve las imágenes.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0087 — Validación de entrada y de configuración con class-validator
+
+- **Fecha:** 2026-09-26
+- **Contexto:** T-100 necesita validar las variables de entorno al arrancar (ADR-0032), y los endpoints necesitarán validar sus DTOs de entrada (T-113), incluido el rechazo de campos no declarados (ADR-0071). Faltaba elegir la librería, que afecta a todo el proyecto.
+- **Decisión:**
+  - `class-validator` con `class-transformer` para validar y transformar tanto la configuración como los DTOs de Presentation.
+  - Configuración: `@nestjs/config` con una función de validación. Si una variable obligatoria falta o una variable es inválida, la API no arranca; el mensaje nombra la variable y la regla, nunca el valor, para no exponer secretos en los logs. El resto del código lee la configuración tipada con `ConfigService`, nunca `process.env`.
+  - DTOs: `ValidationPipe` de NestJS con rechazo de campos no declarados (se configura en T-113).
+- **Alternativas consideradas:** zod (esquemas con tipos inferidos, pero requiere adaptadores de terceros para NestJS y Swagger); Joi (sin tipos de TypeScript, y habría que usar otra librería para los DTOs).
+- **Consecuencias:**
+  - El plugin de Swagger de NestJS puede leer los decoradores de los DTOs (T-114).
+  - Domain no depende de estas librerías: los DTOs y la configuración viven fuera del dominio (ADR-0003).
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
