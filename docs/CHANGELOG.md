@@ -76,3 +76,4 @@
 - Aprobación formal de la especificación técnica: T-002 pasa a DONE; tareas del Sprint 0 completadas.
 - `DOMAIN_MODEL.md`: el mecanismo de token entre contextos refleja ADR-0022 y ADR-0023 (ya no figura como pendiente); se agrega la relación de los contextos con las notificaciones (ADR-0074) y se quita un separador duplicado.
 - Nuevas decisiones pendientes con número: P-64 (tiempos de entrega comprometidos, BR-SHP-08) y P-65 (orígenes permitidos de CORS).
+- Mantenimiento: `npm audit fix` (`multer` 2.4.0 vía `@nestjs/platform-express` 12.1.0) y retiro de `@nestjs/mau` y del script `deploy` (despliegue pospuesto, ADR-0031); 0 vulnerabilidades. `.gitattributes` fuerza fin de línea LF.
