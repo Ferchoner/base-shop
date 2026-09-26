@@ -30,7 +30,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-101 | Estructura de módulos y capas | TODO | T-003 | Un módulo por contexto con carpetas `domain`, `application`, `infrastructure`, `presentation`; convención documentada en `DEVELOPMENT_GUIDE.md` |
 | T-102 | Docker para desarrollo | TODO | T-100 | `docker compose` levanta PostgreSQL 18, la API (Node.js 24) y un capturador de correos local; instrucciones en `DEVELOPMENT_GUIDE.md` |
 | T-103 | Verificación de límites entre módulos | TODO | T-101 | Regla automática que falla si Domain importa NestJS o Prisma, si `@prisma/client` se usa fuera de Infrastructure, o si un módulo importa internos de otro La única excepción permitida es el servicio de consultas del catálogo público (ADR-0060) |
-| T-104 | Linting y formato | TODO | T-100, P-70 (formato) | Configuración de lint y formato ejecutable con un comando |
+| T-104 | Linting y formato | TODO | T-100 | Configuración de lint y formato ejecutable con un comando |
 | T-105 | Infraestructura de tests | TODO | T-102 | Jest con tests unitarios y de integración contra PostgreSQL 18 real en Docker, sin mocks de base de datos |
 | T-106 | Pipeline de CI en GitHub Actions | TODO | T-102 a T-105, T-110 | Los 10 pasos de ADR-0030 corren en cada pull request y en la rama principal; PostgreSQL 18 como servicio para los tests de integración |
 | T-107 | Configuración del repositorio en GitHub | TODO | T-106 | Rama principal protegida exigiendo el pipeline en verde; Dependabot semanal con actualizaciones agrupadas (requiere administrador del repositorio) |

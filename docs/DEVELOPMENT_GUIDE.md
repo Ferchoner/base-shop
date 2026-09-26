@@ -21,7 +21,7 @@ Definidas por el stack (ADR-0002, ADR-0003):
 - Domain no importa NestJS ni Prisma. `@prisma/client` solo en Infrastructure.
 - Interfaces de repositories en Domain; implementaciones en Infrastructure.
 - DTOs HTTP solo en Presentation.
-- Nombres de código en inglés; documentación en español.
+- Nombres de código en inglés; documentación en español; ramas, commits y pull requests en inglés (ADR-0084).
 - Montos como enteros en centavos con `Money`.
 - Sin abstracciones genéricas (`BaseRepository<T>`, `BaseEntity` con lógica).
 - Ningún módulo importa internos de otro; solo su fachada pública.
@@ -51,7 +51,13 @@ Ramas e integración continua (ADR-0030):
 
 Lint con oxlint (`npm run lint`, ADR-0073).
 
-PENDIENTE DE DEFINICIÓN (P-70): herramienta de formato, convención de nombres de ramas y de mensajes de commit.
+Formato con Prettier (ADR-0084): `npm run format` escribe y `npm run format:check` verifica. Cubre código y configuración; la documentación Markdown queda fuera (`.prettierignore`).
+
+Ramas y commits (ADR-0084), en inglés:
+
+- Ramas: `tipo/T-xxx-descripcion-corta`, en minúsculas y con guiones (por ejemplo, `feat/T-100-config-validation`). Sin tarea, el ID de la decisión (`chore/p-70-...`) o solo la descripción.
+- Commits: Conventional Commits, `tipo: descripción` en imperativo y en una línea corta (por ejemplo, `feat: validate environment variables at startup`). Cuerpo opcional; pie opcional con referencias (`Refs: T-100, ADR-0084`).
+- Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`.
 
 ## Configuración local
 
@@ -69,7 +75,7 @@ PENDIENTE DE DEFINICIÓN (P-70): herramienta de formato, convención de nombres 
 
 ## Pull Requests
 
-Cada PR debe explicar:
+Cada PR, con título y descripción en inglés (ADR-0084), debe explicar:
 
 - objetivo;
 - cambios;

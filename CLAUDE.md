@@ -81,3 +81,5 @@ Aplica principios de seguridad por diseño, validación de entrada, autorizació
 ## Git
 
 Usa Git como mecanismo de checkpoint. Antes de cambios grandes, verifica el estado del repositorio y evita mezclar tareas no relacionadas en un mismo cambio.
+
+Ramas, commits y pull requests en inglés, con Conventional Commits y ramas `tipo/T-xxx-descripcion` (ADR-0084, `docs/DEVELOPMENT_GUIDE.md`).

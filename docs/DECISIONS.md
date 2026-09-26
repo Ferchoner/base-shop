@@ -101,6 +101,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0081 | Un solo almacén en el MVP | Aceptada |
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 | ADR-0083 | Plazo de entrega estimado | Aceptada |
+| ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
 
 ---
 
@@ -1433,7 +1434,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - El paso "lint y formato" de la CI (ADR-0030) ejecuta oxlint.
   - oxlint no admite `eslint-plugin-boundaries`, así que la verificación de límites entre módulos (ADR-0005, T-103) se hace con otra herramienta, por ejemplo `dependency-cruiser`.
-  - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier).
+  - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier). Resuelta en ADR-0084: Prettier.
 - **Estado:** Aceptada.
 
 ---
@@ -1676,4 +1677,24 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `ShippingMethod`, `CheckoutQuote` y `Order` agregan el rango, un cambio compatible dentro de `v1`.
   - La forma de presentar el plazo al cliente se valida con el especialista legal junto con P-61.
 - **Revisar si:** se integra una paquetería (plazos por servicio o zona), se ofrecen varios métodos de envío o se requiere una fecha comprometida.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0084 — Formato de código, ramas y mensajes de commit
+
+- **Fecha:** 2026-09-26
+- **Contexto:** Cierra P-70. ADR-0030 exige "lint y formato" en la CI y ADR-0073 eligió oxlint para el lint, pero faltaban la herramienta de formato y las convenciones de ramas y commits. El proyecto ya traía Prettier configurado, y el historial mezclaba mensajes en inglés y en español.
+- **Decisión:**
+  - **Formato:** Prettier, con la configuración existente (comillas simples y coma final) y fin de línea LF.
+    - Alcance: código y configuración (`.ts`, `.js`, `.json`, `.yml`). La documentación Markdown queda fuera mediante `.prettierignore`, porque alinear columnas reescribiría tablas completas en cada cambio.
+    - Scripts: `npm run format` (escribe) y `npm run format:check` (verifica; es el que usa la CI).
+  - **Ramas:** `tipo/T-xxx-descripcion-corta`, en minúsculas y con guiones, con los mismos tipos que los commits. Se incluye el ID de la tarea cuando existe; si el cambio resuelve una decisión, su ID (`p-xx`).
+  - **Commits:** Conventional Commits: `tipo: descripción` en imperativo, en una línea corta, con cuerpo opcional y pie opcional con referencias (`Refs: T-100, ADR-0084`). Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore` y `ci`.
+  - **Idioma:** ramas, commits y pull requests (título y descripción) en inglés a partir del 2026-09-26. El historial anterior no se reescribe. La documentación del proyecto sigue en español.
+  - **Verificación automática:** sin hooks de Git por ahora; la convención queda documentada y se revisa al configurar la CI (T-106), donde se puede agregar una comprobación de los mensajes.
+- **Alternativas consideradas:** Biome (formatea y hace lint, pero se solapa con oxlint); oxfmt (más reciente); Prettier también sobre Markdown; commits en español; hooks con husky y commitlint desde el inicio.
+- **Consecuencias:**
+  - T-104 queda sin decisiones pendientes; `.prettierignore` y los scripts de formato ya existen.
+  - El paso "lint y formato" de la CI ejecuta `npm run lint` y `npm run format:check`.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
