@@ -81,6 +81,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] Encabezados de seguridad de las respuestas con `helmet` y configuración explícita; HSTS a cargo del proxy (ADR-0086)
 - [x] T-100: configuración validada al arrancar con `@nestjs/config` y class-validator (ADR-0087), `.env.example`, CORS (ADR-0085) y encabezados de seguridad (ADR-0086)
 - [x] T-101: estructura de carpetas (`platform`, `shared-kernel`, `modules/<contexto>` con cuatro capas) y convenciones de nombres (ADR-0088)
+- [x] T-104: lint con `npm run lint` (oxlint) y formato con `npm run format` y `npm run format:check` (Prettier); su ejecución en la CI es parte de T-106
 
 ## In Progress
 
@@ -192,6 +193,5 @@ Ninguna pendiente.
 
 ## Notas
 
-- T-104 está avanzada: `npm run lint` (oxlint), `npm run format` y `npm run format:check` (Prettier) ya existen; falta integrarlos en la CI (T-106).
 - La carpeta `prompts/` existe solo en local (está en `.gitignore`) y está desactualizada: por ejemplo, `03-base-datos.md` pide la tabla `promotions`, fuera del MVP. Por decisión del equipo, se trabaja sin ella por ahora. La tarea "Run Prompt 00" queda en pausa.
 - Mejora pendiente a mediano o largo plazo: segundo factor (2FA), con el diseño preparado (ADR-0043, ADR-0048).
