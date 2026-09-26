@@ -453,7 +453,7 @@ Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-006
   "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "discountTotal": {}, "grandTotal": {},
   "shippingAddress": { "…": "Address" },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
-  "shipment": { "status": "DISPATCHED", "carrierName": "…", "trackingNumber": "…", "dispatchedAt": "…", "deliveredAt": null },
+  "shipment": { "status": "DISPATCHED", "carrierName": "…", "trackingNumber": "…", "ownDelivery": false, "dispatchedAt": "…", "deliveredAt": null },
   "placedAt": "…",
   "paymentDueAt": "…",
   "paidAt": null, "shippedAt": null, "deliveredAt": null, "cancelledAt": null, "expiredAt": null, "refundedAt": null
@@ -1147,14 +1147,14 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 - `GET` — 200 el método activo.
 - `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "version" }`; `flatFee` ≥ 0; umbral `null` (sin envío gratis) o > 0. Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
 
-**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
+**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
 
 | Endpoint | Detalle |
 |---|---|
 | `GET …/shipments` | Paginado. Filtros: `status` (defecto PENDING, UC-SHI-08), `orderId`, `q` (código de orden o guía), `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `createdAt` ascendente: primero los más antiguos), `dispatchedAt` |
 | `GET …/shipments/{shipmentId}` | 200 `AdminShipment` |
-| `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100). Permitido en PENDING y DISPATCHED. 200. Errores: 409 `invalid-state-transition` |
-| `POST …/dispatch` | Request `{ "version" }`. Desde PENDING. Si hay `carrierName`, exige `trackingNumber` (BR-SHP-04). La orden pasa a SHIPPED. 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta guía). Envíos sin paquetería: PENDIENTE (P-57) |
+| `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100). Permitido en PENDING y DISPATCHED, salvo en envíos despachados como entrega propia. 200. Errores: 409 `invalid-state-transition` |
+| `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED. 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
 | `POST …/deliver` | Request `{ "version" }`. Desde DISPATCHED. La orden pasa a DELIVERED. 200 |
 | `POST …/delivery-failure` | Request `{ "note", "version" }`. Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
 | `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/inventory/restocks`. 200 |
@@ -1191,7 +1191,6 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| P-57 | Envíos sin paquetería | `POST …/shipments/{id}/dispatch` |
 | P-58 | IVA del envío y base del umbral | Valores de `CheckoutQuote` (no su forma) |
 | T-145 | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |
 

@@ -95,7 +95,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
 | ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
 | ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
-| ADR-0078 | Envíos sin paquetería | Propuesta |
+| ADR-0078 | Envíos sin paquetería | Aceptada |
 
 ---
 
@@ -1281,7 +1281,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076: la unicidad de opciones de `product_variants` cuenta solo variantes activas.
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas) y por ADR-0078 (columna `own_delivery` en `shipments`).
 
 ---
 
@@ -1448,7 +1448,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     |---|---|---|
     | Orden recibida | `OrderPlaced` | Código público, líneas, totales, dirección de envío resumida, instrucciones de pago en tienda y plazo de la reserva |
     | Pago confirmado | `OrderPaid` | Código público y total pagado |
-    | Orden enviada | `ShipmentDispatched` | Código público; paquetería y guía, si existen |
+    | Orden enviada | `ShipmentDispatched` | Código público; paquetería y guía, o "entrega de la tienda" (ADR-0078) |
     | Orden cancelada | `OrderCancelled` | Código público; si hubo pago capturado, indica que el reembolso está en proceso |
     | Reembolso completado | `RefundCompleted` | Código público y monto reembolsado |
 
@@ -1562,12 +1562,12 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Recoger en tienda:** el cliente elige no recibir envío. Cambia el checkout (dirección opcional, costo 0, elección del método), los estados (listo para recoger, recogido), la identificación de quien recoge y los correos.
   - El modelo actual ya permite despachar sin paquetería: `carrier_name` y `tracking_number` son opcionales y la guía solo se exige si hay paquetería. Pero no distingue "entrega propia" de "olvidé capturar la paquetería", así que un envío por paquetería puede despacharse sin guía por error.
   - Hay un solo método de envío activo (ADR-0042, índice único parcial en `shipping_methods`), y la dirección de envío es obligatoria en el checkout.
-- **Decisión propuesta:**
+- **Decisión:**
   - **Entrega propia: sí en el MVP.** Es una decisión operativa del staff al despachar, no una opción del cliente. Aplican el mismo costo de envío (ADR-0042), los mismos estados (ADR-0050, ADR-0053) y la misma dirección de la orden.
   - Al despachar, el staff indica una de dos formas:
     - Paquetería: `carrierName` y `trackingNumber` obligatorios (BR-SHP-04).
     - Entrega propia: `ownDelivery: true`, sin paquetería ni guía.
-  - Nueva columna `shipments.own_delivery boolean NOT NULL DEFAULT false`, con `CHECK (status = 'PENDING' OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))`. La base garantiza que no se despacha por paquetería sin guía, validación que hoy solo hace la aplicación.
+  - Nueva columna `shipments.own_delivery boolean NOT NULL DEFAULT false`, con `CHECK (status = 'PENDING' OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))` y `CHECK (NOT own_delivery OR (carrier_name IS NULL AND tracking_number IS NULL))`. La base garantiza que no se despacha por paquetería sin guía, validación que hoy solo hace la aplicación.
   - Las vistas de envío (`AdminShipment` y `shipment` de la orden del cliente) incluyen `ownDelivery`. El correo de orden enviada (ADR-0074) indica "entrega de la tienda" en lugar de paquetería y guía.
   - **Recoger en tienda: fuera del MVP.** Se agrega a la lista de alcance excluido. Requiere su propia decisión: elección en el checkout, dirección opcional, costo, estados, identificación al recoger y correo de "listo para recoger".
 - **Alternativas consideradas:**
@@ -1579,4 +1579,4 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambia el contrato de `POST …/shipments/{id}/dispatch` (acepta `ownDelivery`) y agrega `ownDelivery` a `AdminShipment` y a `shipment` de `Order`.
   - `PATCH …/shipments/{id}` no puede capturar paquetería ni guía en un envío despachado como entrega propia.
 - **Revisar si:** el negocio quiere ofrecer recoger en tienda, o se integra una paquetería (ADR-0041).
-- **Estado:** Propuesta.
+- **Estado:** Aceptada (aprobación formal 2026-09-26).

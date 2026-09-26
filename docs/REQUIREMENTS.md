@@ -328,7 +328,7 @@ Criterios de aceptación:
 | UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07; base del umbral e IVA del envío PENDIENTE (P-58) |
 | UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (`shipping.configure`) | ADR-0042, ADR-0075 |
 | UC-SHI-03 | Crear envío en Pending | Sistema (`OrderPaid`) | BR-SHP-01, BR-SHP-02 |
-| UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04; envío sin paquetería PENDIENTE (P-57) |
+| UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04, ADR-0078 |
 | UC-SHI-05 | Marcar despachado | Staff (`shipping.manage`) | BR-SHP-04 |
 | UC-SHI-06 | Marcar entregado | Staff (`shipping.manage`) | BR-SHP-03 |
 | UC-SHI-07 | Marcar entrega fallida | Staff (`shipping.manage`) | ADR-0053 |
@@ -339,7 +339,7 @@ Criterios de aceptación:
 
 - **UC-SHI-01:** el costo es el fijo configurado, o 0 si se alcanza el umbral; queda como snapshot en la orden.
 - **UC-SHI-03:** un solo envío por orden, creado de forma idempotente al recibir `OrderPaid`.
-- **UC-SHI-05:** sin guía no se despacha cuando hay paquetería; la orden pasa a Shipped.
+- **UC-SHI-05:** se despacha con paquetería y guía, o como entrega propia marcada explícitamente y sin paquetería ni guía; cualquier otra combinación se rechaza; la orden pasa a Shipped.
 - **UC-SHI-06:** la orden pasa a Delivered; el envío queda en estado terminal.
 - **UC-SHI-07 / 09:** solo desde Dispatched (fallida) y desde DeliveryFailed (devuelto); la orden permanece en Shipped; sin reintento, cancelación ni reembolso automáticos; el stock que regresa se reintegra con UC-INV-09.
 
@@ -523,7 +523,7 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-54~~ | Resuelta en ADR-0062: el login solo indica credenciales no válidas |
 | ~~P-55~~ | Resuelta en ADR-0062: el registro indica que el email ya existe |
 | ~~P-56~~ | Resuelta en ADR-0077: no se implementa en el MVP; el contrato provisional duplicaba la consulta con email y código |
-| P-57 | ¿Existen envíos sin paquetería (entrega local, recoger en tienda)? BR-SHP-04 lo sugiere |
+| ~~P-57~~ | Resuelta en ADR-0078: entrega propia en el MVP, marcada explícitamente al despachar; recoger en tienda fuera del MVP |
 | P-58 | ¿El costo de envío lleva IVA? ¿El umbral de envío gratis se compara contra el subtotal con IVA? |
 | ~~P-59~~ | Resuelta en ADR-0058: opcionales, en gramos y centímetros |
 | ~~P-60~~ | Resuelta en ADR-0067: solicitud por canal externo, ejecutada por el staff |

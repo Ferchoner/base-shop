@@ -71,11 +71,12 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Permiso para configurar el costo de envío (ADR-0075)
 - [x] Reactivación de entidades suspendidas, archivadas o desactivadas (ADR-0076)
 - [x] Enlace de acceso al pedido fuera del MVP (ADR-0077)
+- [x] Entrega propia sin paquetería; recoger en tienda fuera del MVP (ADR-0078)
 
 ## In Progress
 
 - [ ] Revisión de la especificación técnica (T-002)
-- [ ] Resolución de ambigüedades P-57 y P-58 (T-006); contradicciones resueltas
+- [ ] Resolución de la ambigüedad P-58 (T-006); contradicciones resueltas
 
 ## Next
 
@@ -121,7 +122,6 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-57 | Ambigüedad | Envíos sin paquetería (propuesta en ADR-0078, pendiente de aprobación) | T-195 |
 | P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
 
 ### Decisiones cerradas
@@ -173,6 +173,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 | P-48 | Permiso para configurar el costo de envío | ADR-0075 |
 | P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | ADR-0076 |
 | P-56 | Enlace de acceso al pedido por correo (fuera del MVP) | ADR-0077 |
+| P-57 | Envíos sin paquetería | ADR-0078 |
 
 ## Notas
 

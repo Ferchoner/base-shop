@@ -19,7 +19,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-002 | Definir actores y alcance | REVIEW | T-006 | Especificación técnica en `REQUIREMENTS.md`: actores, módulos, estados, permisos, casos de uso con criterios de aceptación, flujos, errores, dependencias y requisitos no funcionales. Pasa a DONE cuando se aprueba y se resuelven P-34 a P-60 |
 | T-003 | Aprobar arquitectura | DONE | — | ADR-0004, ADR-0005 y ADR-0019 en estado Aceptada |
 | T-004 | Aprobar modelo de datos | DONE | T-003; aprobación de ADR-0066 | Esquema por contexto, diagrama ER, índices y restricciones documentados en `DATABASE.md` |
-| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-57, P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
+| T-006 | Resolver contradicciones y ambigüedades de la especificación | IN_PROGRESS | P-58 | Cada P-xx cerrada con ADR o regla de negocio; `REQUIREMENTS.md`, `BUSINESS_RULES.md` y `DOMAIN_MODEL.md` sin marcas de esas decisiones |
 | T-005 | Aprobar contratos API | DONE | T-003; aprobación de ADR-0071 | Endpoints del MVP documentados en `API_SPEC.md` (método, ruta, autenticación, permiso, request, parámetros, response, códigos, errores, validaciones, paginación, filtros, orden e idempotencia), con cobertura de todos los casos de uso |
 
 ## Fundaciones técnicas (sin lógica de negocio)
@@ -72,7 +72,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04 | TODO | T-190 |
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
-| T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180, P-57 |
+| T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
 | T-196 | Shipping: costo fijo y envío gratis por monto, configurables; UC-SHI-01, 02 | TODO | T-195, P-58 |
 | T-200 | Promotions | DEFERRED | ADR-0018 |
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |

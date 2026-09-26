@@ -71,3 +71,4 @@
 - Agregado ADR-0077 en estado Propuesta: no implementar el enlace de acceso al pedido en el MVP (el contrato provisional duplica la consulta con email y código); diseño de recuperación solo con email documentado para el futuro. Resuelve P-56 al aprobarse.
 - ADR-0077 aceptado: P-56 cerrada. Retirados de `API_SPEC.md` los endpoints provisionales del enlace de acceso; UC-ORD-05 fuera del MVP; T-186 pasa a DEFERRED; BR-ORD-10, ADR-0020 y ADR-0074 actualizados.
 - Agregado ADR-0078 en estado Propuesta: entrega propia de la tienda en el MVP, marcada explícitamente al despachar (`own_delivery` con restricción en la base); recoger en tienda fuera del MVP. Resuelve P-57 al aprobarse.
+- ADR-0078 aceptado: P-57 cerrada. `shipments.own_delivery` con sus restricciones en `DATABASE.md` (modifica ADR-0066); `dispatch` acepta `ownDelivery`; BR-SHP-04 y BR-SHP-11 actualizadas; recoger en tienda en la lista de fuera del MVP; T-195 sin decisiones pendientes.

@@ -164,14 +164,14 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-01. No se crea un envío para una orden no pagada.
 - BR-SHP-02. Una orden genera un solo envío en el MVP.
 - BR-SHP-03. Delivered es un estado terminal.
-- BR-SHP-04. No se despacha sin número de guía cuando interviene una paquetería.
+- BR-SHP-04. Un envío se despacha por paquetería, con paquetería y número de guía, o como entrega propia de la tienda, marcada explícitamente y sin paquetería ni guía; la base de datos lo garantiza (ADR-0078).
 - BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending al pagarse la orden, y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
 - BR-SHP-06. El costo de envío es fijo por orden y es gratis a partir de un monto mínimo de compra; ambos valores los configura el administrador (ADR-0042).
 - BR-SHP-07. El costo de envío se calcula al cotizar y queda como snapshot en la orden.
 - BR-SHP-08. Tiempos de entrega comprometidos: PENDIENTE DE DEFINICIÓN.
 - BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053).
 - BR-SHP-10. Una entrega fallida o una devolución no cambia el estado de la orden (Shipped) ni dispara reintentos, cancelaciones o reembolsos. Si la mercancía regresa, el staff marca el envío como Returned y reintegra el stock (ADR-0053).
-- BR-SHP-11. Envíos sin paquetería (entrega local, recoger en tienda): PENDIENTE DE DEFINICIÓN (P-57).
+- BR-SHP-11. Se permite la entrega propia de la tienda, con el mismo costo de envío, la misma dirección y los mismos estados que un envío por paquetería. Recoger en tienda queda fuera del MVP (ADR-0078).
 - BR-SHP-12. IVA del costo de envío y base del umbral de envío gratis: PENDIENTE DE DEFINICIÓN (P-58).
 - BR-SHP-13. Solo Superadministrador y Administrador configuran el costo de envío y el umbral de envío gratis, con el permiso `shipping.configure`; el Operador no lo tiene (ADR-0075).
 

@@ -570,11 +570,12 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | anonymized_at | timestamptz(3) | Sí | Marca de anonimización (ADR-0067) |
 | carrier_name | text | Sí | — |
 | tracking_number | text | Sí | — |
+| own_delivery | boolean | No | Default `false`; entrega propia de la tienda, sin paquetería ni guía (ADR-0078) |
 | dispatched_at, delivered_at, failed_at, returned_at | timestamptz(3) | Sí | — |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (status = 'PENDING' OR dispatched_at IS NOT NULL)`. Guía obligatoria al despachar con paquetería: validada en la aplicación (envíos sin paquetería pendientes, P-57).
+- **Restricciones:** `CHECK (status = 'PENDING' OR dispatched_at IS NOT NULL)`; `CHECK (status = 'PENDING' OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))` (fuera de PENDING, un envío tiene paquetería y guía o es entrega propia, BR-SHP-04); `CHECK (NOT own_delivery OR (carrier_name IS NULL AND tracking_number IS NULL))` (ADR-0078).
 - **Índices:** `(status, created_at)` (lista de trabajo del staff).
 
 ### 10.3 `shipment_items`

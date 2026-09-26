@@ -36,6 +36,7 @@ Fuera del MVP (ver ADR-0018):
 - Múltiples almacenes en operación (el modelo los soporta).
 - Múltiples monedas.
 - Enlace de acceso al pedido por correo para invitados (ADR-0077).
+- Recoger en tienda (ADR-0078).
 
 "Administración" no es un módulo propio: cada contexto expone sus operaciones administrativas protegidas por permisos (ver ADR-0004).
 
@@ -85,7 +86,7 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 - Una orden genera un solo envío (sin envíos parciales en el MVP).
 - Se surte desde un solo almacén.
-- Envíos manuales: sin integración con paqueterías; el administrador captura paquetería y guía y actualiza el estado (ADR-0041).
+- Envíos manuales: sin integración con paqueterías; el administrador captura paquetería y guía, o marca el envío como entrega propia de la tienda, y actualiza el estado (ADR-0041, ADR-0078).
 - Costo de envío: fijo por orden, gratis a partir de un monto mínimo; ambos configurables (ADR-0042).
 
 ## 8. Estado
