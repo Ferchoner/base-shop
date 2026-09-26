@@ -94,6 +94,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
 | ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
+| ADR-0077 | Enlace de acceso al pedido por correo | Propuesta |
 
 ---
 
@@ -1517,3 +1518,35 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La reactivación de staff y clientes es un evento de seguridad auditado, igual que la suspensión (ADR-0037).
   - Fuera de alcance: almacenes y listas de precios desactivados (ADR-0038) tampoco tienen reactivación, pero no forman parte de P-49.
 - **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`.
+
+---
+
+## ADR-0077 — Enlace de acceso al pedido por correo
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-56 (UC-ORD-05, T-186). ADR-0020 dejó el enlace por correo como mecanismo adicional "si su costo es bajo". Hechos relevantes:
+  - El invitado ya consulta su pedido con email y código público (UC-ORD-04, `POST /v1/orders/lookup`), con rate limiting.
+  - El código público se entrega en la respuesta de la API al colocar la orden y en el correo de orden recibida (ADR-0074).
+  - El contrato provisional de `API_SPEC.md` pide para solicitar el enlace **los mismos datos** que la consulta directa (email y código). Quien puede pedir el enlace ya puede consultar el pedido, así que el enlace solo agrega la prueba de que el solicitante controla el buzón.
+  - El caso que la consulta directa no resuelve es el invitado que perdió el código (borró o no recibió el correo de orden recibida, que puede perderse según ADR-0014).
+  - El staff puede buscar órdenes por email de contacto (ADR-0049) y atender ese caso por un canal externo.
+  - No hay frontend todavía: el enlace se armaría con la URL base del frontend, como la recuperación de contraseña (ADR-0056).
+- **Decisión propuesta:**
+  - No se implementa el enlace de acceso en el MVP. UC-ORD-05 y T-186 pasan a DEFERRED.
+  - Se retira del contrato el diseño provisional (`POST /v1/orders/access-links` y `POST /v1/orders/access`), porque duplica la consulta directa.
+  - Los correos de la orden no llevan enlaces a la orden; muestran el código público (ADR-0074).
+  - Un invitado que perdió su código se atiende por un canal externo: el staff busca la orden por email con `orders.read`.
+  - **Diseño previsto si se implementa después** (recuperación por email):
+    - `POST /v1/orders/access-links` con solo `{ "contactEmail" }`; responde 202 sin cuerpo exista o no una orden, y envía al buzón un enlace que da acceso a las órdenes de invitado de ese email.
+    - Token aleatorio de un solo uso, guardado como hash, vigente 30 minutos, con límite por email y por IP (como ADR-0056). Requiere una tabla nueva en Ordering.
+    - Lo usaría también un comprador que perdió el correo de orden recibida.
+- **Alternativas consideradas:**
+  - Implementar el contrato provisional (email y código): costo de tabla, token, correo y endpoints sin resolver el código perdido.
+  - Implementar ya la recuperación por email: resuelve el código perdido, pero agrega una tabla al modelo de datos aprobado, un tipo de token, un correo y dos endpoints, sin frontend para probar el flujo completo.
+  - Token firmado sin estado (lo que menciona ADR-0020): evita la tabla, pero no se puede invalidar ni usar una sola vez, a diferencia de los demás tokens del sistema.
+- **Consecuencias:**
+  - T-186 deja de estar bloqueada y pasa a DEFERRED; el MVP no depende de la entrega de correos para que un invitado consulte su pedido.
+  - Se actualizan ADR-0020 (el enlace queda fuera del MVP), BR-ORD-10 y ADR-0074 (sin enlaces en los correos).
+  - El modelo de datos aprobado (ADR-0066) no cambia.
+- **Revisar si:** el staff recibe solicitudes frecuentes de invitados que perdieron su código, o existe frontend y proveedor de correo real (P-24).
+- **Estado:** Propuesta.

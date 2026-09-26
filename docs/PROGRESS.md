@@ -121,7 +121,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo | T-186 |
+| P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo (propuesta en ADR-0077, pendiente de aprobación) | T-186 |
 | P-57 | Ambigüedad | Envíos sin paquetería | T-195 |
 | P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
 
