@@ -72,6 +72,26 @@ Ramas y commits (ADR-0084), en inglés:
 - Los correos que envía la API llegan a un capturador local en Docker Compose y se revisan en su bandeja web; no salen a internet (ADR-0045).
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
 
+## Entorno local con Docker
+
+ADR-0089. Requiere Docker Desktop (o Docker Engine con Compose) en ejecución y un `.env` copiado de `.env.example`.
+
+| Servicio | Dirección |
+|---|---|
+| API | `http://localhost:3000` (o el `PORT` de `.env`) |
+| PostgreSQL 18 | `localhost:5432` (o `POSTGRES_PORT`), con `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de `.env` |
+| Mailpit (bandeja web) | `http://localhost:8025` |
+| Mailpit (SMTP) | `localhost:1025` |
+
+Comandos:
+
+- Todo en contenedores: `docker compose up --build`. La API recarga sola al guardar cambios.
+- Solo los servicios, con la API en el equipo (suele ser más rápido en Windows): `docker compose up -d postgres mailpit` y después `npm run start:dev`.
+- Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
+- Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
+- **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
+- Imagen de producción (la construye la CI en T-106): `docker build --target production -t base-shop .`
+
 ## Migraciones
 
 - Prisma Migrate (ADR-0033).

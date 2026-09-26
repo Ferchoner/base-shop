@@ -1,0 +1,55 @@
+# Local development environment (T-102, ADR-0089). Values come from .env (copy .env.example).
+# Everything: docker compose up --build
+# Only the services, with the API running on the host: docker compose up postgres mailpit
+name: base-shop
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env (see .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env (see .env.example)}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # PostgreSQL 18 images keep their data under /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Local email catcher (ADR-0045): emails never leave the machine; inbox at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+
+  api:
+    build:
+      context: .
+      target: development
+    env_file: .env
+    environment:
+      # File changes made on Windows or macOS are not always seen inside the container; poll instead.
+      TSC_WATCHFILE: DynamicPriorityPolling
+      TSC_WATCHDIRECTORY: DynamicPriorityPolling
+    ports:
+      - '${PORT:-3000}:${PORT:-3000}'
+    volumes:
+      - ./:/app
+      # Keep the container's Linux node_modules instead of the host's. Anonymous on purpose:
+      # after a dependency change, `docker compose up --build -V` recreates it from the new image.
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+volumes:
+  postgres-data:
