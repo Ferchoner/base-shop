@@ -118,7 +118,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-45 | Ambigüedad | Eventos que envían notificación | T-215 |
+| P-45 | Ambigüedad | Eventos que envían notificación (propuesta en ADR-0074, pendiente de aprobación) | T-215 |
 | P-48 | Ambigüedad | Permiso para configurar el costo de envío | T-196 |
 | P-49 | Ambigüedad | Reactivación de entidades suspendidas, archivadas o desactivadas | T-130, T-140, T-150 |
 | P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo | T-186 |

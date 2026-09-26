@@ -91,6 +91,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0071 | Contratos REST y convenciones de la API | Aceptada |
 | ADR-0072 | Sesiones al cambiar la contraseña y slugs de categorías y marcas | Aceptada |
 | ADR-0073 | Herramienta de lint | Aceptada |
+| ADR-0074 | Notificaciones por correo del ciclo de la orden | Propuesta |
 
 ---
 
@@ -1422,3 +1423,44 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - oxlint no admite `eslint-plugin-boundaries`, así que la verificación de límites entre módulos (ADR-0005, T-103) se hace con otra herramienta, por ejemplo `dependency-cruiser`.
   - La herramienta de formato sigue pendiente de confirmar en T-104 (el proyecto trae una configuración de Prettier).
 - **Estado:** Aceptada.
+
+---
+
+## ADR-0074 — Notificaciones por correo del ciclo de la orden
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-45 (UC-NTF-01, T-215). Las notificaciones son un módulo que reacciona a eventos, sin dominio propio (ADR-0004). Condiciones que ya están decididas:
+  - El cliente no puede cancelar desde la API; solo el staff (ADR-0021). Sin correo, el cliente no se entera de una cancelación.
+  - Con el pago manual en tienda y un TTL de 20 minutos, el pago casi siempre llega después de que la orden expiró (ADR-0055).
+  - Los eventos se despachan después del commit y sin outbox; un correo puede perderse (riesgo aceptado en ADR-0014).
+  - Las órdenes anonimizadas no tienen email de contacto (ADR-0067).
+  - Los correos de cuenta (verificación, recuperación y aviso de cambio de contraseña) ya están decididos en ADR-0046, ADR-0056 y ADR-0072, y no forman parte de esta decisión.
+- **Decisión propuesta:**
+  - **Criterio:** se notifica al cliente todo cambio de su orden que él no provocó directamente y que le afecta, además de la confirmación de la compra.
+  - **Correos que se envían:**
+
+    | Correo | Evento | Contenido mínimo |
+    |---|---|---|
+    | Orden recibida | `OrderPlaced` | Código público, líneas, totales, dirección de envío resumida, instrucciones de pago en tienda y plazo de la reserva |
+    | Pago confirmado | `OrderPaid` | Código público y total pagado |
+    | Orden enviada | `ShipmentDispatched` | Código público; paquetería y guía, si existen |
+    | Orden entregada | `OrderDelivered` | Código público y fecha; invita a contactar a la tienda si no recibió el pedido |
+    | Orden cancelada | `OrderCancelled` | Código público; si hubo pago capturado, indica que el reembolso está en proceso |
+    | Reembolso completado | `RefundCompleted` | Código público y monto reembolsado |
+
+  - **Correos que no se envían en el MVP:**
+    - Orden expirada (`OrderExpired`): con el pago en tienda llegaría en casi toda compra seguida de "pago confirmado", lo que confunde. Se revisa al habilitar pagos en línea.
+    - Pago tardío sin stock (AwaitingManualFulfillment): con el pago en tienda el cliente está presente cuando el staff lo registra; la resolución posterior genera "pago confirmado" o "orden cancelada". No hay evento para este estado y no se crea uno.
+    - Entrega fallida y devolución (`DeliveryFailed`, `ShipmentReturned`): se gestionan fuera del sistema (ADR-0053).
+    - Pago fallido (`PaymentFailed`): el pago manual no falla y PayPal no está habilitado (ADR-0040).
+    - Notificaciones al staff: el staff trabaja con las vistas administrativas (órdenes en AwaitingManualFulfillment y canceladas con reembolso pendiente).
+  - **Destinatario:** el email de contacto de la orden (en clientes registrados es el email de la cuenta al colocarla). Si la orden está anonimizada, no se envía.
+  - **Contenido:** en español; solo el código público, nunca el número interno (ADR-0049); sin datos de pago, tokens ni enlaces a la orden mientras P-56 esté abierta. Son correos transaccionales, sin opción de baja ni contenido promocional.
+  - **Entrega:** asíncrona, al recibir el evento después del commit (ADR-0014). Como máximo un envío por evento; sin reintentos; los fallos se registran en logs sin el email del destinatario. No se agrega tabla de notificaciones: el modelo de datos aprobado (ADR-0066) no cambia.
+- **Alternativas consideradas:** Solo confirmación de compra y de envío (el cliente no se entera de cancelaciones ni reembolsos); notificar todo cambio de estado, incluidos expiración y entrega fallida; registro de notificaciones enviadas con reintentos (requiere tabla nueva y un job).
+- **Consecuencias:**
+  - T-215 queda desbloqueada. El módulo de notificaciones consume eventos de Ordering, Payments y Shipping, y obtiene el email de contacto y los datos de la orden mediante la fachada de Ordering (ADR-0005).
+  - El correo de orden recibida no es comprobante: el código público también se entrega en la respuesta de la API. Si el negocio llega a depender de él, se revisa ADR-0014.
+  - La mención de estos correos en el aviso de privacidad se valida junto con P-61.
+- **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se decide P-56 (enlaces en los correos).
+- **Estado:** Propuesta.
