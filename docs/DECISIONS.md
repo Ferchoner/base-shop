@@ -93,6 +93,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0073 | Herramienta de lint | Aceptada |
 | ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
+| ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Propuesta |
 
 ---
 
@@ -1483,3 +1484,36 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El catálogo de permisos pasa de 14 a 15.
   - Como los roles se editan en base de datos, un rol creado después puede recibir `shipping.configure`; el cambio de permisos de un rol se audita (ADR-0037).
 - **Estado:** Aceptada.
+
+---
+
+## ADR-0076 — Reactivación de entidades suspendidas, archivadas o desactivadas
+
+- **Fecha:** 2026-09-25
+- **Contexto:** Cierra P-49. ADR-0038 define suspender, archivar, descontinuar y desactivar como alternativas al borrado, pero no el camino de regreso; hoy esas operaciones son irreversibles. Condiciones:
+  - Un error de operación (archivar el producto equivocado, suspender a otra persona) no tiene corrección, y la única salida es crear duplicados.
+  - El email de un usuario suspendido, el slug de un producto archivado y el SKU de una variante descontinuada siguen reservados (ADR-0038), así que reactivar no choca con otros registros por esos valores.
+  - Una cuenta de staff puede suspenderse por sospecha de que su contraseña está comprometida.
+  - La anonimización es irreversible (ADR-0067) y queda fuera de esta decisión.
+  - La restricción `UNIQUE (product_id, options)` de `product_variants` (ADR-0066) incluye las variantes descontinuadas. Con ella, la corrección que prevé ADR-0068 (descontinuar una variante y crear otra con las mismas opciones y el SKU correcto) es imposible.
+- **Decisión propuesta:**
+  - **Criterio general:** cada desactivación de P-49 se revierte con una acción explícita `POST …/reactivate`, con el mismo permiso que la desactivación. Se audita. No se emiten eventos nuevos (no tienen consumidor) y la cache refleja la reactivación al vencer su TTL (ADR-0028).
+
+    | Entidad | Transición | Permiso | Reglas |
+    |---|---|---|---|
+    | Staff | SUSPENDED → ACTIVE | `staff.manage` | Requiere motivo. Se genera una contraseña temporal nueva, devuelta una sola vez como en el alta, con cambio obligatorio en el siguiente inicio de sesión. Conserva sus roles |
+    | Cliente | SUSPENDED → ACTIVE | `customers.manage` | Requiere motivo. Conserva su contraseña y el estado de verificación del email; si no la recuerda, usa la recuperación. Un cliente anonimizado no se reactiva |
+    | Producto | ARCHIVED → DRAFT | `catalog.write` | No vuelve directo a la tienda: se publica con el flujo normal (BR-PRD-04). Conserva slug y `firstPublishedAt`, y con ello el bloqueo de SKU y opciones (ADR-0068) |
+    | Variante | DISCONTINUED → ACTIVE | `catalog.write` | Solo si ninguna variante activa del producto tiene la misma combinación de opciones. Vuelve a ser vendible cuando cumple BR-PRD-11 |
+    | Categoría | INACTIVE → ACTIVE | `catalog.write` | Solo si su categoría padre está activa o es raíz. No reactiva subcategorías |
+    | Marca | INACTIVE → ACTIVE | `catalog.write` | — |
+
+  - **Modelo de datos:** la restricción `UNIQUE (product_id, options)` pasa a índice único parcial `(product_id, options) WHERE status = 'ACTIVE'`. La combinación de opciones es única entre variantes activas (BR-PRD-02), lo que permite la corrección de ADR-0068 y hace que la base garantice la regla de reactivación de variantes.
+- **Alternativas consideradas:** Mantener las operaciones irreversibles; reactivar al staff con su contraseña anterior (riesgoso si la suspensión fue por compromiso); reactivar el producto directamente en PUBLISHED; permitir la reactivación solo al Superadministrador.
+- **Consecuencias:**
+  - Modifica el modelo de datos aprobado (ADR-0066) en un índice de `product_variants`; T-110 aún no crea migraciones, así que no hay datos que migrar.
+  - Nuevos endpoints, todos `POST` y con respuesta 200: `/v1/admin/identity/staff/{userId}/reactivate` (devuelve la contraseña temporal con `Cache-Control: no-store`), `/v1/admin/identity/customers/{userId}/reactivate`, `/v1/admin/catalog/products/{productId}/reactivate`, `…/variants/{variantId}/reactivate`, `/v1/admin/catalog/categories/{categoryId}/reactivate` y `/v1/admin/catalog/brands/{brandId}/reactivate`. Errores: 409 `invalid-state-transition` (estado de origen incorrecto o categoría padre inactiva) y 409 `duplicate-value` (combinación de opciones ocupada).
+  - Se retiran las notas "irreversible mientras P-49 esté abierta" (descontinuar variante) y "archivado mientras P-49 esté abierta" (publicar producto): un producto archivado primero se reactiva a DRAFT y luego se publica.
+  - La reactivación de staff y clientes es un evento de seguridad auditado, igual que la suspensión (ADR-0037).
+  - Fuera de alcance: almacenes y listas de precios desactivados (ADR-0038) tampoco tienen reactivación, pero no forman parte de P-49.
+- **Estado:** Propuesta.

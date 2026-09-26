@@ -120,7 +120,7 @@ Detectadas al convertir los requisitos en especificación técnica (`REQUIREMENT
 
 | ID | Tipo | Decisión | Afecta |
 |---|---|---|---|
-| P-49 | Ambigüedad | Reactivación de entidades suspendidas, archivadas o desactivadas | T-130, T-140, T-150 |
+| P-49 | Ambigüedad | Reactivación de entidades suspendidas, archivadas o desactivadas (propuesta en ADR-0076, pendiente de aprobación) | T-130, T-140, T-150 |
 | P-56 | Ambigüedad | Implementar el enlace de acceso al pedido por correo | T-186 |
 | P-57 | Ambigüedad | Envíos sin paquetería | T-195 |
 | P-58 | Ambigüedad | IVA del envío y base del umbral de envío gratis | T-196 |
