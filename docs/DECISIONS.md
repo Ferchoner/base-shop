@@ -83,12 +83,12 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0063 | Comportamiento de `Idempotency-Key` | Aceptada |
 | ADR-0064 | Códigos HTTP y tipos de error | Aceptada |
 | ADR-0065 | Rate limiting | Aceptada |
-| ADR-0066 | Modelo de datos y convenciones de persistencia | Propuesta |
+| ADR-0066 | Modelo de datos y convenciones de persistencia | Aceptada |
 | ADR-0067 | Datos personales: aviso de privacidad, derechos ARCO y anonimización | Aceptada |
 | ADR-0068 | Edición de variantes | Aceptada |
 | ADR-0069 | Motivos de movimientos de stock | Aceptada |
 | ADR-0070 | Ciclo de conservación de datos personales en órdenes | Aceptada |
-| ADR-0071 | Contratos REST y convenciones de la API | Propuesta |
+| ADR-0071 | Contratos REST y convenciones de la API | Aceptada |
 | ADR-0072 | Sesiones al cambiar la contraseña y slugs de categorías y marcas | Aceptada |
 | ADR-0073 | Herramienta de lint | Aceptada |
 
@@ -1259,7 +1259,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 
 - **Fecha:** 2026-09-24
 - **Contexto:** T-004. El detalle de cada tabla está en `DATABASE.md`.
-- **Decisión propuesta:**
+- **Decisión:**
   - **Tablas por contexto:** 38 tablas, sin FK entre contextos (ADR-0005). Única excepción: FK hacia el catálogo geográfico del INEGI, que es dato de referencia y nunca se borra (ADR-0057).
   - **Nombres:** tablas y columnas en `snake_case`, tablas en plural; modelos de Prisma en `camelCase` con `@map`.
   - **Identificadores:** `uuid` generado por la aplicación. UUIDv7 por defecto (ordenable por tiempo, mejor para índices); UUIDv4 cuando el identificador actúa como credencial (`carts.id`, ADR-0059). Las tablas append-only (`audit_logs`, `stock_movements`) también usan UUIDv7, cuyo orden temporal sirve para la paginación por cursor.
@@ -1275,7 +1275,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Propuesta. No se crean migraciones definitivas hasta su aprobación.
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean.
 
 ---
 
@@ -1371,7 +1371,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 
 - **Fecha:** 2026-09-25
 - **Contexto:** T-005. El detalle de cada endpoint está en `API_SPEC.md`; aquí se registran las convenciones que no estaban decididas en ADR anteriores.
-- **Decisión propuesta:**
+- **Decisión:**
   - **Transiciones de estado** como `POST` sobre subrutas de acción (`/publish`, `/cancel`, `/dispatch`), nunca como `PATCH` del estado.
   - **`PATCH`** con semántica de fusión: campo ausente no cambia, `null` borra un opcional. **`PUT`** solo para reemplazar conjuntos (roles, orden de imágenes, método de envío).
   - **Concurrencia optimista:** los recursos versionados devuelven `version` y toda modificación administrativa la exige en el cuerpo (400 si falta, 409 `version-conflict` si difiere). El carrito del cliente no la exige.
@@ -1388,12 +1388,12 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Paginación por cursor** en auditoría y movimientos de stock; por página en el resto.
   - **Nuevos tipos de error derivados de reglas existentes** (E-27 a E-33): `cart-not-active`, `address-limit-reached`, `last-superadmin`, `restock-not-allowed`, `active-orders-exist`, `field-locked`, `empty-cart`, todos 409 según ADR-0064.
   - **Webhooks** fuera del rate limiting general; la ruta de PayPal responde 404 mientras el adaptador no esté habilitado.
-  - **Valores derivados sin decisión previa**, marcados en `API_SPEC.md` como propuesta: longitudes máximas de campos, máximo de 3 atributos de opciones por variante, tope de 100,000 unidades por entrada de stock, rate limit de 3 por hora en el cambio de email, slug generado del título y bloqueado tras la primera publicación, sin dirección predeterminada al borrar la predeterminada, y que un staff no pueda suspenderse a sí mismo.
+  - **Valores derivados sin decisión previa**, referenciados en `API_SPEC.md` a este ADR: longitudes máximas de campos, máximo de 3 atributos de opciones por variante, tope de 100,000 unidades por entrada de stock, rate limit de 3 por hora en el cambio de email, slug generado del título y bloqueado tras la primera publicación, sin dirección predeterminada al borrar la predeterminada, y que un staff no pueda suspenderse a sí mismo.
 - **Alternativas consideradas:** `PATCH` del campo `status`; `ETag` con `If-Match` para la concurrencia (requeriría el código 428, fuera del criterio de ADR-0064); rutas únicas de checkout con autenticación opcional; consulta de invitado con datos en la URL.
 - **Consecuencias:**
   - Decisiones derivadas P-62 y P-63, resueltas en ADR-0072.
   - `storeVisibility` del catálogo administrativo se calcula con la fachada de Pricing y no se ofrece como filtro.
-- **Estado:** Propuesta. No se implementan endpoints hasta su aprobación.
+- **Estado:** Aceptada (aprobación formal 2026-09-25), incluidos los valores derivados. Los pendientes P-48, P-49, P-56 a P-58 y el formato de carga masiva (T-145) no la bloquean.
 
 ---
 

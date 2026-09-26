@@ -57,12 +57,12 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 - [x] Mensajes de login y registro (ADR-0062)
 - [x] Comportamiento de `Idempotency-Key` (ADR-0063)
 - [x] Códigos HTTP, tipos de error y rate limiting (ADR-0064, ADR-0065)
-- [x] Modelo de datos propuesto en `DATABASE.md` (ADR-0066, T-004 en REVIEW)
+- [x] Modelo de datos en `DATABASE.md` aprobado (ADR-0066, T-004, 2026-09-25)
 - [x] Datos personales: aviso de privacidad, ARCO y anonimización (ADR-0067)
 - [x] Edición de variantes (ADR-0068)
 - [x] Motivos de movimientos de stock (ADR-0069)
 - [x] Ciclo de conservación de datos personales diseñado, fuera del MVP (ADR-0070)
-- [x] Contratos REST propuestos en `API_SPEC.md` (ADR-0071, T-005 en REVIEW)
+- [x] Contratos REST en `API_SPEC.md` aprobados (ADR-0071, T-005, 2026-09-25)
 - [x] Sesiones al cambiar la contraseña y slugs de categorías y marcas (ADR-0072)
 - [x] Especificación técnica en `REQUIREMENTS.md` con casos de uso, estados, permisos, errores y requisitos no funcionales (T-002 en REVIEW)
 - [x] oxlint como herramienta de lint (ADR-0073)
@@ -71,8 +71,6 @@ INITIALIZATION — Sprint 0 (Discovery and Architecture)
 ## In Progress
 
 - [ ] Revisión de la especificación técnica (T-002)
-- [ ] Aprobación del modelo de datos (T-004, ADR-0066)
-- [ ] Aprobación de los contratos de la API (T-005, ADR-0071)
 - [ ] Resolución de ambigüedades P-45, P-48, P-49 y P-56 a P-58 (T-006); contradicciones resueltas
 
 ## Next

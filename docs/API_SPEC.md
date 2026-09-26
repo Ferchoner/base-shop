@@ -1,6 +1,6 @@
 # API SPECIFICATION
 
-**Estado:** propuesta en revisión (ADR-0071, tarea T-005). No hay endpoints implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
+**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Aún no hay endpoints implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
 
 Índice:
 
@@ -54,9 +54,9 @@
 | Dinero | Objeto `Money` (sección 8.1) en respuestas; en solicitudes, enteros en centavos donde se indique | ADR-0007 |
 | Enumeraciones | Texto en MAYÚSCULAS (`PENDING_PAYMENT`). Los clientes deben tolerar valores desconocidos | ADR-0050 |
 | Colecciones | Siempre arreglo, nunca `null` | ADR-0016 |
-| Opcionales | Un campo opcional sin valor se devuelve como `null` (no se omite) | Propuesta (ADR-0071) |
-| Campos desconocidos | Un cuerpo con campos no declarados se rechaza con 400 | Propuesta (ADR-0071) |
-| Idioma | `title` y `detail` de los errores y los mensajes de validación en español | Propuesta (ADR-0071) |
+| Opcionales | Un campo opcional sin valor se devuelve como `null` (no se omite) | ADR-0071 |
+| Campos desconocidos | Un cuerpo con campos no declarados se rechaza con 400 | ADR-0071 |
+| Idioma | `title` y `detail` de los errores y los mensajes de validación en español | ADR-0071 |
 
 ### 2.2 Métodos y códigos de éxito
 
@@ -70,7 +70,7 @@
 | Transición de estado | `POST` sobre una subruta de acción: `/publish`, `/cancel`, `/dispatch` | 200 con el recurso actualizado |
 | Operación aceptada sin resultado visible (correos) | `POST` | 202 sin revelar si el email existe |
 
-Las transiciones de estado nunca se hacen con `PATCH` del campo `status`: cada una tiene su acción, su permiso y sus validaciones (propuesta, ADR-0071).
+Las transiciones de estado nunca se hacen con `PATCH` del campo `status`: cada una tiene su acción, su permiso y sus validaciones (ADR-0071).
 
 ### 2.3 Concurrencia optimista
 
@@ -79,7 +79,7 @@ Los recursos con columna `version` (`products`, `roles`, `users` de staff, `orde
 - `version` ausente → 400 `validation-error`.
 - `version` distinta de la actual → 409 `version-conflict` (E-05); el cliente vuelve a leer y reintenta.
 
-Las operaciones del cliente sobre su carrito no exigen `version`; el servidor resuelve la concurrencia internamente (propuesta, ADR-0071).
+Las operaciones del cliente sobre su carrito no exigen `version`; el servidor resuelve la concurrencia internamente (ADR-0071).
 
 ### 2.4 Encabezados
 
@@ -91,7 +91,7 @@ Las operaciones del cliente sobre su carrito no exigen `version`; el servidor re
 | `X-Correlation-Id` | Respuesta | En todas las respuestas; mismo valor que `correlationId` de los errores (ADR-0033) |
 | `Location` | Respuesta | En 201 cuando el recurso tiene ruta propia |
 | `Retry-After` | Respuesta | En 429 y en 409 `idempotency-request-in-progress` |
-| `Cache-Control: no-store` | Respuesta | En toda respuesta autenticada y en las que contienen datos personales o tokens (propuesta, ADR-0071) |
+| `Cache-Control: no-store` | Respuesta | En toda respuesta autenticada y en las que contienen datos personales o tokens (ADR-0071) |
 
 ---
 
@@ -116,7 +116,7 @@ Reglas:
 
 - Un token de cliente en `/v1/admin` → 403 `forbidden`.
 - Un token de staff en rutas "Solo cliente" de `/v1/me` → 403 `staff-cannot-purchase` (E-09) en carrito y checkout, 403 `forbidden` en el resto.
-- **Cambio de contraseña obligatorio:** mientras un staff tenga `mustChangePassword`, cualquier ruta excepto `GET /v1/me`, `POST /v1/me/password` y `POST /v1/auth/logout` responde 403 `password-change-required` (E-18) (propuesta, ADR-0071).
+- **Cambio de contraseña obligatorio:** mientras un staff tenga `mustChangePassword`, cualquier ruta excepto `GET /v1/me`, `POST /v1/me/password` y `POST /v1/auth/logout` responde 403 `password-change-required` (E-18) (ADR-0071).
 - Un recurso de otro propietario se responde como inexistente (404), nunca como 403, para no revelar su existencia.
 
 ### 3.3 Permisos
@@ -289,7 +289,7 @@ Cada endpoint lista solo sus errores específicos.
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 100 por minuto por IP | Resto de endpoints |
 
-Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`. Los webhooks quedan fuera del límite general (propuesta, ADR-0071): los protege la verificación de firma.
+Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`. Los webhooks quedan fuera del límite general (ADR-0071): los protege la verificación de firma.
 
 ---
 
@@ -337,7 +337,7 @@ Los esquemas se escriben como ejemplos JSON; en OpenAPI se generan desde los DTO
 | `city` | No | 1–120 caracteres |
 | `references` | No | 1–250 caracteres |
 
-Los límites de longitud son propuesta (ADR-0071). `Address` agrega `stateName`, `municipalityName` y `country: "MX"`; en la libreta también `id`, `isDefault`, `createdAt` y `updatedAt`.
+Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `municipalityName` y `country: "MX"`; en la libreta también `id`, `isDefault`, `createdAt` y `updatedAt`.
 
 ### 8.3 `Image`
 
@@ -633,7 +633,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 **`PATCH /v1/me/addresses/{addressId}`** — Request: campos de `AddressInput` e `isDefault`. Marcar `isDefault: true` desmarca la anterior. Si se cambia `stateCode`, `municipalityCode` es obligatorio. Response 200: `Address`.
 
-**`DELETE /v1/me/addresses/{addressId}`** — Response 204. Si era la predeterminada, ninguna queda como predeterminada (propuesta, ADR-0071).
+**`DELETE /v1/me/addresses/{addressId}`** — Response 204. Si era la predeterminada, ninguna queda como predeterminada (ADR-0071).
 
 ### 9.15 `GET /v1/admin/identity/permissions` — Catálogo de permisos
 
@@ -663,7 +663,7 @@ Representación `StaffUser`: `{ "id", "email", "firstNames", "lastNames", "statu
 | `PUT /v1/admin/identity/staff/{userId}/roles` | Request `{ "roleIds": [], "version" }` (reemplaza el conjunto; mínimo uno). 200 `StaffUser`. Errores: 409 `last-superadmin` |
 | `POST /v1/admin/identity/staff/{userId}/suspend` | Request `{ "reason", "version" }`. Revoca sus sesiones. 200 `StaffUser`. Errores: 409 `last-superadmin`; 409 `invalid-state-transition` si no está ACTIVE; un staff no puede suspenderse a sí mismo (409 `invalid-state-transition`) |
 
-La entrega de la contraseña temporal en la respuesta es propuesta (ADR-0071): no hay invitación por correo (ADR-0043).
+La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitación por correo (ADR-0043).
 
 ### 9.18 Clientes (UC-IAM-17, 18, 19)
 
@@ -686,7 +686,7 @@ Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "s
 | `GET /v1/geo/states` | Público. 200 `{ "data": [ { "code": "16", "name": "Michoacán de Ocampo" } ] }`. Sin paginación (32 registros). Orden por nombre |
 | `GET /v1/geo/states/{stateCode}/municipalities` | Público. 200 `{ "data": [ { "code": "16053", "name": "Morelia" } ] }`. Solo municipios activos. Sin paginación. Orden por nombre. 404 si el estado no existe |
 
-Datos de referencia; se pueden cachear con el TTL de ADR-0028 (propuesta, ADR-0071).
+Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071).
 
 ---
 
@@ -779,7 +779,7 @@ Representación `AdminProduct`:
 | `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, o archivado mientras P-49 esté abierta, o sin variante activa, con `detail` que lo explica) |
 | `POST …/{productId}/archive` | `catalog.write`. Request `{ "version" }`. Desde DRAFT o PUBLISHED. Invalida cache. 200. Errores: 409 `invalid-state-transition` |
 
-La generación automática del slug y su bloqueo tras la primera publicación son propuesta (ADR-0071), por analogía con ADR-0068.
+La generación automática del slug y su bloqueo tras la primera publicación se fijan en ADR-0071, por analogía con ADR-0068.
 
 ### 11.7 Variantes (UC-CAT-06 a 08)
 
@@ -789,7 +789,7 @@ La generación automática del slug y su bloqueo tras la primera publicación so
 | `PATCH …/variants/{variantId}` | `catalog.write`. Request: `sku`, `options`, `weightGrams`, `lengthCm`, `widthCm`, `heightCm`, `version` (del producto). `sku` y `options` solo si el producto no tiene `firstPublishedAt`; al corregir el SKU, el anterior se libera (ADR-0068). 200 `AdminProduct`. Errores: 409 `field-locked`; 409 `duplicate-value` |
 | `POST …/variants/{variantId}/discontinue` | `catalog.write`. Request `{ "version" }`. Irreversible mientras P-49 esté abierta. Invalida cache. 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |
 
-La cantidad máxima de atributos y las longitudes son propuesta (ADR-0071).
+La cantidad máxima de atributos y las longitudes se fijan en ADR-0071.
 
 ### 11.8 Imágenes (UC-CAT-11, ADR-0024)
 
@@ -800,7 +800,7 @@ La cantidad máxima de atributos y las longitudes son propuesta (ADR-0071).
 | `PUT …/images/order` | `catalog.write`. Request `{ "imageIds": [] }` con todas las imágenes del producto en el nuevo orden. 200 `{ "data": [Image] }`. Errores: 400 si falta o sobra alguna |
 | `DELETE …/images/{imageId}` | `catalog.write`. Borra registro y archivo (ADR-0038). 204 |
 
-Los cambios de imágenes no exigen `version` del producto (propuesta, ADR-0071): no alteran reglas del aggregate más allá del orden.
+Los cambios de imágenes no exigen `version` del producto (ADR-0071): no alteran reglas del aggregate más allá del orden.
 
 ### 11.9 Categorías y marcas (UC-CAT-12, 13)
 
@@ -875,7 +875,7 @@ En el MVP existe solo la lista predeterminada (ADR-0039); no hay endpoints para 
 **`POST …/receipts`** — Entrada de mercancía.
 
 - Request: `{ "variantId", "warehouseId", "quantity": 25, "note": "Remisión 1234" }`.
-- `quantity` entero de 1 a 100,000 (tope propuesto); `note` 0–500. Crea el stock item si no existe.
+- `quantity` entero de 1 a 100,000 (tope de ADR-0071); `note` 0–500. Crea el stock item si no existe.
 - 201 `{ "stockItem": StockItem, "movement": StockMovement }`.
 
 **`POST …/adjustments`** — Ajuste (ADR-0069).
@@ -911,7 +911,7 @@ UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 | PATCH, DELETE | `/v1/me/cart/lines/{variantId}` | Solo cliente | UC-CRT-03, 04 |
 | POST | `/v1/me/cart/merge` | Solo cliente | UC-CRT-06 |
 
-Las rutas `/v1/carts/{cartId}` solo operan sobre carritos de invitado (sin dueño). Un `cartId` de un carrito con dueño responde 404 (propuesta, ADR-0071), para que conocer el identificador no dé acceso al carrito de una cuenta.
+Las rutas `/v1/carts/{cartId}` solo operan sobre carritos de invitado (sin dueño). Un `cartId` de un carrito con dueño responde 404 (ADR-0071), para que conocer el identificador no dé acceso al carrito de una cuenta.
 
 ### 14.2 Operaciones
 
@@ -921,7 +921,7 @@ Las rutas `/v1/carts/{cartId}` solo operan sobre carritos de invitado (sin dueñ
 | `GET /v1/carts/{cartId}` y `GET /v1/me/cart` | 200 `Cart`. Un carrito CHECKED_OUT o MERGED se devuelve con su `status` (el cliente sabe que debe usar otro). `/v1/me/cart` devuelve `id: null` y `lines: []` si no hay carrito activo |
 | `POST …/lines` | Request `{ "variantId", "quantity": 1 }`. Si la variante ya está, suma. La cantidad resultante debe quedar entre 1 y 30 → si no, 400 `validation-error`. En `/v1/me/cart` crea el carrito activo si no existe. 200 `Cart` (201 si se creó el carrito). Errores: 409 `variant-not-sellable`; 409 `cart-not-active` |
 | `PATCH …/lines/{variantId}` | Request `{ "quantity" }` (1–30). 200 `Cart`. Errores: 404 si la línea no existe; 409 `cart-not-active` |
-| `DELETE …/lines/{variantId}` | 200 `Cart` (devuelve el carrito, no 204, para ahorrar una lectura; propuesta, ADR-0071). Errores: 409 `cart-not-active` |
+| `DELETE …/lines/{variantId}` | 200 `Cart` (devuelve el carrito, no 204, para ahorrar una lectura; ADR-0071). Errores: 409 `cart-not-active` |
 | `POST /v1/me/cart/merge` | Request `{ "guestCartId" }`. Fusiona sumando con tope de 30 sin aviso; si el cliente no tiene carrito, el de invitado pasa a su cuenta; idempotente (ADR-0059). 200 `Cart` resultante. Errores: 404 si el carrito no existe o tiene dueño; 409 `cart-not-active` si ya se fusionó en otra cuenta o se usó en una orden |
 
 Una cuenta de staff en `/v1/me/cart` → 403 `staff-cannot-purchase` (E-09). Las variantes no vendibles se conservan con `sellable: false` (ADR-0059); no se pueden agregar nuevas.
@@ -1009,7 +1009,7 @@ o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección
 
 ### 15.5 Consulta de pedido de invitado (UC-ORD-04, ADR-0020)
 
-- **`POST /v1/orders/lookup`** — Request `{ "contactEmail", "publicCode" }`. Los datos van en el cuerpo, no en la URL, para no dejarlos en logs ni historiales (propuesta, ADR-0071).
+- **`POST /v1/orders/lookup`** — Request `{ "contactEmail", "publicCode" }`. Los datos van en el cuerpo, no en la URL, para no dejarlos en logs ni historiales (ADR-0071).
 - Response 200: `Order`. Solo órdenes de invitado; una orden de cliente registrado se consulta en `/v1/me/orders`.
 - Errores: 404 `not-found` idéntico si la orden no existe, el email no coincide o la orden pertenece a una cuenta (BR-ORD-11).
 - Rate limit obligatorio: 10 por IP en 15 minutos.
@@ -1070,7 +1070,7 @@ UC-ORD-09 y UC-ORD-10 no tienen API: los ejecutan eventos y jobs.
 | POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` (+ `inventory.write` con reintegro) | UC-PAY-07 |
 | POST | `/v1/webhooks/paypal` | Firma de PayPal | UC-PAY-04 |
 
-La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene uno de lectura de pagos y el pago forma parte de la vista de la orden (propuesta, ADR-0071).
+La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene uno de lectura de pagos y el pago forma parte de la vista de la orden (ADR-0071).
 
 ### 16.2 Iniciar pago (UC-PAY-01)
 

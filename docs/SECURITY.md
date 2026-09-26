@@ -13,7 +13,7 @@
 - Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas, y Dependabot propone actualizaciones semanales (ADR-0030).
 - Detectar secretos en cada cambio mediante la CI (ADR-0030).
 
-## Contratos de la API (ADR-0071, propuesta)
+## Contratos de la API (ADR-0071)
 
 - Los recursos ajenos se responden como inexistentes (404), no como 403.
 - Email y código de orden de invitados viajan en el cuerpo, nunca en la URL.
