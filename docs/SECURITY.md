@@ -114,7 +114,7 @@ CORS (ADR-0085):
 ADR-0086, con `helmet` y configuración explícita:
 
 - En todas las respuestas de la API: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, sin `X-Powered-By`, y `Cache-Control: no-store` donde lo exige ADR-0071.
-- Swagger UI (solo en local): política CSP más permisiva únicamente en su ruta.
+- Swagger UI (solo con `NODE_ENV=development`, en `/docs/v1`): política CSP más permisiva únicamente en su ruta, con scripts, estilos, imágenes y conexiones del mismo origen, estilos en línea e imágenes `data:`; nunca en marcos (ADR-0096).
 - Sin `Cross-Origin-Resource-Policy: same-origin`, para no bloquear las imágenes que la tienda cargue desde otro origen.
 - HSTS, TLS y redirección a HTTPS: a cargo de quien termine HTTPS, definido con el hosting (P-06). La API no envía HSTS.
 

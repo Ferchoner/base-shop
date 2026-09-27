@@ -19,7 +19,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en `http://localhost:3000`. La primera vez, y cada vez que lleguen migraciones nuevas, hay que aplicarlas a la base local:
+Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en `http://localhost:3000`, con sus rutas bajo `/v1` y Swagger UI en `http://localhost:3000/docs/v1`. La primera vez, y cada vez que lleguen migraciones nuevas, hay que aplicarlas a la base local:
 
 ```bash
 docker compose exec api npm run db:migrate:deploy

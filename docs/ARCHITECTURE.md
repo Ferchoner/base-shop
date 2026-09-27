@@ -36,7 +36,7 @@ src/
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
-│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada e identificador de correlación (T-100, T-113)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado y Swagger (T-100, T-113, T-114)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y TransactionManager (T-111); sin NestJS
 └── modules/

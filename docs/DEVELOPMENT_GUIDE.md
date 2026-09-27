@@ -33,6 +33,13 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Versionado y documentación OpenAPI (ADR-0096):
+
+- Todo controlador queda bajo `/v1` sin declararlo. Una ruta de una versión futura se marca con `@Version('2')`.
+- Los DTOs se escriben en archivos `*.dto.ts`: el plugin de Swagger toma sus tipos, sus reglas de class-validator y el comentario de cada propiedad, así que no se repite `@ApiProperty`. Los comentarios de las propiedades se publican como descripción en OpenAPI y por eso van en español, como `API_SPEC.md`.
+- Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos.
+- Los tests end-to-end aplican el mismo plugin (`test/swagger-plugin.cjs`), así que el documento de los tests es igual al real.
+
 Errores HTTP y validación (ADR-0095):
 
 - Toda respuesta de error es Problem Details; la arma el filtro global de `src/platform/http/problem-details/`, así que los controladores no construyen respuestas de error.
@@ -119,6 +126,7 @@ ADR-0089. Requiere Docker Desktop (o Docker Engine con Compose) en ejecución y 
 | PostgreSQL 18 | `localhost:5432` (o `POSTGRES_PORT`), con `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de `.env` |
 | Mailpit (bandeja web) | `http://localhost:8025` |
 | Mailpit (SMTP) | `localhost:1025` |
+| Swagger UI | `http://localhost:3000/docs/v1` (documento en `/docs/v1/openapi.json`); solo con `NODE_ENV=development` |
 
 Comandos:
 
