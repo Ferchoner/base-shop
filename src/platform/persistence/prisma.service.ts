@@ -1,6 +1,6 @@
 import {
   Injectable,
-  type OnModuleDestroy,
+  type OnApplicationShutdown,
   type OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +18,7 @@ const CONNECTION_TIMEOUT_MS = 5_000;
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
+  implements OnModuleInit, OnApplicationShutdown
 {
   constructor(config: ConfigService<EnvironmentVariables, true>) {
     super({
@@ -37,7 +37,11 @@ export class PrismaService
     await this.$queryRaw`SELECT 1`;
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /**
+   * The last shutdown step, after the event dispatcher has waited for in-flight handlers that may still use
+   * the database (ADR-0098).
+   */
+  async onApplicationShutdown(): Promise<void> {
     await this.$disconnect();
   }
 }
