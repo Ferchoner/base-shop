@@ -34,7 +34,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-105 | Infraestructura de tests | DONE | T-102 | Jest con tests unitarios y de integración contra PostgreSQL 18 real en Docker, sin mocks de base de datos |
 | T-106 | Pipeline de CI en GitHub Actions | TODO | T-102 a T-105, T-110 | Los 10 pasos de ADR-0030 corren en cada pull request y en la rama principal; los tests de integración usan Testcontainers con el Docker del runner, sin servicio de PostgreSQL declarado (ADR-0090) |
 | T-107 | Configuración del repositorio en GitHub | TODO | T-106 | Rama principal protegida exigiendo el pipeline en verde; Dependabot semanal con actualizaciones agrupadas (requiere administrador del repositorio) |
-| T-110 | Database | TODO | T-004 (aprobado) | Prisma configurado con esquema dividido por contexto; primera migración aplicable desde cero |
+| T-110 | Database | DONE | T-004 (aprobado) | Prisma configurado con esquema dividido por contexto; primera migración aplicable desde cero |
 | T-111 | Contexto transaccional | TODO | T-110 | `nestjs-cls` con plugin transaccional; repositorios obtienen la transacción activa sin exponer Prisma a Application; test que demuestra rollback |
 | T-112 | Shared kernel | TODO | T-101 | `Money` (centavos + moneda), tipos de ID, error de dominio base, forma de domain event y puerto `Clock`, con tests unitarios |
 | T-113 | Manejo de errores HTTP | TODO | T-100, T-112 | Errores de dominio y de validación traducidos a Problem Details (RFC 9457) con `application/problem+json`, códigos de ADR-0064, `type` estable y extensiones `correlationId`, `errors` y `lines`; sin stack traces en producción |
@@ -57,7 +57,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-121 | Identity & Access: verificación de email para clientes registrados, UC-IAM-01 a 03 y 10 (ADR-0046) | TODO | T-120, T-122 |
 | T-122 | Puerto de envío de correos con adaptador al capturador local; URL base del frontend configurable para los enlaces (ADR-0056) | TODO | T-102 |
 | T-123 | Identity & Access: recuperación de contraseña por enlace (ADR-0056); UC-IAM-07, 08 | TODO | T-120, T-122 |
-| T-124 | Catálogo geográfico del INEGI: tablas, script de importación idempotente y consulta pública de estados y municipios; UC-IAM-21, 22 | TODO | T-110 |
+| T-124 | Catálogo geográfico del INEGI: script de importación idempotente (las tablas ya existen desde la primera migración, T-110) y consulta pública de estados y municipios; UC-IAM-21, 22 | TODO | T-110 |
 | T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); reactivación (ADR-0076); UC-IAM-11 y 14 a 19 | TODO | T-110, T-112, T-124 |
 | T-131 | Identity & Access: script manual para crear el primer superadministrador y alta de staff con contraseña temporal; UC-IAM-13, UC-IAM-20 | TODO | T-130, T-120 |
 | T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141 |
@@ -76,7 +76,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
 | T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
-| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 | TODO | T-110, T-112 |
+| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 | TODO | T-110, T-112, P-72 (valores iniciales) |
 | T-200 | Promotions | DEFERRED | ADR-0018 |
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |
 | T-215 | Notificaciones (ADR-0074); UC-NTF-01 | TODO | T-116, T-122, T-180, T-190, T-195 |

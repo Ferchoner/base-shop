@@ -19,7 +19,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en `http://localhost:3000`. Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
+Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en `http://localhost:3000`. La primera vez, y cada vez que lleguen migraciones nuevas, hay que aplicarlas a la base local:
+
+```bash
+docker compose exec api npm run db:migrate:deploy
+```
+
+Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci`, `npm run db:migrate:deploy` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
 
 | Script | Uso |
 |---|---|
@@ -27,8 +33,12 @@ Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en 
 | `npm run format` | Formato con Prettier |
 | `npm test` | Tests unitarios (Jest en modo ESM) |
 | `npm run test:int` | Tests de integración contra PostgreSQL 18 real (requiere Docker en marcha) |
-| `npm run test:e2e` | Tests end-to-end |
+| `npm run test:e2e` | Tests end-to-end (requiere Docker en marcha) |
 | `npm run test:cov` | Cobertura |
+| `npm run db:migrate:deploy` | Aplica las migraciones pendientes a la base de `DATABASE_URL` |
+| `npm run db:migrate:dev` | Crea una migración nueva (solo desarrollo) |
+| `npm run db:diff` | Verifica que la base coincide con el esquema de Prisma |
+| `npm run db:generate` | Genera el cliente de Prisma |
 
 ## Documentación
 

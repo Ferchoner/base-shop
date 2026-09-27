@@ -35,9 +35,10 @@ Tests (Jest):
 |---|---|---|---|
 | Unitarios (Domain y lógica sin base de datos) | `*.spec.ts`, junto al código | `npm test` | No |
 | Integración (repositories y flujos transaccionales) | `*.int-spec.ts`, junto al código de `infrastructure` | `npm run test:int` | Sí |
-| End-to-end (la aplicación completa por HTTP) | `test/*.e2e-spec.ts` | `npm run test:e2e` | No, por ahora |
+| End-to-end (la aplicación completa por HTTP) | `test/*.e2e-spec.ts` | `npm run test:e2e` | Sí |
 
-- Integración contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución y expone su URL en `DATABASE_URL` (ADR-0090). La infraestructura común está en `test/integration/`. Los tests corren en serie.
+- Integración y end-to-end contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución, le aplica todas las migraciones y expone su URL en `DATABASE_URL` (ADR-0090, ADR-0091). La infraestructura común está en `test/integration/`. Los tests corren en serie.
+- Cada test deja la base como la encontró, por ejemplo trabajando dentro de una transacción que se revierte al terminar.
 - Pruebas de concurrencia obligatorias para reservas de inventario y checkout.
 - El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:int`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
@@ -73,6 +74,7 @@ Ramas y commits (ADR-0084), en inglés:
 - El código lee la configuración tipada con `ConfigService`, nunca `process.env` directamente. Las variables se declaran en `src/platform/config/environment.ts` y en `.env.example`.
 - Los tests no leen `.env`: toman las variables del proceso, para que la configuración local no cambie sus resultados.
 - Toda variable nueva se agrega a `.env.example` en el mismo cambio, con descripción y valor de ejemplo no real.
+- `DATABASE_URL` (obligatoria) apunta al PostgreSQL de Docker Compose desde el equipo (`localhost`) y la usan la API y el CLI de Prisma. El contenedor de la API recibe su propia URL, con host `postgres`, desde `docker-compose.yml`. La contraseña de PostgreSQL no debe llevar caracteres especiales de URL (`@`, `:`, `/`, `?`, `#`) o debe ir codificada en la URL.
 - El proyecto corre solo en local por ahora (ADR-0031).
 - Los correos que envía la API llegan a un capturador local en Docker Compose y se revisan en su bandeja web; no salen a internet (ADR-0045).
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
@@ -90,18 +92,34 @@ ADR-0089. Requiere Docker Desktop (o Docker Engine con Compose) en ejecución y 
 
 Comandos:
 
-- Todo en contenedores: `docker compose up --build`. La API recarga sola al guardar cambios.
+- Todo en contenedores: `docker compose up --build`. La API recarga sola al guardar cambios. La primera vez, y cada vez que lleguen migraciones nuevas, aplicarlas (sección Migraciones).
 - Solo los servicios, con la API en el equipo (suele ser más rápido en Windows): `docker compose up -d postgres mailpit` y después `npm run start:dev`.
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
 - **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
-- Imagen de producción (la construye la CI en T-106): `docker build --target production -t base-shop .`
+- Imagen de producción (la construye la CI en T-106): `docker build --target production -t base-shop .` No incluye el CLI de Prisma, así que no aplica migraciones; cómo se aplican al desplegar se decide con P-05 (ADR-0091).
 
 ## Migraciones
 
-- Prisma Migrate (ADR-0033).
+Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `prisma/schema/` (un archivo por contexto, más `schema.prisma` y `transversal.prisma`) y las migraciones están en `prisma/migrations/`. La configuración del CLI está en `prisma.config.ts`.
+
+| Script | Uso |
+|---|---|
+| `npm run db:generate` | Genera el cliente de Prisma en `src/platform/persistence/prisma/generated/` (no se versiona). Corre solo al instalar dependencias; repetirlo después de cambiar el esquema |
+| `npm run db:migrate:deploy` | Aplica las migraciones pendientes a la base de `DATABASE_URL` |
+| `npm run db:migrate:dev` | Crea una migración a partir de los cambios del esquema y la aplica; solo en desarrollo |
+| `npm run db:diff` | Compara la base de `DATABASE_URL` con el esquema; falla si hay diferencias |
+
+- **Base local:** la primera vez y cada vez que lleguen migraciones nuevas, `npm run db:migrate:deploy` desde el equipo, o `docker compose exec api npm run db:migrate:deploy` con la API en el contenedor.
+- **Crear una migración:**
+  1. Cambiar el esquema en el archivo del contexto.
+  2. `npm run db:migrate:dev -- --create-only --name <descripcion>` genera la migración sin aplicarla.
+  3. Agregar el SQL manual que corresponda y revisar el SQL completo.
+  4. `npm run db:migrate:dev` la aplica; después, `npm run db:diff` debe responder "No difference detected".
+- **SQL manual:** lo que el esquema de Prisma no expresa se escribe en la migración: extensiones, restricciones `CHECK` (nombre `<tabla>_<descripcion>_check`), restricciones de exclusión, índices de expresión y triggers. Prisma no los genera ni los borra, así que cambiarlos o quitarlos también requiere SQL manual en una migración nueva. Los índices parciales sí van en el esquema (`where: raw("...")`, función en vista previa `partialIndexes`).
+- Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
-- Las restricciones `CHECK` se agregan como SQL en la migración correspondiente.
+- Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.
 
 ## Pull Requests
 

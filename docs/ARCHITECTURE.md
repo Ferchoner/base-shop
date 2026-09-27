@@ -35,7 +35,8 @@ src/
 ├── app.module.ts              importa la plataforma y los módulos de contexto
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
 │   ├── config/                variables de entorno (T-100)
-│   └── http/                  CORS y encabezados de seguridad (T-100)
+│   ├── http/                  CORS y encabezados de seguridad (T-100)
+│   └── persistence/           PrismaService y cliente generado de Prisma (T-110, ADR-0091)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112); sin NestJS
 └── modules/
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping

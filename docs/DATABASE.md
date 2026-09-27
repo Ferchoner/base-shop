@@ -1,6 +1,6 @@
 # DATABASE — Modelo de datos
 
-**Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Las migraciones se crean en T-110.
+**Estado del diseño: APROBADO (ADR-0066, T-004, 2026-09-25).** Implementado en la primera migración, `prisma/migrations/20260927000000_init` (T-110, ADR-0091).
 
 Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a ADR-0066 y los ADR que modifican el modelo después de su aprobación (ADR-0076, ADR-0078, ADR-0079, ADR-0081, ADR-0083).
 
@@ -11,7 +11,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Tema | Definición | Fuente |
 |---|---|---|
 | Motor | PostgreSQL 18, una base de datos y un esquema | ADR-0006, ADR-0025 |
-| ORM | Prisma; `@prisma/client` solo en Infrastructure; esquema dividido en archivos por contexto | ADR-0003, ADR-0006 |
+| ORM | Prisma 7; `@prisma/client` solo en Infrastructure; esquema dividido en archivos por contexto en `prisma/schema/` | ADR-0003, ADR-0006, ADR-0091 |
 | Nombres | Tablas y columnas en `snake_case` y plural para tablas; los modelos de Prisma usan `camelCase` con `@map` | ADR-0066 |
 | Identificadores | `uuid` generado por la aplicación: UUIDv7 por defecto (ordenable por tiempo); UUIDv4 donde el identificador funciona como credencial (`carts.id`) | ADR-0059, ADR-0066 |
 | Dinero | `integer` en centavos, siempre con moneda `MXN` (máximo representable: 21,474,836.47 por campo) | ADR-0007, ADR-0066 |
@@ -325,7 +325,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | status | enum `catalog_status` | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** índice único parcial `((true)) WHERE status = 'ACTIVE'`: a lo sumo un almacén activo. En el MVP existe exactamente uno, creado por el seed; la API no crea ni desactiva almacenes (ADR-0081).
+- **Restricciones:** índice único parcial `(status) WHERE status = 'ACTIVE'`: a lo sumo un almacén activo (ADR-0091). En el MVP existe exactamente uno, creado por el seed; la API no crea ni desactiva almacenes (ADR-0081).
 
 ### 6.2 `stock_items` (inventory)
 
@@ -397,7 +397,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | id | uuid | No | PK; **UUIDv4** porque es la credencial del carrito de invitado (ADR-0059) |
 | owner_user_id | uuid | Sí | Referencia lógica a Identity; `NULL` = carrito de invitado |
 | status | enum `cart_status` (ACTIVE, CHECKED_OUT, MERGED) | No | — |
-| merged_into_cart_id | uuid | Sí | FK → `carts.id`; permite la fusión idempotente (ADR-0059) |
+| merged_into_cart_id | uuid | Sí | FK → `carts.id` `CASCADE` (al borrar un carrito se borran los carritos fusionados en él, ADR-0091); permite la fusión idempotente (ADR-0059) |
 | last_activity_at | timestamptz(3) | No | Base de la limpieza de 30 días (BR-CRT-06) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
@@ -425,7 +425,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | Campo | Tipo | Nulo | Notas |
 |---|---|---|---|
 | id | uuid | No | PK |
-| order_number | bigint | No | `UNIQUE`; secuencia `order_number_seq`; interno (ADR-0049) |
+| order_number | bigint | No | `UNIQUE`; autoincremental (`BIGSERIAL`, secuencia creada por Prisma, ADR-0091); interno (ADR-0049) |
 | public_code | char(8) | No | `UNIQUE`; Base32 Crockford en mayúsculas, sin guion (el guion es de presentación) |
 | customer_id | uuid | Sí | Referencia lógica a Identity; `NULL` = invitado |
 | contact_email | text | Sí | Normalizado en minúsculas; `NULL` solo en órdenes anonimizadas (ADR-0067) |
@@ -667,13 +667,14 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 
 ## 13. Estrategia de migraciones
 
-- **Herramienta:** Prisma Migrate (ADR-0033), con el esquema dividido en archivos por contexto.
-- **SQL manual dentro de las migraciones** para lo que el esquema de Prisma no expresa: extensiones (`unaccent`, `btree_gist`), `CHECK`, restricción de exclusión de `price_periods`, índices únicos parciales, índices GIN y de expresión, secuencia `order_number_seq` y trigger de `audit_logs`. Flujo: generar la migración sin aplicarla, agregar el SQL, revisarla y aplicarla.
-- **Riesgo a validar en T-110:** Prisma no conoce estos objetos; hay que comprobar que la verificación de migraciones de la CI (ADR-0030) no los detecte como diferencias ni intente eliminarlos.
+- **Herramienta:** Prisma Migrate (ADR-0033), con el esquema dividido en archivos por contexto en `prisma/schema/` y las migraciones en `prisma/migrations/` (ADR-0091).
+- **En el esquema de Prisma:** tablas, enums, llaves foráneas, índices (incluidos el GIN de búsqueda y los únicos parciales, con la función en vista previa `partialIndexes`) y la secuencia de `order_number`.
+- **SQL manual dentro de las migraciones** para lo que el esquema de Prisma no expresa: extensiones (`unaccent`, `btree_gist`), `CHECK`, restricción de exclusión de `price_periods`, índices únicos de expresión (`lower(name)`) y trigger de `audit_logs`. Prisma no los genera ni los borra: cambiarlos o quitarlos también requiere SQL manual. Flujo: generar la migración sin aplicarla, agregar el SQL, revisarla y aplicarla (`DEVELOPMENT_GUIDE.md`).
+- **Riesgo validado en T-110:** Prisma no detecta los objetos manuales como diferencias ni intenta eliminarlos: `prisma migrate diff` entre la base migrada y el esquema responde "No difference detected". Lo comprueban un test de integración y `npm run db:diff` (ADR-0091).
 - **Sin migraciones de reversión:** Prisma solo avanza. Un error se corrige con una migración nueva; antes de aplicar migraciones con datos reales se toma un respaldo.
 - **Cambios incompatibles:** en dos pasos (primero agregar, migrar datos y actualizar el código; después retirar lo viejo). Toda migración destructiva requiere aprobación humana (`TEAM_GUIDE.md`).
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío (con plazo estimado inicial de 3 a 7 días hábiles, ADR-0083). Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
-- **Primera migración:** se genera en T-110, después de aprobar este diseño.
+- **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).
 
 ---
 
