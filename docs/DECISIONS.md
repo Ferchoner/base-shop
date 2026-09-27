@@ -111,6 +111,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0091 | Prisma: configuración, esquema por contexto y primera migración | Aceptada |
 | ADR-0092 | Valores iniciales del método de envío | Aceptada |
 | ADR-0093 | Contexto transaccional con `nestjs-cls` | Aceptada |
+| ADR-0094 | Shared kernel: dinero, IVA contenido, identificadores, errores, eventos y reloj | Aceptada |
 
 ---
 
@@ -159,7 +160,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Nivel de rigor por subdominio: core (Ordering, Inventory, Pricing) con modelado rico; supporting (Catalog, Shopping, Shipping) moderado; generic (Identity & Access, Payments) delgado.
 - **Alternativas consideradas:** Microservicios; arquitectura en capas sin contextos.
 - **Consecuencias:** Los límites entre módulos deben verificarse con herramientas en CI (ver ADR-0005).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. El puerto del reloj es uno solo para todos los contextos y va en el shared kernel, igual que `TransactionManager` (ADR-0093, ADR-0094).
 
 ---
 
@@ -224,7 +225,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:** Cada lista de precios indica si sus precios incluyen impuesto; el valor por defecto es "incluido". El impuesto se calcula y redondea por línea de orden.
 - **Alternativas consideradas:** Precios siempre sin impuesto; redondeo sobre el total.
 - **Consecuencias:** El desglose por línea es consistente con el total. Tasas aplicables y reglas por producto: resueltas en ADR-0027.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. El modo de redondeo (al centavo, con las mitades hacia arriba) está en ADR-0094.
 
 ---
 
@@ -1959,4 +1960,43 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-116 (despacho de eventos después del commit) amplía este mecanismo.
   - La imagen de producción pesa unos 880 MB e incluye el CLI de Prisma y sus dependencias; `npm audit` sigue sin vulnerabilidades gracias a los `overrides` de ADR-0091.
 - **Revisar si:** el adaptador deja de exigir el CLI (la imagen podría volver a 510 MB), un caso necesita savepoints o el límite de 5 s resulta corto.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0094 — Shared kernel: dinero, IVA contenido, identificadores, errores, eventos y reloj
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-112. ADR-0003 definió un shared kernel mínimo (`Money`, tipos de ID con marca de tipo, error de dominio base y forma común de domain event) y ADR-0088 le sumó el puerto `Clock`. Faltaba su diseño concreto, y el modo de redondeo del IVA (ADR-0008 y ADR-0079 dicen que se redondea por línea, pero no cómo).
+- **Decisión:**
+  - **`Money`**, value object inmutable:
+    - Centavos enteros de 0 a 2,147,483,647, el máximo de una columna `integer` (ADR-0066). Sin negativos, porque ningún monto del modelo lo es; un monto fuera de rango falla en el dominio con `InvalidValueError` en lugar de fallar al guardar.
+    - Moneda como tipo con un solo valor, `'MXN'` (ADR-0026). Combinar monedas distintas es un error de programación.
+    - Operaciones `add`, `subtract` (falla si el resultado queda negativo), `multiply(cantidad)` y comparaciones. `toJSON()` produce `{ amount, currency }` (`API_SPEC.md`, sección 8.1).
+  - **IVA contenido:** `containedTax(tasaEnPuntosBase)` calcula `monto × tasa / (10000 + tasa)` con aritmética entera exacta y redondea al centavo **con las mitades hacia arriba**. Lo usan Ordering (líneas) y Shipping (envío), una vez por línea (ADR-0008, ADR-0079). Con la tasa del 16% nunca resulta una mitad exacta, así que el modo solo importa con otras tasas. La validación con el contador se suma a P-69.
+  - **Identificadores:** `Id<'Entidad'>`, un texto con marca de tipo para que el compilador no confunda identificadores de entidades distintas; cada contexto declara los suyos.
+    - `newId()` crea UUIDv7 con el paquete `uuid`, que garantiza orden creciente incluso dentro del mismo milisegundo. `crypto.randomUUIDv7()` de Node no lo garantiza, y el orden importa en `stock_movements` y `audit_logs`.
+    - `newCredentialId()` crea UUIDv4 para identificadores que funcionan como credencial (ADR-0059).
+    - `toId()` valida y normaliza a minúsculas un UUID recibido de fuera.
+  - **`DomainError`**, clase base abstracta:
+    - `code` es el `type` estable del catálogo de `API_SPEC.md` (sección 6.2).
+    - `category` es `invalid`, `forbidden`, `not-found` o `conflict`; T-113 la traduce a 400, 403, 404 o 409 y el dominio no conoce HTTP (ADR-0035). Todos los errores de negocio del catálogo caen en esas cuatro; los 401, 413, 415, 422 y 429 vienen de autenticación, archivos, idempotencia y rate limiting.
+    - `details` opcionales, que se convierten en extensiones de Problem Details (ADR-0064) y nunca llevan datos sensibles ni personales.
+    - `InvalidValueError` (`validation-error`, categoría `invalid`) para valores que rompen las reglas de un value object.
+  - **`DomainEvent`**: interfaz con `eventId` (UUIDv7, para que los handlers ignoren repeticiones, ADR-0014), `eventType` (el nombre de `DOMAIN_MODEL.md`) y `occurredAt`. Cada evento la extiende con sus datos; `eventMetadata()` crea los campos comunes. El despacho es de T-116.
+  - **`Clock`**: clase abstracta con `now()`, en el shared kernel porque es un solo puerto para todos los contextos, igual que `TransactionManager` (ADR-0093). Aclara ADR-0003, que ubicaba el puerto del reloj en Application. Su implementación, `SystemClock`, está en `src/platform/clock/` y se registra de forma global.
+  - Todo se importa desde `src/shared-kernel/index.ts`.
+- **Alternativas consideradas:**
+  - Montos negativos en `Money`: ningún campo del modelo los admite.
+  - Calcular el IVA en cada contexto: duplica una regla fiscal.
+  - Redondeo bancario (mitad al par): reduce el sesgo acumulado, pero es menos intuitivo.
+  - `crypto.randomUUIDv7()` de Node: sin dependencias, pero sin orden garantizado dentro del mismo milisegundo.
+  - Un mapa de código a estado HTTP en T-113 sin categorías: cada error nuevo obligaría a tocar la presentación.
+  - Un puerto de reloj por contexto: duplicación sin beneficio.
+- **Consecuencias:**
+  - Nueva dependencia de producción: `uuid`.
+  - Los contextos declaran sus tipos de ID y sus errores de dominio como subclases de `DomainError`.
+  - Ningún código llama a `new Date()` para la hora actual; los tests unitarios usan un reloj fijo.
+  - BR-TAX-02 queda con el modo de redondeo; P-69 suma su validación.
+- **Revisar si:** se opera con otra moneda, un monto necesita superar el máximo de `integer`, el contador indica otro redondeo o se ejecuta más de una instancia (el orden de UUIDv7 solo se garantiza dentro de cada proceso).
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

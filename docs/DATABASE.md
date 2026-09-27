@@ -13,7 +13,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Motor | PostgreSQL 18, una base de datos y un esquema | ADR-0006, ADR-0025 |
 | ORM | Prisma 7; `@prisma/client` solo en Infrastructure; esquema dividido en archivos por contexto en `prisma/schema/` | ADR-0003, ADR-0006, ADR-0091 |
 | Nombres | Tablas y columnas en `snake_case` y plural para tablas; los modelos de Prisma usan `camelCase` con `@map` | ADR-0066 |
-| Identificadores | `uuid` generado por la aplicación: UUIDv7 por defecto (ordenable por tiempo); UUIDv4 donde el identificador funciona como credencial (`carts.id`) | ADR-0059, ADR-0066 |
+| Identificadores | `uuid` generado por la aplicación con `newId()` (UUIDv7, ordenable por tiempo) o, donde el identificador funciona como credencial (`carts.id`), con `newCredentialId()` (UUIDv4) | ADR-0059, ADR-0066, ADR-0094 |
 | Dinero | `integer` en centavos, siempre con moneda `MXN` (máximo representable: 21,474,836.47 por campo) | ADR-0007, ADR-0066 |
 | Tasas | `integer` en puntos base (16% = 1600) | ADR-0027, ADR-0066 |
 | Fechas | `timestamptz(3)` en UTC | ADR-0036 |

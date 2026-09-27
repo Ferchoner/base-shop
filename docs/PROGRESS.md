@@ -87,6 +87,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-110: Prisma 7 con esquema dividido por contexto y primera migración con el modelo aprobado completo, aplicable desde cero y sin diferencias con el esquema (ADR-0091)
 - [x] Valores iniciales provisionales del método de envío: "Envío Estándar", $99.00 y envío gratis desde $1,500.00 (ADR-0092)
 - [x] T-111: contexto transaccional con `nestjs-cls` y el adaptador oficial de Prisma; puerto `TransactionManager` para Application; rollback, anidamiento, concurrencia y límite de 5 s probados contra PostgreSQL real (ADR-0093)
+- [x] T-112: shared kernel con `Money` (incluido el IVA contenido con redondeo de mitades hacia arriba), identificadores UUIDv7 y UUIDv4 con marca de tipo, `DomainError` con cuatro categorías, forma de los domain events y puerto `Clock` (ADR-0094)
 
 ## In Progress
 
@@ -122,7 +123,7 @@ Ninguna pendiente.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting | — |
-| P-69 | Antes de operar con clientes reales: validación con el contador del IVA del costo de envío (ADR-0079) y confirmación por el administrador de los valores de envío con costos reales de paquetería (ADR-0092) | — |
+| P-69 | Antes de operar con clientes reales: validación con el contador del IVA del costo de envío (ADR-0079) y del modo de redondeo del IVA (ADR-0094), y confirmación por el administrador de los valores de envío con costos reales de paquetería (ADR-0092) | — |
 
 ### Arquitectura, datos y seguridad
 
