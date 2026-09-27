@@ -1,3 +1,5 @@
+import { readdirSync } from 'node:fs';
+import path from 'node:path';
 import pg from 'pg';
 
 /** Smoke test for the integration test infrastructure (T-105): a real PostgreSQL 18, no mocks. */
@@ -23,13 +25,19 @@ describe('PostgreSQL for integration tests', () => {
     expect(version).toBeLessThan(190000);
   });
 
-  it('starts every run with an empty database', async () => {
-    const { rows } = await client.query<{ tables: string }>(
-      `SELECT count(*) AS tables
-         FROM information_schema.tables
-        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')`,
+  it('starts every run from a fresh database with every migration applied', async () => {
+    const migrationFolders = readdirSync(
+      path.join(process.cwd(), 'prisma', 'migrations'),
+      { withFileTypes: true },
+    ).filter((entry) => entry.isDirectory());
+
+    const { rows } = await client.query<{ applied: string; total: string }>(
+      `SELECT count(*) FILTER (WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL) AS applied,
+              count(*) AS total
+         FROM _prisma_migrations`,
     );
 
-    expect(Number(rows[0].tables)).toBe(0);
+    expect(Number(rows[0].total)).toBe(migrationFolders.length);
+    expect(Number(rows[0].applied)).toBe(migrationFolders.length);
   });
 });
