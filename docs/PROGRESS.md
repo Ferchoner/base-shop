@@ -86,6 +86,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-105: tests unitarios, de integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (ADR-0090)
 - [x] T-110: Prisma 7 con esquema dividido por contexto y primera migración con el modelo aprobado completo, aplicable desde cero y sin diferencias con el esquema (ADR-0091)
 - [x] Valores iniciales provisionales del método de envío: "Envío Estándar", $99.00 y envío gratis desde $1,500.00 (ADR-0092)
+- [x] T-111: contexto transaccional con `nestjs-cls` y el adaptador oficial de Prisma; puerto `TransactionManager` para Application; rollback, anidamiento, concurrencia y límite de 5 s probados contra PostgreSQL real (ADR-0093)
 
 ## In Progress
 
@@ -106,7 +107,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 
 | ID | Decisión | Bloquea |
 |---|---|---|
-| P-05 | CD: entornos, disparador, registro de imágenes, migraciones en el despliegue, reversión. Pospuesta hasta tener hosting | T-330 |
+| P-05 | CD: entornos, disparador, registro de imágenes, migraciones en el despliegue, reversión. Pospuesta hasta tener hosting. Opciones para las migraciones analizadas en `DATABASE.md`, sección 13 | T-330 |
 | P-06 | Hosting para entorno compartido o producción (hoy solo local, ADR-0031); incluye HSTS, TLS y redirección a HTTPS (ADR-0086) | T-330 |
 | P-07 | Métricas, trazas y seguimiento de errores (logs locales ya decididos, ADR-0032) | — |
 | P-13 | Almacén de secretos en el servidor (local ya decidido, ADR-0032) | — |

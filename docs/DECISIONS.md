@@ -110,6 +110,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0090 | Base de datos de los tests de integración con Testcontainers | Aceptada |
 | ADR-0091 | Prisma: configuración, esquema por contexto y primera migración | Aceptada |
 | ADR-0092 | Valores iniciales del método de envío | Aceptada |
+| ADR-0093 | Contexto transaccional con `nestjs-cls` | Aceptada |
 
 ---
 
@@ -634,7 +635,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Tests de integración contra PostgreSQL 18 real en Docker, localmente y en la CI (ADR-0030). No se usan mocks de base de datos para repositorios, transacciones ni concurrencia.
   - Identificador de correlación por solicitud HTTP, incluido en todos los logs que esa solicitud genera.
 - **Consecuencias:** Las pruebas de concurrencia de inventario y checkout (ADR-0011) se ejecutan contra la base real, que es la única forma de detectar sobreventa.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. El contexto transaccional se detalla en ADR-0093.
 
 ---
 
@@ -1794,7 +1795,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:**
   - **Carpetas de primer nivel en `src/`:**
     - `platform/`: infraestructura técnica transversal, sin reglas de negocio (configuración, políticas HTTP y, después, persistencia, eventos, jobs, logs y cache).
-    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112). TypeScript puro, sin NestJS.
+    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112), y puerto `TransactionManager` (T-111, ADR-0093). TypeScript puro, sin NestJS.
     - `modules/<contexto>/`: un módulo por bounded context, con nombre en inglés y kebab-case: `identity-access`, `catalog`, `pricing`, `inventory`, `shopping`, `ordering`, `payments` y `shipping`.
   - **Cada contexto** tiene las carpetas `domain/`, `application/`, `infrastructure/` y `presentation/`, un `<contexto>.module.ts` que conecta las capas y un `index.ts` que es su API pública: solo exporta el módulo de NestJS, la fachada y sus tipos públicos (ADR-0005).
   - **Capacidades transversales** (auditoría, notificaciones y catálogo geográfico): módulos bajo `modules/` con solo las capas que necesiten, creados en sus tareas (T-127, T-215 y T-124).
@@ -1828,7 +1829,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **`node_modules` del contenedor** en un volumen anónimo, separado del `node_modules` del equipo, para que `docker compose up --build -V` lo regenere tras cambiar dependencias.
 - **Alternativas consideradas:** `Dockerfile` solo de desarrollo (la CI necesitaría otro después); la API solo en el equipo (no cumple T-102); imágenes Alpine (musl puede dar problemas con módulos nativos); `node_modules` en un volumen con nombre (no se actualiza al cambiar dependencias).
 - **Consecuencias:**
-  - T-106 construye la etapa `production`; pesaba unos 400 MB y con el cliente de Prisma pesa unos 510 MB (ADR-0091). Se puede reducir más adelante.
+  - T-106 construye la etapa `production`; pesaba unos 400 MB, con el cliente de Prisma pesó unos 510 MB (ADR-0091) y con el CLI de Prisma pesa unos 880 MB (ADR-0093). Se puede reducir más adelante.
   - La API todavía no usa Mailpit: la configuración SMTP llega con T-122. PostgreSQL se usa desde T-110 (`DATABASE_URL`, ADR-0091).
   - `docker compose down -v` borra los datos locales de PostgreSQL.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
@@ -1886,7 +1887,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Arranque:** `PrismaService` ejecuta `SELECT 1` al iniciar, con 5 segundos de espera de conexión, así que la API no arranca si la base no responde. Con el driver adapter, `$connect()` no abre ninguna conexión.
   - **Scripts:** `db:generate`, `db:migrate:dev` (crear migraciones en desarrollo), `db:migrate:deploy` (aplicar las pendientes) y `db:diff` (verificar que base y esquema coinciden).
   - **Tests:** el inicio de los tests de integración y end-to-end aplica todas las migraciones con `prisma migrate deploy` al contenedor de Testcontainers. Los end-to-end también usan Testcontainers, porque la aplicación completa necesita una base (modifica ADR-0090).
-  - **Imagen de producción sin el CLI de Prisma:** `prisma` es dependencia opcional de `@prisma/client`, así que `npm prune` omite también las dependencias opcionales. Ninguna dependencia de ejecución es opcional; la única, `pg-cloudflare`, es para Cloudflare Workers. La imagen pasa de unos 400 MB a unos 510 MB por el cliente de Prisma y el driver; con el CLI pesaría unos 880 MB.
+  - **Imagen de producción sin el CLI de Prisma:** `prisma` es dependencia opcional de `@prisma/client`, así que `npm prune` omite también las dependencias opcionales. Ninguna dependencia de ejecución es opcional; la única, `pg-cloudflare`, es para Cloudflare Workers. La imagen pasa de unos 400 MB a unos 510 MB por el cliente de Prisma y el driver; con el CLI pesaría unos 880 MB. **Reemplazado por ADR-0093:** desde T-111 la imagen incluye el CLI (unos 880 MB).
   - **Dependencias vulnerables del CLI:** `overrides` de npm para `deepmerge-ts` y `mysql2`, dependencias transitivas del CLI de Prisma con vulnerabilidades altas. Con ellos, `npm audit` queda sin vulnerabilidades. Se quitan cuando Prisma actualice sus dependencias.
   - **Sin datos iniciales (seed) en T-110:** cada tarea crea los suyos: roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196.
 - **Alternativas consideradas:**
@@ -1902,11 +1903,11 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `partialIndexes` está en vista previa y puede cambiar entre versiones menores; hay que revisarlo al actualizar Prisma.
   - Instalar dependencias necesita el esquema (`postinstall`). Una instalación solo de producción (`--omit=dev`) debe usar `--ignore-scripts`, porque no incluye el CLI.
   - `npm run test:e2e` necesita Docker en marcha.
-  - La imagen de producción no puede aplicar migraciones; se resuelve con P-05 (T-330).
+  - La imagen de producción no puede aplicar migraciones; se resuelve con P-05 (T-330). Desde ADR-0093 incluye el CLI, así que podrá aplicarlas como paso aparte (`DATABASE.md`, sección 13).
   - La base local de Docker Compose se migra con `npm run db:migrate:deploy` cada vez que llegan migraciones nuevas.
   - T-106 puede usar `npm run db:diff` en el paso de verificación de migraciones (ADR-0030).
   - Queda pendiente P-72: los valores iniciales del costo fijo de envío y del monto mínimo para envío gratis, necesarios para el método de envío de T-196. Cerrada por ADR-0092.
-- **Estado:** Aceptada (plan de T-110 aprobado el 2026-09-27; los detalles derivados del modelo se revisan en el pull request).
+- **Estado:** Aceptada (plan de T-110 aprobado el 2026-09-27; los detalles derivados del modelo se revisan en el pull request). Modificada por ADR-0093 (la imagen de producción incluye el CLI de Prisma).
 
 ---
 
@@ -1930,4 +1931,32 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Mientras nadie los cambie, la tienda cobra $99.00 por envío y lo da gratis desde $1,500.00. El umbral se muestra al cliente en la cotización (`freeShippingThreshold`); un cambio posterior solo afecta a cotizaciones y órdenes nuevas (ADR-0042).
   - Los tests no dependen de estos valores: cada test crea sus propios datos.
 - **Revisar si:** se contrata una paquetería con tarifas conocidas, se conoce el ticket promedio o se habilitan promociones (ADR-0018).
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0093 — Contexto transaccional con `nestjs-cls`
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-111. ADR-0033 eligió `nestjs-cls` con su plugin transaccional para Prisma, para que los repositorios obtengan la transacción activa sin que Application ni Domain dependan de Prisma. Faltaban el adaptador de Prisma, cómo delimita Application una transacción, el anidamiento y los límites de tiempo.
+- **Decisión:**
+  - **Librerías:** `nestjs-cls` 7, `@nestjs-cls/transactional` 4 y el adaptador oficial `@nestjs-cls/transactional-adapter-prisma` 2.
+  - **Adaptador oficial:** declara el CLI de Prisma (`prisma`) como dependencia obligatoria, así que `prisma` pasa a dependencia de producción y la imagen de producción lo incluye. Pesa unos 880 MB en lugar de 510 MB (modifica ADR-0091). A cambio, la imagen puede ejecutar `prisma migrate deploy` como paso aparte, que es la opción candidata para P-05 (`DATABASE.md`, sección 13).
+  - **Puerto `TransactionManager`** en `src/shared-kernel/`: clase abstracta en TypeScript puro con `run(work)`. Confirma la transacción si `work` termina bien, la revierte si falla y propaga el error. Application la usa para delimitar transacciones, sin importar Prisma ni `nestjs-cls`; su implementación, `ClsTransactionManager`, está en `src/platform/persistence/`. Se agrega al shared kernel de ADR-0088.
+  - **Repositories:** inyectan `TransactionHost<PrismaTransactionAdapter>` y usan su propiedad `tx`, que es el cliente de la transacción activa o, fuera de una transacción, el `PrismaService` normal. No reciben la transacción como parámetro.
+  - **Anidamiento:** un `run` dentro de otro se une a la transacción externa (propagación `Required`). Sin savepoints: se agregan si algún caso los necesita.
+  - **Opciones de cada transacción:** aislamiento Read Committed, declarado explícitamente (ARCHITECTURE.md); espera máxima de 2 s para iniciar y límite de 5 s, los valores por defecto de Prisma. Una transacción que pasa el límite se revierte y `run` falla.
+  - **Registro:** `ClsModule.forRoot` una sola vez en el módulo raíz, sin middleware HTTP: `run` crea su propio contexto. `PersistenceModule` registra el plugin. T-118 agregará el identificador de correlación al mismo contexto.
+- **Alternativas consideradas:**
+  - Adaptador propio de unas 30 líneas: mantenía la imagen en 510 MB y sin el CLI, pero era código propio que mantener.
+  - Decorador `@Transactional()` en los casos de uso: exige el plugin inicializado incluso en los tests unitarios.
+  - Pasar la transacción como parámetro a los repositories: expone Prisma a Application.
+  - Savepoints para transacciones anidadas: ningún caso los necesita todavía.
+- **Consecuencias:**
+  - Los tests unitarios de casos de uso reemplazan `TransactionManager` por un doble que solo ejecuta el trabajo.
+  - Todo repository debe usar `txHost.tx`; si usara `PrismaService` directamente, quedaría fuera de la transacción. La revisión de código lo vigila y T-103 puede agregar una regla.
+  - Una transacción no puede incluir llamadas externas ni trabajo de más de 5 s.
+  - T-116 (despacho de eventos después del commit) amplía este mecanismo.
+  - La imagen de producción pesa unos 880 MB e incluye el CLI de Prisma y sus dependencias; `npm audit` sigue sin vulnerabilidades gracias a los `overrides` de ADR-0091.
+- **Revisar si:** el adaptador deja de exigir el CLI (la imagen podría volver a 510 MB), un caso necesita savepoints o el límite de 5 s resulta corto.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
