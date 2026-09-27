@@ -9,6 +9,7 @@ import { PaymentsModule } from './modules/payments/index.js';
 import { PricingModule } from './modules/pricing/index.js';
 import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
+import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
 
@@ -24,6 +25,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     // Async context per operation (ADR-0033): holds the active transaction; the correlation id joins it in T-118.
     ClsModule.forRoot({ global: true }),
     PersistenceModule,
+    ClockModule,
     IdentityAccessModule,
     CatalogModule,
     PricingModule,
