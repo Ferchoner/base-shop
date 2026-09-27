@@ -95,6 +95,26 @@ Las operaciones del cliente sobre su carrito no exigen `version`; el servidor re
 
 CORS (ADR-0085): solo los orígenes de `CORS_ALLOWED_ORIGINS` (vacía por defecto, sin comodín ni credenciales). Un navegador puede enviar `Authorization`, `Content-Type` e `Idempotency-Key`, y leer `Location`, `Retry-After` y `X-Correlation-Id`. Un encabezado nuevo de solicitud o de respuesta obliga a revisar esta lista.
 
+### 2.5 Efectos en segundo plano (consistencia eventual)
+
+Algunos efectos de una operación ocurren en otro contexto, por medio de un evento de dominio que se procesa en segundo plano después de confirmar la operación (ADR-0014, ADR-0098). **La respuesta llega antes de que esos efectos ocurran.** Normalmente tardan fracciones de segundo, pero no hay un tiempo garantizado. El cliente debe advertir al usuario de la posible demora (por ejemplo, "El estado de la orden puede tardar unos segundos en actualizarse") y volver a consultar el recurso en lugar de suponer el estado.
+
+| Operación que lo origina | Evento | Efecto en segundo plano | Dónde se nota |
+|---|---|---|---|
+| Registrar un pago manual (`POST /v1/admin/payments/manual-captures`); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
+| La orden quedó pagada (efecto anterior) | `OrderPaid` | Se crea el envío en PENDING (UC-SHI-03) y se envía el correo "Pago confirmado" (ADR-0074) | Lista de envíos pendientes del staff; correo del cliente |
+| Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED y se envía el correo "Orden enviada" | Estado de la orden; correo del cliente |
+| Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED | Estado de la orden |
+| Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED y deja de tener `hasPendingRefund`; se envía el correo "Reembolso completado" (ADR-0051) | Estado de la orden; correo del cliente |
+| Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida" | Correo del cliente |
+| Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada" | Correo del cliente |
+| Expirar una orden impaga (job cada minuto) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054) | Carrito del cliente o del invitado |
+| Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
+
+- Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva y el inicio del reembolso.
+- Si el procesamiento de un evento falla, su efecto no ocurre y el fallo queda en el log. Para `PaymentCaptured`, el job de conciliación de pagos vuelve a ejecutar la confirmación (ADR-0014); los demás casos requieren revisión.
+- Todo efecto nuevo en segundo plano se agrega a esta tabla.
+
 Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`, y no lleva `X-Powered-By`. Swagger UI, solo en local, tiene una CSP más permisiva en su ruta.
 
 ---
@@ -1123,14 +1143,14 @@ La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene 
 
 - **`POST /v1/admin/payments/manual-captures`** — `payments.manage`.
 - Request: `{ "orderId", "reference": "Ticket 00452", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `note` 0–500.
-- Registra el cobro por el total de la orden (crea el Payment si no existe) y produce `PaymentCaptured`; la orden sigue el flujo normal o el de pago tardío (ADR-0012).
+- Registra el cobro por el total de la orden (crea el Payment si no existe) y produce `PaymentCaptured`; la orden sigue el flujo normal o el de pago tardío (ADR-0012), en segundo plano (sección 2.5): la respuesta trae el pago capturado, y la orden puede seguir unos instantes en su estado anterior.
 - Solo órdenes en PENDING_PAYMENT o EXPIRED.
 - 201 `AdminPayment`. Auditado.
 - Errores: 403 `manual-payments-disabled`; 409 `invalid-state-transition` (otro estado de la orden o pago ya capturado).
 
 ### 16.5 Reembolsos (UC-PAY-06, UC-PAY-07, ADR-0051, ADR-0052)
 
-- **`POST /v1/admin/payments/{paymentId}/refunds/manual`** — Registrar un reembolso hecho fuera del sistema. Request `{ "reference", "note", "restock": false, "version" }` (`version` del pago). Solo pagos MANUAL con reembolso pendiente o fallido de una orden cancelada. Completa el reembolso: la orden pasa a REFUNDED. `restock` reintegra todas las líneas si la orden no tiene reintegros previos. 200 `AdminPayment`. Errores: 403 `manual-payments-disabled`; 403 `forbidden` (reintegro sin `inventory.write`); 409 `invalid-state-transition`; 409 `restock-not-allowed`.
+- **`POST /v1/admin/payments/{paymentId}/refunds/manual`** — Registrar un reembolso hecho fuera del sistema. Request `{ "reference", "note", "restock": false, "version" }` (`version` del pago). Solo pagos MANUAL con reembolso pendiente o fallido de una orden cancelada. Completa el reembolso: la orden pasa a REFUNDED en segundo plano (sección 2.5). `restock` reintegra todas las líneas si la orden no tiene reintegros previos. 200 `AdminPayment`. Errores: 403 `manual-payments-disabled`; 403 `forbidden` (reintegro sin `inventory.write`); 409 `invalid-state-transition`; 409 `restock-not-allowed`.
 - **`POST /v1/admin/payments/{paymentId}/refunds/retry`** — Reintentar un reembolso fallido con el proveedor. Request `{ "restock": false, "version" }`. 200 `AdminPayment`. Errores: 409 `invalid-state-transition` (no hay reembolso fallido); 409 `restock-not-allowed`.
 
 UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/orders/{orderId}/cancel`. UC-PAY-05 (conciliación) es un job.
@@ -1163,8 +1183,8 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 | `GET …/shipments` | Paginado. Filtros: `status` (defecto PENDING, UC-SHI-08), `orderId`, `q` (código de orden o guía), `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `createdAt` ascendente: primero los más antiguos), `dispatchedAt` |
 | `GET …/shipments/{shipmentId}` | 200 `AdminShipment` |
 | `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100). Permitido en PENDING y DISPATCHED, salvo en envíos despachados como entrega propia. 200. Errores: 409 `invalid-state-transition` |
-| `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED. 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
-| `POST …/deliver` | Request `{ "version" }`. Desde DISPATCHED. La orden pasa a DELIVERED. 200 |
+| `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED en segundo plano (sección 2.5). 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
+| `POST …/deliver` | Request `{ "version" }`. Desde DISPATCHED. La orden pasa a DELIVERED en segundo plano (sección 2.5). 200 |
 | `POST …/delivery-failure` | Request `{ "note", "version" }`. Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
 | `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/inventory/restocks`. 200 |
 

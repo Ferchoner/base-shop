@@ -9,6 +9,8 @@ async function bootstrap() {
   // Logs written while the app starts wait for AppLogger, so they get its format too (ADR-0097).
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(AppLogger));
+  // On SIGTERM or SIGINT, close the app gracefully: in-flight event handlers finish first (ADR-0098).
+  app.enableShutdownHooks();
   configureHttp(app);
   const config =
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);

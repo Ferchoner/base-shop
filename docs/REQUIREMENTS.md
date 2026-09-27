@@ -479,6 +479,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Mantenibilidad | Monolito modular con límites verificados en CI | ADR-0003, ADR-0005, ADR-0030 |
 | Testabilidad | Dominio sin dependencias de framework; reloj inyectable | ADR-0003 |
 | Observabilidad | Logs en consola con nivel configurable e identificador de correlación | ADR-0032, ADR-0033 |
+| Consistencia | Los efectos entre contextos ocurren en segundo plano después del commit; el cliente advierte la posible demora (`API_SPEC.md`, sección 2.5) | ADR-0014, ADR-0098 |
 | Compatibilidad | Solo cambios compatibles dentro de `v1` | ADR-0034 |
 | Independencia del frontend | Sin cookies ni supuestos de cliente | ADR-0010, ADR-0023 |
 | CORS | Orígenes exactos en variable de entorno, vacía por defecto; sin comodín ni credenciales | ADR-0085 |

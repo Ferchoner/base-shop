@@ -115,6 +115,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0095 | Respuestas de error, validación de entrada e identificador de correlación | Aceptada |
 | ADR-0096 | Versionado por ruta y documentación OpenAPI en local | Aceptada |
 | ADR-0097 | Logs de la aplicación | Aceptada |
+| ADR-0098 | Bus de eventos en proceso con despacho en segundo plano | Aceptada |
 
 ---
 
@@ -303,7 +304,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Outbox para todos los eventos; outbox solo para la cadena pago → orden → inventario.
 - **Riesgo aceptado:** Una notificación (por ejemplo, un correo) puede perderse si la aplicación se cae justo después del commit.
 - **Revisar si:** los logs muestran fallos frecuentes de handlers, o el negocio pasa a depender de una notificación (por ejemplo, la confirmación como comprobante).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0098, con despacho en segundo plano.
 
 ---
 
@@ -1960,7 +1961,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tests unitarios de casos de uso reemplazan `TransactionManager` por un doble que solo ejecuta el trabajo.
   - Todo repository debe usar `txHost.tx`; si usara `PrismaService` directamente, quedaría fuera de la transacción. La revisión de código lo vigila y T-103 puede agregar una regla.
   - Una transacción no puede incluir llamadas externas ni trabajo de más de 5 s.
-  - T-116 (despacho de eventos después del commit) amplía este mecanismo.
+  - T-116 (despacho de eventos después del commit) amplía este mecanismo. Hecho en ADR-0098: la transacción más externa ejecuta acciones después de confirmar.
   - La imagen de producción pesa unos 880 MB e incluye el CLI de Prisma y sus dependencias; `npm audit` sigue sin vulnerabilidades gracias a los `overrides` de ADR-0091.
 - **Revisar si:** el adaptador deja de exigir el CLI (la imagen podría volver a 510 MB), un caso necesita savepoints o el límite de 5 s resulta corto.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
@@ -2089,4 +2090,32 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una aplicación de test que no instala `AppLogger` escribe con el logger de NestJS, sin identificador ni redacción.
   - T-116 y T-117 registran sus fallos con este logger.
 - **Revisar si:** se elige una herramienta de observabilidad (P-07) o el volumen de logs afecta el rendimiento.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0098 — Bus de eventos en proceso con despacho en segundo plano
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-116. ADR-0014 decidió despachar los eventos en proceso después del commit, sin outbox, con handlers idempotentes, fallos en el log y conciliación como red de seguridad; ADR-0093 dejó a T-116 ampliar el contexto transaccional, y ADR-0094 fijó la forma de los eventos. Faltaban el mecanismo, cuándo corren los handlers respecto de la respuesta y dónde viven.
+- **Decisión:**
+  - **Bus propio** en `src/platform/events/`, sin `@nestjs/event-emitter`: el despacho después del commit, el aislamiento de cada handler y el registro de cuál falló habría que construirlos encima de todas formas.
+  - **Publicación:** puerto `DomainEventPublisher` en el shared kernel, con `publish(...eventos)`. Dentro de `TransactionManager.run`, los eventos se acumulan en una cola por transacción y se despachan cuando confirma la más externa; con rollback se descartan. Fuera de una transacción se despachan de inmediato. Para lograrlo, `ClsTransactionManager` abre un `TransactionScope` en la transacción más externa, con acciones que corren después del commit; Application no lo ve.
+  - **Despacho en segundo plano:** `run` y `publish` no esperan a los handlers. Se acepta que otros contextos se actualicen con una demora breve, sin tiempo garantizado. `API_SPEC.md` (sección 2.5) lista esos efectos para que el cliente advierta la demora, y cada endpoint afectado lo indica.
+  - **Orden y aislamiento:** los eventos de una transacción se despachan en el orden de publicación, y los handlers de cada evento corren uno tras otro, en el orden en que se registraron. El error de un handler no llega a quien publicó ni detiene a los demás: se registra en el log con el tipo de evento, el `eventId`, el handler, el stack y el identificador de correlación, que se conserva porque el despacho ocurre en el contexto asíncrono de la solicitud.
+  - **Sin reintentos automáticos** (ADR-0014): la conciliación de pagos es la red de seguridad de `PaymentCaptured`; los demás fallos requieren revisión. Los handlers son idempotentes por el estado de su dominio.
+  - **Handlers:** adaptadores de entrada en la capa `infrastructure` del contexto que consume, como los controladores. Son métodos de un provider marcados con `@OnDomainEvent('Evento')`, en archivos `*.event-handler.ts`, que el despachador descubre al arrancar. Cada uno llama a un caso de uso de su contexto con su propia transacción; los eventos que ese caso de uso publique se despachan igual, así que las cadenas funcionan. Los tipos de los eventos los exporta el contexto productor desde su `index.ts` (ADR-0005).
+  - **Cierre ordenado:** `main.ts` activa `enableShutdownHooks`; al cerrar, el despachador espera a los handlers en curso (`beforeApplicationShutdown`) y Prisma se desconecta al final (`onApplicationShutdown`).
+- **Alternativas consideradas:**
+  - `@nestjs/event-emitter`: si un handler falla, su despacho asíncrono rechaza la promesa completa sin decir cuál.
+  - Esperar a los handlers antes de responder: el cliente vería el estado final, pero cada respuesta esperaría a todos los handlers, incluidos los correos.
+  - Handlers en Application con un decorador del shared kernel: el shared kernel no depende de NestJS.
+  - Reintentos automáticos o outbox: descartados en ADR-0014.
+- **Consecuencias:**
+  - Consistencia eventual entre contextos: el cliente debe volver a consultar el recurso en lugar de suponer su estado. Requisito no funcional agregado en `REQUIREMENTS.md`.
+  - Riesgo aceptado, ampliado respecto de ADR-0014: si la aplicación se cae antes de que un handler termine, o si un handler falla, el efecto no ocurre. Solo `PaymentCaptured` tiene conciliación automática; por ejemplo, un envío que no se creó tras `OrderPaid` hay que detectarlo en los logs.
+  - Todo efecto nuevo en segundo plano se agrega a `API_SPEC.md` (sección 2.5).
+  - Los tests de integración esperan a los handlers con `DomainEventDispatcher.whenIdle()`.
+  - Corregido `DOMAIN_MODEL.md`: Shopping no reacciona a `OrderPlaced`; el checkout marca el carrito dentro de su transacción (ADR-0019).
+- **Revisar si:** los logs muestran fallos frecuentes de handlers, un efecto en segundo plano necesita garantía de entrega, o se ejecuta más de una instancia.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

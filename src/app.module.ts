@@ -11,6 +11,7 @@ import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
 import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
+import { EventsModule } from './platform/events/events.module.js';
 import { ProblemDetailsModule } from './platform/http/problem-details/problem-details.module.js';
 import { LoggingModule } from './platform/logging/logging.module.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
@@ -29,6 +30,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     ClsModule.forRoot({ global: true }),
     LoggingModule,
     PersistenceModule,
+    EventsModule,
     ClockModule,
     ProblemDetailsModule,
     IdentityAccessModule,
