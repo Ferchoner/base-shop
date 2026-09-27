@@ -7,7 +7,7 @@
 - Aplicar autorización explícita.
 - Hash seguro de contraseñas.
 - Proteger información sensible.
-- No exponer stack traces en producción.
+- No exponer stack traces ni mensajes internos en ninguna respuesta, en ningún entorno: solo van al log (ADR-0095).
 - Logging sin secretos ni datos sensibles innecesarios.
 - Aplicar rate limiting cuando corresponda.
 - Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas, y Dependabot propone actualizaciones semanales (ADR-0030).
@@ -18,6 +18,8 @@
 - Los recursos ajenos se responden como inexistentes (404), no como 403.
 - Email y código de orden de invitados viajan en el cuerpo, nunca en la URL.
 - Cuerpos con campos no declarados se rechazan (400).
+- Los errores de validación nunca repiten el valor rechazado, y la ruta de `instance` va sin la cadena de consulta (ADR-0095).
+- El identificador de correlación lo genera siempre el servidor; uno enviado por el cliente se ignora, para que no se pueda falsificar ni usar para inyectar texto en los logs (ADR-0095).
 - `Cache-Control: no-store` en respuestas autenticadas o con datos personales o tokens.
 - La contraseña temporal del staff se muestra una sola vez, en la respuesta de creación o de reactivación (ADR-0076).
 - Un staff con cambio de contraseña pendiente solo accede a su cuenta, al cambio de contraseña y al cierre de sesión.

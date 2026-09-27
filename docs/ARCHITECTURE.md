@@ -36,7 +36,7 @@ src/
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
-│   ├── http/                  CORS y encabezados de seguridad (T-100)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada e identificador de correlación (T-100, T-113)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y TransactionManager (T-111); sin NestJS
 └── modules/
@@ -154,7 +154,8 @@ Requisitos mínimos ya identificados:
 
 - Registrar cada fallo o interrupción de handlers de eventos (ADR-0014).
 - No registrar datos sensibles (ver `SECURITY.md`).
-- Identificador de correlación por solicitud HTTP en todos sus logs (ADR-0033).
+- Identificador de correlación por solicitud HTTP en todos sus logs (ADR-0033). Desde T-113 cada solicitud recibe uno generado por el servidor, guardado en el contexto de `nestjs-cls` y devuelto en `X-Correlation-Id` (ADR-0095); T-118 lo agrega a los logs.
+- Los errores inesperados se registran con su stack trace y el identificador de correlación; la respuesta solo lleva el identificador (ADR-0095).
 
 ## Configuración
 

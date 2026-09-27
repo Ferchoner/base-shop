@@ -11,6 +11,7 @@ import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
 import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
+import { ProblemDetailsModule } from './platform/http/problem-details/problem-details.module.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
 
 @Module({
@@ -22,10 +23,12 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate: validateEnvironment,
     }),
-    // Async context per operation (ADR-0033): holds the active transaction; the correlation id joins it in T-118.
+    // Async context per operation (ADR-0033): the active transaction and, for HTTP requests, the
+    // correlation id, set by the middleware that configureHttp mounts (ADR-0095).
     ClsModule.forRoot({ global: true }),
     PersistenceModule,
     ClockModule,
+    ProblemDetailsModule,
     IdentityAccessModule,
     CatalogModule,
     PricingModule,

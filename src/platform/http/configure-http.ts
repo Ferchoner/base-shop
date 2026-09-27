@@ -3,6 +3,8 @@ import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-option
 import { ConfigService } from '@nestjs/config';
 import helmet, { type HelmetOptions } from 'helmet';
 import type { EnvironmentVariables } from '../config/environment.js';
+import { rejectUnsupportedContentType } from './content-type.js';
+import { correlationIdMiddleware } from './correlation-id.js';
 
 /**
  * Security response headers (ADR-0086). Every helmet middleware is listed explicitly
@@ -48,6 +50,9 @@ export function buildCorsOptions(
 export function configureHttp(app: INestApplication): void {
   const config =
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+  // First, so every response, including body parser errors, carries X-Correlation-Id (ADR-0095).
+  app.use(correlationIdMiddleware());
+  app.use(rejectUnsupportedContentType);
   app.use(helmet(securityHeadersOptions));
   app.enableCors(
     buildCorsOptions(config.get('CORS_ALLOWED_ORIGINS', { infer: true })),
