@@ -155,7 +155,7 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 ## Impuestos
 
 - BR-TAX-01. Cada lista de precios indica si sus precios incluyen impuesto; por defecto, incluido (ADR-0008).
-- BR-TAX-02. El impuesto se calcula y redondea por línea.
+- BR-TAX-02. El impuesto se calcula y redondea por línea, al centavo y con las mitades hacia arriba (ADR-0094).
 - BR-TAX-03. El país de operación es México. Todos los productos llevan IVA del 16%; la tasa es configurable (ADR-0026, ADR-0027).
 - BR-TAX-04. Cada línea de orden guarda la tasa aplicada y el monto de impuesto como snapshot.
 - BR-TAX-05. No se emiten facturas electrónicas (CFDI) por ahora (ADR-0027).

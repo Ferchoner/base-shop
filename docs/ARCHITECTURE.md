@@ -34,6 +34,7 @@ src/
 ├── main.ts
 ├── app.module.ts              importa la plataforma y los módulos de contexto
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
+│   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
 │   ├── http/                  CORS y encabezados de seguridad (T-100)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
@@ -75,7 +76,7 @@ Capacidades transversales:
 
 - Auditoría técnica: tabla append-only alimentada desde la capa de aplicación, en la misma transacción que el cambio; los registros con más de 3 meses se exportan a archivos comprimidos (ADR-0037).
 - Notificaciones: módulo que reacciona a eventos, sin dominio propio.
-- Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event.
+- Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock` y `TransactionManager` (ADR-0094).
 
 ## Reglas de integración entre módulos
 
@@ -104,7 +105,8 @@ Ver ADR-0005.
 ## Eventos de dominio
 
 - Despacho en proceso después del commit, sin outbox (ADR-0014).
-- Handlers idempotentes.
+- Forma común en el shared kernel (`DomainEvent`): `eventId` (UUIDv7), `eventType` (el nombre de `DOMAIN_MODEL.md`) y `occurredAt`; cada evento agrega sus datos (ADR-0094).
+- Handlers idempotentes: usan `eventId` para ignorar un evento ya procesado.
 - Job de conciliación de pagos como red de seguridad.
 - Solo se emiten eventos con un consumidor real.
 
@@ -168,4 +170,4 @@ Lista de orígenes permitidos en `CORS_ALLOWED_ORIGINS`, vacía por defecto y si
 
 ## Reloj
 
-Las reglas dependientes del tiempo (precios programados, expiraciones) usan un puerto `Clock` inyectado para poder probarse.
+Las reglas dependientes del tiempo (precios programados, expiraciones) usan un puerto `Clock` inyectado para poder probarse. El puerto está en el shared kernel y su implementación, `SystemClock`, en `src/platform/clock/`; ningún código llama a `new Date()` para obtener la hora actual (ADR-0094).

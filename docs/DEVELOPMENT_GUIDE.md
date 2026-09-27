@@ -25,6 +25,14 @@ Definidas por el stack (ADR-0002, ADR-0003):
 - Interfaces de repositories en Domain; implementaciones en Infrastructure.
 - DTOs HTTP solo en Presentation.
 
+Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
+
+- **Dinero:** siempre `Money` (centavos enteros de 0 a 2,147,483,647, con moneda). El IVA contenido en un precio con IVA se calcula con `containedTax(tasaEnPuntosBase)`, una vez por línea.
+- **Identificadores:** cada contexto declara sus tipos (`type OrderId = Id<'Order'>`). Los nuevos se crean con `newId()` (UUIDv7) o, si funcionan como credencial, con `newCredentialId()` (UUIDv4); los que llegan de fuera se convierten con `toId()`.
+- **Errores de negocio:** una subclase de `DomainError` por error, con `code` igual al `type` de `API_SPEC.md` (sección 6.2) y una `category` (`invalid`, `forbidden`, `not-found` o `conflict`). `details` nunca lleva datos sensibles ni personales.
+- **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
+- **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
+
 Transacciones (ADR-0093):
 
 - Un caso de uso que escribe en más de un lugar delimita su transacción con `TransactionManager`, inyectado desde el shared kernel:
