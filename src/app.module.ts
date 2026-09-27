@@ -9,6 +9,7 @@ import { PricingModule } from './modules/pricing/index.js';
 import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
 import { validateEnvironment } from './platform/config/environment.js';
+import { PersistenceModule } from './platform/persistence/persistence.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { validateEnvironment } from './platform/config/environment.js';
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate: validateEnvironment,
     }),
+    PersistenceModule,
     IdentityAccessModule,
     CatalogModule,
     PricingModule,

@@ -1,0 +1,96 @@
+// Payments (DATABASE.md §9).
+
+enum PaymentProvider {
+  MANUAL
+  PAYPAL
+
+  @@map("payment_provider")
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+
+  @@map("refund_status")
+}
+
+model Payment {
+  id                String          @id @db.Uuid
+  /// Logical reference to Ordering; one payment per order (BR-PAY-01).
+  orderId           String          @unique @map("order_id") @db.Uuid
+  provider          PaymentProvider
+  status            PaymentStatus
+  amount            Int
+  capturedAmount    Int             @default(0) @map("captured_amount")
+  refundedAmount    Int             @default(0) @map("refunded_amount")
+  currency          String          @db.Char(3)
+  providerPaymentId String?         @map("provider_payment_id")
+  capturedAt        DateTime?       @map("captured_at") @db.Timestamptz(3)
+  version           Int             @default(1)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  attempts PaymentAttempt[]
+  refunds  Refund[]
+
+  @@unique([provider, providerPaymentId], map: "payments_provider_payment_id_key", where: raw("provider_payment_id IS NOT NULL"))
+  @@index([status, updatedAt])
+  @@map("payments")
+}
+
+model PaymentAttempt {
+  id                String        @id @db.Uuid
+  paymentId         String        @map("payment_id") @db.Uuid
+  status            PaymentStatus
+  providerReference String?       @map("provider_reference")
+  failureCode       String?       @map("failure_code")
+  /// Staff who registered a manual payment; no foreign key.
+  registeredBy      String?       @map("registered_by") @db.Uuid
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("payment_attempts")
+}
+
+model Refund {
+  id               String       @id @db.Uuid
+  paymentId        String       @map("payment_id") @db.Uuid
+  amount           Int
+  status           RefundStatus
+  providerRefundId String?      @map("provider_refund_id")
+  /// Staff who registered a manual refund; no foreign key.
+  registeredBy     String?      @map("registered_by") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt      DateTime?    @map("completed_at") @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  /// One refund in progress or completed per payment; failed ones stay as retry history (ADR-0051).
+  @@unique([paymentId], map: "refunds_one_active_per_payment", where: raw("status = ANY (ARRAY['PENDING'::refund_status, 'COMPLETED'::refund_status])"))
+  @@map("refunds")
+}
+
+model ProcessedWebhookEvent {
+  provider    PaymentProvider
+  eventId     String          @map("event_id")
+  processedAt DateTime        @default(now()) @map("processed_at") @db.Timestamptz(3)
+
+  @@id([provider, eventId])
+  @@map("processed_webhook_events")
+}

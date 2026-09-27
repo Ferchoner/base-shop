@@ -37,6 +37,11 @@ export class EnvironmentVariables {
   @Transform(({ value }: { value: unknown }) => parseCommaSeparatedList(value))
   @IsExactOrigin({ each: true })
   CORS_ALLOWED_ORIGINS: string[] = [];
+
+  /** PostgreSQL connection string used by Prisma (ADR-0091). */
+  @Expose()
+  @IsPostgresUrl()
+  DATABASE_URL: string;
 }
 
 /**
@@ -103,6 +108,39 @@ function IsExactOrigin(options?: ValidationOptions): PropertyDecorator {
         defaultMessage: buildMessage(
           (eachPrefix) =>
             `${eachPrefix}$property must list exact origins such as https://shop.example.com (http or https, lowercase host, optional port; no "*", path or trailing slash)`,
+          options,
+        ),
+      },
+    },
+    options,
+  );
+}
+
+/** A PostgreSQL connection string: postgres or postgresql scheme with a host. */
+export function isPostgresUrl(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'postgresql:' || url.protocol === 'postgres:') &&
+      url.hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+function IsPostgresUrl(options?: ValidationOptions): PropertyDecorator {
+  return ValidateBy(
+    {
+      name: 'isPostgresUrl',
+      validator: {
+        validate: isPostgresUrl,
+        defaultMessage: buildMessage(
+          () =>
+            '$property must be a PostgreSQL connection string such as postgresql://user:password@localhost:5432/database',
           options,
         ),
       },

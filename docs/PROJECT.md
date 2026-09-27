@@ -50,8 +50,8 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 | Gestor de paquetes | Definido | npm, con `package-lock.json` versionado | ADR-0025 |
 | Framework | Definido | NestJS | ADR-0002 |
 | Base de datos | Definido | PostgreSQL 18, una sola base de datos y un solo esquema | ADR-0002, ADR-0006, ADR-0025 |
-| ORM | Definido | Prisma. `@prisma/client` solo en Infrastructure | ADR-0002, ADR-0003 |
-| Migraciones | Definido | Prisma Migrate. Restricciones `CHECK` añadidas como SQL en las migraciones | ADR-0006, ADR-0033 |
+| ORM | Definido | Prisma 7 con el driver adapter de `pg`; esquema dividido por contexto en `prisma/schema/`. `@prisma/client` solo en Infrastructure | ADR-0002, ADR-0003, ADR-0091 |
+| Migraciones | Definido | Prisma Migrate. Restricciones `CHECK`, exclusión, índices de expresión y trigger añadidos como SQL en las migraciones | ADR-0006, ADR-0033, ADR-0091 |
 | API | Definido | REST versionada con prefijo `/v1`, documentada con Swagger/OpenAPI | ADR-0002, ADR-0034 |
 | Autenticación | Definido | Passport vía `@nestjs/passport`: estrategia local para login y JWT de corta duración en `Authorization: Bearer`; refresh token opaco de 7 días (configurable), rotado, guardado con hash y con detección de reutilización; Argon2id | ADR-0022, ADR-0023 |
 | Autorización | Definido | RBAC: roles editables, permisos definidos en código con granularidad contexto.acción | ADR-0017 |
@@ -59,7 +59,7 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 | Storage (imágenes) | Definido | Disco del servidor por ahora; CDN a futuro. Se guarda la clave de almacenamiento y la URL se construye al responder. Formatos JPEG, PNG y WebP; máximo 5 MB por imagen, configurable | ADR-0016, ADR-0024 |
 | Cache | Definido | `@nestjs/cache-manager` en memoria del proceso; solo lecturas públicas del catálogo; TTL de 120 s (configurable); invalidación por eventos de Catalog | ADR-0028 |
 | Colas / jobs | Definido parcialmente | Sin colas de mensajes; eventos en proceso sin outbox. Jobs con `@nestjs/schedule` en el proceso de la API: expiración cada minuto, conciliación de pagos cada 5 minutos, limpieza diaria a las 3:00 | ADR-0014, ADR-0029 |
-| Testing | Definido | Jest: unitarios (`npm test`), integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (`npm run test:e2e`); sin mocks de base de datos | ADR-0002, ADR-0033, ADR-0090 |
+| Testing | Definido | Jest: unitarios (`npm test`), integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (`npm run test:e2e`, también con Testcontainers); sin mocks de base de datos | ADR-0002, ADR-0033, ADR-0090, ADR-0091 |
 | Docker | Definido | `docker compose` para desarrollo local (PostgreSQL 18, Mailpit y la API en modo desarrollo); `Dockerfile` con etapas `development` y `production` | ADR-0002, ADR-0089 |
 | Lint y formato | Definido | oxlint para lint; Prettier para formato de código y configuración | ADR-0073, ADR-0084 |
 | Validación | Definido | class-validator y class-transformer para DTOs y configuración; `@nestjs/config` para las variables de entorno | ADR-0087 |

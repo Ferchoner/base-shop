@@ -9,5 +9,8 @@
   "transform": {
     "^.+\\.ts$": ["ts-jest", { "useESM": true }]
   },
-  "testEnvironment": "node"
+  "testEnvironment": "node",
+  "globalSetup": "<rootDir>/integration/global-setup.ts",
+  "globalTeardown": "<rootDir>/integration/global-teardown.ts",
+  "testTimeout": 30000
 }

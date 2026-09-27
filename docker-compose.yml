@@ -35,6 +35,8 @@ services:
       target: development
     env_file: .env
     environment:
+      # Inside the compose network the database host is the postgres service, not localhost.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       # File changes made on Windows or macOS are not always seen inside the container; poll instead.
       TSC_WATCHFILE: DynamicPriorityPolling
       TSC_WATCHDIRECTORY: DynamicPriorityPolling

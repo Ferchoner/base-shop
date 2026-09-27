@@ -84,6 +84,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-104: lint con `npm run lint` (oxlint) y formato con `npm run format` y `npm run format:check` (Prettier); su ejecución en la CI es parte de T-106
 - [x] T-102: `docker compose` con PostgreSQL 18, Mailpit y la API en modo desarrollo; `Dockerfile` con etapas `development` y `production` (ADR-0089)
 - [x] T-105: tests unitarios, de integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (ADR-0090)
+- [x] T-110: Prisma 7 con esquema dividido por contexto y primera migración con el modelo aprobado completo, aplicable desde cero y sin diferencias con el esquema (ADR-0091)
 
 ## In Progress
 
@@ -120,6 +121,7 @@ Ninguna pendiente.
 |---|---|---|
 | P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting | — |
 | P-69 | Validación con el contador del IVA del costo de envío (ADR-0079), antes de operar con clientes reales | — |
+| P-72 | Valores iniciales del costo fijo de envío y del monto mínimo para envío gratis (ADR-0042), necesarios para los datos iniciales del método de envío | T-196 |
 
 ### Arquitectura, datos y seguridad
 

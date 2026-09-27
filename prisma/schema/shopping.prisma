@@ -1,0 +1,45 @@
+// Shopping (DATABASE.md §7).
+
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+  MERGED
+
+  @@map("cart_status")
+}
+
+model Cart {
+  /// UUIDv4: the id is the credential of a guest cart (ADR-0059).
+  id               String     @id @db.Uuid
+  /// Logical reference to Identity; null means a guest cart.
+  ownerUserId      String?    @map("owner_user_id") @db.Uuid
+  status           CartStatus
+  mergedIntoCartId String?    @map("merged_into_cart_id") @db.Uuid
+  lastActivityAt   DateTime   @map("last_activity_at") @db.Timestamptz(3)
+  version          Int        @default(1)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Deleting a cart (anonymization) also deletes the guest carts merged into it, which are read-only leftovers.
+  mergedInto  Cart?      @relation("CartMerges", fields: [mergedIntoCartId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  mergedCarts Cart[]     @relation("CartMerges")
+  lines       CartLine[]
+
+  @@unique([ownerUserId], map: "carts_one_active_per_owner", where: raw("status = 'ACTIVE'::cart_status AND owner_user_id IS NOT NULL"))
+  @@index([lastActivityAt], map: "carts_guest_last_activity_idx", where: raw("owner_user_id IS NULL"))
+  @@map("carts")
+}
+
+model CartLine {
+  cartId    String   @map("cart_id") @db.Uuid
+  /// Logical reference to Catalog; one line per variant (BR-CRT-01).
+  variantId String   @map("variant_id") @db.Uuid
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([cartId, variantId])
+  @@map("cart_lines")
+}

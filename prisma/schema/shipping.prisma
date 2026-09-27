@@ -1,0 +1,68 @@
+// Shipping (DATABASE.md §10).
+
+enum ShipmentStatus {
+  PENDING
+  DISPATCHED
+  DELIVERED
+  DELIVERY_FAILED
+  RETURNED
+
+  @@map("shipment_status")
+}
+
+model ShippingMethod {
+  id                      String   @id @db.Uuid
+  name                    String
+  /// Cents, VAT included (ADR-0042, ADR-0079).
+  flatFee                 Int      @map("flat_fee")
+  freeShippingThreshold   Int?     @map("free_shipping_threshold")
+  /// Estimated delivery time in business days after payment (ADR-0083).
+  deliveryMinBusinessDays Int      @map("delivery_min_business_days")
+  deliveryMaxBusinessDays Int      @map("delivery_max_business_days")
+  isActive                Boolean  @map("is_active")
+  version                 Int      @default(1)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([isActive], map: "shipping_methods_single_active", where: raw("is_active"))
+  @@map("shipping_methods")
+}
+
+model Shipment {
+  id             String         @id @db.Uuid
+  /// Logical reference to Ordering; unique while partial shipments are out of scope (ADR-0018).
+  orderId        String         @unique @map("order_id") @db.Uuid
+  /// Logical reference to Inventory.
+  warehouseId    String         @map("warehouse_id") @db.Uuid
+  status         ShipmentStatus
+  destination    Json           @db.JsonB
+  anonymizedAt   DateTime?      @map("anonymized_at") @db.Timestamptz(3)
+  carrierName    String?        @map("carrier_name")
+  trackingNumber String?        @map("tracking_number")
+  /// Delivered by the store itself, without carrier or tracking number (ADR-0078).
+  ownDelivery    Boolean        @default(false) @map("own_delivery")
+  dispatchedAt   DateTime?      @map("dispatched_at") @db.Timestamptz(3)
+  deliveredAt    DateTime?      @map("delivered_at") @db.Timestamptz(3)
+  failedAt       DateTime?      @map("failed_at") @db.Timestamptz(3)
+  returnedAt     DateTime?      @map("returned_at") @db.Timestamptz(3)
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  items ShipmentItem[]
+
+  @@index([status, createdAt])
+  @@map("shipments")
+}
+
+model ShipmentItem {
+  shipmentId  String @map("shipment_id") @db.Uuid
+  /// Logical reference to Ordering.
+  orderLineId String @map("order_line_id") @db.Uuid
+  quantity    Int
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([shipmentId, orderLineId])
+  @@map("shipment_items")
+}

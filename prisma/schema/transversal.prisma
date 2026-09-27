@@ -1,0 +1,99 @@
+// Cross-cutting tables: technical audit, idempotency and the INEGI geographic catalog (DATABASE.md §11).
+
+enum ActorType {
+  USER
+  SYSTEM
+  ANONYMOUS
+
+  @@map("actor_type")
+}
+
+enum AuditResult {
+  SUCCESS
+  DENIED
+  FAILED
+
+  @@map("audit_result")
+}
+
+enum IdempotencyScope {
+  USER
+  CART
+
+  @@map("idempotency_scope")
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("idempotency_status")
+}
+
+/// Append-only; a trigger rejects UPDATE and only the retention job deletes rows (ADR-0037).
+model AuditLog {
+  id            String      @id @db.Uuid
+  occurredAt    DateTime    @map("occurred_at") @db.Timestamptz(3)
+  actorType     ActorType   @map("actor_type")
+  actorId       String?     @map("actor_id") @db.Uuid
+  /// Stable action code, for example orders.cancel.
+  action        String
+  resourceType  String?     @map("resource_type")
+  resourceId    String?     @map("resource_id")
+  result        AuditResult
+  correlationId String?     @map("correlation_id")
+  ip            String?     @db.Inet
+  userAgent     String?     @map("user_agent")
+  /// Changed fields only; never sensitive or personal values (ADR-0037, ADR-0067).
+  changes       Json?       @db.JsonB
+
+  @@index([occurredAt, id])
+  @@index([resourceType, resourceId])
+  @@index([actorId, occurredAt])
+  @@map("audit_logs")
+}
+
+model IdempotencyKey {
+  scopeType      IdempotencyScope  @map("scope_type")
+  scopeId        String            @map("scope_id") @db.Uuid
+  endpoint       String
+  key            String
+  /// Fingerprint of the request body (ADR-0063).
+  requestHash    String            @map("request_hash")
+  status         IdempotencyStatus
+  responseStatus Int?              @map("response_status")
+  responseBody   Json?             @map("response_body") @db.JsonB
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime          @map("expires_at") @db.Timestamptz(3)
+
+  @@id([scopeType, scopeId, endpoint, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+/// INEGI states, loaded by a script and never deleted (ADR-0057).
+model GeoState {
+  code      String   @id @db.Char(2)
+  name      String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  municipalities GeoMunicipality[]
+  addresses      CustomerAddress[]
+
+  @@map("geo_states")
+}
+
+/// INEGI municipalities; retired ones are marked inactive, never deleted (ADR-0057).
+model GeoMunicipality {
+  code      String   @id @db.Char(5)
+  stateCode String   @map("state_code") @db.Char(2)
+  name      String
+  isActive  Boolean  @map("is_active")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  state     GeoState          @relation(fields: [stateCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+  addresses CustomerAddress[]
+
+  @@index([stateCode, name])
+  @@map("geo_municipalities")
+}

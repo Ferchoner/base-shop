@@ -1,0 +1,56 @@
+// Pricing (DATABASE.md §5).
+
+model PriceList {
+  id            String        @id @db.Uuid
+  code          String        @unique
+  name          String
+  currency      String        @db.Char(3)
+  priority      Int
+  isDefault     Boolean       @map("is_default")
+  taxesIncluded Boolean       @default(true) @map("taxes_included")
+  status        CatalogStatus
+  version       Int           @default(1)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  variantPrices VariantPrice[]
+
+  @@unique([isDefault], map: "price_lists_single_default", where: raw("is_default"))
+  @@unique([priority], map: "price_lists_active_priority", where: raw("status = 'ACTIVE'::catalog_status"))
+  @@map("price_lists")
+}
+
+model VariantPrice {
+  id          String   @id @db.Uuid
+  priceListId String   @map("price_list_id") @db.Uuid
+  /// Logical reference to Catalog; no foreign key (ADR-0005).
+  variantId   String   @map("variant_id") @db.Uuid
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  priceList PriceList     @relation(fields: [priceListId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  periods   PricePeriod[]
+
+  @@unique([priceListId, variantId])
+  @@index([variantId])
+  @@map("variant_prices")
+}
+
+model PricePeriod {
+  id              String    @id @db.Uuid
+  variantPriceId  String    @map("variant_price_id") @db.Uuid
+  /// Cents; tax treatment follows the price list (ADR-0008).
+  amount          Int
+  compareAtAmount Int?      @map("compare_at_amount")
+  effectiveFrom   DateTime  @map("effective_from") @db.Timestamptz(3)
+  effectiveTo     DateTime? @map("effective_to") @db.Timestamptz(3)
+  /// Staff who created the period; no foreign key.
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  variantPrice VariantPrice @relation(fields: [variantPriceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([variantPriceId, effectiveFrom])
+  @@map("price_periods")
+}

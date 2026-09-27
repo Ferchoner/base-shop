@@ -6,5 +6,6 @@ prompts/
 
 # Generated files
 dist/
+src/platform/persistence/prisma/generated/
 coverage/
 package-lock.json

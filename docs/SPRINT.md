@@ -27,7 +27,8 @@ Detalle y criterios de aceptación en `docs/TASKS.md`, sección "Fundaciones té
 ## Risks
 
 - Limitaciones de Prisma (sin seguimiento de cambios, sin `SELECT … FOR UPDATE` ni `CHECK` en el esquema) que aumentan el trabajo de los repositorios (T-110, T-111).
-- Los objetos creados con SQL manual en las migraciones (`CHECK`, índices parciales, exclusión, trigger) pueden aparecer como diferencias en la verificación de migraciones de la CI (`DATABASE.md`, sección 13; T-110, T-106).
+- Resuelto en T-110: los objetos creados con SQL manual en las migraciones (`CHECK`, exclusión, índices de expresión, trigger) no aparecen como diferencias en la verificación de migraciones (`DATABASE.md`, sección 13; ADR-0091).
+- La función `partialIndexes` de Prisma, usada para los índices únicos parciales, está en vista previa y puede cambiar al actualizar Prisma (ADR-0091).
 - Eventos sin outbox (ADR-0014): riesgo aceptado, depende de la conciliación y de handlers idempotentes (T-116).
 - Jest corre en modo ESM con `--experimental-vm-modules`, una función experimental de Node.js (T-105).
 - T-107 requiere permisos de administrador del repositorio en GitHub.

@@ -108,6 +108,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0088 | Estructura de carpetas y convenciones de nombres | Aceptada |
 | ADR-0089 | Uso de Docker: desarrollo local e imagen de producción | Aceptada |
 | ADR-0090 | Base de datos de los tests de integración con Testcontainers | Aceptada |
+| ADR-0091 | Prisma: configuración, esquema por contexto y primera migración | Aceptada |
 
 ---
 
@@ -1292,10 +1293,10 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Tokens de un solo uso** (verificación, recuperación, refresh) guardados solo como hash.
 - **Alternativas consideradas:** IDs `bigint` secuenciales (exponen volumen y son adivinables); `bigint` o `numeric` para dinero (`integer` basta para una tienda y evita conversiones de `BigInt` en JavaScript); texto con `CHECK` en lugar de `enum`; columnas planas en lugar de `jsonb` para los snapshots.
 - **Consecuencias:**
-  - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias.
+  - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias. Comprobado en T-110: Prisma no los detecta (ADR-0091).
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`). Implementada en T-110 con los detalles de ADR-0091 (`order_number` como `BIGSERIAL`, forma del índice de almacén activo y borrado de carritos fusionados).
 
 ---
 
@@ -1826,8 +1827,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **`node_modules` del contenedor** en un volumen anónimo, separado del `node_modules` del equipo, para que `docker compose up --build -V` lo regenere tras cambiar dependencias.
 - **Alternativas consideradas:** `Dockerfile` solo de desarrollo (la CI necesitaría otro después); la API solo en el equipo (no cumple T-102); imágenes Alpine (musl puede dar problemas con módulos nativos); `node_modules` en un volumen con nombre (no se actualiza al cambiar dependencias).
 - **Consecuencias:**
-  - T-106 construye la etapa `production`; hoy pesa unos 400 MB y se puede reducir más adelante.
-  - La API todavía no usa PostgreSQL ni Mailpit: `DATABASE_URL` llega con T-110 y la configuración SMTP con T-122.
+  - T-106 construye la etapa `production`; pesaba unos 400 MB y con el cliente de Prisma pesa unos 510 MB (ADR-0091). Se puede reducir más adelante.
+  - La API todavía no usa Mailpit: la configuración SMTP llega con T-122. PostgreSQL se usa desde T-110 (`DATABASE_URL`, ADR-0091).
   - `docker compose down -v` borra los datos locales de PostgreSQL.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
 
@@ -1839,21 +1840,69 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Contexto:** T-105. ADR-0033 exige tests de integración contra PostgreSQL 18 real en Docker, localmente y en la CI, sin mocks de base de datos. Faltaba decidir de dónde sale esa base: un contenedor temporal por ejecución o una base de pruebas dentro del PostgreSQL de Docker Compose (ADR-0089).
 - **Decisión:**
   - Los tests de integración levantan un contenedor `postgres:18` temporal con Testcontainers (`@testcontainers/postgresql`) al iniciar la ejecución, y lo destruyen al terminar. La URL de conexión se expone en `DATABASE_URL`.
-  - Cada ejecución empieza con una base vacía. Cuando exista el esquema (T-110), las migraciones se aplican al inicio y cada archivo de test limpia sus tablas.
+  - Cada ejecución empieza con una base vacía. Cuando exista el esquema (T-110), las migraciones se aplican al inicio y cada archivo de test limpia sus tablas. Desde T-110 (ADR-0091), el inicio aplica todas las migraciones y cada test deja la base como la encontró (por ejemplo, dentro de una transacción que se revierte).
   - **Tres tipos de test**, con su propio comando:
 
     | Tipo | Archivos | Comando | Docker |
     |---|---|---|---|
     | Unitarios | `*.spec.ts`, junto al código | `npm test` | No |
     | Integración | `*.int-spec.ts`, junto al código de `infrastructure` (la infraestructura común vive en `test/integration/`) | `npm run test:int` | Sí |
-    | End-to-end | `test/*.e2e-spec.ts` | `npm run test:e2e` | No, por ahora |
+    | End-to-end | `test/*.e2e-spec.ts` | `npm run test:e2e` | Sí, desde T-110 (ADR-0091) |
 
   - Los tests de integración corren en serie (`--runInBand`), porque comparten una base; así también quedan controladas las pruebas de concurrencia (ADR-0011).
   - Driver `pg` para las conexiones directas de los tests.
 - **Alternativas consideradas:** Una base `_test` en el PostgreSQL de Docker Compose (hay que crearla y mantener la URL en cada equipo, los datos persisten entre ejecuciones y la CI necesita otra configuración); servicio de PostgreSQL en GitHub Actions (configuración distinta de la local).
 - **Consecuencias:**
-  - `npm run test:int` necesita Docker en marcha; si no lo está, falla con un mensaje que lo indica. `npm test` no necesita Docker.
+  - `npm run test:int` necesita Docker en marcha; si no lo está, falla con un mensaje que lo indica. `npm test` no necesita Docker. Desde T-110, `npm run test:e2e` también necesita Docker: la aplicación completa requiere una base (ADR-0091).
   - Cambia el criterio de T-106: los runners de GitHub Actions ya traen Docker, así que la CI no declara un servicio de PostgreSQL.
   - Levantar el contenedor suma unos segundos a cada ejecución de integración.
 - **Revisar si:** los tests de integración se vuelven lentos (base por worker o por archivo) o la CI no puede ejecutar Docker.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). Modificada por ADR-0091 (los tests end-to-end también usan Testcontainers).
+
+---
+
+## ADR-0091 — Prisma: configuración, esquema por contexto y primera migración
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-110. ADR-0033 eligió Prisma Migrate y ADR-0066 aprobó el modelo de datos (`DATABASE.md`), que incluye objetos que el esquema de Prisma no expresa. `DATABASE.md` (sección 13) dejaba como riesgo que Prisma detectara esos objetos como diferencias e intentara borrarlos. Faltaban la versión de Prisma, la organización de archivos, la conexión de la aplicación y la forma de probar las migraciones.
+- **Decisión:**
+  - **Versión:** Prisma 7.10 (`prisma`, `@prisma/client` y `@prisma/adapter-pg`), limitado a la versión mayor 7 (`^7.10.0`). La versión 8 todavía es candidata y se evaluará cuando sea estable. La aplicación se conecta con el driver adapter `@prisma/adapter-pg`, sobre el driver `pg`, como requiere Prisma 7.
+  - **Archivos:**
+    - `prisma.config.ts`: ubicación del esquema y de las migraciones, y URL de la base (`DATABASE_URL`). Prisma 7 no lee `.env`; este archivo lo carga para usar el CLI en local, sin sobrescribir las variables que ya tenga el proceso (CI, tests).
+    - `prisma/schema/`: `schema.prisma` (generador, datasource y el enum compartido `catalog_status`), un archivo por contexto (`identity-access`, `catalog`, `pricing`, `inventory`, `shopping`, `ordering`, `payments`, `shipping`) y `transversal.prisma` (auditoría, idempotencia y catálogo geográfico).
+    - `prisma/migrations/`: migraciones versionadas.
+    - Cliente generado (generador `prisma-client`, ESM) en `src/platform/persistence/prisma/generated/`. No se versiona; se genera al instalar dependencias (`postinstall`) o con `npm run db:generate`.
+    - `PrismaService` y `PersistenceModule` (global) en `src/platform/persistence/`. Solo los usa la infraestructura (ADR-0003); la verificación automática llega con T-103.
+  - **Índices parciales en el esquema**, con la función en vista previa `partialIndexes`, para que Prisma los conozca. El índice GIN de búsqueda (`products.search_vector`) también está en el esquema.
+  - **SQL manual en la migración**, solo para lo que el esquema no expresa: extensiones `unaccent` y `btree_gist` (al inicio), 57 restricciones `CHECK`, la restricción de exclusión de `price_periods`, los índices únicos de expresión sobre `lower(name)` de marcas y categorías, y el trigger que impide modificar `audit_logs` (al final).
+  - **Riesgo de `DATABASE.md` validado:** `prisma migrate diff` entre la base migrada y el esquema responde "No difference detected". Prisma no detecta los objetos manuales como diferencias ni intenta borrarlos. Lo comprueban un test de integración y el script `npm run db:diff`.
+  - **Primera migración `20260927000000_init`:** el modelo aprobado completo (38 tablas y 18 enums), con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083.
+  - **Detalles derivados del modelo:**
+    - `orders.order_number` es `BIGSERIAL` (`@default(autoincrement())`): Prisma crea y conoce la secuencia. La secuencia manual `order_number_seq` aparecía como diferencia en cada verificación. El comportamiento es el mismo: consecutivo, sin reutilizar números (ADR-0049).
+    - El índice único de almacén activo es `(status) WHERE status = 'ACTIVE'` en lugar de `((true)) WHERE …`: el efecto es el mismo (a lo sumo un almacén activo, ADR-0081) y se puede expresar en el esquema.
+    - `carts.merged_into_cart_id` con `ON DELETE CASCADE`: al borrar un carrito se borran los carritos fusionados en él, que ya no tienen uso. Con `SET NULL` se violaría el `CHECK` del estado `MERGED`, y con `RESTRICT` la limpieza de carritos quedaría bloqueada.
+  - **Configuración:** `DATABASE_URL` es obligatoria; la API no arranca sin ella ni con una URL que no sea de PostgreSQL, y el error no muestra el valor (ADR-0087). En Docker Compose, el contenedor de la API recibe su propia URL con host `postgres`.
+  - **Arranque:** `PrismaService` ejecuta `SELECT 1` al iniciar, con 5 segundos de espera de conexión, así que la API no arranca si la base no responde. Con el driver adapter, `$connect()` no abre ninguna conexión.
+  - **Scripts:** `db:generate`, `db:migrate:dev` (crear migraciones en desarrollo), `db:migrate:deploy` (aplicar las pendientes) y `db:diff` (verificar que base y esquema coinciden).
+  - **Tests:** el inicio de los tests de integración y end-to-end aplica todas las migraciones con `prisma migrate deploy` al contenedor de Testcontainers. Los end-to-end también usan Testcontainers, porque la aplicación completa necesita una base (modifica ADR-0090).
+  - **Imagen de producción sin el CLI de Prisma:** `prisma` es dependencia opcional de `@prisma/client`, así que `npm prune` omite también las dependencias opcionales. Ninguna dependencia de ejecución es opcional; la única, `pg-cloudflare`, es para Cloudflare Workers. La imagen pasa de unos 400 MB a unos 510 MB por el cliente de Prisma y el driver; con el CLI pesaría unos 880 MB.
+  - **Dependencias vulnerables del CLI:** `overrides` de npm para `deepmerge-ts` y `mysql2`, dependencias transitivas del CLI de Prisma con vulnerabilidades altas. Con ellos, `npm audit` queda sin vulnerabilidades. Se quitan cuando Prisma actualice sus dependencias.
+  - **Sin datos iniciales (seed) en T-110:** cada tarea crea los suyos: roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196.
+- **Alternativas consideradas:**
+  - Prisma 8: todavía no es estable.
+  - Un solo archivo `schema.prisma`: con 38 tablas es difícil de revisar, y el modelo está organizado por contexto (ADR-0006).
+  - Índices parciales como SQL manual: sin la función `partialIndexes`, Prisma no puede representarlos en el esquema y los compararía como índices distintos.
+  - Secuencia manual `order_number_seq`: aparece como diferencia en cada verificación.
+  - Conectar solo con `$connect()`: la API arrancaba sin base y fallaba en la primera petición.
+  - Tests end-to-end sin base: la aplicación completa no arranca sin PostgreSQL.
+  - CLI de Prisma en la imagen de producción: suma unos 370 MB; cómo se aplican las migraciones al desplegar se decide con P-05.
+- **Consecuencias:**
+  - Los objetos manuales se mantienen a mano: cambiarlos o quitarlos requiere SQL en una migración nueva, porque Prisma no lo genera. El flujo está en `DEVELOPMENT_GUIDE.md`.
+  - `partialIndexes` está en vista previa y puede cambiar entre versiones menores; hay que revisarlo al actualizar Prisma.
+  - Instalar dependencias necesita el esquema (`postinstall`). Una instalación solo de producción (`--omit=dev`) debe usar `--ignore-scripts`, porque no incluye el CLI.
+  - `npm run test:e2e` necesita Docker en marcha.
+  - La imagen de producción no puede aplicar migraciones; se resuelve con P-05 (T-330).
+  - La base local de Docker Compose se migra con `npm run db:migrate:deploy` cada vez que llegan migraciones nuevas.
+  - T-106 puede usar `npm run db:diff` en el paso de verificación de migraciones (ADR-0030).
+  - Queda pendiente P-72: los valores iniciales del costo fijo de envío y del monto mínimo para envío gratis, necesarios para el método de envío de T-196.
+- **Estado:** Aceptada (plan de T-110 aprobado el 2026-09-27; los detalles derivados del modelo se revisan en el pull request).
