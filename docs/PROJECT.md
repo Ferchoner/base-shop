@@ -88,7 +88,7 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 - Una orden genera un solo envío (sin envíos parciales en el MVP).
 - Se surte desde un solo almacén.
 - Envíos manuales: sin integración con paqueterías; el administrador captura paquetería y guía, o marca el envío como entrega propia de la tienda, y actualiza el estado (ADR-0041, ADR-0078).
-- Costo de envío: fijo por orden, con IVA incluido, gratis cuando el subtotal con IVA alcanza un monto mínimo; ambos configurables (ADR-0042, ADR-0079).
+- Costo de envío: fijo por orden, con IVA incluido, gratis cuando el subtotal con IVA alcanza un monto mínimo; ambos configurables, con valores iniciales provisionales de $99.00 y $1,500.00 (ADR-0042, ADR-0079, ADR-0092).
 - Plazo de entrega: estimado, en días hábiles desde la confirmación del pago; configurable, con valor inicial de 3 a 7 días (ADR-0083).
 
 ## 8. Estado

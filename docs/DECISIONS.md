@@ -109,6 +109,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0089 | Uso de Docker: desarrollo local e imagen de producción | Aceptada |
 | ADR-0090 | Base de datos de los tests de integración con Testcontainers | Aceptada |
 | ADR-0091 | Prisma: configuración, esquema por contexto y primera migración | Aceptada |
+| ADR-0092 | Valores iniciales del método de envío | Aceptada |
 
 ---
 
@@ -822,7 +823,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - No se usan peso, dimensiones ni zona del destino para calcular el costo.
   - Un cambio de tarifa no afecta a órdenes ya colocadas.
   - Si se requiere cobrar según zona o peso, se amplía `ShippingRateCalculator` sin cambiar el contrato del checkout.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Valores iniciales en ADR-0092.
 
 ---
 
@@ -1904,5 +1905,29 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La imagen de producción no puede aplicar migraciones; se resuelve con P-05 (T-330).
   - La base local de Docker Compose se migra con `npm run db:migrate:deploy` cada vez que llegan migraciones nuevas.
   - T-106 puede usar `npm run db:diff` en el paso de verificación de migraciones (ADR-0030).
-  - Queda pendiente P-72: los valores iniciales del costo fijo de envío y del monto mínimo para envío gratis, necesarios para el método de envío de T-196.
+  - Queda pendiente P-72: los valores iniciales del costo fijo de envío y del monto mínimo para envío gratis, necesarios para el método de envío de T-196. Cerrada por ADR-0092.
 - **Estado:** Aceptada (plan de T-110 aprobado el 2026-09-27; los detalles derivados del modelo se revisan en el pull request).
+
+---
+
+## ADR-0092 — Valores iniciales del método de envío
+
+- **Fecha:** 2026-09-27
+- **Contexto:** Cierra P-72 (T-196). ADR-0042 define un costo fijo por orden y envío gratis a partir de un monto mínimo, ambos configurables por el administrador (ADR-0075), pero no sus valores. El único método de envío se crea con los datos iniciales (seed) de T-196 y necesita valores desde el primer arranque. Todavía no hay costos reales de paquetería (los envíos son manuales, ADR-0041) ni ticket promedio.
+- **Decisión:**
+  - Valores iniciales **provisionales** del método de envío:
+    - Nombre: "Envío Estándar". Solo lo ve el staff.
+    - Costo fijo: $99.00 (9900 centavos), con IVA incluido; el IVA contenido es $13.66 (ADR-0079).
+    - Umbral de envío gratis: $1,500.00 (150000 centavos), comparado con el subtotal con IVA menos el descuento (ADR-0079).
+    - Plazo de entrega estimado: 3 a 7 días hábiles (ADR-0083).
+    - Activo.
+  - Son los valores que ya usan los ejemplos de `API_SPEC.md` y de ADR-0079.
+  - Antes de operar con clientes reales, el administrador confirma o ajusta los valores con costos reales de paquetería y el ticket promedio. Se sigue junto con la validación fiscal del envío, en P-69.
+  - El seed crea el método solo si no existe: nunca sobrescribe los valores que configure el administrador con `PUT /v1/admin/shipping/method` (`shipping.configure`).
+- **Alternativas consideradas:** Sin envío gratis al inicio (nunca regala el envío por accidente, pero en desarrollo no se prueba el envío gratis sin configurarlo antes); valores definitivos desde ahora (no hay costos reales de paquetería ni ticket promedio); valores en variables de entorno (repite una configuración que ya existe en la API).
+- **Consecuencias:**
+  - T-196 deja de depender de P-72.
+  - Mientras nadie los cambie, la tienda cobra $99.00 por envío y lo da gratis desde $1,500.00. El umbral se muestra al cliente en la cotización (`freeShippingThreshold`); un cambio posterior solo afecta a cotizaciones y órdenes nuevas (ADR-0042).
+  - Los tests no dependen de estos valores: cada test crea sus propios datos.
+- **Revisar si:** se contrata una paquetería con tarifas conocidas, se conoce el ticket promedio o se habilitan promociones (ADR-0018).
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
