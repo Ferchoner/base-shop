@@ -37,6 +37,7 @@ src/
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado y Swagger (T-100, T-113, T-114)
+│   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y TransactionManager (T-111); sin NestJS
@@ -105,9 +106,13 @@ Ver ADR-0005.
 
 ## Eventos de dominio
 
-- Despacho en proceso después del commit, sin outbox (ADR-0014).
+- Despacho en proceso, **en segundo plano**, después del commit, sin outbox (ADR-0014, ADR-0098). La operación responde antes de que los handlers terminen; los efectos que se ven con demora están en `API_SPEC.md` (sección 2.5).
+- Application publica con el puerto `DomainEventPublisher` del shared kernel. Dentro de `TransactionManager.run`, los eventos esperan a que confirme la transacción más externa y se descartan si se revierte; fuera de una transacción salen de inmediato.
+- Handlers: adaptadores de entrada en la capa `infrastructure` del contexto que consume, marcados con `@OnDomainEvent('Evento')`; llaman a un caso de uso con su propia transacción. Los eventos que publiquen se despachan igual, así que las cadenas funcionan.
+- Los handlers de un evento corren uno tras otro, en orden de publicación. Un fallo se registra en el log y no detiene a los demás; no hay reintentos automáticos.
+- Al cerrar la aplicación se espera a los handlers en curso antes de desconectar la base.
 - Forma común en el shared kernel (`DomainEvent`): `eventId` (UUIDv7), `eventType` (el nombre de `DOMAIN_MODEL.md`) y `occurredAt`; cada evento agrega sus datos (ADR-0094).
-- Handlers idempotentes: usan `eventId` para ignorar un evento ya procesado.
+- Handlers idempotentes por el estado de su dominio: por ejemplo, marcar como pagada una orden que ya lo está no hace nada. `eventId` identifica el evento en los logs.
 - Job de conciliación de pagos como red de seguridad.
 - Solo se emiten eventos con un consumidor real.
 

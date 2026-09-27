@@ -33,6 +33,13 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Eventos de dominio (ADR-0098):
+
+- **Publicar:** el caso de uso inyecta `DomainEventPublisher` y llama a `publish(evento)` dentro de `transactions.run(...)`, así el evento sale solo si la transacción confirma. El tipo del evento se declara en el contexto que lo produce y se exporta desde su `index.ts`.
+- **Consumir:** un handler es un provider en `infrastructure` del contexto que consume, en un archivo `*.event-handler.ts`, con un método `@OnDomainEvent('NombreDelEvento')` que llama a un caso de uso de su contexto. Debe ser idempotente y no puede asumir el orden respecto de otras solicitudes.
+- Los handlers corren en segundo plano: quien publica no espera su resultado ni se entera de sus errores. Todo efecto nuevo que el cliente vea con demora se agrega a `API_SPEC.md` (sección 2.5).
+- En tests de integración, `DomainEventDispatcher.whenIdle()` espera a que terminen los handlers, incluidos los de eventos publicados por otros handlers.
+
 Logs (ADR-0097):
 
 - Cada clase registra con su propio logger: `private readonly logger = new Logger(NombreDeLaClase.name)`. Nunca `console.log`.

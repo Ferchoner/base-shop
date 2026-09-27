@@ -76,7 +76,7 @@ Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del 
 | Elemento | Detalle |
 |---|---|
 | Aggregates | `Cart` (ownerId opcional, líneas `CartLine`, status Active/CheckedOut/Merged) |
-| Eventos | Ninguno propio; reacciona a `OrderPlaced` y `OrderExpired` (ADR-0054) |
+| Eventos | Ninguno propio; reacciona a `OrderExpired` (ADR-0054). El carrito se marca dentro de la transacción del checkout, no por `OrderPlaced` (ADR-0019) |
 | Repositories | `CartRepository` |
 | Casos de uso | CreateCart, AddItem, ChangeQuantity, RemoveItem, MergeGuestCart, GetCartView, RestoreCartFromExpiredOrder (ADR-0054), CopyCancelledOrderToCart (ADR-0055) |
 | Exporta | Líneas del carrito (variantId, cantidad) |
@@ -129,7 +129,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Catalog → Pricing, Inventory, Shopping, Ordering, Shipping | variantId, snapshot de variante | Fachada síncrona; eventos `VariantDiscontinued`, `ProductArchived` |
 | Pricing → Shopping, Ordering | Precios cotizados | Fachada síncrona `QuotePrices` |
 | Ordering → Inventory | Reservar, confirmar, liberar | Comando síncrono en checkout; comandos por eventos |
-| Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; Shopping reacciona a `OrderPlaced` y `OrderExpired` |
+| Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; el checkout marca el carrito en su transacción (ADR-0019); Shopping reacciona a `OrderExpired` |
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051) |
 | Ordering → Shipping | Orden pagada | Evento `OrderPaid` |
 | Shipping → Ordering | Progreso del envío | Eventos `ShipmentDispatched`, `ShipmentDelivered` |
