@@ -85,6 +85,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-102: `docker compose` con PostgreSQL 18, Mailpit y la API en modo desarrollo; `Dockerfile` con etapas `development` y `production` (ADR-0089)
 - [x] T-105: tests unitarios, de integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (ADR-0090)
 - [x] T-110: Prisma 7 con esquema dividido por contexto y primera migración con el modelo aprobado completo, aplicable desde cero y sin diferencias con el esquema (ADR-0091)
+- [x] Valores iniciales provisionales del método de envío: "Envío Estándar", $99.00 y envío gratis desde $1,500.00 (ADR-0092)
 
 ## In Progress
 
@@ -120,8 +121,7 @@ Ninguna pendiente.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting | — |
-| P-69 | Validación con el contador del IVA del costo de envío (ADR-0079), antes de operar con clientes reales | — |
-| P-72 | Valores iniciales del costo fijo de envío y del monto mínimo para envío gratis (ADR-0042), necesarios para los datos iniciales del método de envío | T-196 |
+| P-69 | Antes de operar con clientes reales: validación con el contador del IVA del costo de envío (ADR-0079) y confirmación por el administrador de los valores de envío con costos reales de paquetería (ADR-0092) | — |
 
 ### Arquitectura, datos y seguridad
 
@@ -194,6 +194,7 @@ Ninguna pendiente.
 | P-70 | Formato de código, ramas y mensajes de commit | ADR-0084 |
 | P-67 | Un solo almacén en el MVP | ADR-0081 |
 | P-68 | Recompra del staff sin carrito original | ADR-0082 |
+| P-72 | Valores iniciales del método de envío | ADR-0092 |
 
 ## Notas
 

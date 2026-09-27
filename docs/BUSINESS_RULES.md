@@ -168,7 +168,7 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-03. Delivered es un estado terminal.
 - BR-SHP-04. Un envío se despacha por paquetería, con paquetería y número de guía, o como entrega propia de la tienda, marcada explícitamente y sin paquetería ni guía; la base de datos lo garantiza (ADR-0078).
 - BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending al pagarse la orden, y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
-- BR-SHP-06. El costo de envío es fijo por orden y es gratis cuando el subtotal con IVA menos el descuento alcanza un monto mínimo; ambos valores los configura el administrador (ADR-0042, ADR-0079).
+- BR-SHP-06. El costo de envío es fijo por orden y es gratis cuando el subtotal con IVA menos el descuento alcanza un monto mínimo; ambos valores los configura el administrador (ADR-0042, ADR-0079). Valores iniciales provisionales: costo fijo de $99.00 y envío gratis desde $1,500.00 (ADR-0092).
 - BR-SHP-07. El costo de envío se calcula al cotizar y queda como snapshot en la orden.
 - BR-SHP-08. El plazo de entrega se informa como estimado: un rango en días hábiles contado desde la confirmación del pago, configurable en el método de envío (valor inicial: 3 a 7). Se muestra en la cotización y en el correo de orden recibida, y queda como snapshot en la orden. Un retraso no dispara acciones automáticas, y en el MVP no hay plazo interno de despacho (ADR-0083).
 - BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053).
