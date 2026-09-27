@@ -1,0 +1,163 @@
+// Identity & Access (DATABASE.md §3).
+
+enum UserType {
+  CUSTOMER
+  STAFF
+
+  @@map("user_type")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  ANONYMIZED
+
+  @@map("user_status")
+}
+
+model User {
+  id                   String     @id @db.Uuid
+  type                 UserType
+  email                String?    @unique
+  firstNames           String?    @map("first_names")
+  lastNames            String?    @map("last_names")
+  passwordHash         String?    @map("password_hash")
+  status               UserStatus @default(ACTIVE)
+  emailVerifiedAt      DateTime?  @map("email_verified_at") @db.Timestamptz(3)
+  mustChangePassword   Boolean    @default(false) @map("must_change_password")
+  passwordChangedAt    DateTime?  @map("password_changed_at") @db.Timestamptz(3)
+  lastLoginAt          DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  suspendedAt          DateTime?  @map("suspended_at") @db.Timestamptz(3)
+  anonymizedAt         DateTime?  @map("anonymized_at") @db.Timestamptz(3)
+  privacyNoticeVersion String?    @map("privacy_notice_version")
+  version              Int        @default(1)
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  roles                   UserRole[]
+  addresses               CustomerAddress[]
+  refreshTokens           RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+
+  @@index([type, status])
+  @@map("users")
+}
+
+model Role {
+  id           String   @id @db.Uuid
+  name         String   @unique
+  description  String?
+  isSuperadmin Boolean  @default(false) @map("is_superadmin")
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  /// Staff who assigned the role; no foreign key, audit data only.
+  assignedBy String?  @map("assigned_by") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId         String @map("role_id") @db.Uuid
+  /// Validated against the permission catalog defined in code (ADR-0017).
+  permissionCode String @map("permission_code")
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([roleId, permissionCode])
+  @@map("role_permissions")
+}
+
+model CustomerAddress {
+  id               String   @id @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  recipientName    String   @map("recipient_name")
+  phone            String   @db.Char(10)
+  street           String
+  exteriorNumber   String   @map("exterior_number")
+  interiorNumber   String?  @map("interior_number")
+  neighborhood     String
+  postalCode       String   @map("postal_code") @db.Char(5)
+  stateCode        String   @map("state_code") @db.Char(2)
+  municipalityCode String   @map("municipality_code") @db.Char(5)
+  city             String?
+  references       String?
+  isDefault        Boolean  @default(false) @map("is_default")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // Reference data that is never deleted, the only foreign key allowed outside a context (ADR-0057).
+  state        GeoState        @relation(fields: [stateCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+  municipality GeoMunicipality @relation(fields: [municipalityCode], references: [code], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([userId], map: "customer_addresses_one_default_per_user", where: raw("is_default"))
+  @@index([userId])
+  @@map("customer_addresses")
+}
+
+model RefreshToken {
+  id           String    @id @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  sessionId    String    @map("session_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@map("refresh_tokens")
+}
+
+model EmailVerificationToken {
+  id            String    @id @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  /// Address the link was sent to.
+  email         String
+  tokenHash     String    @unique @map("token_hash")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(3)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id            String    @id @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(3)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}

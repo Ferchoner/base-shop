@@ -1,0 +1,118 @@
+// Inventory (DATABASE.md §6).
+
+enum StockMovementType {
+  RECEIPT
+  ADJUSTMENT
+  SALE
+  RESTOCK
+
+  @@map("stock_movement_type")
+}
+
+enum StockMovementReason {
+  PHYSICAL_COUNT
+  DAMAGED
+  LOSS_OR_THEFT
+  INTERNAL_USE
+  DATA_ENTRY_ERROR
+  OTHER
+  ORDER_CANCELLED
+  SHIPMENT_RETURNED
+
+  @@map("stock_movement_reason")
+}
+
+enum ReservationStatus {
+  ACTIVE
+  COMMITTED
+  RELEASED
+  EXPIRED
+
+  @@map("reservation_status")
+}
+
+model Warehouse {
+  id        String        @id @db.Uuid
+  code      String        @unique
+  name      String
+  /// Address in the ADR-0057 format.
+  address   Json?         @db.JsonB
+  status    CatalogStatus
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  stockItems StockItem[]
+
+  /// At most one active warehouse (ADR-0081).
+  @@unique([status], map: "warehouses_single_active", where: raw("status = 'ACTIVE'::catalog_status"))
+  @@map("warehouses")
+}
+
+model StockItem {
+  id          String   @id @db.Uuid
+  /// Logical reference to Catalog; no foreign key (ADR-0005).
+  variantId   String   @map("variant_id") @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  onHand      Int      @default(0) @map("on_hand")
+  reserved    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  movements        StockMovement[]
+  reservationLines ReservationLine[]
+
+  @@unique([variantId, warehouseId])
+  @@map("stock_items")
+}
+
+model StockMovement {
+  id          String               @id @db.Uuid
+  stockItemId String               @map("stock_item_id") @db.Uuid
+  type        StockMovementType
+  /// Signed quantity.
+  quantity    Int
+  onHandAfter Int                  @map("on_hand_after")
+  reasonCode  StockMovementReason? @map("reason_code")
+  note        String?
+  /// Logical references to Ordering (SALE, RESTOCK).
+  orderId     String?              @map("order_id") @db.Uuid
+  orderLineId String?              @map("order_line_id") @db.Uuid
+  actorId     String?              @map("actor_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([stockItemId, createdAt])
+  @@index([orderLineId], map: "stock_movements_restock_by_order_line_idx", where: raw("type = 'RESTOCK'::stock_movement_type"))
+  @@map("stock_movements")
+}
+
+model Reservation {
+  id        String            @id @db.Uuid
+  /// Logical reference to Ordering; no foreign key (ADR-0005).
+  orderId   String            @map("order_id") @db.Uuid
+  status    ReservationStatus
+  expiresAt DateTime          @map("expires_at") @db.Timestamptz(3)
+  version   Int               @default(1)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lines ReservationLine[]
+
+  @@unique([orderId], map: "reservations_one_active_per_order", where: raw("status = 'ACTIVE'::reservation_status"))
+  @@index([expiresAt], map: "reservations_active_expiry_idx", where: raw("status = 'ACTIVE'::reservation_status"))
+  @@map("reservations")
+}
+
+model ReservationLine {
+  reservationId String @map("reservation_id") @db.Uuid
+  stockItemId   String @map("stock_item_id") @db.Uuid
+  quantity      Int
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  stockItem   StockItem   @relation(fields: [stockItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([reservationId, stockItemId])
+  @@map("reservation_lines")
+}

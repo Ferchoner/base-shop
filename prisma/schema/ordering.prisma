@@ -1,0 +1,98 @@
+// Ordering (DATABASE.md §8).
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  AWAITING_MANUAL_FULFILLMENT
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  EXPIRED
+  REFUNDED
+
+  @@map("order_status")
+}
+
+model Order {
+  id                      String      @id @db.Uuid
+  /// Internal consecutive number from a database sequence, never shown to customers (ADR-0049).
+  orderNumber             BigInt      @unique @default(autoincrement()) @map("order_number")
+  /// Public random code, Base32 Crockford without the dash (ADR-0049).
+  publicCode              String      @unique @map("public_code") @db.Char(8)
+  /// Logical reference to Identity; null means a guest order.
+  customerId              String?     @map("customer_id") @db.Uuid
+  contactEmail            String?     @map("contact_email")
+  status                  OrderStatus
+  currency                String      @db.Char(3)
+  subtotal                Int
+  taxTotal                Int         @map("tax_total")
+  shippingCost            Int         @map("shipping_cost")
+  shippingTaxAmount       Int         @map("shipping_tax_amount")
+  shippingTaxRateBp       Int         @map("shipping_tax_rate_bp")
+  discountTotal           Int         @default(0) @map("discount_total")
+  grandTotal              Int         @map("grand_total")
+  shippingAddress         Json        @map("shipping_address") @db.JsonB
+  deliveryMinBusinessDays Int         @map("delivery_min_business_days")
+  deliveryMaxBusinessDays Int         @map("delivery_max_business_days")
+  /// Logical references to Inventory and Shopping.
+  reservationId           String?     @map("reservation_id") @db.Uuid
+  sourceCartId            String      @map("source_cart_id") @db.Uuid
+  privacyNoticeVersion    String?     @map("privacy_notice_version")
+  anonymizedAt            DateTime?   @map("anonymized_at") @db.Timestamptz(3)
+  placedAt                DateTime    @map("placed_at") @db.Timestamptz(3)
+  paidAt                  DateTime?   @map("paid_at") @db.Timestamptz(3)
+  shippedAt               DateTime?   @map("shipped_at") @db.Timestamptz(3)
+  deliveredAt             DateTime?   @map("delivered_at") @db.Timestamptz(3)
+  cancelledAt             DateTime?   @map("cancelled_at") @db.Timestamptz(3)
+  expiredAt               DateTime?   @map("expired_at") @db.Timestamptz(3)
+  refundedAt              DateTime?   @map("refunded_at") @db.Timestamptz(3)
+  version                 Int         @default(1)
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lines         OrderLine[]
+  statusHistory OrderStatusHistory[]
+
+  @@index([customerId, placedAt(sort: Desc)])
+  @@index([status, placedAt(sort: Desc)])
+  @@index([contactEmail])
+  @@map("orders")
+}
+
+model OrderLine {
+  id             String @id @db.Uuid
+  orderId        String @map("order_id") @db.Uuid
+  lineNumber     Int    @map("line_number")
+  /// Logical reference to Catalog; the rest of the line is a snapshot.
+  variantId      String @map("variant_id") @db.Uuid
+  sku            String
+  productName    String @map("product_name")
+  variantOptions Json   @map("variant_options") @db.JsonB
+  unitPrice      Int    @map("unit_price")
+  quantity       Int
+  taxRateBp      Int    @map("tax_rate_bp")
+  taxAmount      Int    @map("tax_amount")
+  lineTotal      Int    @map("line_total")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([orderId, lineNumber])
+  @@map("order_lines")
+}
+
+model OrderStatusHistory {
+  id         String       @id @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  /// Null on creation.
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus  @map("to_status")
+  /// Staff, customer or null for the system.
+  actorId    String?      @map("actor_id") @db.Uuid
+  reason     String?
+  occurredAt DateTime     @map("occurred_at") @db.Timestamptz(3)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([orderId, occurredAt])
+  @@map("order_status_history")
+}
