@@ -1236,3 +1236,7 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 ## OpenAPI
 
 Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Presentation; documenta cada endpoint de este documento, sus esquemas y sus `type` de error. Se expone solo en el entorno local (ADR-0031). Este documento es la especificación de referencia hasta que exista la implementación; después, la especificación generada debe coincidir con él.
+
+- Swagger UI en `/docs/v1` y el documento OpenAPI de `v1` en `/docs/v1/openapi.json`, fuera del prefijo `/v1`. Solo existen con `NODE_ENV=development` (ADR-0096).
+- Los errores de cada endpoint usan el esquema común `ProblemDetails`, cuyo `type` admite solo los tipos de la sección 6.2.
+- Autenticación declarada como `bearer` para las rutas `/v1/me` y `/v1/admin`.

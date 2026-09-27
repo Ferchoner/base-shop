@@ -89,6 +89,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-111: contexto transaccional con `nestjs-cls` y el adaptador oficial de Prisma; puerto `TransactionManager` para Application; rollback, anidamiento, concurrencia y límite de 5 s probados contra PostgreSQL real (ADR-0093)
 - [x] T-112: shared kernel con `Money` (incluido el IVA contenido con redondeo de mitades hacia arriba), identificadores UUIDv7 y UUIDv4 con marca de tipo, `DomainError` con cuatro categorías, forma de los domain events y puerto `Clock` (ADR-0094)
 - [x] T-113: errores como Problem Details con catálogo de 36 tipos en español, validación global de entrada con mensajes en español, identificador de correlación generado por el servidor en todas las respuestas, 415 para cuerpos que no son JSON ni multipart, y sin stack traces en ninguna respuesta (ADR-0095)
+- [x] T-114: rutas bajo `/v1` con el versionado por ruta de NestJS; Swagger UI y documento OpenAPI de `v1` en `/docs/v1` solo con `NODE_ENV=development`, con CSP propia; DTOs documentados por el plugin de Swagger; esquema `ProblemDetails` y decorador `@ApiProblemResponses` (ADR-0096)
 
 ## In Progress
 

@@ -1,8 +1,9 @@
-import type { INestApplication } from '@nestjs/common';
+import { type INestApplication, VersioningType } from '@nestjs/common';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface.js';
 import { ConfigService } from '@nestjs/config';
 import helmet, { type HelmetOptions } from 'helmet';
 import type { EnvironmentVariables } from '../config/environment.js';
+import { setupApiDocs } from './api-docs.js';
 import { rejectUnsupportedContentType } from './content-type.js';
 import { correlationIdMiddleware } from './correlation-id.js';
 
@@ -57,4 +58,10 @@ export function configureHttp(app: INestApplication): void {
   app.enableCors(
     buildCorsOptions(config.get('CORS_ALLOWED_ORIGINS', { infer: true })),
   );
+  // Every route lives under /v1; a future version is declared with @Version('2') (ADR-0034, ADR-0096).
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  // Swagger UI exists only in local development (ADR-0031, ADR-0096).
+  if (config.get('NODE_ENV', { infer: true }) === 'development') {
+    setupApiDocs(app);
+  }
 }

@@ -7,7 +7,13 @@
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
   "transform": {
-    "^.+\\.ts$": ["ts-jest", { "useESM": true }]
+    "^.+\\.ts$": [
+      "ts-jest",
+      {
+        "useESM": true,
+        "astTransformers": { "before": ["<rootDir>/swagger-plugin.cjs"] }
+      }
+    ]
   },
   "testEnvironment": "node",
   "globalSetup": "<rootDir>/integration/global-setup.ts",

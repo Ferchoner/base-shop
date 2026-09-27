@@ -113,6 +113,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0093 | Contexto transaccional con `nestjs-cls` | Aceptada |
 | ADR-0094 | Shared kernel: dinero, IVA contenido, identificadores, errores, eventos y reloj | Aceptada |
 | ADR-0095 | Respuestas de error, validación de entrada e identificador de correlación | Aceptada |
+| ADR-0096 | Versionado por ruta y documentación OpenAPI en local | Aceptada |
 
 ---
 
@@ -651,7 +652,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Dentro de `v1` solo se hacen cambios compatibles con clientes existentes (agregar campos o endpoints). Un cambio incompatible requiere una nueva versión.
   - La especificación OpenAPI se genera para `v1`.
   - Política para retirar versiones antiguas: se define cuando exista una segunda versión.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada con el versionado por ruta de NestJS (ADR-0096).
 
 ---
 
@@ -1784,7 +1785,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - DTOs: `ValidationPipe` de NestJS con rechazo de campos no declarados (se configura en T-113).
 - **Alternativas consideradas:** zod (esquemas con tipos inferidos, pero requiere adaptadores de terceros para NestJS y Swagger); Joi (sin tipos de TypeScript, y habría que usar otra librería para los DTOs).
 - **Consecuencias:**
-  - El plugin de Swagger de NestJS puede leer los decoradores de los DTOs (T-114).
+  - El plugin de Swagger de NestJS puede leer los decoradores de los DTOs (T-114). Se usa desde T-114 (ADR-0096).
   - Domain no depende de estas librerías: los DTOs y la configuración viven fuera del dominio (ADR-0003).
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
 
@@ -2035,4 +2036,31 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un tipo de error nuevo se agrega a la vez al catálogo y a `API_SPEC.md`.
   - El identificador de correlación y el rechazo por tipo de contenido se montan en `configureHttp`; una aplicación de test que no lo llame no los tiene, y el filtro genera un identificador para la respuesta de error.
   - `API_SPEC.md` actualiza el ejemplo de `errors[].code`, `instance` sin la cadena de consulta y el origen de `X-Correlation-Id`.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0096 — Versionado por ruta y documentación OpenAPI en local
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-114. ADR-0034 fijó el prefijo `/v1` en todas las rutas y la especificación OpenAPI de `v1`; ADR-0031 limita Swagger al entorno local; ADR-0086 pidió una CSP más permisiva solo en la ruta de Swagger UI; ADR-0087 anticipó el plugin de Swagger para los DTOs, y `API_SPEC.md` pide documentar los `type` de error de cada endpoint.
+- **Decisión:**
+  - **Versionado por ruta de NestJS** con versión por defecto `1`, activado en `configureHttp`: todos los controladores quedan bajo `/v1` sin declararlo, y una versión futura convive declarando `@Version('2')` en el controlador o la ruta.
+  - **Swagger solo con `NODE_ENV=development`**, sin variable propia, para que en producción no pueda activarse por error:
+    - Swagger UI en `/docs/v1` y el documento OpenAPI en `/docs/v1/openapi.json`, fuera del prefijo de la API. Una futura `v2` tendría `/docs/v2`.
+    - El documento declara el título, la versión `1` y la autenticación `bearer`.
+  - **CSP propia de Swagger UI**, solo bajo `/docs/v1` (ADR-0086): scripts, estilos, imágenes, fuentes y conexiones del mismo origen, estilos en línea (Swagger UI los aplica), imágenes y fuentes `data:`, y `frame-ancestors 'none'`. El resto de la API conserva `default-src 'none'`. Verificado en el navegador: Swagger UI carga sin errores de CSP.
+  - **Plugin de Swagger** (`@nestjs/swagger`, con `classValidatorShim` e `introspectComments`) en `nest build` y en los tests end-to-end (`test/swagger-plugin.cjs`): documenta los DTOs de los archivos `*.dto.ts` a partir de sus tipos, sus reglas de class-validator y sus comentarios. Genera `import` en lugar de `require`, compatible con ESM.
+  - **Comentarios de las propiedades de los DTOs en español:** se publican como descripciones en OpenAPI, como `API_SPEC.md`. El resto de los comentarios del código sigue en inglés.
+  - **Errores en OpenAPI:** esquema común `ProblemDetails` (con `FieldError`) cuyo `type` admite solo los tipos del catálogo de ADR-0095, y decorador `@ApiProblemResponses(...códigos)` que agrupa por estado HTTP los errores del endpoint más los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`).
+- **Alternativas consideradas:**
+  - Prefijo global `/v1`: obligaría a reorganizar rutas al llegar `v2`.
+  - Variable propia para activar Swagger: más flexible, pero puede quedar encendida en producción.
+  - `@ApiProperty` en cada campo: explícito, pero repetitivo y fácil de desalinear de las reglas de validación.
+  - Documentar los errores endpoint por endpoint sin esquema común.
+- **Consecuencias:**
+  - `@nestjs/swagger` y `swagger-ui-dist` son dependencias de producción, aunque Swagger UI no se sirve ahí: el plugin agrega metadatos a los DTOs que se leen al cargar.
+  - Las opciones del plugin se repiten en `nest-cli.json` y en `test/swagger-plugin.cjs`; cambian juntas.
+  - Una aplicación de test que no llama a `configureHttp` no tiene el prefijo `/v1`.
+  - Cuando existan endpoints, el documento generado debe coincidir con `API_SPEC.md` (sección OpenAPI).
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
