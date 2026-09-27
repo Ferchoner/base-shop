@@ -206,16 +206,16 @@ describe('Problem Details (e2e, T-113)', () => {
 
   describe('correlation id (ADR-0071, ADR-0095)', () => {
     it('is sent on successful responses too', async () => {
-      const response = await http().get('/test-problems/ok').expect(200);
+      const response = await http().get('/v1/test-problems/ok').expect(200);
 
       expect(response.headers['x-correlation-id']).toMatch(UUID_V7);
     });
 
     it('is new for each request and ignores one sent by the client', async () => {
       const first = await http()
-        .get('/test-problems/ok')
+        .get('/v1/test-problems/ok')
         .set('X-Correlation-Id', 'forged-id');
-      const second = await http().get('/test-problems/ok');
+      const second = await http().get('/v1/test-problems/ok');
 
       expect(first.headers['x-correlation-id']).toMatch(UUID_V7);
       expect(first.headers['x-correlation-id']).not.toBe(
@@ -227,7 +227,7 @@ describe('Problem Details (e2e, T-113)', () => {
   describe('domain errors (ADR-0094)', () => {
     it('maps the category to the status and the details to extensions', async () => {
       const response = await http()
-        .get('/test-problems/insufficient-stock')
+        .get('/v1/test-problems/insufficient-stock')
         .expect(409);
 
       expect(response.body).toMatchObject({
@@ -242,7 +242,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('never exposes the domain message, which is meant for the log', async () => {
       const response = await http()
-        .get('/test-problems/insufficient-stock')
+        .get('/v1/test-problems/insufficient-stock')
         .expect(409);
 
       expect(JSON.stringify(response.body)).not.toContain('Variant 42');
@@ -250,7 +250,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('does not let an extension replace a standard member', async () => {
       const response = await http()
-        .get('/test-problems/reserved-extension')
+        .get('/v1/test-problems/reserved-extension')
         .expect(409);
 
       expect(response.body.status).toBe(409);
@@ -260,7 +260,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('answers a forbidden rule with 403', async () => {
       const response = await http()
-        .get('/test-problems/staff-purchase')
+        .get('/v1/test-problems/staff-purchase')
         .expect(403);
 
       expect(response.body.type).toBe('/problems/staff-cannot-purchase');
@@ -268,7 +268,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('still answers a code missing from the catalog, with the texts of its category', async () => {
       const response = await http()
-        .get('/test-problems/uncatalogued')
+        .get('/v1/test-problems/uncatalogued')
         .expect(409);
 
       expect(response.body).toMatchObject({
@@ -281,7 +281,7 @@ describe('Problem Details (e2e, T-113)', () => {
   describe('validation (API_SPEC.md §5.3 and §6.1)', () => {
     it('lists each invalid field with its path, code and Spanish message', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .send({
           ...VALID_ORDER,
           quantity: 'two',
@@ -321,7 +321,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('rejects fields that the endpoint does not declare', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .send({ ...VALID_ORDER, isAdmin: true })
         .expect(400);
 
@@ -336,7 +336,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('rejects query parameters that the endpoint does not declare', async () => {
       const response = await http()
-        .get('/test-problems/search?q=camisa&sort=price')
+        .get('/v1/test-problems/search?q=camisa&sort=price')
         .expect(400);
 
       expect(response.body.errors).toEqual([
@@ -345,12 +345,15 @@ describe('Problem Details (e2e, T-113)', () => {
     });
 
     it('accepts a valid body', async () => {
-      await http().post('/test-problems/orders').send(VALID_ORDER).expect(201);
+      await http()
+        .post('/v1/test-problems/orders')
+        .send(VALID_ORDER)
+        .expect(201);
     });
 
     it('never echoes the rejected values', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .send({ ...VALID_ORDER, postalCode: 'secret-value' })
         .expect(400);
 
@@ -361,7 +364,7 @@ describe('Problem Details (e2e, T-113)', () => {
   describe('errors raised before or around the application code', () => {
     it('answers a malformed JSON body with a validation problem and a correlation id', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .set('Content-Type', 'application/json')
         .send('{"quantity": ')
         .expect(400);
@@ -374,7 +377,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('answers a body above the size limit with 413', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .send({ ...VALID_ORDER, postalCode: 'x'.repeat(200_000) })
         .expect(413);
 
@@ -383,7 +386,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('answers an unsupported charset with 415', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .set('Content-Type', 'application/json; charset=latin1')
         .send(JSON.stringify(VALID_ORDER))
         .expect(415);
@@ -393,7 +396,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('answers a body that is neither JSON nor multipart with 415 (API_SPEC.md §2)', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send('quantity=1')
         .expect(415);
@@ -403,7 +406,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('lets a request without a body through, whatever its Content-Type', async () => {
       const response = await http()
-        .post('/test-problems/orders')
+        .post('/v1/test-problems/orders')
         .set('Content-Type', 'text/plain')
         .expect(400);
 
@@ -412,7 +415,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('answers a framework HTTP error with the matching problem type', async () => {
       const response = await http()
-        .get('/test-problems/framework-forbidden')
+        .get('/v1/test-problems/framework-forbidden')
         .expect(403);
 
       expect(response.body.type).toBe('/problems/forbidden');
@@ -420,7 +423,7 @@ describe('Problem Details (e2e, T-113)', () => {
 
     it('sends the headers of a ProblemException, such as Retry-After', async () => {
       const response = await http()
-        .get('/test-problems/rate-limited')
+        .get('/v1/test-problems/rate-limited')
         .expect(429);
 
       expect(response.body.type).toBe('/problems/rate-limit-exceeded');
@@ -433,7 +436,7 @@ describe('Problem Details (e2e, T-113)', () => {
       loggedErrors.length = 0;
 
       const response = await http()
-        .get('/test-problems/unexpected')
+        .get('/v1/test-problems/unexpected')
         .expect(500);
 
       expect(response.body).toEqual({
@@ -442,7 +445,7 @@ describe('Problem Details (e2e, T-113)', () => {
         status: 500,
         detail:
           'Ocurrió un error inesperado. Si persiste, comparte el identificador de correlación con soporte.',
-        instance: '/test-problems/unexpected',
+        instance: '/v1/test-problems/unexpected',
         correlationId: expect.stringMatching(UUID_V7),
       });
       expect(JSON.stringify(response.body)).not.toContain('hunter2');
@@ -452,7 +455,7 @@ describe('Problem Details (e2e, T-113)', () => {
     });
 
     it('treats an HTTP status outside the catalog as unexpected', async () => {
-      const response = await http().get('/test-problems/teapot').expect(500);
+      const response = await http().get('/v1/test-problems/teapot').expect(500);
 
       expect(response.body.type).toBe('/problems/internal-error');
     });
