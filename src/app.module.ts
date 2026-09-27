@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ClsModule } from 'nestjs-cls';
 import { CatalogModule } from './modules/catalog/index.js';
 import { IdentityAccessModule } from './modules/identity-access/index.js';
 import { InventoryModule } from './modules/inventory/index.js';
@@ -20,6 +21,8 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate: validateEnvironment,
     }),
+    // Async context per operation (ADR-0033): holds the active transaction; the correlation id joins it in T-118.
+    ClsModule.forRoot({ global: true }),
     PersistenceModule,
     IdentityAccessModule,
     CatalogModule,

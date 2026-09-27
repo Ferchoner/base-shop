@@ -23,9 +23,8 @@ COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma
 RUN npm ci
 COPY . .
-# The Prisma CLI is an optional peer of @prisma/client, so npm keeps it unless optional packages are
-# omitted too. No runtime package is optional (the only one is pg-cloudflare, for Cloudflare Workers).
-RUN npm run build && npm prune --omit=dev --omit=optional
+# The Prisma CLI stays: the transactional adapter of nestjs-cls requires it (ADR-0093).
+RUN npm run build && npm prune --omit=dev
 
 FROM base AS production
 ENV NODE_ENV=production
