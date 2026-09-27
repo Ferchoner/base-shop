@@ -107,6 +107,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0087 | Validación de entrada y de configuración con class-validator | Aceptada |
 | ADR-0088 | Estructura de carpetas y convenciones de nombres | Aceptada |
 | ADR-0089 | Uso de Docker: desarrollo local e imagen de producción | Aceptada |
+| ADR-0090 | Base de datos de los tests de integración con Testcontainers | Aceptada |
 
 ---
 
@@ -1829,3 +1830,30 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La API todavía no usa PostgreSQL ni Mailpit: `DATABASE_URL` llega con T-110 y la configuración SMTP con T-122.
   - `docker compose down -v` borra los datos locales de PostgreSQL.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
+
+---
+
+## ADR-0090 — Base de datos de los tests de integración con Testcontainers
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-105. ADR-0033 exige tests de integración contra PostgreSQL 18 real en Docker, localmente y en la CI, sin mocks de base de datos. Faltaba decidir de dónde sale esa base: un contenedor temporal por ejecución o una base de pruebas dentro del PostgreSQL de Docker Compose (ADR-0089).
+- **Decisión:**
+  - Los tests de integración levantan un contenedor `postgres:18` temporal con Testcontainers (`@testcontainers/postgresql`) al iniciar la ejecución, y lo destruyen al terminar. La URL de conexión se expone en `DATABASE_URL`.
+  - Cada ejecución empieza con una base vacía. Cuando exista el esquema (T-110), las migraciones se aplican al inicio y cada archivo de test limpia sus tablas.
+  - **Tres tipos de test**, con su propio comando:
+
+    | Tipo | Archivos | Comando | Docker |
+    |---|---|---|---|
+    | Unitarios | `*.spec.ts`, junto al código | `npm test` | No |
+    | Integración | `*.int-spec.ts`, junto al código de `infrastructure` (la infraestructura común vive en `test/integration/`) | `npm run test:int` | Sí |
+    | End-to-end | `test/*.e2e-spec.ts` | `npm run test:e2e` | No, por ahora |
+
+  - Los tests de integración corren en serie (`--runInBand`), porque comparten una base; así también quedan controladas las pruebas de concurrencia (ADR-0011).
+  - Driver `pg` para las conexiones directas de los tests.
+- **Alternativas consideradas:** Una base `_test` en el PostgreSQL de Docker Compose (hay que crearla y mantener la URL en cada equipo, los datos persisten entre ejecuciones y la CI necesita otra configuración); servicio de PostgreSQL en GitHub Actions (configuración distinta de la local).
+- **Consecuencias:**
+  - `npm run test:int` necesita Docker en marcha; si no lo está, falla con un mensaje que lo indica. `npm test` no necesita Docker.
+  - Cambia el criterio de T-106: los runners de GitHub Actions ya traen Docker, así que la CI no declara un servicio de PostgreSQL.
+  - Levantar el contenedor suma unos segundos a cada ejecución de integración.
+- **Revisar si:** los tests de integración se vuelven lentos (base por worker o por archivo) o la CI no puede ejecutar Docker.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).

@@ -1,0 +1,17 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "roots": ["<rootDir>/src", "<rootDir>/test/integration"],
+  "testRegex": ".*\\.int-spec\\.ts$",
+  "extensionsToTreatAsEsm": [".ts"],
+  "moduleNameMapper": {
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  },
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", { "useESM": true }]
+  },
+  "testEnvironment": "node",
+  "globalSetup": "<rootDir>/test/integration/global-setup.ts",
+  "globalTeardown": "<rootDir>/test/integration/global-teardown.ts",
+  "testTimeout": 30000
+}

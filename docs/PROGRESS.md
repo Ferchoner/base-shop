@@ -83,6 +83,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-101: estructura de carpetas (`platform`, `shared-kernel`, `modules/<contexto>` con cuatro capas) y convenciones de nombres (ADR-0088)
 - [x] T-104: lint con `npm run lint` (oxlint) y formato con `npm run format` y `npm run format:check` (Prettier); su ejecución en la CI es parte de T-106
 - [x] T-102: `docker compose` con PostgreSQL 18, Mailpit y la API en modo desarrollo; `Dockerfile` con etapas `development` y `production` (ADR-0089)
+- [x] T-105: tests unitarios, de integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (ADR-0090)
 
 ## In Progress
 
