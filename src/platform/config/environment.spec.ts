@@ -1,23 +1,35 @@
-import { isExactOrigin, validateEnvironment } from './environment.js';
+import {
+  isExactOrigin,
+  isPostgresUrl,
+  validateEnvironment,
+} from './environment.js';
+
+/** Required variables with valid values; each test overrides what it checks. */
+const REQUIRED = {
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgresql://shop:example@localhost:5432/shop',
+};
 
 describe('validateEnvironment', () => {
   it('accepts the minimal configuration and applies defaults', () => {
-    const environment = validateEnvironment({ NODE_ENV: 'development' });
+    const environment = validateEnvironment({
+      ...REQUIRED,
+      NODE_ENV: 'development',
+    });
 
     expect(environment.NODE_ENV).toBe('development');
     expect(environment.PORT).toBe(3000);
     expect(environment.CORS_ALLOWED_ORIGINS).toEqual([]);
+    expect(environment.DATABASE_URL).toBe(REQUIRED.DATABASE_URL);
   });
 
   it('converts PORT to a number', () => {
-    expect(validateEnvironment({ NODE_ENV: 'test', PORT: '8080' }).PORT).toBe(
-      8080,
-    );
+    expect(validateEnvironment({ ...REQUIRED, PORT: '8080' }).PORT).toBe(8080);
   });
 
   it('ignores variables it does not declare', () => {
     const environment = validateEnvironment({
-      NODE_ENV: 'test',
+      ...REQUIRED,
       UNRELATED: 'value',
     });
 
@@ -25,22 +37,26 @@ describe('validateEnvironment', () => {
   });
 
   it('rejects a missing NODE_ENV', () => {
-    expect(() => validateEnvironment({})).toThrow(/NODE_ENV/);
+    expect(() =>
+      validateEnvironment({ DATABASE_URL: REQUIRED.DATABASE_URL }),
+    ).toThrow(/NODE_ENV/);
   });
 
   it.each(['staging', 'PRODUCTION', ''])('rejects NODE_ENV "%s"', (value) => {
-    expect(() => validateEnvironment({ NODE_ENV: value })).toThrow(/NODE_ENV/);
+    expect(() => validateEnvironment({ ...REQUIRED, NODE_ENV: value })).toThrow(
+      /NODE_ENV/,
+    );
   });
 
   it.each(['abc', '0', '65536', '3000.5', ''])('rejects PORT "%s"', (value) => {
-    expect(() =>
-      validateEnvironment({ NODE_ENV: 'test', PORT: value }),
-    ).toThrow(/PORT/);
+    expect(() => validateEnvironment({ ...REQUIRED, PORT: value })).toThrow(
+      /PORT/,
+    );
   });
 
   it('parses a comma-separated list of origins, ignoring spaces and empty items', () => {
     const environment = validateEnvironment({
-      NODE_ENV: 'test',
+      ...REQUIRED,
       CORS_ALLOWED_ORIGINS:
         ' http://localhost:5173 , https://shop.example.com,, ',
     });
@@ -53,7 +69,7 @@ describe('validateEnvironment', () => {
 
   it('treats an empty CORS_ALLOWED_ORIGINS as no allowed origins', () => {
     expect(
-      validateEnvironment({ NODE_ENV: 'test', CORS_ALLOWED_ORIGINS: '' })
+      validateEnvironment({ ...REQUIRED, CORS_ALLOWED_ORIGINS: '' })
         .CORS_ALLOWED_ORIGINS,
     ).toEqual([]);
   });
@@ -69,15 +85,38 @@ describe('validateEnvironment', () => {
   ])('rejects the origin "%s"', (origin) => {
     expect(() =>
       validateEnvironment({
-        NODE_ENV: 'test',
+        ...REQUIRED,
         CORS_ALLOWED_ORIGINS: `https://valid.example.com,${origin}`,
       }),
     ).toThrow(/CORS_ALLOWED_ORIGINS/);
   });
 
-  it('does not include rejected values in the error message', () => {
+  it('rejects a missing DATABASE_URL', () => {
+    expect(() => validateEnvironment({ NODE_ENV: 'test' })).toThrow(
+      /DATABASE_URL/,
+    );
+  });
+
+  it.each([
+    'mysql://shop:example@localhost:3306/shop',
+    'localhost:5432/shop',
+    'not a url',
+    '',
+  ])('rejects DATABASE_URL "%s"', (value) => {
     expect(() =>
-      validateEnvironment({ NODE_ENV: 'test', PORT: 'secret-looking-value' }),
+      validateEnvironment({ ...REQUIRED, DATABASE_URL: value }),
+    ).toThrow(/DATABASE_URL/);
+  });
+
+  it('does not include rejected values in the error message', () => {
+    const secret = 'mysql://admin:secret-looking-value@db:3306/shop';
+
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        PORT: 'secret-looking-value',
+        DATABASE_URL: secret,
+      }),
     ).toThrow(
       expect.objectContaining({
         message: expect.not.stringContaining('secret-looking-value'),
@@ -98,4 +137,20 @@ describe('isExactOrigin', () => {
   it.each([undefined, 42, '', 'null'])('rejects %p', (value) => {
     expect(isExactOrigin(value)).toBe(false);
   });
+});
+
+describe('isPostgresUrl', () => {
+  it.each([
+    'postgresql://shop:example@localhost:5432/shop',
+    'postgres://shop@db/shop',
+  ])('accepts "%s"', (value) => {
+    expect(isPostgresUrl(value)).toBe(true);
+  });
+
+  it.each([undefined, 42, 'postgresql://', 'http://localhost/shop'])(
+    'rejects %p',
+    (value) => {
+      expect(isPostgresUrl(value)).toBe(false);
+    },
+  );
 });
