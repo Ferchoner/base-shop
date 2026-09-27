@@ -4,7 +4,7 @@ API REST de comercio electrónico: catálogo, precios, inventario, carrito, chec
 
 ## Estado
 
-Sprint 0 (análisis y arquitectura) completado: especificación, modelo de datos y contratos de la API aprobados. Aún no hay endpoints de negocio; el siguiente paso son las fundaciones técnicas (T-100 en adelante). Ver `docs/PROGRESS.md` y `docs/TASKS.md`.
+Sprint 1 (fundaciones técnicas) en curso. La especificación, el modelo de datos y los contratos de la API están aprobados; aún no hay endpoints de negocio. Ver `docs/SPRINT.md`, `docs/PROGRESS.md` y `docs/TASKS.md`.
 
 ## Requisitos
 
@@ -26,6 +26,7 @@ Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en 
 | `npm run lint` | Lint con oxlint |
 | `npm run format` | Formato con Prettier |
 | `npm test` | Tests unitarios (Jest en modo ESM) |
+| `npm run test:int` | Tests de integración contra PostgreSQL 18 real (requiere Docker en marcha) |
 | `npm run test:e2e` | Tests end-to-end |
 | `npm run test:cov` | Cobertura |
 
