@@ -16,6 +16,17 @@ import {
 export const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
 
+/** Log levels from the most to the least severe (ADR-0097). */
+export const LOG_LEVELS = [
+  'fatal',
+  'error',
+  'warn',
+  'log',
+  'debug',
+  'verbose',
+] as const;
+export type LogLevelName = (typeof LOG_LEVELS)[number];
+
 /**
  * Environment variables read at startup (ADR-0032). Every variable declared here
  * must also be listed in `.env.example` with a description and a non-real example.
@@ -42,6 +53,11 @@ export class EnvironmentVariables {
   @Expose()
   @IsPostgresUrl()
   DATABASE_URL: string;
+
+  /** Least severe level written to the console; every more severe level is written too (ADR-0032, ADR-0097). */
+  @Expose()
+  @IsIn(LOG_LEVELS)
+  LOG_LEVEL: LogLevelName = 'log';
 }
 
 /**
