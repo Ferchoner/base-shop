@@ -154,3 +154,24 @@ describe('isPostgresUrl', () => {
     },
   );
 });
+
+describe('LOG_LEVEL (ADR-0097)', () => {
+  it('defaults to log', () => {
+    expect(validateEnvironment(REQUIRED).LOG_LEVEL).toBe('log');
+  });
+
+  it.each(['fatal', 'error', 'warn', 'log', 'debug', 'verbose'])(
+    'accepts %s',
+    (level) => {
+      expect(
+        validateEnvironment({ ...REQUIRED, LOG_LEVEL: level }).LOG_LEVEL,
+      ).toBe(level);
+    },
+  );
+
+  it.each(['trace', 'LOG', 'info'])('rejects %p', (level) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, LOG_LEVEL: level }),
+    ).toThrow(/LOG_LEVEL/);
+  });
+});
