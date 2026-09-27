@@ -112,6 +112,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0092 | Valores iniciales del método de envío | Aceptada |
 | ADR-0093 | Contexto transaccional con `nestjs-cls` | Aceptada |
 | ADR-0094 | Shared kernel: dinero, IVA contenido, identificadores, errores, eventos y reloj | Aceptada |
+| ADR-0095 | Respuestas de error, validación de entrada e identificador de correlación | Aceptada |
 
 ---
 
@@ -636,7 +637,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Tests de integración contra PostgreSQL 18 real en Docker, localmente y en la CI (ADR-0030). No se usan mocks de base de datos para repositorios, transacciones ni concurrencia.
   - Identificador de correlación por solicitud HTTP, incluido en todos los logs que esa solicitud genera.
 - **Consecuencias:** Las pruebas de concurrencia de inventario y checkout (ADR-0011) se ejecutan contra la base real, que es la única forma de detectar sobreventa.
-- **Estado:** Aceptada. El contexto transaccional se detalla en ADR-0093.
+- **Estado:** Aceptada. El contexto transaccional se detalla en ADR-0093; el identificador de correlación, en ADR-0095.
 
 ---
 
@@ -1999,4 +2000,39 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Ningún código llama a `new Date()` para la hora actual; los tests unitarios usan un reloj fijo.
   - BR-TAX-02 queda con el modo de redondeo; P-69 suma su validación.
 - **Revisar si:** se opera con otra moneda, un monto necesita superar el máximo de `integer`, el contador indica otro redondeo o se ejecuta más de una instancia (el orden de UUIDv7 solo se garantiza dentro de cada proceso).
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0095 — Respuestas de error, validación de entrada e identificador de correlación
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-113. ADR-0035 y ADR-0064 fijaron Problem Details, los códigos HTTP y el catálogo de tipos (`API_SPEC.md`, sección 6); ADR-0071 pidió textos de error en español y `X-Correlation-Id` en todas las respuestas; ADR-0094 dio a `DomainError` un código y una categoría. Faltaba cómo se construyen las respuestas, cómo se validan las entradas y de dónde sale el identificador de correlación.
+- **Decisión:**
+  - **Filtro global** (`src/platform/http/problem-details/`), registrado como provider para que también aplique en los tests, que convierte todo error en Problem Details con `application/problem+json`:
+    - `DomainError`: estado según su categoría (400, 403, 404 o 409), `type` `/problems/{code}` y sus `details` como extensiones.
+    - `ProblemException(code, extensiones, encabezados)`: para errores que no son de dominio (autenticación, idempotencia, rate limiting, validación); el estado sale del catálogo.
+    - Errores HTTP del framework y del lector del cuerpo: ruta inexistente → 404 `not-found`; JSON mal formado → 400 `validation-error`; cuerpo demasiado grande → 413; codificación no admitida → 415.
+    - Cualquier otro error, o un estado HTTP fuera del catálogo: 500 `internal-error`, solo con el identificador de correlación. El error se registra en el log con su stack trace y el identificador.
+    - Las extensiones no pueden reemplazar `type`, `title`, `status`, `detail`, `instance` ni `correlationId`. `instance` es la ruta sin la cadena de consulta.
+  - **Catálogo** de los 36 tipos de `API_SPEC.md` (sección 6.2), cada uno con estado, `title` y `detail` fijos en español. Un test compara el catálogo con `API_SPEC.md`.
+  - **Mensajes internos fuera de las respuestas:** el mensaje de un error de dominio (en inglés, para desarrolladores) va al log; el cliente recibe el `detail` del catálogo. Un código de dominio que falte en el catálogo responde con los textos de su categoría y deja una advertencia en el log.
+  - **Sin stack traces en ninguna respuesta, en ningún entorno**, no solo en producción.
+  - **Validación de entrada:** `ValidationPipe` global con `whitelist`, `forbidNonWhitelisted`, `transform` y solo la primera regla que falla por campo. Un campo o parámetro no declarado responde 400 (`API_SPEC.md`, sección 5.3).
+    - `errors` es una lista de `{ field, code, message }`: `field` en notación de ruta (`lines[2].quantity`), `code` con el nombre de la regla de class-validator (`isInt`, `matches`, `whitelistValidation`) y `message` en español.
+    - Los mensajes salen de una tabla por regla; un DTO puede dar un texto propio con `context: { message }`; si no hay ninguno, "El valor no es válido.". Los mensajes en inglés de class-validator y los valores rechazados nunca llegan a la respuesta.
+  - **Identificador de correlación:** lo genera siempre el servidor por solicitud (UUIDv7) en un middleware de `nestjs-cls` montado antes del lector del cuerpo; se guarda en el contexto y se devuelve en `X-Correlation-Id` de todas las respuestas. Uno enviado por el cliente se ignora. T-118 lo agrega a los logs.
+  - **Tipo de contenido:** un cuerpo que no es `application/json` ni `multipart/form-data` responde 415 `unsupported-media-type`, como pide `API_SPEC.md` (sección 2). Las solicitudes sin cuerpo pasan con cualquier `Content-Type`.
+- **Alternativas consideradas:**
+  - Exponer el mensaje del error de dominio en `detail`: mezcla idiomas y podría revelar datos internos.
+  - Códigos de validación propios en lugar de los de class-validator: requieren una tabla de traducción sin beneficio para el cliente.
+  - Traducir los mensajes decorador por decorador: repetitivo y fácil de olvidar.
+  - Aceptar el identificador de correlación del cliente: permite falsificarlo e inyectar texto en los logs.
+  - Stack traces en desarrollo: una configuración más que puede llegar a producción por error.
+  - Registrar el filtro en `main.ts`: los tests que construyen `AppModule` no lo tendrían.
+- **Consecuencias:**
+  - Los controladores no construyen respuestas de error; lanzan `DomainError` o `ProblemException`.
+  - Un tipo de error nuevo se agrega a la vez al catálogo y a `API_SPEC.md`.
+  - El identificador de correlación y el rechazo por tipo de contenido se montan en `configureHttp`; una aplicación de test que no lo llame no los tiene, y el filtro genera un identificador para la respuesta de error.
+  - `API_SPEC.md` actualiza el ejemplo de `errors[].code`, `instance` sin la cadena de consulta y el origen de `X-Correlation-Id`.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

@@ -88,7 +88,7 @@ Las operaciones del cliente sobre su carrito no exigen `version`; el servidor re
 | `Authorization: Bearer <accessToken>` | Solicitud | Rutas `/v1/me` y `/v1/admin`, y cierre de sesión |
 | `Idempotency-Key` | Solicitud | Obligatorio donde se indica (sección 4) |
 | `Content-Type` | Solicitud | `application/json` o `multipart/form-data`; otro → 415 |
-| `X-Correlation-Id` | Respuesta | En todas las respuestas; mismo valor que `correlationId` de los errores (ADR-0033) |
+| `X-Correlation-Id` | Respuesta | En todas las respuestas; mismo valor que `correlationId` de los errores. Lo genera siempre el servidor (UUIDv7); uno enviado por el cliente se ignora (ADR-0033, ADR-0095) |
 | `Location` | Respuesta | En 201 cuando el recurso tiene ruta propia |
 | `Retry-After` | Respuesta | En 429 y en 409 `idempotency-request-in-progress` |
 | `Cache-Control: no-store` | Respuesta | En toda respuesta autenticada y en las que contienen datos personales o tokens (ADR-0071) |
@@ -204,8 +204,8 @@ X-Correlation-Id: 0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b
 ```
 
 - `type`: URI relativa estable; los clientes deciden por `type`, no por el texto.
-- `title`: resumen fijo por tipo. `detail`: explicación del caso, sin datos internos ni stack traces.
-- `instance`: ruta de la solicitud.
+- `title`: resumen fijo por tipo. `detail`: explicación fija por tipo, sin datos internos ni stack traces en ningún entorno (ADR-0095).
+- `instance`: ruta de la solicitud, sin la cadena de consulta.
 - Extensiones: `correlationId` (siempre); `errors` (validación); `lines` (stock); las demás se indican en el catálogo.
 
 Error de validación:
@@ -219,13 +219,13 @@ Error de validación:
   "instance": "/v1/me/addresses",
   "correlationId": "…",
   "errors": [
-    { "field": "postalCode", "code": "pattern", "message": "Debe tener 5 dígitos." },
-    { "field": "municipalityCode", "code": "not_in_state", "message": "El municipio no pertenece al estado elegido." }
+    { "field": "postalCode", "code": "matches", "message": "Debe tener 5 dígitos." },
+    { "field": "municipalityCode", "code": "isMunicipalityOfState", "message": "El municipio no pertenece al estado elegido." }
   ]
 }
 ```
 
-`errors[].field` usa notación de ruta para campos anidados (`shippingAddress.phone`, `lines[2].quantity`).
+`errors[].field` usa notación de ruta para campos anidados (`shippingAddress.phone`, `lines[2].quantity`). `errors[].code` es el nombre de la regla de validación que falló (por ejemplo, `isInt`, `matches` o `whitelistValidation` para un campo no declarado); se informa solo la primera regla que falla en cada campo. `errors[].message` está en español y nunca repite el valor rechazado (ADR-0095).
 
 ### 6.2 Catálogo de tipos
 

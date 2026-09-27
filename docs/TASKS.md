@@ -37,14 +37,14 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-110 | Database | DONE | T-004 (aprobado) | Prisma configurado con esquema dividido por contexto; primera migración aplicable desde cero |
 | T-111 | Contexto transaccional | DONE | T-110 | `nestjs-cls` con plugin transaccional; repositorios obtienen la transacción activa sin exponer Prisma a Application; test que demuestra rollback |
 | T-112 | Shared kernel | DONE | T-101 | `Money` (centavos + moneda), tipos de ID, error de dominio base, forma de domain event y puerto `Clock`, con tests unitarios |
-| T-113 | Manejo de errores HTTP | TODO | T-100, T-112 | Errores de dominio y de validación traducidos a Problem Details (RFC 9457) con `application/problem+json`, códigos de ADR-0064, `type` estable y extensiones `correlationId`, `errors` y `lines`; sin stack traces en producción |
+| T-113 | Manejo de errores HTTP | DONE | T-100, T-112 | Errores de dominio y de validación traducidos a Problem Details (RFC 9457) con `application/problem+json`, códigos de ADR-0064, `type` estable y extensiones `correlationId`, `errors` y `lines`; sin stack traces en producción |
 | T-126 | Rate limiting con `@nestjs/throttler` y límites configurables de ADR-0065 | TODO | T-100 | Límites por endpoint desde variables de entorno declaradas en `.env.example`; 429 con `Retry-After`; tests de cada límite |
 | T-127 | Registro de auditoría técnica | TODO | T-110, T-111 | Mecanismo reutilizable que registra en `audit_logs`, en la misma transacción que el cambio, toda modificación del staff y los eventos de seguridad (UC-AUD-01, ADR-0037), sin valores sensibles ni personales; trigger que impide modificar registros; tests |
 | T-114 | OpenAPI y versionado | TODO | T-100 | Prefijo `/v1` aplicado a todos los endpoints; Swagger de `v1` disponible en local, con CSP más permisiva solo en su ruta (ADR-0086) |
 | T-115 | Idempotencia HTTP | TODO | T-110 | Mecanismo reutilizable según ADR-0063 (llave ligada a quien la envía y al endpoint; 400, 422 y 409; respuestas guardadas 24 horas) con tests, incluido el caso concurrente |
 | T-116 | Bus de eventos en proceso | TODO | T-112 | Despacho después del commit; fallos de handlers registrados en logs (ADR-0014) |
 | T-117 | Scheduler de jobs | TODO | T-100 | `@nestjs/schedule` configurado; ejecuciones superpuestas omitidas; zona horaria America/Mexico_City para jobs diarios; fallos registrados en logs |
-| T-118 | Observabilidad base (local) | TODO | T-100 | Logs en consola sin datos sensibles; nivel configurable por variable de entorno declarada en `.env.example`; identificador de correlación incluido en todos los logs de cada solicitud |
+| T-118 | Observabilidad base (local) | TODO | T-100 | Logs en consola sin datos sensibles; nivel configurable por variable de entorno declarada en `.env.example`; identificador de correlación incluido en todos los logs de cada solicitud (el identificador existe desde T-113, ADR-0095) |
 | T-119 | Cache base | TODO | T-100, T-116 | Módulo de cache en memoria con TTL de 120 s configurable; invalidación por eventos de Catalog; regla de límites que impide usarlo desde Domain y Application |
 
 ## Contextos de negocio

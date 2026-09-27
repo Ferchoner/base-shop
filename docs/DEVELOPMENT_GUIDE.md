@@ -29,9 +29,16 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 
 - **Dinero:** siempre `Money` (centavos enteros de 0 a 2,147,483,647, con moneda). El IVA contenido en un precio con IVA se calcula con `containedTax(tasaEnPuntosBase)`, una vez por línea.
 - **Identificadores:** cada contexto declara sus tipos (`type OrderId = Id<'Order'>`). Los nuevos se crean con `newId()` (UUIDv7) o, si funcionan como credencial, con `newCredentialId()` (UUIDv4); los que llegan de fuera se convierten con `toId()`.
-- **Errores de negocio:** una subclase de `DomainError` por error, con `code` igual al `type` de `API_SPEC.md` (sección 6.2) y una `category` (`invalid`, `forbidden`, `not-found` o `conflict`). `details` nunca lleva datos sensibles ni personales.
+- **Errores de negocio:** una subclase de `DomainError` por error, con `code` igual al `type` de `API_SPEC.md` (sección 6.2) y una `category` (`invalid`, `forbidden`, `not-found` o `conflict`). `details` nunca lleva datos sensibles ni personales. El mensaje del error es para desarrolladores, en inglés: va al log y nunca a la respuesta.
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
+
+Errores HTTP y validación (ADR-0095):
+
+- Toda respuesta de error es Problem Details; la arma el filtro global de `src/platform/http/problem-details/`, así que los controladores no construyen respuestas de error.
+- Un tipo de error nuevo se agrega a la vez al catálogo de `problem-types.ts` (estado y textos en español) y a `API_SPEC.md` (sección 6.2); un test falla si no coinciden.
+- Los errores que no son de dominio (autenticación, idempotencia, rate limiting) se lanzan con `ProblemException(code, extensiones, encabezados)`.
+- Los DTOs se validan con class-validator. Los mensajes en español salen de una tabla por regla; si un campo necesita un texto propio, se indica en el decorador: `@Matches(/^\d{5}$/, { context: { message: 'Debe tener 5 dígitos.' } })`.
 
 Transacciones (ADR-0093):
 
