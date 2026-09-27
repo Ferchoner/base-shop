@@ -33,6 +33,13 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Logs (ADR-0097):
+
+- Cada clase registra con su propio logger: `private readonly logger = new Logger(NombreDeLaClase.name)`. Nunca `console.log`.
+- Niveles: `error` para fallos que requieren atención (con el stack trace como segundo argumento), `warn` para situaciones anómalas que el sistema resolvió, `log` para eventos normales relevantes, `debug` para detalle de diagnóstico. `LOG_LEVEL` (por defecto `log`) decide desde qué nivel se escribe.
+- El identificador de correlación se agrega solo; no hace falta incluirlo en el mensaje.
+- Nunca se registran datos personales (correos, nombres, direcciones, teléfonos), contraseñas, tokens, cuerpos de solicitudes ni cadenas de consulta; se registran identificadores. La redacción automática del logger es una red de seguridad, no un permiso.
+
 Versionado y documentación OpenAPI (ADR-0096):
 
 - Todo controlador queda bajo `/v1` sin declararlo. Una ruta de una versión futura se marca con `@Version('2')`.

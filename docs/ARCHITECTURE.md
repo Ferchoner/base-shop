@@ -37,6 +37,7 @@ src/
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado y Swagger (T-100, T-113, T-114)
+│   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y TransactionManager (T-111); sin NestJS
 └── modules/
@@ -146,7 +147,11 @@ Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs 
 
 ## Observabilidad
 
-En local (ADR-0032): logs en consola con nivel configurable por variable de entorno, declarada en `.env.example`.
+En local (ADR-0032): logs en consola con nivel configurable por variable de entorno (`LOG_LEVEL`), declarada en `.env.example`. Detalle en ADR-0097:
+
+- `AppLogger` (el `ConsoleLogger` de NestJS extendido) atiende todo `new Logger(Contexto)`.
+- Texto con colores en desarrollo y tests; una línea JSON por evento en producción.
+- Una línea por solicitud terminada: método, ruta sin la cadena de consulta, estado y duración.
 
 Métricas, trazas y seguimiento de errores: PENDIENTE DE DECISIÓN hasta elegir hosting (P-07).
 
@@ -154,7 +159,7 @@ Requisitos mínimos ya identificados:
 
 - Registrar cada fallo o interrupción de handlers de eventos (ADR-0014).
 - No registrar datos sensibles (ver `SECURITY.md`).
-- Identificador de correlación por solicitud HTTP en todos sus logs (ADR-0033). Desde T-113 cada solicitud recibe uno generado por el servidor, guardado en el contexto de `nestjs-cls` y devuelto en `X-Correlation-Id` (ADR-0095); T-118 lo agrega a los logs.
+- Identificador de correlación por solicitud HTTP en todos sus logs (ADR-0033). Cada solicitud recibe uno generado por el servidor, guardado en el contexto de `nestjs-cls` y devuelto en `X-Correlation-Id` (ADR-0095); `AppLogger` lo agrega a cada log escrito durante la solicitud (ADR-0097).
 - Los errores inesperados se registran con su stack trace y el identificador de correlación; la respuesta solo lleva el identificador (ADR-0095).
 
 ## Configuración
