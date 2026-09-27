@@ -673,6 +673,15 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 - **Riesgo validado en T-110:** Prisma no detecta los objetos manuales como diferencias ni intenta eliminarlos: `prisma migrate diff` entre la base migrada y el esquema responde "No difference detected". Lo comprueban un test de integración y `npm run db:diff` (ADR-0091).
 - **Sin migraciones de reversión:** Prisma solo avanza. Un error se corrige con una migración nueva; antes de aplicar migraciones con datos reales se toma un respaldo.
 - **Cambios incompatibles:** en dos pasos (primero agregar, migrar datos y actualizar el código; después retirar lo viejo). Toda migración destructiva requiere aprobación humana (`TEAM_GUIDE.md`).
+- **Migraciones en el despliegue: PENDIENTE DE DECISIÓN (P-05)**, se decide junto con el hosting (P-06). Análisis previo (2026-09-27):
+  - **Candidata:** ejecutar `prisma migrate deploy` como paso único antes de arrancar la nueva versión de la API, con la misma imagen de producción. Desde T-111 esa imagen incluye el CLI de Prisma: el adaptador transaccional de Prisma para `nestjs-cls` lo declara como dependencia obligatoria. Ejemplos: `docker compose run --rm api npx prisma migrate deploy` en un VPS, o el comando previo al despliegue que ofrezca el hosting.
+  - **Requisito para la candidata:** la etapa `production` del `Dockerfile` tendrá que copiar también `prisma/` y `prisma.config.ts`; hoy solo copia el código compilado.
+  - **Seguridad recomendada:** dos usuarios de PostgreSQL. Uno con permisos para cambiar el esquema, usado solo por el paso de migración, y otro para la API, que solo lee y escribe datos. Cada uno con su propio `DATABASE_URL`. Así, una vulnerabilidad en la API no puede borrar ni alterar tablas.
+  - **Descartadas por ahora:**
+    - Migrar desde el pipeline de CD: la base tendría que ser accesible desde GitHub Actions, o habría que abrir un túnel.
+    - Migrar al arrancar la API: la API necesitaría permisos para cambiar el esquema, su arranque dependería de la migración y varias réplicas intentarían migrar a la vez.
+    - Migrar a mano con un túnel SSH: aceptable solo al inicio, porque no es reproducible.
+  - **Reversión de un despliegue:** no se revierte la migración. Gracias a los cambios en dos pasos, la versión anterior de la API sigue funcionando con el esquema nuevo.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).
 

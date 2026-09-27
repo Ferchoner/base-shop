@@ -106,7 +106,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 
 | ID | Decisión | Bloquea |
 |---|---|---|
-| P-05 | CD: entornos, disparador, registro de imágenes, migraciones en el despliegue, reversión. Pospuesta hasta tener hosting | T-330 |
+| P-05 | CD: entornos, disparador, registro de imágenes, migraciones en el despliegue, reversión. Pospuesta hasta tener hosting. Opciones para las migraciones analizadas en `DATABASE.md`, sección 13 | T-330 |
 | P-06 | Hosting para entorno compartido o producción (hoy solo local, ADR-0031); incluye HSTS, TLS y redirección a HTTPS (ADR-0086) | T-330 |
 | P-07 | Métricas, trazas y seguimiento de errores (logs locales ya decididos, ADR-0032) | — |
 | P-13 | Almacén de secretos en el servidor (local ya decidido, ADR-0032) | — |
