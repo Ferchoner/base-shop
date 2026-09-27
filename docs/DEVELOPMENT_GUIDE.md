@@ -18,12 +18,27 @@ Definidas por el stack (ADR-0002, ADR-0003):
 
 - TypeScript en modo estricto.
 - Un módulo de NestJS por bounded context en `src/modules/<contexto>/`, con capas `domain`, `application`, `infrastructure` y `presentation`, un `<contexto>.module.ts` y un `index.ts` como API pública (ADR-0088, `ARCHITECTURE.md`).
-- Infraestructura técnica transversal en `src/platform/`; `Money`, IDs, errores y eventos base en `src/shared-kernel/`.
+- Infraestructura técnica transversal en `src/platform/`; `Money`, IDs, errores, eventos base y `TransactionManager` en `src/shared-kernel/`.
 - Imports relativos, sin alias de rutas. Entre módulos, solo desde el `index.ts` del otro módulo.
 - Nombres de archivo en kebab-case con sufijo de rol: `order.ts`, `order.repository.ts` (interfaz en `domain`), `prisma-order.repository.ts` (en `infrastructure`), `place-order.use-case.ts`, `ordering.facade.ts`, `order.controller.ts`, `place-order.dto.ts`. Tests unitarios junto al código, como `*.spec.ts`.
 - Domain no importa NestJS ni Prisma. `@prisma/client` solo en Infrastructure.
 - Interfaces de repositories en Domain; implementaciones en Infrastructure.
 - DTOs HTTP solo en Presentation.
+
+Transacciones (ADR-0093):
+
+- Un caso de uso que escribe en más de un lugar delimita su transacción con `TransactionManager`, inyectado desde el shared kernel:
+
+  ```ts
+  await this.transactions.run(async () => {
+    await this.orders.save(order);
+    await this.carts.save(cart);
+  });
+  ```
+
+- Un repository de Infrastructure inyecta `TransactionHost<PrismaTransactionAdapter>` y usa siempre `this.txHost.tx` en lugar de `PrismaService`; así participa de la transacción activa sin recibirla. Inyectar `TransactionHost` con su tipo completo: un alias de tipo impide que NestJS resuelva la dependencia.
+- Dentro de `run` no se llaman servicios externos (pagos, correo, almacenamiento), y el trabajo debe durar menos de 5 s o se revierte.
+- En tests unitarios de casos de uso, `TransactionManager` se reemplaza por un doble que solo ejecuta el trabajo: `{ run: (work) => work() }`.
 - Nombres de código en inglés; documentación en español; ramas, commits y pull requests en inglés (ADR-0084).
 - Montos como enteros en centavos con `Money`.
 - Sin abstracciones genéricas (`BaseRepository<T>`, `BaseEntity` con lógica).
@@ -97,7 +112,7 @@ Comandos:
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
 - **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
-- Imagen de producción (la construye la CI en T-106): `docker build --target production -t base-shop .` No incluye el CLI de Prisma, así que no aplica migraciones; cómo se aplican al desplegar se decide con P-05 (ADR-0091).
+- Imagen de producción (la construye la CI en T-106): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13).
 
 ## Migraciones
 

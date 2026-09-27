@@ -36,8 +36,8 @@ src/
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
 │   ├── config/                variables de entorno (T-100)
 │   ├── http/                  CORS y encabezados de seguridad (T-100)
-│   └── persistence/           PrismaService y cliente generado de Prisma (T-110, ADR-0091)
-├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112); sin NestJS
+│   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
+├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y TransactionManager (T-111); sin NestJS
 └── modules/
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
         ├── domain/
@@ -91,7 +91,11 @@ Ver ADR-0005.
 
 - Un aggregate por transacción como regla general; las excepciones se documentan (ADR-0019).
 - Nunca se llaman servicios externos dentro de una transacción de base de datos.
-- Las transacciones se propagan a los repositorios mediante un contexto transaccional (AsyncLocalStorage), sin exponer Prisma a Application ni Domain. Librería: `nestjs-cls` con su plugin transaccional para Prisma (ADR-0033).
+- Las transacciones se propagan a los repositorios mediante un contexto transaccional (AsyncLocalStorage), sin exponer Prisma a Application ni Domain. Librería: `nestjs-cls` con su plugin transaccional y el adaptador oficial para Prisma (ADR-0033, ADR-0093).
+  - Application delimita la transacción con el puerto `TransactionManager` del shared kernel (`run(work)`): confirma si `work` termina bien y revierte si falla.
+  - Los repositorios usan `TransactionHost<PrismaTransactionAdapter>` y su propiedad `tx`: dentro de una transacción es el cliente de esa transacción; fuera, el `PrismaService` normal. Nunca reciben la transacción como parámetro.
+  - Un `run` dentro de otro se une a la transacción externa; no hay savepoints.
+  - Cada transacción espera como máximo 2 s para iniciar y se revierte si dura más de 5 s.
 - Bloqueo optimista con columna `version` en los aggregates editables; la lista está en `DATABASE.md` (sección 12).
 - Reserva de inventario con actualización condicional atómica y restricción `CHECK` (ADR-0011).
 - Idempotencia con encabezado `Idempotency-Key` en PlaceOrder e InitiatePayment.

@@ -659,7 +659,7 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 **Otras reglas de concurrencia:**
 
 - Bloqueo optimista con `version` en `users`, `roles`, `products`, `price_lists`, `variant_prices`, `reservations`, `carts`, `orders`, `payments`, `shipping_methods` y `shipments`; un conflicto responde 409 (ADR-0064).
-- Transacciones propagadas con `nestjs-cls` (ADR-0033); aislamiento Read Committed; ninguna llamada externa dentro de una transacción.
+- Transacciones propagadas con `nestjs-cls` (ADR-0033, ADR-0093); aislamiento Read Committed; ninguna llamada externa dentro de una transacción; una transacción que dura más de 5 s se revierte.
 - Checkout en una transacción (ADR-0019): reserva, orden, líneas, historial y cambio de estado del carrito.
 - Auditoría en la misma transacción que el cambio (ADR-0037).
 
