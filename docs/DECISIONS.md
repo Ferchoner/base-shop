@@ -114,6 +114,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0094 | Shared kernel: dinero, IVA contenido, identificadores, errores, eventos y reloj | Aceptada |
 | ADR-0095 | Respuestas de error, validación de entrada e identificador de correlación | Aceptada |
 | ADR-0096 | Versionado por ruta y documentación OpenAPI en local | Aceptada |
+| ADR-0097 | Logs de la aplicación | Aceptada |
 
 ---
 
@@ -624,7 +625,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - El archivo `.env` debe estar en `.gitignore`; la detección de secretos de la CI (ADR-0030) es la segunda barrera.
   - Al elegir hosting se decidirá dónde viven los secretos en el servidor (P-13) y las herramientas de observabilidad (P-07).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Los logs en consola se detallan en ADR-0097.
 
 ---
 
@@ -2063,4 +2064,29 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las opciones del plugin se repiten en `nest-cli.json` y en `test/swagger-plugin.cjs`; cambian juntas.
   - Una aplicación de test que no llama a `configureHttp` no tiene el prefijo `/v1`.
   - Cuando existan endpoints, el documento generado debe coincidir con `API_SPEC.md` (sección OpenAPI).
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0097 — Logs de la aplicación
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-118. ADR-0032 fijó logs en consola con nivel configurable por variable de entorno; ADR-0033 y ADR-0095, el identificador de correlación de cada solicitud; `SECURITY.md` prohíbe registrar secretos y datos personales. Las herramientas de métricas, trazas y seguimiento de errores siguen pendientes (P-07).
+- **Decisión:**
+  - **`AppLogger`**, una extensión del `ConsoleLogger` de NestJS, sin dependencias nuevas. `main.ts` la instala con `bufferLogs`, así que también los logs del arranque salen con su formato, y todo `new Logger(Contexto)` la usa.
+  - **Nivel:** variable opcional `LOG_LEVEL` (`fatal`, `error`, `warn`, `log`, `debug` o `verbose`; por defecto `log`), validada al arrancar y declarada en `.env.example`. Activa su nivel y todos los más graves.
+  - **Formato según `NODE_ENV`**, sin variable nueva: texto con colores en desarrollo y tests; una línea JSON por evento en producción, lista para la herramienta que se elija en P-07.
+  - **Identificador de correlación** en cada log escrito durante una solicitud, tomado del contexto de `nestjs-cls`: en texto como `[id]` después del contexto; en JSON, como el campo `correlationId`. Los logs fuera de una solicitud (arranque, jobs) no lo llevan.
+  - **Línea por solicitud** de nivel `log` al terminar la respuesta: método, ruta sin la cadena de consulta, estado y duración en milisegundos. Nunca cuerpos, encabezados ni cadenas de consulta.
+  - **Red de seguridad contra datos sensibles:** el logger reemplaza por `[redacted]` los correos, los JWT y los tokens `Bearer` que aparezcan en mensajes y stack traces. En formato texto escapa los saltos de línea, para que un mensaje no pueda simular otras entradas del log.
+- **Alternativas consideradas:**
+  - `nestjs-pino`: más rápido y con redacción y log de solicitudes integrados, pero agrega tres dependencias sin necesidad de ese rendimiento.
+  - Una variable propia para el formato: `NODE_ENV` ya distingue producción.
+  - Registrar cuerpos o encabezados con campos ocultos: cualquier campo nuevo con datos personales quedaría expuesto hasta que alguien lo agregue a la lista.
+- **Consecuencias:**
+  - El código registra con `new Logger(Clase.name)` y nunca con `console.log`; la guía de desarrollo indica qué nivel usar y qué nunca registrar.
+  - La redacción solo reconoce correos, JWT y tokens `Bearer`: no sustituye la regla de no registrar datos personales.
+  - Una aplicación de test que no instala `AppLogger` escribe con el logger de NestJS, sin identificador ni redacción.
+  - T-116 y T-117 registran sus fallos con este logger.
+- **Revisar si:** se elige una herramienta de observabilidad (P-07) o el volumen de logs afecta el rendimiento.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

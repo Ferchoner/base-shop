@@ -146,6 +146,7 @@ ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Par
 - Derechos ARCO por canal externo; el staff ejecuta las acciones en el sistema.
 - Anonimización definida para clientes y compradores invitados.
 - Logs y auditoría sin valores de datos personales.
+- Logs (ADR-0097): nunca se registran cuerpos, encabezados, tokens ni cadenas de consulta. Como red de seguridad, el logger reemplaza por `[redacted]` los correos, los JWT y los tokens `Bearer` que aparezcan en mensajes o stack traces, y en formato texto escapa los saltos de línea para que nadie pueda inyectar líneas falsas.
 - Ciclo de conservación de datos personales en órdenes (operativa, bloqueo y anonimización) diseñado en ADR-0070, fuera del MVP; plazos y preguntas pendientes de validación legal con un especialista (P-61).
 
 ## Auditoría

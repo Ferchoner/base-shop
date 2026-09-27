@@ -12,6 +12,7 @@ import { ShoppingModule } from './modules/shopping/index.js';
 import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
 import { ProblemDetailsModule } from './platform/http/problem-details/problem-details.module.js';
+import { LoggingModule } from './platform/logging/logging.module.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
 
 @Module({
@@ -26,6 +27,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     // Async context per operation (ADR-0033): the active transaction and, for HTTP requests, the
     // correlation id, set by the middleware that configureHttp mounts (ADR-0095).
     ClsModule.forRoot({ global: true }),
+    LoggingModule,
     PersistenceModule,
     ClockModule,
     ProblemDetailsModule,

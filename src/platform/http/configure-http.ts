@@ -5,6 +5,7 @@ import helmet, { type HelmetOptions } from 'helmet';
 import type { EnvironmentVariables } from '../config/environment.js';
 import { setupApiDocs } from './api-docs.js';
 import { rejectUnsupportedContentType } from './content-type.js';
+import { requestLoggingMiddleware } from '../logging/request-logging.middleware.js';
 import { correlationIdMiddleware } from './correlation-id.js';
 
 /**
@@ -53,6 +54,8 @@ export function configureHttp(app: INestApplication): void {
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
   // First, so every response, including body parser errors, carries X-Correlation-Id (ADR-0095).
   app.use(correlationIdMiddleware());
+  // Inside the correlation context, so each request line carries its id (ADR-0097).
+  app.use(requestLoggingMiddleware);
   app.use(rejectUnsupportedContentType);
   app.use(helmet(securityHeadersOptions));
   app.enableCors(
