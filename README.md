@@ -25,7 +25,9 @@ Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en 
 docker compose exec api npm run db:migrate:deploy
 ```
 
-Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci`, `npm run db:migrate:deploy` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
+La primera vez también hay que cargar el catálogo geográfico: `docker compose exec api node dist/scripts/import-geo-catalog.js data/inegi/municipios-2026-06.csv`.
+
+Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci`, `npm run db:migrate:deploy`, `npm run geo:import -- data/inegi/municipios-2026-06.csv` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
 
 | Script | Uso |
 |---|---|
@@ -40,6 +42,7 @@ Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `np
 | `npm run db:migrate:dev` | Crea una migración nueva (solo desarrollo) |
 | `npm run db:diff` | Verifica que la base coincide con el esquema de Prisma |
 | `npm run db:generate` | Genera el cliente de Prisma |
+| `npm run geo:import -- <archivo>` | Carga o actualiza el catálogo de estados y municipios del INEGI (`data/inegi/`) |
 
 ## Documentación
 

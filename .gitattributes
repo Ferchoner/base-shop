@@ -1,2 +1,5 @@
 # Fin de línea LF en todos los archivos de texto, igual que .editorconfig y Prettier
 * text=auto eol=lf
+
+# Los catálogos del INEGI se guardan tal como se descargan (CRLF), para que su checksum coincida con el original (ADR-0109)
+data/inegi/*.csv -text

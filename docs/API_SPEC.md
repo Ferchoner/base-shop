@@ -730,7 +730,10 @@ Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "s
 | `GET /v1/geo/states` | Público. 200 `{ "data": [ { "code": "16", "name": "Michoacán de Ocampo" } ] }`. Sin paginación (32 registros). Orden por nombre |
 | `GET /v1/geo/states/{stateCode}/municipalities` | Público. 200 `{ "data": [ { "code": "16053", "name": "Morelia" } ] }`. Solo municipios activos. Sin paginación. Orden por nombre. 404 si el estado no existe |
 
-Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071).
+Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implementados en T-124 (ADR-0109):
+
+- Las respuestas se cachean durante `CACHE_TTL_SECONDS`. El catálogo se carga con un script en otro proceso, así que un catálogo nuevo se ve a más tardar en ese tiempo.
+- Una clave de estado mal formada (por ejemplo, `ab`) también responde 404 `not-found`.
 
 ---
 

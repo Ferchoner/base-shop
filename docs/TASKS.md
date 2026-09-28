@@ -57,7 +57,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-121 | Identity & Access: verificación de email para clientes registrados, UC-IAM-01 a 03 y 10 (ADR-0046) | TODO | T-120, T-122 |
 | T-122 | Puerto de envío de correos con adaptador al capturador local; URL base del frontend configurable para los enlaces (ADR-0056) | TODO | T-102 |
 | T-123 | Identity & Access: recuperación de contraseña por enlace (ADR-0056); UC-IAM-07, 08 | TODO | T-120, T-122 |
-| T-124 | Catálogo geográfico del INEGI: script de importación idempotente (las tablas ya existen desde la primera migración, T-110) y consulta pública de estados y municipios; UC-IAM-21, 22 | TODO | T-110 |
+| T-124 | Catálogo geográfico del INEGI: script de importación idempotente (las tablas ya existen desde la primera migración, T-110) y consulta pública de estados y municipios; UC-IAM-21, 22 | DONE | T-110 |
 | T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); reactivación (ADR-0076); UC-IAM-11 y 14 a 19 | TODO | T-110, T-112, T-124 |
 | T-131 | Identity & Access: script manual para crear el primer superadministrador y alta de staff con contraseña temporal; UC-IAM-13, UC-IAM-20 | TODO | T-130, T-120 |
 | T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141 |
