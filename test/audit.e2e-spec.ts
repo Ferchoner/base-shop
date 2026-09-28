@@ -1,50 +1,48 @@
 import { randomUUID } from 'node:crypto';
 import {
-  type CanActivate,
   Controller,
-  type ExecutionContext,
   ForbiddenException,
   Get,
   type INestApplication,
-  Injectable,
-  UseGuards,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import { RequirePermissions } from '../src/platform/auth/authorization.decorators.js';
 import { configureHttp } from '../src/platform/http/configure-http.js';
 import { PrismaService } from '../src/platform/persistence/prisma.service.js';
+import {
+  signedInAs,
+  useTestAuthentication,
+} from './support/test-authentication.js';
 
-/** Stands in for authentication (T-120): the user id comes from a test header. */
-@Injectable()
-class FakeAuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const req = context
-      .switchToHttp()
-      .getRequest<{ headers: Record<string, string>; user?: { id: string } }>();
-    const userId = req.headers['x-test-user'];
-    if (userId) req.user = { id: userId };
-    return true;
-  }
-}
-
+/** Every administrative route declares its permission (ADR-0111); a staff member without it gets 403. */
 @Controller('admin/test-audit')
-@UseGuards(FakeAuthGuard)
 class AdminAuditTestController {
   @Get('secret/:id')
+  @RequirePermissions('audit.read')
   secret() {
-    throw new ForbiddenException();
+    return { ok: true };
   }
 }
 
 @Controller('test-audit')
-@UseGuards(FakeAuthGuard)
 class PublicAuditTestController {
   @Get('forbidden')
   forbidden() {
     throw new ForbiddenException();
   }
+}
+
+/** A staff member whose roles lack `audit.read`. */
+function staffWithoutPermission(id: string) {
+  return signedInAs({
+    id,
+    type: 'STAFF',
+    permissions: ['orders.read'],
+    mustChangePassword: false,
+  });
 }
 
 describe('Audit of denied administrative access (e2e, T-127)', () => {
@@ -57,6 +55,7 @@ describe('Audit of denied administrative access (e2e, T-127)', () => {
       controllers: [AdminAuditTestController, PublicAuditTestController],
     }).compile();
     app = moduleFixture.createNestApplication();
+    useTestAuthentication(app);
     configureHttp(app);
     await app.init();
     prisma = app.get(PrismaService);
@@ -80,7 +79,7 @@ describe('Audit of denied administrative access (e2e, T-127)', () => {
 
     const response = await request(app.getHttpServer())
       .get('/v1/admin/test-audit/secret/42?email=ana@example.com')
-      .set('x-test-user', userId)
+      .set(staffWithoutPermission(userId))
       .set('User-Agent', 'audit-e2e')
       .expect(403);
 
@@ -100,7 +99,7 @@ describe('Audit of denied administrative access (e2e, T-127)', () => {
   it('does not change the error response', async () => {
     const response = await request(app.getHttpServer())
       .get('/v1/admin/test-audit/secret/42')
-      .set('x-test-user', randomUUID())
+      .set(staffWithoutPermission(randomUUID()))
       .expect(403);
 
     expect(response.body.type).toBe('/problems/forbidden');
@@ -109,7 +108,7 @@ describe('Audit of denied administrative access (e2e, T-127)', () => {
   it('does not audit a 403 outside /v1/admin', async () => {
     await request(app.getHttpServer())
       .get('/v1/test-audit/forbidden')
-      .set('x-test-user', randomUUID())
+      .set(staffWithoutPermission(randomUUID()))
       .expect(403);
 
     expect(await deniedEntries()).toHaveLength(0);
