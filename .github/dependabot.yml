@@ -1,0 +1,44 @@
+# Dependency updates (ADR-0030, ADR-0106). Version updates run every Monday. Security updates are
+# opened as soon as an advisory is published and are not delayed by the cooldown.
+# Docker images are not listed: they follow their major version (node:24, postgres:18, ADR-0025) and
+# take the latest release on every build.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Mexico_City
+    # Wait a week before proposing a new release: compromised packages are usually caught within days.
+    cooldown:
+      default-days: 7
+    # Subjects like "chore: bump ...", as ADR-0084 and the Commit messages check expect.
+    commit-message:
+      prefix: chore
+    groups:
+      # Minor and patch releases together; each major release gets its own pull request.
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    ignore:
+      # @types/node follows the Node.js major version of the project (ADR-0025).
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Mexico_City
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns: ['*']
