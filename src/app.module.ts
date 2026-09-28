@@ -20,6 +20,7 @@ import { JobsModule } from './platform/jobs/jobs.module.js';
 import { ProblemDetailsModule } from './platform/http/problem-details/problem-details.module.js';
 import { RateLimitingModule } from './platform/http/rate-limiting/rate-limiting.module.js';
 import { LoggingModule } from './platform/logging/logging.module.js';
+import { MailModule } from './platform/mail/mail.module.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
 
 @Module({
@@ -40,6 +41,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     JobsModule.forRoot(),
     ClockModule,
     AppCacheModule,
+    MailModule,
     ProblemDetailsModule,
     IdempotencyModule,
     RateLimitingModule,
