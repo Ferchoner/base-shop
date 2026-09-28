@@ -53,21 +53,22 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 
 | ID | Tarea | Estado | Depende de |
 |---|---|---|---|
-| T-120 | Identity & Access: autenticación, UC-IAM-04 a 06 y 09 (Passport local + JWT, refresh tokens con rotación y detección de reutilización, Argon2id, política de contraseñas de ADR-0047 con lista local de contraseñas comunes; resultado de autenticación y respuesta de login preparados para 2FA según ADR-0048; límite de intentos fallidos con `FailedAttemptLimiter` y usuario autenticado en `request.user.id`, antes del guard de rate limiting, como esperan ADR-0099, ADR-0100 y ADR-0102) | TODO | T-130, T-110 |
+| T-120 | Identity & Access: autenticación, UC-IAM-04 a 06 y 09 (Passport local + JWT, refresh tokens con rotación y detección de reutilización, Argon2id, política de contraseñas de ADR-0047 con lista local de contraseñas comunes; resultado de autenticación y respuesta de login preparados para 2FA según ADR-0048; límite de intentos fallidos con `FailedAttemptLimiter` y usuario autenticado en `request.user.id`, antes del guard de rate limiting, como esperan ADR-0099, ADR-0100 y ADR-0102). `request.user` es un `AuthenticatedUser` con los permisos de `IdentityAccessFacade.permissionsOf`, y la autenticación corre antes del rate limiting y de la autorización (ADR-0111). Suspender una cuenta revoca sus sesiones en la misma transacción (ADR-0023) | TODO | T-130, T-110 |
 | T-121 | Identity & Access: verificación de email para clientes registrados, UC-IAM-01 a 03 y 10 (ADR-0046) | TODO | T-120, T-122 |
 | T-122 | Puerto de envío de correos con adaptador al capturador local; URL base del frontend configurable para los enlaces (ADR-0056) | DONE | T-102 |
 | T-123 | Identity & Access: recuperación de contraseña por enlace (ADR-0056); UC-IAM-07, 08 | TODO | T-120, T-122 |
 | T-124 | Catálogo geográfico del INEGI: script de importación idempotente (las tablas ya existen desde la primera migración, T-110) y consulta pública de estados y municipios; UC-IAM-21, 22 | DONE | T-110 |
-| T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos y direcciones; anonimización (ADR-0067); reactivación (ADR-0076); UC-IAM-11 y 14 a 19 | TODO | T-110, T-112, T-124 |
-| T-131 | Identity & Access: script manual para crear el primer superadministrador y alta de staff con contraseña temporal; UC-IAM-13, UC-IAM-20 | TODO | T-130, T-120 |
-| T-140 | Catalog: productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141 |
+| T-130 | Identity & Access: usuarios (tipo cliente o staff), roles iniciales, catálogo de permisos, autorización y direcciones; suspensión, y reactivación de clientes (ADR-0076); UC-IAM-11 y 14 a 18. En tres partes (ADR-0111): (a) base de usuarios, roles, permisos, autorización y paginación, hecha; (b) administración de roles, staff y clientes; (c) direcciones. La anonimización pasa a T-132 y la reactivación del staff a T-131 | IN_PROGRESS | T-110, T-112, T-124 |
+| T-131 | Identity & Access: script manual para crear el primer superadministrador y alta de staff con contraseña temporal; reactivación del staff con contraseña temporal nueva (UC-IAM-16, ADR-0076, ADR-0111); UC-IAM-13, UC-IAM-20 | TODO | T-130, T-120 |
+| T-132 | Identity & Access: anonimización de clientes y de compradores invitados (UC-IAM-19, ADR-0067, BR-PRIV-03): espera a que concluyan las órdenes; borra tokens, direcciones y carritos, y los datos de identificación de órdenes y envíos; `POST /v1/admin/identity/customers/{userId}/anonymize` y `POST /v1/admin/identity/guest-anonymizations`. Separada de T-130 por ADR-0111 | TODO | T-130, T-170, T-180, T-195, T-127 |
+| T-140 | productos, variantes e imágenes; consulta pública con búsqueda y filtros (ADR-0060); UC-CAT-01, 02, 04 a 11, 14 | TODO | T-110, T-112, T-141 |
 | T-141 | Almacenamiento de imágenes: puerto y adaptador de disco local con URL base configurable; validación de formato (JPEG, PNG, WebP) y tamaño (5 MB) | TODO | T-100 |
 | T-145 | Pricing: lista predeterminada, precios y periodos; formato de carga masiva; UC-PRC-01 a 06 | TODO | T-140 |
 | T-150 | Catalog: categorías y marcas; UC-CAT-03, 12, 13 | TODO | T-110 |
 | T-160 | Inventory: almacenes, stock y reservas (incluye pruebas de concurrencia); UC-INV-01 a 07 | TODO | T-140, T-111 |
 | T-161 | Inventory: reintegro de stock de órdenes canceladas o con envío devuelto (independiente, y opcional al cancelar o al registrar el reembolso sin reintegro previo, ADR-0052); UC-INV-09 | TODO | T-160, T-180, T-190, T-195 |
 | T-170 | Shopping: carrito, con `cartId` aleatorio y fusión explícita (ADR-0059); UC-CRT-01 a 06 | TODO | T-140, T-145, T-160 |
-| T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09 | TODO | T-170, T-196 |
+| T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09. Conecta `orderCount` del detalle de cliente de Identity (ADR-0111) | TODO | T-170, T-196 |
 | T-181 | Shopping: restaurar carrito al expirar una orden y copiar órdenes canceladas a un carrito; UC-CRT-08, UC-CRT-09 | TODO | T-170, T-180 |
 | T-185 | Ordering: consulta de pedido de invitado (email + código público, con rate limiting); UC-ORD-04 | TODO | T-180 |
 | T-186 | Ordering: enlace de acceso al pedido por correo; UC-ORD-05 | DEFERRED | ADR-0077 |

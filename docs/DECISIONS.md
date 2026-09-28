@@ -128,6 +128,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0108 | Scripts de instalación de las dependencias | Aceptada |
 | ADR-0109 | Catálogo geográfico del INEGI y scripts de operación | Aceptada |
 | ADR-0110 | Envío de correos y enlaces al frontend | Aceptada |
+| ADR-0111 | Autorización, catálogo de permisos y base de Identity & Access | Aceptada |
 
 ---
 
@@ -348,7 +349,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Fecha:** 2026-09-24
 - **Decisión:** Permisos por contexto y acción (por ejemplo, `catalog.write`, `orders.manage`). El catálogo de permisos se define en código, declarado por cada módulo. Los roles se editan en base de datos. Identity guarda las asignaciones sin conocer el significado de cada permiso.
 - **Alternativas consideradas:** Permisos por recurso y acción.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. ADR-0111 precisa la ubicación del catálogo: un único archivo en el shared kernel, agrupado por contexto.
 
 ---
 
@@ -703,7 +704,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un listado que crezca mucho (por ejemplo, auditoría o movimientos de stock) puede usar paginación por cursor sin afectar a los demás.
   - Algunos recursos tienen vista pública y vista administrativa con respuestas distintas.
   - El envoltorio `data` / `meta` permite agregar información a los listados sin romper clientes de `v1`.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0111.
 
 ---
 
@@ -882,7 +883,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los roles se editan en base de datos, así que pueden crearse otros sin cambiar código.
   - Sin segundo factor, una contraseña del staff filtrada da acceso completo a sus permisos; el rate limiting del login y la auditoría de inicios de sesión son las mitigaciones actuales.
 - **Revisar:** segundo factor (2FA) para el staff como mejora de seguridad a mediano o largo plazo, idealmente antes de operar con clientes reales.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111.
 
 ---
 
@@ -2534,3 +2535,61 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambiar de proveedor (P-24) es otro adaptador de `EmailSender` y otras variables SMTP. Si el proveedor pide usuario y contraseña, se agregan como variables nuevas.
   - Los correos de desarrollo se leen en http://localhost:8025.
 - **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28).
+
+---
+
+## ADR-0111 — Autorización, catálogo de permisos y base de Identity & Access
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-130 (UC-IAM-11 y 14 a 19). Sus endpoints necesitan un usuario autenticado, pero la autenticación llega con T-120, que depende de T-130 porque necesita los usuarios. Además, la anonimización (UC-IAM-19) toca órdenes, envíos y carritos, que todavía no existen, y la reactivación del staff genera una contraseña temporal, como el alta de staff de T-131. ADR-0017 pide un catálogo de permisos en código declarado por cada módulo, y ADR-0036 fija la paginación de los listados, que aún no tenía implementación.
+- **Decisión:**
+  - **Reparto de T-130** en tres pull requests: (a) base, (b) administración de roles, staff y clientes, y (c) direcciones. Salen de T-130:
+    - la anonimización de clientes e invitados (UC-IAM-19), a una tarea nueva, T-132, que depende de Shopping, Ordering y Shipping;
+    - la reactivación del staff, a T-131, que ya genera contraseñas temporales;
+    - revocar las sesiones al suspender, a T-120, en la misma transacción que la suspensión, porque las sesiones nacen allí.
+
+    `orderCount` del detalle de cliente responde 0 hasta que T-180 conecte Ordering.
+  - **Catálogo de permisos en el shared kernel** (`PERMISSIONS`, `PermissionCode`, `isPermissionCode`):
+    - Los 15 permisos de ADR-0043 y ADR-0075, con su descripción en español, agrupados por contexto. Cada contexto es dueño de sus entradas.
+    - Precisa ADR-0017. Si Identity importara el catálogo de cada módulo, habría dependencias circulares en cuanto otros módulos usen su fachada.
+    - El plan aprobado lo ubicaba en `platform/auth`, pero el dominio y la aplicación de Identity tienen que validar los roles contra él (BR-USR-04), y las reglas de límites solo les permiten importar el shared kernel.
+  - **Rol superadministrador:** tiene todos los permisos del catálogo de forma implícita y no guarda filas en `role_permissions`. Un permiso nuevo en el código le llega sin migración, y sus permisos no se editan.
+  - **Roles iniciales** de ADR-0043 en la migración `20260928120000_identity_initial_roles`:
+    - Superadministrador, con todos los permisos implícitos.
+    - Administrador: todos menos `staff.manage`.
+    - Operador: `catalog.*`, `pricing.*`, `inventory.*`, `orders.read`, `shipping.manage` y `customers.read`.
+
+    Después se editan en la base (UC-IAM-15). No se crea ningún usuario.
+  - **Autorización** en `src/platform/auth/`, con el guard global `AuthorizationGuard`:
+    - `@RequirePermissions(...códigos)` marca una ruta de `/v1/admin`: exige una cuenta de staff con todos los permisos indicados.
+    - `@RequireAccount({ customerOnly?, allowPendingPasswordChange? })` marca una ruta de `/v1/me`.
+    - Lee el usuario de `request.user` (`AuthenticatedUser`: `id`, `type`, `permissions` y `mustChangePassword`), que T-120 llenará desde el JWT, con los permisos de `IdentityAccessFacade.permissionsOf`.
+    - Sin usuario, o con uno mal formado, responde 401 `unauthenticated`.
+    - A un staff con contraseña temporal le responde 403 `password-change-required`, salvo en las rutas que lo permiten.
+    - A un cliente en `/v1/admin`, o a un staff sin los permisos, le responde 403 `forbidden`, que se audita (ADR-0100). También 403 `forbidden` a un staff en una ruta solo para clientes.
+    - **Falla cerrado:** una ruta de `/v1/admin` o `/v1/me` sin su decorador responde 500, así un olvido no deja la ruta pública.
+    - Corre después del rate limiting; la autenticación de T-120 irá antes de ambos.
+    - `@RequirePermissions` documenta el Bearer y los permisos (`x-required-permissions`) en OpenAPI.
+    - Hasta T-120, esas rutas responden 401. Los tests e2e usan un autenticador que solo existe en `test/support/`.
+  - **Paginación (ADR-0036):**
+    - `PageQueryDto` (`page` desde 1, `pageSize` de 1 a 100, 20 por defecto), que extiende el DTO de consulta de cada listado.
+    - `@IsSortOf(campos)`, que acepta el campo con `-` opcional; si no, responde 400 con un mensaje en español.
+    - `toSortOrder`, y `toPageResponse` para devolver `{ data, meta }`.
+    - `Page`, `PageRequest` y `SortOrder` en el shared kernel, para los repositorios.
+  - **Errores genéricos del shared kernel:** `VersionConflictError` (409, con `currentVersion`) e `InvalidStateTransitionError` (409, con `currentStatus`).
+  - **Agregados y persistencia:**
+    - `User` (suspender, reactivar clientes, reemplazar roles) y `Role` (crear, renombrar, reemplazar permisos) guardan su estado en un snapshot.
+    - Los repositorios de Prisma aplican bloqueo optimista con `updateMany … where version`; si otra modificación ganó, rechazan con `VersionConflictError` y la versión actual.
+    - Las asignaciones de roles registran quién las hizo.
+- **Alternativas consideradas:**
+  - Esperar a T-120 para hacer T-130: T-120 necesita los usuarios.
+  - Catálogo de permisos en cada módulo: dependencias circulares con Identity.
+  - Guardar los permisos del superadministrador como filas: un permiso nuevo necesitaría una migración.
+  - Guard que deja pasar las rutas sin decorador: un olvido publicaría una ruta de administración.
+  - Paginación por cursor: ADR-0036 la reserva para listados muy grandes.
+- **Consecuencias:**
+  - T-120 solo tiene que autenticar y llenar `request.user`; la autorización ya existe.
+  - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
+  - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
+  - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba).

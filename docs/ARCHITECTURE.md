@@ -34,6 +34,7 @@ src/
 ├── main.ts
 ├── app.module.ts              importa la plataforma y los módulos de contexto
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
+│   ├── auth/                  autorización: AuthenticatedUser, @RequirePermissions, @RequireAccount y el guard global (T-130, ADR-0111)
 │   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
@@ -44,7 +45,7 @@ src/
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109)
-├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122); sin NestJS
+├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122), el catálogo de permisos, la paginación y los errores de versión y de estado (T-130); sin NestJS
 └── modules/
     ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)
     ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)
