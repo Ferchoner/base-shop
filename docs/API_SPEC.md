@@ -163,9 +163,11 @@ Obligatoria en:
 | Misma llave y contenido distinto | 422 `idempotency-key-mismatch` |
 | Misma llave con la solicitud original en proceso | 409 `idempotency-request-in-progress` con `Retry-After` |
 
-- Formato: 1 a 255 caracteres; se recomienda UUID.
-- Alcance: usuario autenticado o, para invitados, el `cartId` del cuerpo; y el endpoint.
-- Se guardan éxitos y errores de negocio; no 5xx, 401 ni 429. Retención de 24 horas.
+- Formato: 1 a 255 caracteres; se recomienda UUID. Una llave vacía responde 400 `idempotency-key-missing`; una de más de 255 caracteres, 400 `validation-error`.
+- Alcance: usuario autenticado o, para invitados, el `cartId` del cuerpo; y el endpoint, identificado por su ruta declarada (por ejemplo, `POST /v1/orders/{publicCode}/payments`).
+- "Mismo contenido" compara los parámetros de la ruta y el cuerpo, sin importar el orden de los campos. Usar la misma llave para pagar otra orden responde 422 (ADR-0099).
+- Se guardan éxitos (estado, cuerpo y `Location`) y errores de negocio; no errores de validación, 5xx, 401 ni 429, así que tras ellos se puede reintentar con la misma llave. Un error de negocio repetido lleva un `correlationId` nuevo. Retención de 24 horas.
+- El 409 `idempotency-request-in-progress` lleva `Retry-After: 2`. Si la solicitud original quedó abandonada (por ejemplo, porque el servidor se reinició) y sigue "en proceso" después de 60 segundos, la siguiente solicitud con la misma llave y el mismo contenido se ejecuta de nuevo; las reglas del dominio impiden duplicar la orden o el pago (ADR-0099).
 
 ---
 

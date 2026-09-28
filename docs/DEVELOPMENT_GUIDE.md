@@ -33,6 +33,12 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Idempotencia (ADR-0063, ADR-0099):
+
+- Un endpoint que exige `Idempotency-Key` se marca con `@Idempotent(cartScope)` (rutas de invitado, alcance = `cartId` del cuerpo) o `@Idempotent(userScope)` (rutas de cliente, alcance = usuario autenticado). El decorador también documenta el encabezado en OpenAPI.
+- El caso de uso no hace nada especial: el interceptor repite la respuesta guardada y libera la llave si la operación no llegó a ejecutarse. Las reglas del dominio deben impedir duplicados por sí mismas, porque una llave abandonada puede volver a ejecutarse.
+- Solo se repiten los errores de negocio (`DomainError`); cualquier otro error libera la llave.
+
 Eventos de dominio (ADR-0098):
 
 - **Publicar:** el caso de uso inyecta `DomainEventPublisher` y llama a `publish(evento)` dentro de `transactions.run(...)`, así el evento sale solo si la transacción confirma. El tipo del evento se declara en el contexto que lo produce y se exporta desde su `index.ts`.
