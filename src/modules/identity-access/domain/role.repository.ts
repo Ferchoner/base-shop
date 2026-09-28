@@ -11,7 +11,20 @@ export abstract class RoleRepository {
 
   /**
    * Creates a new role or saves the changes of a stored one with its permissions. Rejects with
-   * `VersionConflictError` when another change was saved since the role was read (optimistic locking).
+   * `VersionConflictError` when another change was saved since the role was read (optimistic locking), and
+   * with `DuplicateValueError` on the `name` when another role has it.
    */
   abstract save(role: Role): Promise<void>;
+
+  /** Deletes a role and its permissions; rejects with `ResourceInUseError` if a user got it meanwhile. */
+  abstract delete(role: Role): Promise<void>;
+
+  abstract countUsers(id: RoleId): Promise<number>;
+
+  /**
+   * The superadmin role, locked until the transaction ends (`SELECT … FOR UPDATE`). Every change that could
+   * remove the last active superadmin takes this lock first, so two of them never run their check at the
+   * same time (BR-USR-03, ADR-0112).
+   */
+  abstract lockSuperadminRole(): Promise<RoleId>;
 }

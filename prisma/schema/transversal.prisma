@@ -46,6 +46,8 @@ model AuditLog {
   userAgent     String?     @map("user_agent")
   /// Changed fields only; never sensitive or personal values (ADR-0037, ADR-0067).
   changes       Json?       @db.JsonB
+  /// Why a staff member acted, in their own words (ADR-0112). CHECK: 1 to 500 characters (manual SQL).
+  reason        String?
 
   @@index([occurredAt, id])
   @@index([resourceType, resourceId])

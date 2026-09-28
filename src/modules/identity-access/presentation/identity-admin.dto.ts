@@ -1,0 +1,415 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import {
+  PageMetaDto,
+  PageQueryDto,
+} from '../../../platform/http/pagination/page-query.dto.js';
+import {
+  CommaSeparated,
+  IsSortOf,
+} from '../../../platform/http/pagination/pagination.js';
+import { PERMISSION_CODES } from '../../../shared-kernel/index.js';
+
+// Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
+// Fields holding other DTOs, lists, dates or null declare their type with @ApiProperty: the plugin resolves
+// those only with the type checker of `nest build`, not in the tests (ADR-0109, ADR-0112).
+
+const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
+const DATE_TIME = { type: String, format: 'date-time' } as const;
+const NULLABLE_DATE_TIME = { ...DATE_TIME, nullable: true } as const;
+const NULLABLE_TEXT = { type: String, nullable: true } as const;
+const USER_STATUSES = ['ACTIVE', 'SUSPENDED', 'ANONYMIZED'];
+
+// --- Permissions (API_SPEC.md §9.15) ---
+
+export class PermissionDto {
+  /** @example 'catalog.write' */
+  code: string;
+
+  /** @example 'Gestionar productos, variantes, imágenes, categorías y marcas' */
+  description: string;
+}
+
+export class PermissionListDto {
+  @ApiProperty({ type: () => [PermissionDto] })
+  data: PermissionDto[];
+}
+
+// --- Roles (API_SPEC.md §9.16) ---
+
+export class RoleDto {
+  id: string;
+
+  /** @example 'Operador' */
+  name: string;
+
+  @ApiProperty(NULLABLE_TEXT)
+  description: string | null;
+
+  /** El rol protegido por BR-USR-03; siempre tiene todos los permisos. */
+  isSuperadmin: boolean;
+
+  @ApiProperty({
+    type: [String],
+    enum: PERMISSION_CODES,
+    example: ['catalog.read', 'orders.read'],
+  })
+  permissions: string[];
+
+  /** Staff con este rol. */
+  userCount: number;
+
+  version: number;
+
+  @ApiProperty(DATE_TIME)
+  createdAt: Date;
+
+  @ApiProperty(DATE_TIME)
+  updatedAt: Date;
+}
+
+export class RoleListDto {
+  @ApiProperty({ type: () => [RoleDto] })
+  data: RoleDto[];
+
+  @ApiProperty({ type: () => PageMetaDto })
+  meta: PageMetaDto;
+}
+
+export class RoleListQueryDto extends PageQueryDto {
+  /** Parte del nombre, sin distinguir mayúsculas. */
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  /** `name` (por defecto) o `createdAt`, con `-` para orden descendente; varios separados por comas. */
+  @IsOptional()
+  @IsSortOf(['name', 'createdAt'])
+  sort?: string;
+}
+
+export class CreateRoleDto {
+  /** @example 'Soporte' */
+  @IsString()
+  @Length(1, 50)
+  @Matches(/\S/, NOT_BLANK)
+  name: string;
+
+  @ApiPropertyOptional({
+    ...NULLABLE_TEXT,
+    example: 'Atiende a clientes y consulta pedidos',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Length(1, 250)
+  description?: string | null;
+
+  @ApiProperty({
+    type: [String],
+    enum: PERMISSION_CODES,
+    description: 'Permisos del catálogo (BR-USR-04).',
+    example: ['customers.read', 'orders.read'],
+  })
+  @IsArray()
+  @IsIn(PERMISSION_CODES, { each: true })
+  permissions: string[];
+}
+
+export class UpdateRoleDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 50)
+  @Matches(/\S/, NOT_BLANK)
+  name?: string;
+
+  @ApiPropertyOptional({
+    ...NULLABLE_TEXT,
+    description: '`null` borra la descripción.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Length(1, 250)
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    type: [String],
+    enum: PERMISSION_CODES,
+    description:
+      'Reemplaza el conjunto. El rol superadministrador no cambia sus permisos.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(PERMISSION_CODES, { each: true })
+  permissions?: string[];
+
+  /** Versión leída (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+// --- Staff (API_SPEC.md §9.17) ---
+
+export class StaffRoleDto {
+  id: string;
+
+  /** @example 'Operador' */
+  name: string;
+}
+
+export class StaffUserDto {
+  id: string;
+
+  /** @example 'ana.perez@example.com' */
+  email: string;
+
+  firstNames: string;
+
+  lastNames: string;
+
+  @ApiProperty({ enum: ['ACTIVE', 'SUSPENDED'] })
+  status: string;
+
+  /** Con contraseña temporal pendiente de cambiar. */
+  mustChangePassword: boolean;
+
+  @ApiProperty({ type: () => [StaffRoleDto] })
+  roles: StaffRoleDto[];
+
+  @ApiProperty(NULLABLE_DATE_TIME)
+  lastLoginAt: Date | null;
+
+  version: number;
+
+  @ApiProperty(DATE_TIME)
+  createdAt: Date;
+}
+
+export class StaffListDto {
+  @ApiProperty({ type: () => [StaffUserDto] })
+  data: StaffUserDto[];
+
+  @ApiProperty({ type: () => PageMetaDto })
+  meta: PageMetaDto;
+}
+
+export class StaffListQueryDto extends PageQueryDto {
+  /** Parte del email o de los nombres, sin distinguir mayúsculas. */
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Uno o más estados separados por comas: `ACTIVE`, `SUSPENDED`.',
+    example: 'ACTIVE,SUSPENDED',
+  })
+  @IsOptional()
+  @CommaSeparated()
+  @IsIn(['ACTIVE', 'SUSPENDED'], { each: true })
+  status?: ('ACTIVE' | 'SUSPENDED')[];
+
+  /** Solo el staff con este rol. */
+  @IsOptional()
+  @IsUUID()
+  roleId?: string;
+
+  /** `createdAt` o `email`, con `-` para orden descendente; por defecto `-createdAt`. */
+  @IsOptional()
+  @IsSortOf(['createdAt', 'email'])
+  sort?: string;
+}
+
+export class ReplaceRolesDto {
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description: 'Al menos un rol; reemplaza el conjunto.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
+  roleIds: string[];
+
+  /** Versión leída (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+export class ReasonDto {
+  /**
+   * Motivo, de 1 a 500 caracteres. Queda en la auditoría: no escribas datos personales.
+   * @example 'Acceso desde un equipo no autorizado'
+   */
+  @IsString()
+  @Length(1, 500)
+  @Matches(/\S/, NOT_BLANK)
+  reason: string;
+
+  /** Versión leída (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+// --- Customers (API_SPEC.md §9.18) ---
+
+export class AddressDto {
+  id: string;
+
+  /** @example 'María López Hernández' */
+  recipientName: string;
+
+  /** @example '4431234567' */
+  phone: string;
+
+  street: string;
+
+  exteriorNumber: string;
+
+  @ApiProperty(NULLABLE_TEXT)
+  interiorNumber: string | null;
+
+  neighborhood: string;
+
+  /** @example '58000' */
+  postalCode: string;
+
+  /** @example '16' */
+  stateCode: string;
+
+  /** @example 'Michoacán de Ocampo' */
+  stateName: string;
+
+  /** @example '16053' */
+  municipalityCode: string;
+
+  /** @example 'Morelia' */
+  municipalityName: string;
+
+  @ApiProperty(NULLABLE_TEXT)
+  city: string | null;
+
+  @ApiProperty(NULLABLE_TEXT)
+  references: string | null;
+
+  /** @example 'MX' */
+  country: string;
+
+  isDefault: boolean;
+
+  @ApiProperty(DATE_TIME)
+  createdAt: Date;
+
+  @ApiProperty(DATE_TIME)
+  updatedAt: Date;
+}
+
+export class AdminCustomerDto {
+  id: string;
+
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    description: '`null` en un cliente anonimizado.',
+  })
+  email: string | null;
+
+  @ApiProperty(NULLABLE_TEXT)
+  firstNames: string | null;
+
+  @ApiProperty(NULLABLE_TEXT)
+  lastNames: string | null;
+
+  @ApiProperty({ enum: USER_STATUSES })
+  status: string;
+
+  emailVerified: boolean;
+
+  @ApiProperty(DATE_TIME)
+  createdAt: Date;
+
+  @ApiProperty(NULLABLE_DATE_TIME)
+  lastLoginAt: Date | null;
+
+  @ApiProperty(NULLABLE_DATE_TIME)
+  anonymizedAt: Date | null;
+
+  version: number;
+
+  @ApiPropertyOptional({
+    type: () => [AddressDto],
+    description: 'Solo en el detalle.',
+  })
+  addresses?: AddressDto[];
+
+  /** Solo en el detalle. 0 hasta que existan los pedidos (T-180). */
+  orderCount?: number;
+}
+
+export class CustomerListDto {
+  @ApiProperty({ type: () => [AdminCustomerDto] })
+  data: AdminCustomerDto[];
+
+  @ApiProperty({ type: () => PageMetaDto })
+  meta: PageMetaDto;
+}
+
+export class CustomerListQueryDto extends PageQueryDto {
+  /** Parte del email, los nombres o los apellidos, sin distinguir mayúsculas. */
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Uno o más estados separados por comas: `ACTIVE`, `SUSPENDED`, `ANONYMIZED`.',
+    example: 'ACTIVE,SUSPENDED',
+  })
+  @IsOptional()
+  @CommaSeparated()
+  @IsIn(USER_STATUSES, { each: true })
+  status?: ('ACTIVE' | 'SUSPENDED' | 'ANONYMIZED')[];
+
+  @ApiPropertyOptional({ type: Boolean })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  emailVerified?: boolean;
+
+  /** Fecha o fecha y hora ISO 8601; incluida. @example '2026-09-01' */
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  createdFrom?: string;
+
+  /** Fecha o fecha y hora ISO 8601; incluida (una fecha sola incluye todo el día). @example '2026-09-30' */
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  createdTo?: string;
+
+  /** `createdAt`, `email` o `lastLoginAt`, con `-` para orden descendente; por defecto `-createdAt`. */
+  @IsOptional()
+  @IsSortOf(['createdAt', 'email', 'lastLoginAt'])
+  sort?: string;
+}

@@ -45,6 +45,14 @@ export class VersionConflictError extends DomainError {
   }
 }
 
+/**
+ * Rejects a change sent for another `version` than the stored one (API_SPEC.md §4, E-05). Repositories still
+ * check the version again when saving, for changes that race.
+ */
+export function assertVersion(current: number, requested: number): void {
+  if (current !== requested) throw new VersionConflictError(current);
+}
+
 /** The action is not allowed in the current status of the resource (E-12), such as suspending it twice. */
 export class InvalidStateTransitionError extends DomainError {
   readonly code = 'invalid-state-transition';
@@ -53,4 +61,33 @@ export class InvalidStateTransitionError extends DomainError {
   constructor(currentStatus: string, action: string) {
     super(`Cannot ${action} from status ${currentStatus}`, { currentStatus });
   }
+}
+
+/** A value that must be unique is already used (E-13), such as an email, a SKU or a role name. */
+export class DuplicateValueError extends DomainError {
+  readonly code = 'duplicate-value';
+  readonly category = 'conflict';
+
+  constructor(field: string) {
+    super(`The ${field} is already used`, { field });
+  }
+}
+
+/**
+ * The resource does not exist, or belongs to someone else (a resource of another owner is answered as
+ * missing, API_SPEC.md §3.2).
+ */
+export class NotFoundError extends DomainError {
+  readonly code = 'not-found';
+  readonly category = 'not-found';
+
+  constructor(resource: string, id: string) {
+    super(`${resource} ${id} does not exist`);
+  }
+}
+
+/** The resource cannot be deleted while others refer to it (E-14), such as a role with users. */
+export class ResourceInUseError extends DomainError {
+  readonly code = 'resource-in-use';
+  readonly category = 'conflict';
 }

@@ -1,3 +1,4 @@
+import type { RoleId } from './role.js';
 import type { User, UserId } from './user.js';
 
 /**
@@ -12,4 +13,10 @@ export abstract class UserRepository {
    * when another change was saved since the account was read (optimistic locking).
    */
   abstract save(user: User, changedBy: UserId | null): Promise<void>;
+
+  /** ACTIVE staff members holding the role, not counting `except`. */
+  abstract countActiveStaffWithRole(
+    roleId: RoleId,
+    except: UserId,
+  ): Promise<number>;
 }

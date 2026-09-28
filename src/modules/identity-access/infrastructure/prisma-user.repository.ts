@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import { toId, VersionConflictError } from '../../../shared-kernel/index.js';
+import type { RoleId } from '../domain/role.js';
 import { User, type UserId } from '../domain/user.js';
 import { UserRepository } from '../domain/user.repository.js';
 
@@ -71,5 +72,16 @@ export class PrismaUserRepository extends UserRepository {
       });
     }
     user.markSaved(state.version + 1);
+  }
+
+  countActiveStaffWithRole(roleId: RoleId, except: UserId): Promise<number> {
+    return this.txHost.tx.user.count({
+      where: {
+        type: 'STAFF',
+        status: 'ACTIVE',
+        id: { not: except },
+        roles: { some: { roleId } },
+      },
+    });
   }
 }

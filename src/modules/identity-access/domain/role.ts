@@ -5,6 +5,7 @@ import {
   PERMISSION_CODES,
   type PermissionCode,
 } from '../../../shared-kernel/index.js';
+import { SuperadminPermissionsFixedError } from './identity-errors.js';
 
 export type RoleId = Id<'Role'>;
 
@@ -76,11 +77,7 @@ export class Role {
   }
 
   replacePermissions(permissions: readonly string[]): void {
-    if (this.state.isSuperadmin) {
-      throw new InvalidValueError(
-        'The superadmin role always has every permission',
-      );
-    }
+    if (this.state.isSuperadmin) throw new SuperadminPermissionsFixedError();
     this.state = { ...this.state, permissions: validPermissions(permissions) };
   }
 
