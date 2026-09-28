@@ -121,6 +121,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0101 | Base de los jobs programados | Aceptada |
 | ADR-0102 | Mecanismo de rate limiting | Aceptada |
 | ADR-0103 | Verificación automática de límites entre módulos y capas | Aceptada |
+| ADR-0104 | Base del cache con espacios de nombres | Aceptada |
 
 ---
 
@@ -535,7 +536,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un listado puede mostrar hasta 120 segundos un precio o una disponibilidad desactualizados. El checkout no usa cache y valida el total con `expectedTotal` (ADR-0019).
   - La cache se pierde al reiniciar la API; solo afecta el rendimiento de las primeras solicitudes.
   - Si la API se escala a varias instancias, se cambia a un almacén compartido (por ejemplo, Redis) sin tocar el código que usa la cache.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0104.
 
 ---
 
@@ -2278,4 +2279,28 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una violación hace fallar `npm run lint` y, desde T-106, la CI. La solución es mover el código, no relajar la regla; cambiar una regla requiere un ADR.
   - T-119 agrega a estas reglas la que impide usar el cache desde Domain y Application.
   - La regla de ADR-0093 (usar `txHost.tx` y no `PrismaService` en los repositories) sigue en el code review: los dos se importan desde `platform/persistence`.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0104 — Base del cache con espacios de nombres
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-119. ADR-0028 eligió `@nestjs/cache-manager` con almacén en memoria del proceso y TTL de 120 s configurable. El cache solo vive en Infrastructure o Presentation, nunca para decisiones que requieren consistencia, y cachea solo lecturas públicas del catálogo, con invalidación inmediata por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`. Los endpoints del catálogo llegan con T-140.
+- **Decisión:**
+  - **`@nestjs/cache-manager`** registrado global con el TTL configurado, para cachear respuestas con su interceptor cuando no haya nada que invalidar.
+  - **`AppCache`** en `src/platform/cache/`, con espacios de nombres. Cada espacio (`catalog`, `geo`…) tiene su propio almacén en memoria (`cache-manager` con Keyv), así que se vacía por separado. Ofrece `getOrLoad(clave, carga)`, `delete(clave)` y `clear()`, y todo valor vence con el TTL.
+  - **`CACHE_TTL_SECONDS`:** variable opcional, 120 por defecto, entero de 1 a 86400, validada al arrancar.
+  - **Invalidación del catálogo:** `PublicCatalogCacheInvalidation`, en la infraestructura de Catalog (adaptador de entrada, ADR-0098), vacía **todo** el espacio `catalog` con cualquiera de los tres eventos. Un producto aparece en muchos listados, filtros y páginas, así que borrar claves sueltas sería frágil. Los casos de uso de T-140 publicarán esos eventos.
+  - **Regla de límites:** las reglas de ADR-0103 ya impiden usar el cache desde Domain (solo shared kernel) y desde Application (sin `platform` ni paquetes fuera de `@nestjs/common`). El proyecto de ejemplo de `test/boundaries/` suma una violación de cada una, para probarlo.
+- **Alternativas consideradas:**
+  - Un solo almacén con prefijos de clave: vaciar un espacio exigiría seguir sus claves a mano.
+  - Invalidar solo las claves del producto afectado: frágil, porque es fácil olvidar un listado o un filtro.
+  - Solo el interceptor de NestJS: cachea por URL y no permite invalidar el catálogo por eventos.
+  - Una regla de límites nueva para el cache: repetiría lo que ya impiden las reglas de ADR-0103.
+- **Consecuencias:**
+  - Tras publicar o archivar un producto, las siguientes consultas del catálogo vuelven a leer de la base hasta llenar el cache otra vez.
+  - Con despacho en segundo plano (ADR-0098), la invalidación ocurre un instante después del cambio.
+  - El cache se pierde al reiniciar y no se comparte entre instancias (ADR-0028).
+  - T-140 cachea el árbol de categorías, el detalle de producto y los listados sin `q` en el espacio `catalog`; T-124 puede cachear el catálogo geográfico en su propio espacio.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

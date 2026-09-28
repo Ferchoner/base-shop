@@ -34,6 +34,7 @@ src/
 ├── main.ts
 ├── app.module.ts              importa la plataforma y los módulos de contexto
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
+│   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger e idempotencia (T-100, T-113, T-114, T-115)
@@ -127,6 +128,7 @@ Ver ADR-0005.
 - Solo se cachean lecturas públicas del catálogo: árbol de categorías, detalle de producto y listados de la tienda sin texto de búsqueda (ADR-0060).
 - TTL de 120 segundos, configurable.
 - Invalidación inmediata por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`; el resto, por TTL.
+- Implementación (ADR-0104): `AppCache` separa los datos en espacios de nombres, cada uno con su almacén (`namespace('catalog').getOrLoad(clave, carga)`), y cada espacio se vacía por separado. El handler `PublicCatalogCacheInvalidation` de Catalog vacía todo el espacio `catalog` con cualquiera de los tres eventos. El TTL se configura con `CACHE_TTL_SECONDS`. Las reglas de límites de ADR-0103 ya impiden usar el cache desde Domain y Application.
 
 ## Jobs programados
 
