@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery and Architecture) se cerró el 2026-09-26; su review está en el historial de `SPRINT.md`.
+Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones técnicas) se cerró el 2026-09-28 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
 
 ## Completed
 
@@ -104,11 +104,11 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 
 ## In Progress
 
-- [ ] Sprint 1: fundaciones técnicas (T-100 a T-107, T-110 a T-119, T-126 y T-127); plan en `SPRINT.md`
+- [ ] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123); plan en `SPRINT.md`
 
 ## Next
 
-- [ ] Contextos de negocio (T-120 en adelante), después del Sprint 1
+- [ ] Contextos de negocio restantes (Catalog, Pricing, Inventory, Shopping, Ordering, Payments y Shipping), después del Sprint 2
 
 ## Blocked
 
