@@ -109,10 +109,25 @@ describe('GitHub repository settings (ADR-0106)', () => {
       expect([...config.matchAll(/^ {6}default-days: 7$/gm)]).toHaveLength(2);
     });
 
+    /** Packages whose major versions Dependabot must not propose. */
+    function ignoredMajors(): string[] {
+      return [
+        ...config.matchAll(
+          /- dependency-name: '?([^'\n]+)'?\n\s+update-types: \['version-update:semver-major'\]/g,
+        ),
+      ].map((match) => match[1]);
+    }
+
     it('keeps @types/node on the Node.js major version of the project (ADR-0025)', () => {
-      expect(config).toMatch(
-        /- dependency-name: '@types\/node'\n\s+update-types: \['version-update:semver-major'\]/,
-      );
+      expect(ignoredMajors()).toContain('@types/node');
+    });
+
+    it('keeps TypeScript on 6.x until the toolchain supports TypeScript 7 (ADR-0107)', () => {
+      expect(ignoredMajors()).toContain('typescript');
+    });
+
+    it('ignores no other major version without a recorded reason', () => {
+      expect(ignoredMajors()).toEqual(['@types/node', 'typescript']);
     });
   });
 });
