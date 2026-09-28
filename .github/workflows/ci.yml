@@ -1,0 +1,111 @@
+# Continuous integration (ADR-0030, ADR-0105). Runs on every pull request to main and on every push
+# to main. The job names are the required checks of the main branch (T-107): renaming a job means
+# updating the branch protection too.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # A new push to a pull request cancels its previous run; runs on main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # Explicit bash runs every step with -e and -o pipefail.
+    shell: bash
+
+jobs:
+  pipeline:
+    name: Pipeline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The secret scan reads the whole history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js from .nvmrc
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          # The latest 24.x, as ADR-0025 asks, not the one cached on the runner.
+          check-latest: true
+          cache: npm
+
+      - name: 1. Install dependencies
+        run: npm ci
+
+      - name: 2. Lint and format
+        run: |
+          npm run lint:code
+          npm run format:check
+
+      - name: 3. Module boundaries
+        run: npm run lint:boundaries
+
+      - name: 4. TypeScript compilation
+        run: npx tsc --noEmit
+
+      - name: 5. Unit tests
+        run: npm test
+
+      # Testcontainers starts postgres:18 with the runner's Docker (ADR-0090). Its setup applies every
+      # migration from scratch, and database-schema.int-spec.ts checks the Prisma schema against them.
+      - name: 6-7. Integration tests, migrations from scratch and schema diff
+        run: npm run test:int
+
+      - name: 6. End-to-end tests
+        run: npm run test:e2e
+
+      - name: 8. Dependency audit (fails on high and critical)
+        run: npm audit --audit-level=high
+
+      # gitleaks reads the whole history offline; --redact keeps any finding out of the public log.
+      # Reviewed false positives live in .gitleaksignore.
+      - name: 9. Secret scan
+        env:
+          GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+        run: docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" git /repo --redact --verbose --no-banner
+
+      - name: 10. Production Docker image
+        run: docker build --target production --tag base-shop:ci .
+
+  commit-messages:
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test the commit message check
+        run: bash .github/scripts/check-commit-messages.test.sh
+
+      # The title and the SHAs come in through env, never interpolated into the script: a pull
+      # request title is untrusted input.
+      - name: Check the pull request title and commits (ADR-0084)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            printf '%s\n' "$PR_TITLE"
+            git log --no-merges --format=%s "$BASE_SHA..$HEAD_SHA"
+          } | bash .github/scripts/check-commit-messages.sh
