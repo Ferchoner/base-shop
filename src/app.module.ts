@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ClsModule } from 'nestjs-cls';
 import { AuditModule } from './modules/audit/index.js';
 import { CatalogModule } from './modules/catalog/index.js';
+import { GeoModule } from './modules/geo/index.js';
 import { IdentityAccessModule } from './modules/identity-access/index.js';
 import { InventoryModule } from './modules/inventory/index.js';
 import { OrderingModule } from './modules/ordering/index.js';
@@ -43,6 +44,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     IdempotencyModule,
     RateLimitingModule,
     AuditModule,
+    GeoModule,
     IdentityAccessModule,
     CatalogModule,
     PricingModule,
