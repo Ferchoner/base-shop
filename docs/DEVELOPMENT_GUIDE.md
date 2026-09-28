@@ -33,6 +33,14 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Jobs programados (ADR-0029, ADR-0101):
+
+- Un job es un provider en `infrastructure` del contexto, en un archivo `*.job.ts`, con un método `@ScheduledJob('contexto.accion', CronExpression.EVERY_MINUTE)` que llama a un solo caso de uso. El nombre sigue el formato de las acciones de auditoría.
+- La expresión cron se lee en hora de México: `'0 3 * * *'` son las 3:00 en America/Mexico_City.
+- El caso de uso procesa por lotes con un límite por ejecución y una transacción por elemento (`transactions.run` dentro del ciclo), para que un fallo no revierta el lote, y es idempotente.
+- No hace falta atrapar errores ni evitar ejecuciones superpuestas: lo hace `@ScheduledJob`.
+- En los tests el scheduler está apagado (`JOBS_ENABLED=false`); un test de un job llama a su método directamente.
+
 Auditoría (ADR-0037, ADR-0100):
 
 - Todo caso de uso que modifica datos a pedido del staff, y todo evento de seguridad, registra con el puerto `AuditTrail` del shared kernel:

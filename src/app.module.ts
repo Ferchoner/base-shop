@@ -14,6 +14,7 @@ import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
 import { EventsModule } from './platform/events/events.module.js';
 import { IdempotencyModule } from './platform/http/idempotency/idempotency.module.js';
+import { JobsModule } from './platform/jobs/jobs.module.js';
 import { ProblemDetailsModule } from './platform/http/problem-details/problem-details.module.js';
 import { LoggingModule } from './platform/logging/logging.module.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
@@ -33,6 +34,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     LoggingModule,
     PersistenceModule,
     EventsModule,
+    JobsModule.forRoot(),
     ClockModule,
     ProblemDetailsModule,
     IdempotencyModule,

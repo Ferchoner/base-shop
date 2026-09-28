@@ -37,6 +37,7 @@ src/
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger e idempotencia (T-100, T-113, T-114, T-115)
+│   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
@@ -134,6 +135,8 @@ Ver ADR-0005.
 - Limpieza diaria y archivo de la auditoría.
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
+
+Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre, expresiónCron)`, que garantiza que una ejecución no se superponga con la anterior (la nueva se omite con un aviso en el log), que un fallo quede en el log sin detener el scheduler y que cada ejecución corra en su propio contexto asíncrono con un identificador que llevan sus logs. Todas las expresiones cron se interpretan en America/Mexico_City. La variable `JOBS_ENABLED` (por defecto `true`) apaga el scheduler; los tests la ponen en `false`. Al cerrar la aplicación se espera a las ejecuciones en curso.
 
 | Job | Frecuencia | Detalle |
 |---|---|---|

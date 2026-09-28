@@ -31,6 +31,8 @@ export default async function globalSetup(): Promise<void> {
   globalThis.__INTEGRATION_POSTGRES__ = container;
   const databaseUrl = container.getConnectionUri();
   process.env.DATABASE_URL = databaseUrl;
+  // Scheduled jobs would run during the tests and could touch their data (ADR-0101).
+  process.env.JOBS_ENABLED = 'false';
 
   const prismaCli = path.join(
     process.cwd(),

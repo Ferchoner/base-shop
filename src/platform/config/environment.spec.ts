@@ -175,3 +175,24 @@ describe('LOG_LEVEL (ADR-0097)', () => {
     ).toThrow(/LOG_LEVEL/);
   });
 });
+
+describe('JOBS_ENABLED (ADR-0101)', () => {
+  it('defaults to true', () => {
+    expect(validateEnvironment(REQUIRED).JOBS_ENABLED).toBe(true);
+  });
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('reads %p', (value, expected) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, JOBS_ENABLED: value }).JOBS_ENABLED,
+    ).toBe(expected);
+  });
+
+  it.each(['yes', '1', 'TRUE'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, JOBS_ENABLED: value }),
+    ).toThrow(/JOBS_ENABLED/);
+  });
+});
