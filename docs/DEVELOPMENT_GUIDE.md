@@ -152,6 +152,12 @@ Entorno (ADR-0025):
 - La versión de Node.js se declara en el campo `engines` de `package.json` y en un archivo de versión para el entorno local.
 - Fin de línea LF en todos los archivos de texto, forzado por `.gitattributes` (`* text=auto eol=lf`), igual que `.editorconfig` y Prettier.
 - `npm audit` debe quedar sin vulnerabilidades altas ni críticas, igual que en la CI (ADR-0030).
+- Scripts de instalación de las dependencias (ADR-0108):
+  - `package.json` los niega todos en `allowScripts`, y `.npmrc` (`strict-allow-scripts=true`) hace fallar la instalación si una dependencia trae uno sin revisar.
+  - Si `npm ci` falla con `ESTRICTALLOWSCRIPTS`, se revisa el script que lista el error (`npm install-scripts ls`) y se decide:
+    - lo normal es negarlo con `npm install-scripts deny <paquete>`;
+    - solo si hace falta, se aprueba con `npm install-scripts approve --no-allow-scripts-pin <paquete>`, se registra el motivo en un ADR y se actualiza `test/repository/install-scripts.spec.ts`.
+  - Nunca se usa `--dangerously-allow-all-scripts`.
 
 Ramas e integración continua (ADR-0030):
 

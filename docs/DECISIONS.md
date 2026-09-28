@@ -125,6 +125,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0105 | Pipeline de CI en GitHub Actions | Aceptada |
 | ADR-0106 | Protección de la rama principal y Dependabot | Aceptada |
 | ADR-0107 | TypeScript se mantiene en 6.x | Aceptada |
+| ADR-0108 | Scripts de instalación de las dependencias | Aceptada |
 
 ---
 
@@ -2420,4 +2421,34 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Seguimos recibiendo correcciones de TypeScript 6.x, pero no las mejoras de rendimiento del compilador nuevo.
   - Hay que revisar de vez en cuando si las herramientas ya lo admiten.
 - **Revisar si:** ts-jest, la CLI de Nest y el plugin de Swagger admiten TypeScript 7 (o TypeScript 7 publica una API estable que ellos usen). Entonces se quita la regla de `dependabot.yml` y se prueba la actualización con la CI completa.
+- **Estado:** Aceptada (aprobada el 2026-09-28).
+
+---
+
+## ADR-0108 — Scripts de instalación de las dependencias
+
+- **Fecha:** 2026-09-28
+- **Contexto:** Paso 0 del Sprint 2. npm 11.19 avisa que 8 dependencias tienen scripts de instalación sin revisar en `allowScripts`, pero todavía los ejecuta: durante un `npm ci`, el de `cpu-features` compiló código nativo en el equipo local. Los scripts de instalación son la vía más común del malware en npm, y uno de ellos, el de `@scarf/scarf` (a través de `@nestjs/swagger` y `swagger-ui-dist`), envía estadísticas de uso a un servicio externo en cada instalación. Ninguno hace falta:
+  - `prisma` y `protobufjs` solo comprueban versiones.
+  - `@prisma/engines` descarga el motor de migraciones, que el `prisma generate` del propio proyecto también descarga.
+  - `@parcel/watcher` y `unrs-resolver` (de Jest) compilan o revisan binarios que ya llegan precompilados.
+  - `cpu-features` y `ssh2` (de Testcontainers) compilan aceleraciones opcionales para conexiones SSH a Docker, que el proyecto no usa.
+  - `@scarf/scarf` es telemetría.
+- **Decisión:**
+  - `package.json` declara `allowScripts` y **niega los 8 scripts**, con entradas por nombre, sin versión fija. Así una versión nueva de un paquete ya revisado conserva la decisión y los pull requests de Dependabot no fallan por eso.
+  - `.npmrc` activa `strict-allow-scripts=true`: una dependencia nueva con scripts sin revisar **hace fallar la instalación**, en local, en la CI y en Docker, en vez de ejecutarse con un aviso.
+  - El `Dockerfile` copia `.npmrc` antes de cada `npm ci`.
+  - Los scripts del propio proyecto, como el `postinstall` que ejecuta `prisma generate`, no se ven afectados.
+  - Aprobar un script requiere revisarlo, registrar el motivo en este ADR o en uno nuevo y actualizar `test/repository/install-scripts.spec.ts`, que hoy exige que no haya ninguno aprobado.
+- **Alternativas consideradas:**
+  - Aprobar todos los scripts (`npm install-scripts approve --all`): silencia el aviso, pero sigue ejecutando código que no hace falta, incluida la telemetría.
+  - Negar los scripts sin modo estricto: una dependencia nueva con scripts se ejecutaría con solo un aviso.
+  - `--ignore-scripts` en cada instalación: también bloquea el `prisma generate` del proyecto, y hay que recordarlo en cada comando.
+  - Entradas con versión fija (el comportamiento por defecto de npm): cada actualización del paquete obligaría a revisarlo otra vez y haría fallar los pull requests de Dependabot.
+  - Desactivar solo la telemetría con `SCARF_ANALYTICS=false`: no cubre el resto.
+- **Consecuencias:**
+  - Ninguna dependencia ejecuta código al instalarse, y la telemetría de scarf deja de enviarse. Las instalaciones no compilan código nativo, así que son más rápidas.
+  - Si una actualización (por ejemplo, de Dependabot) trae un paquete nuevo con scripts, `npm ci` falla con `ESTRICTALLOWSCRIPTS` hasta decidir si se aprueba o se niega (`DEVELOPMENT_GUIDE.md`).
+  - Con una versión de npm anterior a 11.19, `allowScripts` se ignora y los scripts vuelven a ejecutarse; el proyecto usa la que trae Node.js 24 (ADR-0025).
+  - Verificado con instalaciones limpias en Windows y Linux: tests unitarios, de integración (con las migraciones) y end-to-end, build, e imágenes de Docker de desarrollo y producción. La imagen de producción queda igual que antes, de 913 MB y con el mismo motor de Prisma.
 - **Estado:** Aceptada (aprobada el 2026-09-28).

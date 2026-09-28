@@ -101,6 +101,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] T-106: CI en GitHub Actions con los 10 pasos de ADR-0030 en un job (`Pipeline`), detección de secretos con gitleaks y comprobación de los mensajes de commit en los pull requests (`Commit messages`) (ADR-0105)
 - [x] T-107: `main` protegida con un ruleset (pull request, checks `Pipeline` y `Commit messages`, rama al día, sin excepciones), Dependabot semanal para npm y GitHub Actions con grupos y 7 días de espera, alertas y actualizaciones de seguridad activadas (ADR-0106)
 - [x] TypeScript se mantiene en 6.x: la versión 7 no expone la API de compilador que usan ts-jest, la CLI de Nest y el plugin de Swagger; Dependabot ignora sus versiones mayores (ADR-0107)
+- [x] Scripts de instalación de las dependencias negados con `allowScripts` y modo estricto de npm en local, CI y Docker, sin telemetría de `@scarf/scarf` (ADR-0108)
 
 ## In Progress
 
