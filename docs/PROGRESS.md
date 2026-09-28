@@ -105,6 +105,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] T-124: catálogo geográfico del INEGI en el módulo transversal `geo`: importación idempotente con `npm run geo:import` (valida el archivo completo, desactiva sin borrar, audita), catálogo versionado en `data/inegi/`, consulta pública de estados y municipios con cache, y fachada para direcciones y checkout (ADR-0109)
 - [x] T-122: puertos `EmailSender` y `FrontendLinks` en el shared kernel, adaptador SMTP con nodemailer hacia Mailpit, `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` obligatorias en producción, y tests contra Mailpit real (ADR-0110)
 - [x] T-130 (parte a): catálogo de permisos en el shared kernel, autorización con `@RequirePermissions` y `@RequireAccount` (falla cerrado), paginación de ADR-0036, agregados `User` y `Role` con bloqueo optimista, roles iniciales por migración y `permissionsOf` para T-120 (ADR-0111). La anonimización pasa a T-132 y la reactivación del staff a T-131
+- [x] T-130 (parte b): catálogo de permisos, CRUD de roles, roles y suspensión del staff, y listado, detalle, suspensión y reactivación de clientes; motivo en `audit_logs.reason`; nunca sin superadministrador activo, con bloqueo y test de concurrencia; ordenamiento por varios campos y `Cache-Control: no-store` (ADR-0112)
 
 ## In Progress
 

@@ -612,6 +612,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | ip | inet | Sí | — |
 | user_agent | text | Sí | — |
 | changes | jsonb | Sí | Solo campos modificados; sin valores de campos sensibles ni personales (ADR-0037, ADR-0067) |
+| reason | text | Sí | Motivo que dio el staff, cuando la acción lo pide (suspender, reactivar…); `CHECK` de 1 a 500 caracteres (ADR-0112). Texto libre: nunca se piden datos personales en él |
 
 - **Índices:** `(occurred_at, id)` (paginación por cursor y exportación diaria); `(resource_type, resource_id)`; `(actor_id, occurred_at)`.
 - **Integridad:** trigger que rechaza `UPDATE`; solo el job de retención borra registros (ADR-0037).
@@ -689,6 +690,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
     - Migrar al arrancar la API: la API necesitaría permisos para cambiar el esquema, su arranque dependería de la migración y varias réplicas intentarían migrar a la vez.
     - Migrar a mano con un túnel SSH: aceptable solo al inicio, porque no es reproducible.
   - **Reversión de un despliegue:** no se revierte la migración. Gracias a los cambios en dos pasos, la versión anterior de la API sigue funcionando con el esquema nuevo.
+- **Motivo en la auditoría:** la migración `20260928140000_audit_reason` (T-130, ADR-0112) agrega `audit_logs.reason`.
 - **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).

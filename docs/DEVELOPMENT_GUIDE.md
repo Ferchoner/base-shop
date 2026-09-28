@@ -109,9 +109,12 @@ Autorización (ADR-0111):
 
 Listados (ADR-0036, ADR-0111):
 
-- El DTO de consulta extiende `PageQueryDto` y declara sus filtros y `sort` con `@IsSortOf(['name', 'createdAt'])`. Cualquier otro parámetro se rechaza con 400.
-- El controlador pasa `toSortOrder(query.sort, '-createdAt')` y la página al caso de uso, y responde con `toPageResponse(page, query, toDto)`, que arma `{ data, meta }`.
+- El DTO de consulta extiende `PageQueryDto` y declara sus filtros y `sort` con `@IsSortOf(['name', 'createdAt'])`, que acepta varios campos separados por comas. Los filtros con varios valores usan `@CommaSeparated()` y `@IsIn(valores, { each: true })`. Cualquier otro parámetro se rechaza con 400.
+- El controlador pasa `toSortOrders(query.sort, '-createdAt')` y la página a la consulta, y responde con `toPageResponse(page, query, toDto)`, que arma `{ data, meta }`.
+- Los listados y detalles de administración leen con un puerto de consultas en la aplicación (por ejemplo, `IdentityQueries`), implementado con Prisma en la infraestructura, sin cargar agregados (ADR-0112).
 - El repositorio recibe `PageRequest` y `SortOrder` del shared kernel, ordena por el campo pedido y después por el ID, para que el orden sea estable entre páginas, y devuelve `Page` (`items` y `totalItems`).
+
+Motivo del staff (ADR-0112): las acciones que piden `reason` (suspender, reactivar…) lo pasan en `audit.record({ …, reason })`. Queda en `audit_logs.reason`, aparte de `changes`, con 1 a 500 caracteres.
 
 Concurrencia en recursos versionados: el repositorio guarda con `updateMany({ where: { id, version } })`. Si no actualiza ninguna fila, rechaza con `VersionConflictError(versiónActual)` (409 `version-conflict`, E-05) y el cliente vuelve a leer.
 
@@ -129,7 +132,8 @@ Versionado y documentación OpenAPI (ADR-0096):
 - Los DTOs se escriben en archivos `*.dto.ts`. El plugin de Swagger toma sus tipos, sus reglas de class-validator y el comentario de cada propiedad, así que en los campos simples no se repite `@ApiProperty`. Los comentarios de las propiedades se publican como descripción en OpenAPI y por eso van en español, como `API_SPEC.md`.
 - Se declara de forma explícita lo que el plugin solo deduce con el análisis de tipos de `nest build` (ADR-0109):
   - la respuesta de éxito de cada endpoint, con `@ApiOkResponse({ type })` o `@ApiCreatedResponse({ type })`;
-  - los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type: () => [OtroDto] })`.
+  - los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type: () => [OtroDto] })`;
+  - las listas, las fechas y los campos que pueden ser `null` (ADR-0112), por ejemplo `@ApiProperty({ type: String, format: 'date-time', nullable: true })`.
 - Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos.
 - Los tests end-to-end aplican el mismo plugin (`test/swagger-plugin.cjs`). Como ts-jest compila archivo por archivo, el plugin no deduce ahí los tipos de retorno ni los campos con otros DTO; declarándolos de forma explícita, el documento de los tests coincide con el real.
 

@@ -34,7 +34,7 @@ src/
 ├── main.ts
 ├── app.module.ts              importa la plataforma y los módulos de contexto
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
-│   ├── auth/                  autorización: AuthenticatedUser, @RequirePermissions, @RequireAccount y el guard global (T-130, ADR-0111)
+│   ├── auth/                  autorización: AuthenticatedUser, @RequirePermissions, @RequireAccount, @CurrentUser y el guard global, que también pone Cache-Control: no-store (T-130, ADR-0111, ADR-0112)
 │   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
