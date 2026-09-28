@@ -632,6 +632,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | expires_at | timestamptz(3) | No | +24 horas |
 
 - **Índices:** `(expires_at)` para la limpieza.
+- **Uso (ADR-0099):** `created_at` marca el inicio del intento actual; una fila IN_PROGRESS con más de 60 segundos se considera abandonada y la toma la siguiente solicitud con la misma huella. Una fila vencida (`expires_at` pasado) se reutiliza como nueva. `response_body` guarda `{ "kind": "success", "status", "body", "location" }` o, para un error de negocio, `{ "kind": "problem", "code", "extensions" }`.
 
 ### 11.3 `geo_states` y `geo_municipalities`
 

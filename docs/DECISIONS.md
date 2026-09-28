@@ -116,6 +116,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0096 | Versionado por ruta y documentación OpenAPI en local | Aceptada |
 | ADR-0097 | Logs de la aplicación | Aceptada |
 | ADR-0098 | Bus de eventos en proceso con despacho en segundo plano | Aceptada |
+| ADR-0099 | Mecanismo de idempotencia HTTP | Aceptada |
 
 ---
 
@@ -1225,7 +1226,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Formato: texto de hasta 255 caracteres; se recomienda un UUID.
   - Retención: 24 horas (ADR-0029).
 - **Consecuencias:** Tras un 409 por `expectedTotal`, el cliente vuelve a cotizar y debe usar una llave nueva, porque el contenido cambió.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0099.
 
 ---
 
@@ -2118,4 +2119,31 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tests de integración esperan a los handlers con `DomainEventDispatcher.whenIdle()`.
   - Corregido `DOMAIN_MODEL.md`: Shopping no reacciona a `OrderPlaced`; el checkout marca el carrito dentro de su transacción (ADR-0019).
 - **Revisar si:** los logs muestran fallos frecuentes de handlers, un efecto en segundo plano necesita garantía de entrega, o se ejecuta más de una instancia.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0099 — Mecanismo de idempotencia HTTP
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-115. ADR-0063 fijó el comportamiento de `Idempotency-Key` en colocar orden e iniciar pago: llave ligada a quien la envía y al endpoint, 400, 422 y 409, respuestas guardadas 24 horas, sin guardar 5xx, 401 ni 429. La tabla `idempotency_keys` existe desde T-110 (`DATABASE.md`, sección 11.2). Faltaban el mecanismo, qué significa "mismo contenido" y qué pasa con una solicitud que quedó a medias.
+- **Decisión:**
+  - **Uso:** decorador `@Idempotent(alcance)` en el controlador, con un interceptor en `src/platform/http/idempotency/`. `cartScope` toma el `cartId` del cuerpo (rutas de invitado); `userScope`, el usuario autenticado, que T-120 dejará en `request.user.id`. Si el alcance no se puede resolver, la solicitud es inválida y la rechazan la validación o la autenticación.
+  - **Identidad de la solicitud:** el endpoint es la ruta declarada (por ejemplo, `POST /v1/orders/:publicCode/payments`), no la URL concreta. La huella es un SHA-256 de los parámetros de la ruta y el cuerpo, con las claves ordenadas: el orden de los campos no importa, y reutilizar la llave para pagar otra orden responde 422 en lugar de devolver la respuesta de la primera.
+  - **Registro atómico:** la llave se reclama con `INSERT … ON CONFLICT` sobre la llave primaria, fuera de la transacción del caso de uso, que corre después. De dos solicitudes simultáneas, solo una se ejecuta; la otra recibe 409 `idempotency-request-in-progress` con `Retry-After: 2`.
+  - **Qué se guarda:** los éxitos (estado, cuerpo y `Location`) y los errores de negocio (`DomainError` del catálogo), que se repiten con un identificador de correlación nuevo. Los errores de validación, porque la operación no llegó a ejecutarse, y los errores inesperados liberan la llave: el cliente puede reintentar con la misma. Los 401 y 429 los rechazan los guards antes del interceptor.
+  - **Sin cambios en la base:** `response_body` guarda un sobre con el tipo de respuesta (`success` o `problem`), que incluye `Location`.
+  - **Llaves vencidas y abandonadas:** una llave con más de 24 horas se reutiliza como nueva; la borra el job diario de limpieza (T-231). Una llave que sigue "en proceso" después de **60 segundos** se considera abandonada (por ejemplo, porque el servidor se reinició) y la toma la siguiente solicitud con la misma huella; con otra huella sigue respondiendo 422.
+  - **Validación de la llave:** ausente o vacía, 400 `idempotency-key-missing`; más de 255 caracteres, 400 `validation-error` con el campo `Idempotency-Key`.
+- **Alternativas consideradas:**
+  - Endpoint como URL concreta: los mismos datos con otro formato de la ruta contarían como otro endpoint.
+  - Huella solo del cuerpo: la misma llave para pagar dos órdenes devolvería la respuesta de la primera.
+  - Guardar también los errores de validación: el cliente no podría corregir y reintentar con la misma llave.
+  - Nunca retomar una llave abandonada: el cliente recibiría 409 durante 24 horas.
+  - Registrar la respuesta en la transacción del caso de uso: iniciar un pago llama al proveedor fuera de la transacción (ADR-0019).
+  - Una columna nueva para `Location`: el sobre en `response_body` evita la migración.
+- **Consecuencias:**
+  - Las reglas del dominio deben impedir duplicados por sí mismas (carrito ya marcado, un pago por orden), porque una llave abandonada puede volver a ejecutarse.
+  - T-120 debe dejar el usuario autenticado en `request.user.id` para `userScope`.
+  - La limpieza de llaves vencidas queda en el job diario (T-231).
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

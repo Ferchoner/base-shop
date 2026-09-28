@@ -36,7 +36,7 @@ src/
 ├── platform/                  infraestructura técnica transversal, sin reglas de negocio
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
-│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado y Swagger (T-100, T-113, T-114)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger e idempotencia (T-100, T-113, T-114, T-115)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
@@ -101,7 +101,7 @@ Ver ADR-0005.
   - Cada transacción espera como máximo 2 s para iniciar y se revierte si dura más de 5 s.
 - Bloqueo optimista con columna `version` en los aggregates editables; la lista está en `DATABASE.md` (sección 12).
 - Reserva de inventario con actualización condicional atómica y restricción `CHECK` (ADR-0011).
-- Idempotencia con encabezado `Idempotency-Key` en PlaceOrder e InitiatePayment.
+- Idempotencia con encabezado `Idempotency-Key` en PlaceOrder e InitiatePayment, con el decorador `@Idempotent` (ADR-0063, ADR-0099). La llave se registra de forma atómica, fuera de la transacción del caso de uso, así que de dos solicitudes simultáneas solo una se ejecuta.
 - Nivel de aislamiento: Read Committed (predeterminado de PostgreSQL).
 
 ## Eventos de dominio
