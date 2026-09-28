@@ -35,6 +35,13 @@ export class GeoCatalog {
     return this.repository.listActiveMunicipalities(stateCode);
   }
 
+  /** A state by its 2-digit key, or null if it does not exist. */
+  findState(code: string): Promise<GeoState | null> {
+    return isStateCode(code)
+      ? this.repository.findState(code)
+      : Promise.resolve(null);
+  }
+
   /** A municipality by its 5-digit key, active or not, or null if it does not exist. */
   findMunicipality(code: string): Promise<GeoMunicipality | null> {
     return this.repository.findMunicipality(code);

@@ -69,6 +69,22 @@ const CUSTOMER_FIELDS = {
   version: true,
 } as const;
 
+/** State and municipality names come from the geographic catalog (DATABASE.md §3.5). */
+const ADDRESS_NAMES = {
+  state: { select: { name: true } },
+  municipality: { select: { name: true } },
+} as const;
+
+/** The default address first, then the newest (API_SPEC.md §9.14). */
+const ADDRESS_ORDER: Prisma.CustomerAddressOrderByWithRelationInput[] = [
+  { isDefault: 'desc' },
+  { createdAt: 'desc' },
+  { id: 'asc' },
+];
+
+type AddressRow = Prisma.CustomerAddressGetPayload<{
+  include: typeof ADDRESS_NAMES;
+}>;
 type RoleRow = Prisma.RoleGetPayload<{ select: typeof ROLE_FIELDS }>;
 type StaffRow = Prisma.UserGetPayload<{ select: typeof STAFF_FIELDS }>;
 type CustomerRow = Prisma.UserGetPayload<{ select: typeof CUSTOMER_FIELDS }>;
@@ -220,41 +236,61 @@ export class PrismaIdentityQueries extends IdentityQueries {
       select: {
         ...CUSTOMER_FIELDS,
         addresses: {
-          include: {
-            state: { select: { name: true } },
-            municipality: { select: { name: true } },
-          },
-          orderBy: [
-            { isDefault: 'desc' },
-            { createdAt: 'desc' },
-            { id: 'asc' },
-          ],
+          include: ADDRESS_NAMES,
+          orderBy: ADDRESS_ORDER,
         },
       },
       where: { id, type: 'CUSTOMER' },
     });
     if (row === null) return null;
-    const addresses: AddressView[] = row.addresses.map((address) => ({
-      id: address.id,
-      recipientName: address.recipientName,
-      phone: address.phone,
-      street: address.street,
-      exteriorNumber: address.exteriorNumber,
-      interiorNumber: address.interiorNumber,
-      neighborhood: address.neighborhood,
-      postalCode: address.postalCode,
-      stateCode: address.stateCode,
-      stateName: address.state.name,
-      municipalityCode: address.municipalityCode,
-      municipalityName: address.municipality.name,
-      city: address.city,
-      references: address.references,
-      isDefault: address.isDefault,
-      createdAt: address.createdAt,
-      updatedAt: address.updatedAt,
-    }));
-    return { ...toCustomerView(row), addresses, orderCount: 0 };
+    return {
+      ...toCustomerView(row),
+      addresses: row.addresses.map(toAddressView),
+      orderCount: 0,
+    };
   }
+
+  async listAddresses(customerId: UserId): Promise<AddressView[]> {
+    const rows = await this.txHost.tx.customerAddress.findMany({
+      include: ADDRESS_NAMES,
+      where: { userId: customerId },
+      orderBy: ADDRESS_ORDER,
+    });
+    return rows.map(toAddressView);
+  }
+
+  async findAddress(
+    customerId: UserId,
+    addressId: string,
+  ): Promise<AddressView | null> {
+    const row = await this.txHost.tx.customerAddress.findFirst({
+      include: ADDRESS_NAMES,
+      where: { id: addressId, userId: customerId },
+    });
+    return row === null ? null : toAddressView(row);
+  }
+}
+
+function toAddressView(row: AddressRow): AddressView {
+  return {
+    id: row.id,
+    recipientName: row.recipientName,
+    phone: row.phone,
+    street: row.street,
+    exteriorNumber: row.exteriorNumber,
+    interiorNumber: row.interiorNumber,
+    neighborhood: row.neighborhood,
+    postalCode: row.postalCode,
+    stateCode: row.stateCode,
+    stateName: row.state.name,
+    municipalityCode: row.municipalityCode,
+    municipalityName: row.municipality.name,
+    city: row.city,
+    references: row.references,
+    isDefault: row.isDefault,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 function toRoleView(row: RoleRow): RoleView {

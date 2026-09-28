@@ -24,6 +24,7 @@ import {
   IsSortOf,
 } from '../../../platform/http/pagination/pagination.js';
 import { PERMISSION_CODES } from '../../../shared-kernel/index.js';
+import { AddressDto } from './address.dto.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
 // Fields holding other DTOs, lists, dates or null declare their type with @ApiProperty: the plugin resolves
@@ -272,57 +273,6 @@ export class ReasonDto {
 }
 
 // --- Customers (API_SPEC.md §9.18) ---
-
-export class AddressDto {
-  id: string;
-
-  /** @example 'María López Hernández' */
-  recipientName: string;
-
-  /** @example '4431234567' */
-  phone: string;
-
-  street: string;
-
-  exteriorNumber: string;
-
-  @ApiProperty(NULLABLE_TEXT)
-  interiorNumber: string | null;
-
-  neighborhood: string;
-
-  /** @example '58000' */
-  postalCode: string;
-
-  /** @example '16' */
-  stateCode: string;
-
-  /** @example 'Michoacán de Ocampo' */
-  stateName: string;
-
-  /** @example '16053' */
-  municipalityCode: string;
-
-  /** @example 'Morelia' */
-  municipalityName: string;
-
-  @ApiProperty(NULLABLE_TEXT)
-  city: string | null;
-
-  @ApiProperty(NULLABLE_TEXT)
-  references: string | null;
-
-  /** @example 'MX' */
-  country: string;
-
-  isDefault: boolean;
-
-  @ApiProperty(DATE_TIME)
-  createdAt: Date;
-
-  @ApiProperty(DATE_TIME)
-  updatedAt: Date;
-}
 
 export class AdminCustomerDto {
   id: string;

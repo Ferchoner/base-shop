@@ -80,6 +80,14 @@ export class EnvironmentVariables {
   @Max(86400)
   CACHE_TTL_SECONDS: number = 120;
 
+  /** Addresses a customer can keep (BR-ADR-04, ADR-0057, ADR-0113). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  MAX_ADDRESSES_PER_CUSTOMER: number = 10;
+
   /** Requests per IP on every endpoint without a specific limit. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
   @Matches(RATE_LIMIT_PATTERN, {

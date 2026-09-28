@@ -92,7 +92,7 @@ Capacidades transversales:
 Ver ADR-0005.
 
 - Cada módulo expone una fachada pública; nunca exporta entidades, aggregates ni repositorios.
-- El consumidor define su propio puerto y un adaptador en su infraestructura.
+- El consumidor define su propio puerto y un adaptador en su infraestructura. Primer caso: Identity declara `AddressLocations` y lo responde con la fachada `GeoCatalog` del módulo `geo` (ADR-0113).
 - Entre contextos solo se comparten IDs, snapshots y eventos. Sin relaciones de Prisma ni llaves foráneas entre contextos.
 - Los límites se verifican automáticamente con `dependency-cruiser` (`npm run lint:boundaries`, reglas en `.dependency-cruiser.cjs`, ADR-0103): capas según la tabla de "Estructura", módulos solo por su `index.ts`, Prisma solo en `platform` e `infrastructure`, shared kernel sin frameworks, `platform` sin módulos y sin dependencias circulares. La excepción de ADR-0060 (lectura de tablas de otros contextos en el catálogo público) no se ve en los imports y se revisa en el code review.
 - Única excepción: el servicio de consultas del catálogo público lee tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060).

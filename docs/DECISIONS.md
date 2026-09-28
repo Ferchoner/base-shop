@@ -130,6 +130,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0110 | Envío de correos y enlaces al frontend | Aceptada |
 | ADR-0111 | Autorización, catálogo de permisos y base de Identity & Access | Aceptada |
 | ADR-0112 | Administración de roles, staff y clientes, y motivo en la auditoría | Aceptada |
+| ADR-0113 | Direcciones de clientes y uso del catálogo geográfico desde Identity | Aceptada |
 
 ---
 
@@ -212,7 +213,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Excepción: la consulta del catálogo público puede leer tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060).
 - **Alternativas consideradas:** Acceso directo a repositorios de otros contextos; joins entre tablas de contextos distintos.
 - **Consecuencias:** Los listados que combinan Catalog, Pricing e Inventory requieren fachadas con operaciones por lotes para evitar N+1.
-- **Estado:** Aceptada (aprobación formal 2026-09-24). Los límites se verifican con `dependency-cruiser` (ADR-0103).
+- **Estado:** Aceptada (aprobación formal 2026-09-24). Los límites se verifican con `dependency-cruiser` (ADR-0103). Primera aplicación del puerto del consumidor con su adaptador en ADR-0113 (Identity usa el catálogo geográfico).
 
 ---
 
@@ -1142,7 +1143,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - El catálogo geográfico es dato de referencia compartido: lo consultan Identity & Access (direcciones) y Ordering (checkout de invitado) mediante una fachada de solo lectura.
   - Periodicidad de revisión del catálogo: los cambios de municipios son poco frecuentes; se recomienda revisarlo al menos cada trimestre.
-- **Estado:** Aceptada. Implementada en ADR-0109 (T-124).
+- **Estado:** Aceptada. Implementada en ADR-0109 (T-124). Direcciones implementadas en ADR-0113 (T-130); máximo en `MAX_ADDRESSES_PER_CUSTOMER`.
 
 ---
 
@@ -2649,3 +2650,41 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-132 usará `reason` para la referencia de la solicitud ARCO.
   - Otras acciones que pidan motivo (cancelaciones, reintegros, ajustes) usan la misma columna.
 - **Estado:** Aceptada (plan de T-130 parte b aprobado el 2026-09-28).
+
+---
+
+## ADR-0113 — Direcciones de clientes y uso del catálogo geográfico desde Identity
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-130, parte (c): la libreta de direcciones del cliente (UC-IAM-11, `API_SPEC.md` §9.14, ADR-0057). Hay que controlar el máximo configurable (BR-ADR-04) y una sola dirección predeterminada frente a cambios simultáneos, y validar el estado y el municipio con el catálogo del módulo `geo` (BR-ADR-02, BR-ADR-03). Es la primera vez que un contexto usa otro módulo, y la capa de aplicación de Identity no puede importarlo (ADR-0103).
+- **Decisión:**
+  - **Agregado `AddressBook`:** las direcciones de un cliente, cargadas con la fila del cliente bloqueada (`SELECT … FOR UPDATE`). Así el máximo y la predeterminada se mantienen con cambios simultáneos; un test de concurrencia lo comprueba. Sus reglas:
+    - hasta `MAX_ADDRESSES_PER_CUSTOMER` direcciones (entero de 1 a 100, 10 por defecto); si no, 409 `address-limit-reached` con `limit`;
+    - la primera dirección es la predeterminada;
+    - marcar otra como predeterminada desmarca la anterior;
+    - `isDefault: false` sobre la predeterminada, o borrarla, deja al cliente sin predeterminada.
+  - **Escritura:** solo se escriben las direcciones creadas, modificadas o borradas. Las que dejan de ser predeterminadas se escriben antes que la nueva, porque el índice único parcial de la predeterminada se comprueba en cada sentencia.
+  - **Uso del catálogo geográfico** (primera aplicación de ADR-0005: el consumidor define su puerto y un adaptador en su infraestructura):
+    - Identity declara el puerto `AddressLocations` en su aplicación.
+    - `GeoAddressLocations`, en su infraestructura, lo responde con la fachada `GeoCatalog` a través del `index.ts` de `geo`. La fachada gana `findState`.
+    - `IdentityAccessModule` importa `GeoModule`.
+  - **Validación de la ubicación:**
+    - Una dirección nueva, o un cambio de estado o municipio, exige un municipio vigente del estado.
+    - Si no lo es, responde 400 `validation-error` en el campo, con `isState`, `isMunicipalityOfState` o `isActiveMunicipality`.
+    - Una dirección que conserva su municipio lo mantiene aunque el INEGI lo haya retirado (BR-ADR-03).
+  - **En dos pasos:** primero se valida el DTO y, si pasa, el catálogo. Un error de formato y uno de catálogo llegan en dos respuestas 400 sucesivas, con el mismo formato, en lugar de juntos como en el ejemplo de `API_SPEC.md` §6.1. Así el acceso a la base queda fuera de la validación del DTO.
+  - **Contrato:**
+    - `POST` responde 201 con `Location: /v1/me/addresses/{id}`.
+    - En `PATCH` solo cambian los campos enviados. Los obligatorios no aceptan `null`; los opcionales (`interiorNumber`, `city`, `references`) se borran con `null`. Cambiar `stateCode` exige `municipalityCode`.
+    - La dirección de otro cliente, o un ID mal formado, responde 404.
+    - Teléfono y código postal se validan solo por formato, sin normalizar.
+- **Alternativas consideradas:**
+  - Relajar la regla de límites para que la aplicación importe fachadas de otros módulos: acopla la aplicación a otro contexto.
+  - Validar la ubicación con un validador asíncrono en el DTO: mete el acceso a la base en la presentación.
+  - Responder 400 a `isDefault: false`: el cliente no tendría forma de quedarse sin predeterminada salvo borrando.
+  - Controlar el máximo sin bloqueo: dos altas simultáneas podrían pasarlo.
+- **Consecuencias:**
+  - El checkout de invitados (Ordering) usará el mismo patrón para validar su dirección.
+  - Toda integración futura entre contextos sigue este puerto con su adaptador.
+  - Las órdenes guardan su propia copia de la dirección, así que borrar o cambiar una dirección no las afecta.
+- **Estado:** Aceptada (plan de T-130 parte c aprobado el 2026-09-28).

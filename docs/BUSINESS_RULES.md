@@ -88,7 +88,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ADR-01. Una dirección tiene nombre de quien recibe, teléfono de 10 dígitos, calle, número exterior, colonia, código postal de 5 dígitos, municipio o alcaldía y estado como campos obligatorios; número interior, ciudad o localidad y referencias son opcionales; el país es México (ADR-0057). El nombre de quien recibe es un solo campo con el nombre completo, informativo para la paquetería.
 - BR-ADR-02. Estado y municipio se eligen de una lista cerrada, y el municipio debe pertenecer al estado.
 - BR-ADR-03. El catálogo de estados y municipios proviene del INEGI y se actualiza con un script manual; un municipio retirado se marca inactivo y no se usa en direcciones nuevas, pero se conserva en las existentes.
-- BR-ADR-04. Un cliente tiene como máximo 10 direcciones (configurable).
+- BR-ADR-04. Un cliente tiene como máximo 10 direcciones (configurable con `MAX_ADDRESSES_PER_CUSTOMER`, ADR-0113).
 - BR-ADR-05. El código postal solo se valida por formato en el MVP.
 
 ## Carrito

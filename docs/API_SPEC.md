@@ -677,6 +677,14 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 **`DELETE /v1/me/addresses/{addressId}`** — Response 204. Si era la predeterminada, ninguna queda como predeterminada (ADR-0071).
 
+Implementado en T-130 (ADR-0113):
+
+- **Alta:** `POST` responde con `Location: /v1/me/addresses/{id}`. El máximo se configura con `MAX_ADDRESSES_PER_CUSTOMER` (10 por defecto), y 409 `address-limit-reached` lleva `limit`.
+- **Cambios:** `isDefault: false` sobre la predeterminada deja al cliente sin predeterminada. En `PATCH`, los campos opcionales se borran con `null` y los obligatorios no lo aceptan.
+- **Ubicación inválida:** 400 `validation-error` en el campo, con `code` `isState` (el estado no existe), `isMunicipalityOfState` o `isActiveMunicipality` (municipio retirado del catálogo). Una dirección que conserva su municipio lo mantiene aunque se haya retirado.
+- **Validación en dos pasos:** primero los formatos del DTO y después el catálogo, así que un error de cada tipo llega en respuestas 400 sucesivas.
+- **Recurso ajeno:** la dirección de otro cliente responde 404.
+
 ### 9.15 `GET /v1/admin/identity/permissions` — Catálogo de permisos
 
 - **Permiso:** `staff.manage`. **Response 200:** `{ "data": [ { "code": "catalog.write", "description": "…" } ] }` (catálogo en código, ADR-0017).
