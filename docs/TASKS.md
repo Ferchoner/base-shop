@@ -33,7 +33,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-104 | Linting y formato | DONE | T-100 | Configuración de lint y formato ejecutable con un comando |
 | T-105 | Infraestructura de tests | DONE | T-102 | Jest con tests unitarios y de integración contra PostgreSQL 18 real en Docker, sin mocks de base de datos |
 | T-106 | Pipeline de CI en GitHub Actions | DONE | T-102 a T-105, T-110 | Los 10 pasos de ADR-0030 corren en cada pull request y en la rama principal; los tests de integración usan Testcontainers con el Docker del runner, sin servicio de PostgreSQL declarado (ADR-0090) |
-| T-107 | Configuración del repositorio en GitHub | TODO | T-106 | Rama principal protegida exigiendo el pipeline en verde (checks `Pipeline` y `Commit messages`, ADR-0105); Dependabot semanal con actualizaciones agrupadas y prefijo `chore` (requiere administrador del repositorio) |
+| T-107 | Configuración del repositorio en GitHub | DONE | T-106 | Rama principal protegida exigiendo el pipeline en verde (checks `Pipeline` y `Commit messages`, ADR-0105); Dependabot semanal con actualizaciones agrupadas y prefijo `chore` (requiere administrador del repositorio) |
 | T-110 | Database | DONE | T-004 (aprobado) | Prisma configurado con esquema dividido por contexto; primera migración aplicable desde cero |
 | T-111 | Contexto transaccional | DONE | T-110 | `nestjs-cls` con plugin transaccional; repositorios obtienen la transacción activa sin exponer Prisma a Application; test que demuestra rollback |
 | T-112 | Shared kernel | DONE | T-101 | `Money` (centavos + moneda), tipos de ID, error de dominio base, forma de domain event y puerto `Clock`, con tests unitarios |

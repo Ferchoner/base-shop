@@ -13,6 +13,7 @@
 - Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas (`npm audit --audit-level=high`), y Dependabot propone actualizaciones semanales (ADR-0030, ADR-0105).
 - Detectar secretos en cada cambio: el secret scanning y la protección de push de GitHub bloquean los secretos conocidos al subirlos, y la CI revisa todo el historial con gitleaks (ADR-0030, ADR-0105).
 - La CI corre con permisos de solo lectura, actions de terceros fijadas por SHA y sin interpolar datos del pull request (como el título) en sus scripts (ADR-0105).
+- `main` solo recibe cambios por pull request con la CI en verde, sin excepciones para administradores. Dependabot espera 7 días antes de proponer una versión nueva, para evitar paquetes comprometidos recién publicados, y abre de inmediato las actualizaciones de seguridad (ADR-0106).
 
 ## Contratos de la API (ADR-0071)
 
