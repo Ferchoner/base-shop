@@ -100,6 +100,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-119: cache en memoria con espacios de nombres (`AppCache`), TTL por `CACHE_TTL_SECONDS` e invalidación del catálogo público por eventos de Catalog (ADR-0104)
 - [x] T-106: CI en GitHub Actions con los 10 pasos de ADR-0030 en un job (`Pipeline`), detección de secretos con gitleaks y comprobación de los mensajes de commit en los pull requests (`Commit messages`) (ADR-0105)
 - [x] T-107: `main` protegida con un ruleset (pull request, checks `Pipeline` y `Commit messages`, rama al día, sin excepciones), Dependabot semanal para npm y GitHub Actions con grupos y 7 días de espera, alertas y actualizaciones de seguridad activadas (ADR-0106)
+- [x] TypeScript se mantiene en 6.x: la versión 7 no expone la API de compilador que usan ts-jest, la CLI de Nest y el plugin de Swagger; Dependabot ignora sus versiones mayores (ADR-0107)
 
 ## In Progress
 

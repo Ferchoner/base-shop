@@ -124,6 +124,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0104 | Base del cache con espacios de nombres | Aceptada |
 | ADR-0105 | Pipeline de CI en GitHub Actions | Aceptada |
 | ADR-0106 | Protección de la rama principal y Dependabot | Aceptada |
+| ADR-0107 | TypeScript se mantiene en 6.x | Aceptada |
 
 ---
 
@@ -2398,4 +2399,25 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Renombrar un job de la CI exige actualizar `.github/rulesets/main.json` y volver a aplicarlo; el test lo detecta antes.
   - El archivo del ruleset no se sincroniza solo: un cambio hecho en la interfaz de GitHub debe copiarse al archivo, y un cambio en el archivo se aplica con `gh api` (`DEVELOPMENT_GUIDE.md`).
   - Los pull requests de Dependabot pasan por la CI como cualquier otro; los de versión mayor pueden requerir cambios de código.
-- **Estado:** Aceptada (plan de T-107 aprobado el 2026-09-28; ruleset y ajustes aplicados ese mismo día).
+- **Estado:** Aceptada (plan de T-107 aprobado el 2026-09-28; ruleset y ajustes aplicados ese mismo día). ADR-0107 suma `typescript` a las versiones mayores ignoradas.
+
+---
+
+## ADR-0107 — TypeScript se mantiene en 6.x
+
+- **Fecha:** 2026-09-28
+- **Contexto:** Dependabot propuso actualizar TypeScript de 6.0.3 a 7.0.2 (pull request #31), y la CI falló en `npm ci` por un conflicto de dependencias. La última versión de ts-jest (29.4.14) solo admite `typescript` menor que 7, y ninguna versión de ts-jest, ni siquiera en prueba, admite la 7. Además, TypeScript 7 es el compilador reescrito en Go: su paquete de npm ya no expone la API de compilador para JavaScript, solo el número de versión y APIs marcadas como inestables. De esa API dependen ts-jest, la CLI de Nest (el build) y el plugin de Swagger (ADR-0096), así que forzar la instalación tampoco serviría.
+- **Decisión:**
+  - El proyecto se queda en TypeScript 6.x. Dependabot sigue proponiendo sus versiones menores y parches.
+  - `.github/dependabot.yml` ignora las versiones mayores de `typescript`, igual que las de `@types/node` (ADR-0106).
+  - El test de configuración del repositorio comprueba que solo se ignoran las versiones mayores con un motivo registrado.
+  - El pull request #31 se cierra con un comentario que explica el motivo.
+- **Alternativas consideradas:**
+  - Instalar TypeScript 7 con `--legacy-peer-deps`: rompería los tests, el build y el plugin de Swagger.
+  - Cambiar ts-jest por otro transformador (SWC o esbuild): no resuelve el build de Nest ni el plugin de Swagger, y cambia cómo corren los tests.
+  - Ignorar la versión con un comentario a Dependabot en el pull request: la regla quedaría fuera del repositorio y no se vería en la revisión.
+- **Consecuencias:**
+  - Seguimos recibiendo correcciones de TypeScript 6.x, pero no las mejoras de rendimiento del compilador nuevo.
+  - Hay que revisar de vez en cuando si las herramientas ya lo admiten.
+- **Revisar si:** ts-jest, la CLI de Nest y el plugin de Swagger admiten TypeScript 7 (o TypeScript 7 publica una API estable que ellos usen). Entonces se quita la regla de `dependabot.yml` y se prueba la actualización con la CI completa.
+- **Estado:** Aceptada (aprobada el 2026-09-28).

@@ -46,7 +46,7 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 
 | Área | Estado | Decisión | Referencia |
 |---|---|---|---|
-| Lenguaje | Definido | TypeScript sobre Node.js 24 (Active LTS) | ADR-0002, ADR-0025 |
+| Lenguaje | Definido | TypeScript 6.x sobre Node.js 24 (Active LTS); TypeScript 7 pospuesto hasta que lo admitan las herramientas | ADR-0002, ADR-0025, ADR-0107 |
 | Gestor de paquetes | Definido | npm, con `package-lock.json` versionado | ADR-0025 |
 | Framework | Definido | NestJS | ADR-0002 |
 | Base de datos | Definido | PostgreSQL 18, una sola base de datos y un solo esquema | ADR-0002, ADR-0006, ADR-0025 |
