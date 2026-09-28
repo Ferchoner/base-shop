@@ -318,6 +318,15 @@ Cada endpoint lista solo sus errores específicos.
 
 Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`. Los webhooks quedan fuera del límite general (ADR-0071): los protege la verificación de firma.
 
+Detalles del mecanismo (ADR-0102):
+
+- En el login solo cuentan los intentos **fallidos**; un login correcto no gasta el límite.
+- Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: la consulta y la recompra de invitado comparten el mismo contador por IP.
+- Claves: IP; correo (por su huella, nunca el correo); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden).
+- El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
+- Una ruta inexistente responde 404 sin gastar el límite general.
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_EMAIL`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER` y `RATE_LIMIT_PLACE_ORDER`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+
 ---
 
 ## 8. Representaciones compartidas

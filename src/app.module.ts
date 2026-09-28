@@ -16,6 +16,7 @@ import { EventsModule } from './platform/events/events.module.js';
 import { IdempotencyModule } from './platform/http/idempotency/idempotency.module.js';
 import { JobsModule } from './platform/jobs/jobs.module.js';
 import { ProblemDetailsModule } from './platform/http/problem-details/problem-details.module.js';
+import { RateLimitingModule } from './platform/http/rate-limiting/rate-limiting.module.js';
 import { LoggingModule } from './platform/logging/logging.module.js';
 import { PersistenceModule } from './platform/persistence/persistence.module.js';
 
@@ -38,6 +39,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     ClockModule,
     ProblemDetailsModule,
     IdempotencyModule,
+    RateLimitingModule,
     AuditModule,
     IdentityAccessModule,
     CatalogModule,

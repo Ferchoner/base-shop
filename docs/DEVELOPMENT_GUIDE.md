@@ -33,6 +33,13 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Rate limiting (ADR-0065, ADR-0102):
+
+- Todo endpoint tiene el límite general por IP. Uno con un límite de `API_SPEC.md` (sección 7) lo declara con `@RateLimit('register')` (o varios: `@RateLimit('password-reset-email', 'password-reset-ip')`), que reemplaza al general.
+- El login usa `FailedAttemptLimiter`: `assertAllowed('login-email', email)` y `assertAllowed('login-ip', ip)` antes de validar las credenciales, y `recordFailure(...)` cuando no son válidas.
+- Los tests pueden bajar los límites con las variables `RATE_LIMIT_*` antes de importar `AppModule`.
+- `@nestjs/throttler` es CommonJS y requiere los módulos ESM de NestJS; en Jest, `test/setup-esm-interop.ts` los carga antes de cada archivo de test para evitar un ciclo de carga. No hace falta nada en el código de la aplicación.
+
 Jobs programados (ADR-0029, ADR-0101):
 
 - Un job es un provider en `infrastructure` del contexto, en un archivo `*.job.ts`, con un método `@ScheduledJob('contexto.accion', CronExpression.EVERY_MINUTE)` que llama a un solo caso de uso. El nombre sigue el formato de las acciones de auditoría.
