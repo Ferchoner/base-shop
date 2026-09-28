@@ -16,7 +16,9 @@ export { Clock } from './clock.js';
 export {
   DomainError,
   type DomainErrorCategory,
+  InvalidStateTransitionError,
   InvalidValueError,
+  VersionConflictError,
 } from './domain-error.js';
 export { type DomainEvent, eventMetadata } from './domain-event.js';
 export {
@@ -28,4 +30,16 @@ export { DomainEventPublisher } from './domain-event-publisher.js';
 export { FrontendLinks } from './frontend-links.js';
 export { type Id, newCredentialId, newId, toId } from './id.js';
 export { type Currency, MAX_MONEY_AMOUNT, Money } from './money.js';
+export {
+  type Page,
+  pageOffset,
+  type PageRequest,
+  type SortOrder,
+} from './pagination.js';
+export {
+  isPermissionCode,
+  PERMISSION_CODES,
+  type PermissionCode,
+  PERMISSIONS,
+} from './permissions.js';
 export { TransactionManager } from './transaction-manager.js';

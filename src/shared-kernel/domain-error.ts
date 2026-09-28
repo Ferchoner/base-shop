@@ -31,3 +31,26 @@ export class InvalidValueError extends DomainError {
   readonly code = 'validation-error';
   readonly category = 'invalid';
 }
+
+/**
+ * The client sent an outdated `version` of a resource, or another change won the race (optimistic locking,
+ * E-05): it must read the resource again and retry.
+ */
+export class VersionConflictError extends DomainError {
+  readonly code = 'version-conflict';
+  readonly category = 'conflict';
+
+  constructor(currentVersion: number) {
+    super(`The resource is at version ${currentVersion}`, { currentVersion });
+  }
+}
+
+/** The action is not allowed in the current status of the resource (E-12), such as suspending it twice. */
+export class InvalidStateTransitionError extends DomainError {
+  readonly code = 'invalid-state-transition';
+  readonly category = 'conflict';
+
+  constructor(currentStatus: string, action: string) {
+    super(`Cannot ${action} from status ${currentStatus}`, { currentStatus });
+  }
+}
