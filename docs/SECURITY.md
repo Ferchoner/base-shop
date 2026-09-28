@@ -17,6 +17,9 @@
   - Toda ruta de `/v1/admin` exige staff con los permisos del catálogo en código, y toda ruta de `/v1/me`, una cuenta.
   - El guard falla cerrado: una ruta de esos grupos sin requisito responde 500 en lugar de quedar pública.
   - Los 403 de `/v1/admin` se auditan.
+  - Toda respuesta autenticada lleva `Cache-Control: no-store`, errores incluidos (ADR-0071, ADR-0112).
+  - El sistema nunca queda sin superadministrador activo: los cambios que podrían dejarlo sin ninguno bloquean el rol y se validan de a uno (ADR-0112).
+  - El motivo que da el staff queda en la auditoría y nunca debe llevar datos personales.
 - Correos (ADR-0110):
   - El log no registra destinatarios, asuntos ni contenidos.
   - `MAIL_FROM` se valida en una sola línea, y nodemailer impide inyectar encabezados desde el asunto.

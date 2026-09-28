@@ -129,6 +129,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0109 | Catálogo geográfico del INEGI y scripts de operación | Aceptada |
 | ADR-0110 | Envío de correos y enlaces al frontend | Aceptada |
 | ADR-0111 | Autorización, catálogo de permisos y base de Identity & Access | Aceptada |
+| ADR-0112 | Administración de roles, staff y clientes, y motivo en la auditoría | Aceptada |
 
 ---
 
@@ -2187,7 +2188,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
   - La lista fija puede ocultar de más (por ejemplo, `addressId`); se acepta a cambio de no filtrar datos personales.
   - La consulta con `audit.read` y el archivo de registros antiguos quedan en T-220.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). Modificada por ADR-0112: columna `reason` para el motivo del staff.
 
 ---
 
@@ -2499,7 +2500,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La base local se carga una vez con `npm run geo:import -- data/inegi/municipios-2026-06.csv`. Actualizar el catálogo es reemplazar el archivo versionado e importarlo (`data/inegi/README.md`).
   - T-131 (primer superadministrador) usa el mismo mecanismo de scripts.
   - Para ejecutar el script en producción, la imagen necesitará el archivo del catálogo, igual que `prisma/` para las migraciones (P-05).
-- **Estado:** Aceptada (plan de T-124 aprobado el 2026-09-28).
+- **Estado:** Aceptada (plan de T-124 aprobado el 2026-09-28). ADR-0112 amplía la convención de OpenAPI a listas, fechas y campos nulos.
 
 ---
 
@@ -2592,4 +2593,59 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
   - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
   - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
-- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba).
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas.
+
+---
+
+## ADR-0112 — Administración de roles, staff y clientes, y motivo en la auditoría
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-130, parte (b): endpoints de `API_SPEC.md` §9.15 a §9.18, salvo el alta y la reactivación del staff (T-131) y la anonimización (T-132), que ADR-0111 dejó fuera. Suspender y reactivar exigen un motivo, pero ninguna tabla tenía dónde guardarlo. El contrato no fija qué pasa si se intenta cambiar los permisos del rol superadministrador, ni cómo se evita que dos cambios simultáneos dejen el sistema sin superadministrador. Al implementarlo apareció, además, que `API_SPEC.md` §5.3 permite ordenar por varios campos y filtrar con listas de valores, y que ADR-0071 pide `Cache-Control: no-store` en toda respuesta autenticada.
+- **Decisión:**
+  - **Endpoints:**
+    - `GET /v1/admin/identity/permissions`.
+    - Roles: listado, alta (201 con `Location`), detalle, `PATCH` y `DELETE`.
+    - Staff: listado, detalle, `PUT …/roles` y `POST …/suspend`.
+    - Clientes: listado, detalle, `POST …/suspend` y `POST …/reactivate`.
+
+    Todos con el permiso de su fila en §9.1 y auditados con `roles.create`, `roles.update`, `roles.delete`, `staff.roles-replace`, `staff.suspend`, `customers.suspend` y `customers.reactivate`.
+  - **Motivo en la auditoría** (modifica ADR-0100):
+    - `audit_logs` gana una columna `reason` (texto de 1 a 500 caracteres, `CHECK`), y `AuditEntry` gana `reason`.
+    - Guarda por qué actuó el staff, aparte de `changes`, que sigue siendo solo "qué cambió".
+    - La API pide el motivo con esas longitudes y la documentación advierte que no lleve datos personales.
+    - Agregar la columna no modifica filas, así que no choca con el trigger que rechaza las modificaciones.
+  - **Rol superadministrador:**
+    - Se puede renombrar y describir.
+    - Un `PATCH` con `permissions` responde 400 `validation-error` en ese campo ("El rol superadministrador siempre tiene todos los permisos."), en lugar de ignorarlo.
+    - `DELETE` siempre responde 409 `last-superadmin`.
+  - **Nunca sin superadministrador** (BR-USR-03):
+    - Se cuenta el staff ACTIVE que tiene el rol superadministrador.
+    - Quitarle el rol, o suspender, al último responde 409 `last-superadmin`.
+    - Esos cambios bloquean antes la fila del rol superadministrador (`SELECT … FOR UPDATE`), así que dos de ellos se validan uno después del otro. Un test de concurrencia lo comprueba.
+    - Nadie se suspende a sí mismo: 409 `invalid-state-transition`.
+  - **Lecturas:**
+    - Un puerto de solo lectura en la aplicación (`IdentityQueries`), implementado con Prisma en la infraestructura, sin cargar agregados.
+    - `q` es una búsqueda parcial que no distingue mayúsculas.
+    - El detalle de cliente incluye sus direcciones (la predeterminada primero) y `orderCount: 0` hasta T-180.
+  - **Listados según `API_SPEC.md` §5.3** (corrige la parte a):
+    - `sort` acepta varios campos separados por comas, sin repetir.
+    - Los filtros de estado aceptan listas separadas por comas (`status=ACTIVE,SUSPENDED`).
+    - Una fecha sola como fin de rango (`createdTo`) incluye todo el día.
+  - **Otras convenciones:**
+    - `Cache-Control: no-store` en toda respuesta de `/v1/admin` y `/v1/me`, errores incluidos, puesto por el guard de autorización (ADR-0071).
+    - Un ID de la ruta que no es UUID responde 404, como cualquier recurso inexistente.
+    - `version` desactualizada: 409 `version-conflict` con `currentVersion`.
+    - Descripción de rol: 1 a 250 caracteres (valor derivado, ADR-0071).
+  - **Shared kernel:** `NotFoundError`, `DuplicateValueError` (con `field`), `ResourceInUseError` y `assertVersion`. `platform/persistence/prisma-errors.ts` reconoce las violaciones de unicidad y de llave foránea.
+  - **OpenAPI** (amplía ADR-0109): también se declaran con `@ApiProperty` las listas, las fechas y los campos que pueden ser `null`.
+- **Alternativas consideradas:**
+  - El motivo en `changes.reason`: rompe el significado de `changes` y la base no lo valida.
+  - Ignorar en silencio los permisos del superadministrador: el cliente no sabría que no se aplicaron.
+  - Validar el último superadministrador sin bloqueo: dos cambios simultáneos podrían dejar el sistema sin ninguno.
+  - Listados a través de los agregados: cargan más de lo necesario y no cuentan usuarios.
+- **Consecuencias:**
+  - T-120 revoca las sesiones dentro de las transacciones de suspensión que ya existen.
+  - T-131 agrega el alta y la reactivación del staff sobre `StaffUser` y el mismo control de superadministrador.
+  - T-132 usará `reason` para la referencia de la solicitud ARCO.
+  - Otras acciones que pidan motivo (cancelaciones, reintegros, ajustes) usan la misma columna.
+- **Estado:** Aceptada (plan de T-130 parte b aprobado el 2026-09-28).

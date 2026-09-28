@@ -62,6 +62,7 @@ export class PrismaAuditTrail extends AuditTrail {
         changes: entry.changes
           ? (redactAuditChanges(entry.changes) as Prisma.InputJsonValue)
           : undefined,
+        reason: entry.reason ?? null,
       },
     });
   }

@@ -1,13 +1,23 @@
 import type { ArgumentMetadata } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 import { createValidationPipe } from '../problem-details/validation-errors.js';
 import { PageQueryDto } from './page-query.dto.js';
-import { IsSortOf, toPageResponse, toSortOrder } from './pagination.js';
+import {
+  CommaSeparated,
+  IsSortOf,
+  toPageResponse,
+  toSortOrders,
+} from './pagination.js';
 
 class SampleListQuery extends PageQueryDto {
   @IsOptional()
   @IsString()
   q?: string;
+
+  @IsOptional()
+  @CommaSeparated()
+  @IsIn(['ACTIVE', 'SUSPENDED'], { each: true })
+  status?: string[];
 
   @IsOptional()
   @IsSortOf(['name', 'createdAt'])
@@ -56,43 +66,58 @@ describe('Listing query (ADR-0036)', () => {
     expect((await errorsOf(query)).map((e) => e.field)).toEqual([field]);
   });
 
-  it('accepts a declared sort field, ascending or descending', async () => {
-    expect((await parse({ sort: '-createdAt' })).sort).toBe('-createdAt');
-  });
+  it.each(['-createdAt', 'name', '-createdAt,name'])(
+    'accepts the declared sort %p (API_SPEC.md §5.3)',
+    async (sort) => {
+      expect((await parse({ sort })).sort).toBe(sort);
+    },
+  );
 
-  it('rejects an undeclared sort field, listing the valid ones in Spanish', async () => {
-    expect(await errorsOf({ sort: 'email' })).toEqual([
-      expect.objectContaining({
-        field: 'sort',
-        message: 'Debe ser uno de: name, -name, createdAt, -createdAt.',
-      }),
+  it.each(['email', 'name,email', 'name,-name', ''])(
+    'rejects the sort %p, listing the valid fields in Spanish',
+    async (sort) => {
+      expect(await errorsOf({ sort })).toEqual([
+        expect.objectContaining({
+          field: 'sort',
+          message:
+            'Debe ser uno o más de: name, -name, createdAt, -createdAt, separados por comas y sin repetir.',
+        }),
+      ]);
+    },
+  );
+
+  it('reads a filter with several values separated by commas', async () => {
+    expect((await parse({ status: 'ACTIVE,SUSPENDED' })).status).toEqual([
+      'ACTIVE',
+      'SUSPENDED',
     ]);
   });
 
+  it('rejects an undeclared value in a filter list', async () => {
+    expect(
+      (await errorsOf({ status: 'ACTIVE,DELETED' })).map((e) => e.field),
+    ).toEqual(['status']);
+  });
+
   it('rejects an undeclared filter', async () => {
-    expect((await errorsOf({ status: 'ACTIVE' })).map((e) => e.field)).toEqual([
-      'status',
+    expect((await errorsOf({ role: 'admin' })).map((e) => e.field)).toEqual([
+      'role',
     ]);
   });
 });
 
-describe('toSortOrder', () => {
-  it('reads the direction from the prefix', () => {
-    expect(toSortOrder('-createdAt', 'name')).toEqual({
-      field: 'createdAt',
-      direction: 'desc',
-    });
-    expect(toSortOrder('name', '-createdAt')).toEqual({
-      field: 'name',
-      direction: 'asc',
-    });
+describe('toSortOrders', () => {
+  it('reads each field and its direction, in order', () => {
+    expect(toSortOrders('-createdAt,name', 'name')).toEqual([
+      { field: 'createdAt', direction: 'desc' },
+      { field: 'name', direction: 'asc' },
+    ]);
   });
 
   it('uses the default of the listing when sort is missing', () => {
-    expect(toSortOrder(undefined, '-createdAt')).toEqual({
-      field: 'createdAt',
-      direction: 'desc',
-    });
+    expect(toSortOrders(undefined, '-createdAt')).toEqual([
+      { field: 'createdAt', direction: 'desc' },
+    ]);
   });
 });
 

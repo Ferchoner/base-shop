@@ -1,6 +1,7 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
+import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
@@ -10,6 +11,7 @@ import {
   TransactionManager,
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
+import { AuditModule } from '../../audit/index.js';
 import { IdentityAccessFacade } from '../application/identity-access.facade.js';
 import { Role, type RoleId } from '../domain/role.js';
 import { RoleRepository } from '../domain/role.repository.js';
@@ -42,6 +44,8 @@ describe('Identity & Access persistence (T-130)', () => {
         }),
         ClsModule.forRoot({ global: true }),
         PersistenceModule,
+        ClockModule,
+        AuditModule,
         IdentityAccessModule,
       ],
     }).compile();

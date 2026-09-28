@@ -18,6 +18,11 @@ export interface AuditEntry {
   readonly changes?: AuditChanges;
   /** Only when the request does not say who acted, for example ANONYMOUS on a failed login. */
   readonly actor?: AuditActor;
+  /**
+   * Why a staff member acted, in their own words, when the action asks for it (suspend, reactivate…): 1 to
+   * 500 characters (ADR-0112). It is free text, so the API never asks for personal data in it.
+   */
+  readonly reason?: string;
 }
 
 /**

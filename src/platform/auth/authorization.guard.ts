@@ -53,6 +53,11 @@ export class AuthorizationGuard implements CanActivate {
       );
     }
 
+    // Authenticated responses are never stored by browsers or proxies, errors included (ADR-0071).
+    context
+      .switchToHttp()
+      .getResponse<{ setHeader(name: string, value: string): void }>()
+      .setHeader('Cache-Control', 'no-store');
     const user = authenticatedUserOf(request);
     if (user === undefined) throw new ProblemException('unauthenticated');
     if (user.mustChangePassword && !account?.allowPendingPasswordChange) {

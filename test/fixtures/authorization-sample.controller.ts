@@ -5,7 +5,7 @@ import {
 } from '../../src/platform/auth/authorization.decorators.js';
 import {
   toPageResponse,
-  toSortOrder,
+  toSortOrders,
 } from '../../src/platform/http/pagination/pagination.js';
 import { SampleListQueryDto } from './authorization-sample.dto.js';
 
@@ -33,7 +33,7 @@ export class AdminAuthorizationSampleController {
   @Get('items')
   @RequirePermissions('customers.read')
   list(@Query() query: SampleListQueryDto) {
-    const { field, direction } = toSortOrder(query.sort, 'name');
+    const [{ field, direction }] = toSortOrders(query.sort, 'name');
     const sorted = ITEMS.filter(
       (item) => query.q === undefined || item.name.includes(query.q),
     ).sort(

@@ -14,10 +14,14 @@ export {
 } from './audit-trail.js';
 export { Clock } from './clock.js';
 export {
+  assertVersion,
   DomainError,
   type DomainErrorCategory,
+  DuplicateValueError,
   InvalidStateTransitionError,
   InvalidValueError,
+  NotFoundError,
+  ResourceInUseError,
   VersionConflictError,
 } from './domain-error.js';
 export { type DomainEvent, eventMetadata } from './domain-event.js';

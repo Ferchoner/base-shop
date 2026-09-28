@@ -48,7 +48,7 @@
 | Cuerpo | JSON UTF-8 (`application/json`); subida de imágenes con `multipart/form-data`; errores con `application/problem+json` | ADR-0035 |
 | Recursos | Plural, en inglés y separados por guion: `/v1/admin/pricing/price-lists` | ADR-0036 |
 | Campos | camelCase | ADR-0036 |
-| Identificadores | `uuid` en rutas y cuerpos. Excepciones: producto público por `slug`; orden de cliente por código público (`publicCode`) | ADR-0049, ADR-0066 |
+| Identificadores | `uuid` en rutas y cuerpos; un ID de la ruta que no es UUID responde 404 (ADR-0112). Excepciones: producto público por `slug`; orden de cliente por código público (`publicCode`) | ADR-0049, ADR-0066 |
 | Código público de orden | Se devuelve como `K7M4-Q9XA`; se acepta con o sin guion y sin distinguir mayúsculas | ADR-0049 |
 | Fechas | ISO 8601 en UTC con milisegundos: `2026-09-25T18:30:00.000Z` | ADR-0036 |
 | Dinero | Objeto `Money` (sección 8.1) en respuestas; en solicitudes, enteros en centavos donde se indique | ADR-0007 |
@@ -683,6 +683,8 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 ### 9.16 Roles (UC-IAM-15)
 
+La descripción de un rol tiene de 1 a 250 caracteres (`null` la borra). Un `PATCH` al rol superadministrador con `permissions` responde 400 `validation-error` en ese campo (ADR-0112).
+
 Representación `Role`: `{ "id", "name", "description", "isSuperadmin", "permissions": ["…"], "userCount", "version", "createdAt", "updatedAt" }`.
 
 | Endpoint | Detalle |
@@ -708,7 +710,11 @@ Representación `StaffUser`: `{ "id", "email", "firstNames", "lastNames", "statu
 
 La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitación por correo (ADR-0043).
 
+`reason` tiene de 1 a 500 caracteres y no puede estar en blanco. Se guarda en la auditoría (`audit_logs.reason`), así que no debe llevar datos personales (ADR-0112). Implementados en T-130: listado, detalle, `PUT …/roles` y `POST …/suspend`; el alta y la reactivación llegan con T-131.
+
 ### 9.18 Clientes (UC-IAM-17, 18, 19)
+
+`reason` sigue las mismas reglas que en §9.17. En `createdTo`, una fecha sola (`2026-09-30`) incluye todo el día. La anonimización llega con T-132 (ADR-0111).
 
 Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "status", "emailVerified", "addresses": [Address], "orderCount", "createdAt", "lastLoginAt", "anonymizedAt", "version" }` (`addresses` y `orderCount` solo en el detalle).
 

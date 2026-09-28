@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
+import {
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from '../../../platform/persistence/prisma-errors.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import {
+  DuplicateValueError,
   isPermissionCode,
+  ResourceInUseError,
   toId,
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
@@ -49,6 +55,37 @@ export class PrismaRoleRepository extends RoleRepository {
   }
 
   async save(role: Role): Promise<void> {
+    try {
+      await this.write(role);
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new DuplicateValueError('name');
+      throw error;
+    }
+  }
+
+  async delete(role: Role): Promise<void> {
+    try {
+      await this.txHost.tx.role.delete({ where: { id: role.id } });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new ResourceInUseError(`Role ${role.id} has users`);
+      }
+      throw error;
+    }
+  }
+
+  countUsers(id: RoleId): Promise<number> {
+    return this.txHost.tx.userRole.count({ where: { roleId: id } });
+  }
+
+  async lockSuperadminRole(): Promise<RoleId> {
+    const [row] = await this.txHost.tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM roles WHERE is_superadmin FOR UPDATE`;
+    if (row === undefined) throw new Error('The superadmin role is missing');
+    return toId<'Role'>(row.id);
+  }
+
+  private async write(role: Role): Promise<void> {
     const tx = this.txHost.tx;
     const state = role.snapshot();
     const data = { name: state.name, description: state.description };

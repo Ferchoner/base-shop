@@ -203,4 +203,35 @@ describe('PrismaAuditTrail (T-127)', () => {
       /stable code/,
     );
   });
+
+  describe('reason (ADR-0112)', () => {
+    it('keeps the reason a staff member gave, apart from the changes', async () => {
+      await audit.record({
+        action: `${ACTION_PREFIX}suspend`,
+        changes: { status: { from: 'ACTIVE', to: 'SUSPENDED' } },
+        reason: 'Acceso desde un equipo no autorizado',
+      });
+
+      const [entry] = await entries();
+      expect(entry.reason).toBe('Acceso desde un equipo no autorizado');
+      expect(entry.changes).toEqual({
+        status: { from: 'ACTIVE', to: 'SUSPENDED' },
+      });
+    });
+
+    it('leaves it empty for actions without a reason', async () => {
+      await audit.record({ action: `${ACTION_PREFIX}no-reason` });
+
+      expect((await entries())[0].reason).toBeNull();
+    });
+
+    it.each(['', 'x'.repeat(501)])(
+      'is rejected by the database outside 1 to 500 characters (%#)',
+      async (reason) => {
+        await expect(
+          audit.record({ action: `${ACTION_PREFIX}bad-reason`, reason }),
+        ).rejects.toThrow(/audit_logs_reason_check/);
+      },
+    );
+  });
 });
