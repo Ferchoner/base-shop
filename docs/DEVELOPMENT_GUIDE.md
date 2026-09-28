@@ -161,6 +161,28 @@ Ramas e integración continua (ADR-0030):
 - El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
 - Dependabot abre actualizaciones de dependencias agrupadas cada semana.
 
+Pipeline de CI (ADR-0105): `.github/workflows/ci.yml` corre en cada pull request hacia `main` y en cada push a `main`. Tiene dos jobs: `Pipeline` (los 10 pasos) y `Commit messages` (solo en pull requests). Antes de abrir un pull request se puede repetir todo en local, con Docker en marcha:
+
+```bash
+npm ci
+npm run lint:code && npm run format:check && npm run lint:boundaries
+npx tsc --noEmit
+npm test && npm run test:int && npm run test:e2e
+npm audit --audit-level=high
+docker run --rm -v "${PWD}:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
+docker build --target production -t base-shop .
+git log --no-merges --format=%s origin/main..HEAD | bash .github/scripts/check-commit-messages.sh
+```
+
+- La migración desde cero y la comparación con el esquema de Prisma (paso 7) van dentro de `npm run test:int`.
+- En Git Bash, el comando de gitleaks necesita `MSYS_NO_PATHCONV=1` delante para que no se reescriba la ruta `/repo`; en PowerShell funciona tal cual.
+- Si gitleaks reporta algo:
+  - **Si es un secreto real,** se rota de inmediato y se saca del historial; nunca se ignora.
+  - **Si es un falso positivo,** se agrega su huella (`Fingerprint`) a `.gitleaksignore` con un comentario que explique por qué.
+- Si falla `Commit messages`, se corrigen los mensajes de la rama (por ejemplo, con `git rebase` y `reword`) y se vuelve a subir con `git push --force-with-lease`. Las pruebas del script: `bash .github/scripts/check-commit-messages.test.sh`.
+- Los nombres de los jobs son los checks obligatorios de `main` (T-107): cambiarlos exige actualizar la protección de la rama.
+- Las actions de terceros se fijan por SHA, con la versión en un comentario (`uses: actions/checkout@<sha> # v7.0.1`).
+
 Lint (ADR-0073, ADR-0103): `npm run lint` corre oxlint (`npm run lint:code`) y la verificación de límites entre módulos y capas (`npm run lint:boundaries`, con `dependency-cruiser`).
 
 - Si `lint:boundaries` falla, el mensaje dice qué regla se rompió y entre qué archivos. La solución es mover el código a la capa correcta o pasar por la API pública del otro módulo (`index.ts`), no relajar la regla. Cambiar una regla requiere un ADR.
@@ -205,7 +227,7 @@ Comandos:
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
 - **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
-- Imagen de producción (la construye la CI en T-106): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13).
+- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13).
 
 ## Migraciones
 

@@ -122,6 +122,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0102 | Mecanismo de rate limiting | Aceptada |
 | ADR-0103 | Verificación automática de límites entre módulos y capas | Aceptada |
 | ADR-0104 | Base del cache con espacios de nombres | Aceptada |
+| ADR-0105 | Pipeline de CI en GitHub Actions | Aceptada |
 
 ---
 
@@ -596,7 +597,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La protección de la rama principal y la activación de Dependabot se configuran en GitHub; requieren permisos de administrador del repositorio.
   - Herramientas concretas de lint, formato, límites y detección de secretos se eligen en las tareas correspondientes (T-103, T-104, T-106).
   - Despliegue continuo: pospuesto mientras no haya hosting (ADR-0031).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. El pipeline se implementó en ADR-0105; la protección de la rama principal y Dependabot se configuran en T-107.
 
 ---
 
@@ -1717,7 +1718,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - T-104 queda sin decisiones pendientes; `.prettierignore` y los scripts de formato ya existen.
   - El paso "lint y formato" de la CI ejecuta `npm run lint` y `npm run format:check`.
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). La CI comprueba los mensajes de commit y el título del pull request desde ADR-0105.
 
 ---
 
@@ -2304,3 +2305,53 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El cache se pierde al reiniciar y no se comparte entre instancias (ADR-0028).
   - T-140 cachea el árbol de categorías, el detalle de producto y los listados sin `q` en el espacio `catalog`; T-124 puede cachear el catálogo geográfico en su propio espacio.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0105 — Pipeline de CI en GitHub Actions
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-106. ADR-0030 fijó los 10 pasos del pipeline y su orden, y dejó para T-106 la herramienta de detección de secretos. ADR-0084 dejó aquí la posible comprobación de los mensajes de commit, y ADR-0090 pide Testcontainers con el Docker del runner, sin servicio de PostgreSQL. El repositorio es público y ya tiene activos el secret scanning y la protección de push de GitHub.
+- **Decisión:**
+  - **Workflow** `.github/workflows/ci.yml` ("CI"): corre en cada pull request hacia `main`, en cada push a `main` y a mano (`workflow_dispatch`).
+  - **Job `Pipeline`:** un solo job en `ubuntu-24.04` con los 10 pasos en el orden de ADR-0030; se detiene en el primero que falle. Node.js sale de `.nvmrc`, siempre la última 24.x (ADR-0025), con caché de npm.
+    1. `npm ci`.
+    2. `npm run lint:code` y `npm run format:check`.
+    3. `npm run lint:boundaries` (ADR-0103).
+    4. `npx tsc --noEmit`: compila el código y los tests.
+    5. `npm test`.
+    6. `npm run test:int` y `npm run test:e2e`, contra `postgres:18` con Testcontainers. ADR-0030 no nombra las e2e, pero también usan PostgreSQL real.
+    7. Sin paso aparte: la preparación de `npm run test:int` aplica todas las migraciones desde cero, y `database-schema.int-spec.ts` comprueba que el esquema de Prisma no difiere de ellas (`prisma migrate diff --exit-code`, T-110). El nombre del paso 6 lo indica.
+    8. `npm audit --audit-level=high`: falla con vulnerabilidades altas y críticas; las demás solo se reportan.
+    9. Detección de secretos con gitleaks.
+    10. `docker build --target production`. La imagen no se publica, porque el despliegue continuo está pospuesto (ADR-0031).
+  - **Detección de secretos:** gitleaks 8.30.1 con su imagen oficial de Docker, fijada por digest. Revisa todo el historial sin conexión, así que no envía nada a terceros, y usa `--redact` para que un hallazgo no aparezca en el log público.
+    - Los falsos positivos revisados van en `.gitleaksignore`, cada uno con su huella y un comentario. Al crearlo se registraron tres: el token de ejemplo del README inicial de NestJS, una `Idempotency-Key` de ejemplo en `API_SPEC.md` y el JWT inventado del test de redacción de logs.
+    - Un secreto real nunca se ignora: se rota y se saca del historial.
+    - El secret scanning y la protección de push de GitHub siguen activos como primera barrera.
+  - **Job `Commit messages`,** solo en pull requests: comprueba el título del pull request y los commits de la rama, sin contar merges, contra `tipo: descripción` con los tipos de ADR-0084.
+    - Lo hace `.github/scripts/check-commit-messages.sh`, en bash y sin dependencias; sus pruebas (`check-commit-messages.test.sh`) corren antes en el mismo job.
+    - El título llega por variable de entorno, nunca interpolado en el script, para evitar inyección de comandos.
+    - El historial anterior a la convención no se revisa.
+  - **Seguridad del workflow:**
+    - Permisos de solo lectura (`contents: read`).
+    - Actions de terceros fijadas por SHA, con la versión en un comentario.
+    - Checkout sin credenciales persistidas.
+    - Un push nuevo a un pull request cancela su ejecución anterior; las de `main` siempre terminan.
+    - Límite de 20 minutos para `Pipeline` y 5 para `Commit messages`.
+  - Los nombres de los jobs (`Pipeline` y `Commit messages`) serán los checks obligatorios de la rama principal (T-107); cambiarlos exige actualizar la protección.
+- **Alternativas consideradas:**
+  - Jobs en paralelo: más rápidos, pero repiten `npm ci` en cada job y suman checks obligatorios.
+  - TruffleHog: para verificar un hallazgo lo prueba contra el servicio correspondiente, así que envía lo encontrado a terceros.
+  - Solo el secret scanning de GitHub: no es un paso del pipeline y en repositorios privados es de pago.
+  - La action oficial de gitleaks: pide licencia si el repositorio pasa a una organización.
+  - Un paso de migraciones aparte: repetiría la comprobación de T-110 con otro contenedor.
+  - commitlint: suma dependencias para una comprobación de una línea.
+  - Servicio de PostgreSQL en el workflow: descartado por ADR-0090.
+- **Consecuencias:**
+  - Todo pull request pasa por la CI antes de fusionarse. Desde T-107, la rama principal lo exige.
+  - Cada paso se puede repetir en local con el mismo comando (`DEVELOPMENT_GUIDE.md`).
+  - Una vulnerabilidad alta publicada en una dependencia hace fallar la CI aunque el pull request no la toque. Se actualiza la dependencia, o se registra la decisión si no hay arreglo.
+  - Un commit con otro formato hace fallar `Commit messages`: se corrige reescribiendo los commits de la rama antes de fusionar. Dependabot (T-107) debe usar el prefijo `chore`.
+  - Dependabot puede actualizar las actions fijadas por SHA. La imagen de gitleaks, por estar en una variable del workflow, se actualiza a mano.
+- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28).

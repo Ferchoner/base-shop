@@ -98,6 +98,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-126: rate limiting con `@nestjs/throttler` y `@RateLimit`, límites de ADR-0065 por variables `RATE_LIMIT_*`, intentos fallidos de login con `FailedAttemptLimiter`, webhooks excluidos y 429 con `Retry-After` (ADR-0102)
 - [x] T-103: verificación de límites entre módulos y capas con `dependency-cruiser` en `npm run lint`, con un proyecto de ejemplo que prueba cada regla (ADR-0103)
 - [x] T-119: cache en memoria con espacios de nombres (`AppCache`), TTL por `CACHE_TTL_SECONDS` e invalidación del catálogo público por eventos de Catalog (ADR-0104)
+- [x] T-106: CI en GitHub Actions con los 10 pasos de ADR-0030 en un job (`Pipeline`), detección de secretos con gitleaks y comprobación de los mensajes de commit en los pull requests (`Commit messages`) (ADR-0105)
 
 ## In Progress
 
