@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  Matches,
   Max,
   Min,
   ValidateBy,
@@ -13,6 +14,7 @@ import {
   type ValidationError,
   type ValidationOptions,
 } from 'class-validator';
+import { RATE_LIMIT_PATTERN } from './rate-limit-value.js';
 
 export const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
@@ -65,6 +67,69 @@ export class EnvironmentVariables {
   @Transform(({ value }: { value: unknown }) => parseBoolean(value))
   @IsBoolean()
   JOBS_ENABLED: boolean = true;
+
+  /** Requests per IP on every endpoint without a specific limit. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_DEFAULT: string = '100/1m';
+
+  /** Failed logins per email. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_LOGIN_EMAIL: string = '5/15m';
+
+  /** Failed logins per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_LOGIN_IP: string = '20/15m';
+
+  /** Sign-ups per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_REGISTER: string = '5/1h';
+
+  /** Password reset requests per email. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_PASSWORD_RESET_EMAIL: string = '3/1h';
+
+  /** Password reset requests per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_PASSWORD_RESET_IP: string = '10/1h';
+
+  /** Verification emails per email or signed-in user (resend and email change). Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_EMAIL_VERIFICATION: string = '3/1h';
+
+  /** Guest order lookups and reorders per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_GUEST_ORDER: string = '10/15m';
+
+  /** Orders placed per user or cart. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_PLACE_ORDER: string = '10/10m';
 }
 
 /**

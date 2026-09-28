@@ -11,12 +11,15 @@
       "ts-jest",
       {
         "useESM": true,
-        "astTransformers": { "before": ["<rootDir>/swagger-plugin.cjs"] }
+        "astTransformers": {
+          "before": ["<rootDir>/swagger-plugin.cjs"]
+        }
       }
     ]
   },
   "testEnvironment": "node",
   "globalSetup": "<rootDir>/integration/global-setup.ts",
   "globalTeardown": "<rootDir>/integration/global-teardown.ts",
-  "testTimeout": 30000
+  "testTimeout": 30000,
+  "setupFilesAfterEnv": ["<rootDir>/setup-esm-interop.ts"]
 }
