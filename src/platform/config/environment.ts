@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
 import {
   buildMessage,
+  IsBoolean,
   IsIn,
   IsInt,
   Max,
@@ -58,6 +59,12 @@ export class EnvironmentVariables {
   @Expose()
   @IsIn(LOG_LEVELS)
   LOG_LEVEL: LogLevelName = 'log';
+
+  /** Whether the scheduler runs the jobs (ADR-0101); the tests turn it off. */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) => parseBoolean(value))
+  @IsBoolean()
+  JOBS_ENABLED: boolean = true;
 }
 
 /**
@@ -83,6 +90,14 @@ function formatErrors(errors: ValidationError[]): string {
   return errors
     .map((error) => `- ${Object.values(error.constraints ?? {}).join('; ')}`)
     .join('\n');
+}
+
+/** `true` or `false` as text; anything else is left as is, so validation rejects it. */
+function parseBoolean(value: unknown): unknown {
+  if (value === undefined) return true;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value;
 }
 
 function parseCommaSeparatedList(value: unknown): unknown {
