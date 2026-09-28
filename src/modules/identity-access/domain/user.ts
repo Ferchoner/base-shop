@@ -1,0 +1,105 @@
+import {
+  type Id,
+  InvalidStateTransitionError,
+  InvalidValueError,
+} from '../../../shared-kernel/index.js';
+import type { RoleId } from './role.js';
+
+export type UserId = Id<'User'>;
+export type UserType = 'CUSTOMER' | 'STAFF';
+export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'ANONYMIZED';
+
+export interface UserSnapshot {
+  readonly id: UserId;
+  /** Customers never have roles and staff never buys (BR-USR-08). */
+  readonly type: UserType;
+  readonly status: UserStatus;
+  /** `null` only for an anonymized customer (ADR-0067). */
+  readonly email: string | null;
+  readonly firstNames: string | null;
+  readonly lastNames: string | null;
+  readonly emailVerifiedAt: Date | null;
+  readonly mustChangePassword: boolean;
+  readonly lastLoginAt: Date | null;
+  readonly suspendedAt: Date | null;
+  readonly anonymizedAt: Date | null;
+  readonly createdAt: Date;
+  readonly roleIds: readonly RoleId[];
+  readonly version: number;
+}
+
+/**
+ * A customer or staff account (ADR-0043). T-130 covers its status and roles; credentials come with T-120,
+ * staff creation and reactivation with T-131, and anonymization with T-132.
+ */
+export class User {
+  private constructor(private state: UserSnapshot) {}
+
+  static restore(snapshot: UserSnapshot): User {
+    return new User(snapshot);
+  }
+
+  get id(): UserId {
+    return this.state.id;
+  }
+
+  get type(): UserType {
+    return this.state.type;
+  }
+
+  get status(): UserStatus {
+    return this.state.status;
+  }
+
+  get roleIds(): readonly RoleId[] {
+    return this.state.roleIds;
+  }
+
+  get version(): number {
+    return this.state.version;
+  }
+
+  /** ACTIVE → SUSPENDED (BR-USR-02, BR-USR-06): the account can no longer sign in. */
+  suspend(at: Date): void {
+    if (this.state.status !== 'ACTIVE') {
+      throw new InvalidStateTransitionError(this.state.status, 'suspend');
+    }
+    this.state = { ...this.state, status: 'SUSPENDED', suspendedAt: at };
+  }
+
+  /**
+   * SUSPENDED → ACTIVE for a customer, who keeps the password and the email verification (BR-USR-14,
+   * ADR-0076). An anonymized account is never reactivated. Staff reactivation also issues a temporary
+   * password, so it comes with T-131.
+   */
+  reactivateCustomer(): void {
+    if (this.state.type !== 'CUSTOMER') {
+      throw new Error('Staff reactivation issues a temporary password (T-131)');
+    }
+    if (this.state.status !== 'SUSPENDED') {
+      throw new InvalidStateTransitionError(this.state.status, 'reactivate');
+    }
+    this.state = { ...this.state, status: 'ACTIVE', suspendedAt: null };
+  }
+
+  /** The staff member's roles, replaced as a whole; at least one (API_SPEC.md §9.17, BR-USR-08). */
+  replaceRoles(roleIds: readonly RoleId[]): void {
+    if (this.state.type !== 'STAFF') {
+      throw new InvalidValueError('Customers never have roles');
+    }
+    const unique = [...new Set(roleIds)];
+    if (unique.length === 0) {
+      throw new InvalidValueError('A staff member has at least one role');
+    }
+    this.state = { ...this.state, roleIds: unique };
+  }
+
+  /** Called by the repository once a change is saved. */
+  markSaved(version: number): void {
+    this.state = { ...this.state, version };
+  }
+
+  snapshot(): UserSnapshot {
+    return this.state;
+  }
+}

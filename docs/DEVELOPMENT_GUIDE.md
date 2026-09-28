@@ -99,6 +99,22 @@ Logs (ADR-0097):
 - El identificador de correlación se agrega solo; no hace falta incluirlo en el mensaje.
 - Nunca se registran datos personales (correos, nombres, direcciones, teléfonos), contraseñas, tokens, cuerpos de solicitudes ni cadenas de consulta; se registran identificadores. La redacción automática del logger es una red de seguridad, no un permiso.
 
+Autorización (ADR-0111):
+
+- **Rutas de `/v1/admin`:** llevan `@RequirePermissions('customers.read', …)`, con todos los permisos que exigen. **Rutas de `/v1/me`:** llevan `@RequireAccount()`, o `@RequireAccount({ customerOnly: true })` si son solo para clientes. Las demás rutas son públicas.
+- Una ruta de `/v1/admin` o `/v1/me` sin su decorador responde 500 (falla cerrado), así que un olvido aparece en el primer test.
+- El usuario autenticado está en `request.user` (`AuthenticatedUser`); se usa su `id`, nunca un ID de la URL, para los recursos propios (ADR-0036).
+- Los permisos existen solo en `PERMISSIONS` del shared kernel. Uno nuevo se agrega ahí, con su descripción en español, y a los roles que lo necesiten; el superadministrador lo recibe solo.
+- En los tests e2e, `useTestAuthentication(app)` y `.set(signedInAs(usuario))` (`test/support/test-authentication.ts`) simulan la autenticación hasta T-120.
+
+Listados (ADR-0036, ADR-0111):
+
+- El DTO de consulta extiende `PageQueryDto` y declara sus filtros y `sort` con `@IsSortOf(['name', 'createdAt'])`. Cualquier otro parámetro se rechaza con 400.
+- El controlador pasa `toSortOrder(query.sort, '-createdAt')` y la página al caso de uso, y responde con `toPageResponse(page, query, toDto)`, que arma `{ data, meta }`.
+- El repositorio recibe `PageRequest` y `SortOrder` del shared kernel, ordena por el campo pedido y después por el ID, para que el orden sea estable entre páginas, y devuelve `Page` (`items` y `totalItems`).
+
+Concurrencia en recursos versionados: el repositorio guarda con `updateMany({ where: { id, version } })`. Si no actualiza ninguna fila, rechaza con `VersionConflictError(versiónActual)` (409 `version-conflict`, E-05) y el cliente vuelve a leer.
+
 Correos y enlaces al frontend (ADR-0045, ADR-0110):
 
 - **Cómo enviar:** el caso de uso inyecta `EmailSender` (shared kernel) y envía `{ to, subject, text, html? }`. Siempre fuera de la transacción: después del commit, normalmente desde un handler de eventos.

@@ -21,6 +21,12 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 4 | T-131 (primer superadministrador y alta de staff), T-121 (verificación de email) y T-123 (recuperación de contraseña) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
+- **T-130 en tres partes (ADR-0111):**
+  - (a) base: usuarios, roles, permisos, autorización y paginación;
+  - (b) administración de roles, staff y clientes;
+  - (c) direcciones.
+
+  Salen del sprint la anonimización, que pasa a la tarea nueva T-132 porque depende de Ordering, Shopping y Shipping, y la reactivación del staff, que pasa a T-131.
 - **T-120:** debe cumplir lo que esperan ADR-0099, ADR-0100 y ADR-0102:
   - el usuario autenticado queda en `request.user.id`;
   - la autenticación corre antes del guard de rate limiting;

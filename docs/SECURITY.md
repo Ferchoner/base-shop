@@ -13,6 +13,10 @@
 - Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas (`npm audit --audit-level=high`), y Dependabot propone actualizaciones semanales (ADR-0030, ADR-0105).
 - Detectar secretos en cada cambio: el secret scanning y la protección de push de GitHub bloquean los secretos conocidos al subirlos, y la CI revisa todo el historial con gitleaks (ADR-0030, ADR-0105).
 - La CI corre con permisos de solo lectura, actions de terceros fijadas por SHA y sin interpolar datos del pull request (como el título) en sus scripts (ADR-0105).
+- Autorización (ADR-0111):
+  - Toda ruta de `/v1/admin` exige staff con los permisos del catálogo en código, y toda ruta de `/v1/me`, una cuenta.
+  - El guard falla cerrado: una ruta de esos grupos sin requisito responde 500 en lugar de quedar pública.
+  - Los 403 de `/v1/admin` se auditan.
 - Correos (ADR-0110):
   - El log no registra destinatarios, asuntos ni contenidos.
   - `MAIL_FROM` se valida en una sola línea, y nodemailer impide inyectar encabezados desde el asunto.
