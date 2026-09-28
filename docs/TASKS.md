@@ -38,7 +38,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-111 | Contexto transaccional | DONE | T-110 | `nestjs-cls` con plugin transaccional; repositorios obtienen la transacción activa sin exponer Prisma a Application; test que demuestra rollback |
 | T-112 | Shared kernel | DONE | T-101 | `Money` (centavos + moneda), tipos de ID, error de dominio base, forma de domain event y puerto `Clock`, con tests unitarios |
 | T-113 | Manejo de errores HTTP | DONE | T-100, T-112 | Errores de dominio y de validación traducidos a Problem Details (RFC 9457) con `application/problem+json`, códigos de ADR-0064, `type` estable y extensiones `correlationId`, `errors` y `lines`; sin stack traces en producción |
-| T-126 | Rate limiting con `@nestjs/throttler` y límites configurables de ADR-0065 | TODO | T-100 | Límites por endpoint desde variables de entorno declaradas en `.env.example`; 429 con `Retry-After`; tests de cada límite |
+| T-126 | Rate limiting con `@nestjs/throttler` y límites configurables de ADR-0065 | DONE | T-100 | Límites por endpoint desde variables de entorno declaradas en `.env.example`; 429 con `Retry-After`; tests de cada límite |
 | T-127 | Registro de auditoría técnica | DONE | T-110, T-111 | Mecanismo reutilizable que registra en `audit_logs`, en la misma transacción que el cambio, toda modificación del staff y los eventos de seguridad (UC-AUD-01, ADR-0037), sin valores sensibles ni personales; trigger que impide modificar registros; tests |
 | T-114 | OpenAPI y versionado | DONE | T-100 | Prefijo `/v1` aplicado a todos los endpoints; Swagger de `v1` disponible en local, con CSP más permisiva solo en su ruta (ADR-0086) |
 | T-115 | Idempotencia HTTP | DONE | T-110 | Mecanismo reutilizable según ADR-0063 (llave ligada a quien la envía y al endpoint; 400, 422 y 409; respuestas guardadas 24 horas) con tests, incluido el caso concurrente |
@@ -53,7 +53,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 
 | ID | Tarea | Estado | Depende de |
 |---|---|---|---|
-| T-120 | Identity & Access: autenticación, UC-IAM-04 a 06 y 09 (Passport local + JWT, refresh tokens con rotación y detección de reutilización, Argon2id, política de contraseñas de ADR-0047 con lista local de contraseñas comunes; resultado de autenticación y respuesta de login preparados para 2FA según ADR-0048) | TODO | T-130, T-110 |
+| T-120 | Identity & Access: autenticación, UC-IAM-04 a 06 y 09 (Passport local + JWT, refresh tokens con rotación y detección de reutilización, Argon2id, política de contraseñas de ADR-0047 con lista local de contraseñas comunes; resultado de autenticación y respuesta de login preparados para 2FA según ADR-0048; límite de intentos fallidos con `FailedAttemptLimiter` y usuario autenticado en `request.user.id`, antes del guard de rate limiting, como esperan ADR-0099, ADR-0100 y ADR-0102) | TODO | T-130, T-110 |
 | T-121 | Identity & Access: verificación de email para clientes registrados, UC-IAM-01 a 03 y 10 (ADR-0046) | TODO | T-120, T-122 |
 | T-122 | Puerto de envío de correos con adaptador al capturador local; URL base del frontend configurable para los enlaces (ADR-0056) | TODO | T-102 |
 | T-123 | Identity & Access: recuperación de contraseña por enlace (ADR-0056); UC-IAM-07, 08 | TODO | T-120, T-122 |

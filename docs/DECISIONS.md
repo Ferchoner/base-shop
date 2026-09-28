@@ -119,6 +119,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0099 | Mecanismo de idempotencia HTTP | Aceptada |
 | ADR-0100 | Mecanismo de registro de auditoría | Aceptada |
 | ADR-0101 | Base de los jobs programados | Aceptada |
+| ADR-0102 | Mecanismo de rate limiting | Aceptada |
 
 ---
 
@@ -1282,7 +1283,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los contadores se reinician al reiniciar la API (aceptado).
   - Si la API se escala a varias instancias, los contadores deben pasar a un almacén compartido.
   - Si la API queda detrás de un proxy, habrá que configurar qué IP se toma (depende del hosting, P-06).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0102.
 
 ---
 
@@ -2202,4 +2203,40 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los jobs concretos (expiración de reservas y órdenes y conciliación de pagos en T-230, limpieza diaria en T-231, archivo de auditoría en T-220) usan `@ScheduledJob`.
   - El registro de ejecuciones en curso es del proceso completo, coherente con una sola instancia (ADR-0029); con varias instancias harán falta bloqueos en PostgreSQL.
   - Un test de un job llama a su método directamente, porque el scheduler está apagado.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0102 — Mecanismo de rate limiting
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-126. ADR-0065 eligió `@nestjs/throttler` con contadores en memoria, fijó los límites por endpoint (configurables por variables de entorno), pidió frenar por tiempo sin bloquear cuentas y responder 429 con `Retry-After`; ADR-0071 dejó fuera los webhooks. Los endpoints todavía no existen, así que faltaba el mecanismo y su configuración.
+- **Decisión:**
+  - **Guard global** sobre `@nestjs/throttler` (`RateLimitGuard`):
+    - excluye las rutas `/v{n}/webhooks`;
+    - al exceder un límite responde `rate-limit-exceeded` (Problem Details) con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`, que `API_SPEC.md` no contempla y CORS no expone.
+  - **Límite general** por IP en todo endpoint sin límite específico. **Límites específicos** con `@RateLimit(...)` en el endpoint, que reemplazan al general. Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: por ejemplo, la consulta y la recompra de invitado comparten el contador por IP.
+
+    | Límite | Clave |
+    |---|---|
+    | `register`, `password-reset-ip`, `guest-order` | IP |
+    | `password-reset-email` | huella SHA-256 del correo del cuerpo |
+    | `email-verification` | usuario autenticado o, si no hay, huella del correo |
+    | `place-order` | usuario autenticado o, si no hay, el `cartId` |
+
+    Si falta el campo de la clave, se cuenta por IP; la validación rechaza la solicitud de todas formas.
+  - **Login: solo intentos fallidos.** `FailedAttemptLimiter`, también en memoria, cuenta fallos por correo y por IP en una ventana deslizante. Autenticación (T-120) llama a `assertAllowed` antes de validar las credenciales y a `recordFailure` cuando no son válidas. Un login correcto no gasta el límite, y nunca se bloquean cuentas. Las claves se guardan como huella y las vencidas se barren para que la memoria no crezca sin límite.
+  - **Configuración:** nueve variables opcionales `RATE_LIMIT_*`, una por límite, con el formato `<cantidad>/<duración>` (`s`, `m` o `h`), los valores de ADR-0065 por defecto y validación al arrancar.
+  - **Orden de los guards:** la autenticación debe ejecutarse antes del guard de rate limiting, para que los límites por usuario vean quién llama (requisito para T-120).
+  - **Jest:** `@nestjs/throttler` se publica como CommonJS y requiere los módulos ESM de NestJS. Jest rechaza ese ciclo al enlazar el grafo de un test, así que un archivo de preparación (`test/setup-esm-interop.ts`) carga `@nestjs/common` y `@nestjs/core` antes de cada test. Node no tiene el problema: la aplicación compilada funciona sin cambios.
+- **Alternativas consideradas:**
+  - Contar todos los intentos de login con el throttler: frenaría también los logins correctos.
+  - Dos variables por límite (cantidad y segundos): 18 variables en lugar de 9.
+  - Contar por endpoint: los endpoints que comparten un límite en `API_SPEC.md` tendrían presupuestos separados.
+  - Implementar el limitador sin `@nestjs/throttler`: contradice ADR-0065 para los límites por solicitud.
+- **Consecuencias:**
+  - Los contadores se reinician con la API y no se comparten entre instancias (ADR-0065).
+  - Una ruta inexistente responde 404 antes de los guards, así que no gasta el límite general.
+  - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
+  - Los endpoints de T-120, T-130, T-180 y siguientes declaran su límite con `@RateLimit`, y el login usa `FailedAttemptLimiter`.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
