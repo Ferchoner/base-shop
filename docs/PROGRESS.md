@@ -93,6 +93,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-118: logs con `AppLogger` (texto en desarrollo, JSON en producción), nivel por `LOG_LEVEL`, identificador de correlación en cada log de una solicitud, línea por solicitud y redacción de correos, JWT y tokens `Bearer` (ADR-0097)
 - [x] T-116: bus de eventos en proceso con despacho en segundo plano después del commit, handlers `@OnDomainEvent` aislados entre sí y fallos en el log; lista de efectos en segundo plano en `API_SPEC.md` (sección 2.5) (ADR-0098)
 - [x] T-115: idempotencia HTTP con `@Idempotent` y registro atómico de la llave; repetición de éxitos y errores de negocio, 422 con contenido distinto, 409 en proceso y llaves abandonadas a los 60 segundos (ADR-0099)
+- [x] T-127: registro de auditoría con el puerto `AuditTrail` (en la transacción del cambio o por separado), actor, IP, agente y correlación tomados de la solicitud, cambios sin valores personales ni sensibles y 403 de `/v1/admin` auditados automáticamente (ADR-0100)
 
 ## In Progress
 

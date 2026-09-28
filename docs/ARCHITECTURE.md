@@ -40,7 +40,7 @@ src/
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
-├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y TransactionManager (T-111); sin NestJS
+├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y los puertos TransactionManager, DomainEventPublisher y AuditTrail (T-111, T-116, T-127); sin NestJS
 └── modules/
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
         ├── domain/
@@ -76,9 +76,9 @@ Cambios respecto a la lista anterior:
 
 Capacidades transversales:
 
-- Auditoría técnica: tabla append-only alimentada desde la capa de aplicación, en la misma transacción que el cambio; los registros con más de 3 meses se exportan a archivos comprimidos (ADR-0037).
+- Auditoría técnica: tabla append-only alimentada desde la capa de aplicación, en la misma transacción que el cambio; los registros con más de 3 meses se exportan a archivos comprimidos (ADR-0037). Application registra con el puerto `AuditTrail` del shared kernel, implementado en `src/modules/audit/` (ADR-0100); es la única integración transversal con un puerto compartido en lugar de un puerto por contexto (ADR-0005), porque los ocho contextos lo necesitan con la misma forma.
 - Notificaciones: módulo que reacciona a eventos, sin dominio propio.
-- Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock` y `TransactionManager` (ADR-0094).
+- Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock`, `TransactionManager`, `DomainEventPublisher` y `AuditTrail` (ADR-0094, ADR-0098, ADR-0100).
 
 ## Reglas de integración entre módulos
 

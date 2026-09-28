@@ -117,6 +117,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0097 | Logs de la aplicación | Aceptada |
 | ADR-0098 | Bus de eventos en proceso con despacho en segundo plano | Aceptada |
 | ADR-0099 | Mecanismo de idempotencia HTTP | Aceptada |
+| ADR-0100 | Mecanismo de registro de auditoría | Aceptada |
 
 ---
 
@@ -724,7 +725,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los archivos deben incluirse en los respaldos del servidor, igual que las imágenes (ADR-0024).
   - Si se adopta un almacenamiento externo (por ejemplo, junto con el CDN), los archivos pueden moverse ahí.
   - Plazos sujetos a validación legal (P-61).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. El registro (UC-AUD-01) se implementa en ADR-0100.
 
 ---
 
@@ -1801,7 +1802,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:**
   - **Carpetas de primer nivel en `src/`:**
     - `platform/`: infraestructura técnica transversal, sin reglas de negocio (configuración, políticas HTTP y, después, persistencia, eventos, jobs, logs y cache).
-    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112), y puerto `TransactionManager` (T-111, ADR-0093). TypeScript puro, sin NestJS.
+    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112), y los puertos `TransactionManager` (T-111, ADR-0093), `DomainEventPublisher` (T-116, ADR-0098) y `AuditTrail` (T-127, ADR-0100). TypeScript puro, sin NestJS.
     - `modules/<contexto>/`: un módulo por bounded context, con nombre en inglés y kebab-case: `identity-access`, `catalog`, `pricing`, `inventory`, `shopping`, `ordering`, `payments` y `shipping`.
   - **Cada contexto** tiene las carpetas `domain/`, `application/`, `infrastructure/` y `presentation/`, un `<contexto>.module.ts` que conecta las capas y un `index.ts` que es su API pública: solo exporta el módulo de NestJS, la fachada y sus tipos públicos (ADR-0005).
   - **Capacidades transversales** (auditoría, notificaciones y catálogo geográfico): módulos bajo `modules/` con solo las capas que necesiten, creados en sus tareas (T-127, T-215 y T-124).
@@ -2146,4 +2147,33 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las reglas del dominio deben impedir duplicados por sí mismas (carrito ya marcado, un pago por orden), porque una llave abandonada puede volver a ejecutarse.
   - T-120 debe dejar el usuario autenticado en `request.user.id` para `userScope`.
   - La limpieza de llaves vencidas queda en el job diario (T-231).
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0100 — Mecanismo de registro de auditoría
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-127. ADR-0037 fijó qué se audita (toda modificación del staff y los eventos de seguridad), qué guarda cada registro y que se escribe en la misma transacción que el cambio, salvo los intentos denegados y los inicios de sesión fallidos. ADR-0067 prohíbe guardar datos personales. La tabla `audit_logs` y su trigger existen desde T-110. Faltaba el mecanismo reutilizable; la consulta y el archivo son de T-220.
+- **Decisión:**
+  - **Puerto `AuditTrail` en el shared kernel**, implementado en el módulo transversal `src/modules/audit/` (ADR-0088). Es la única integración con un puerto compartido en lugar de un puerto por contexto (ADR-0005): los ocho contextos lo necesitan con la misma forma.
+  - **Transacción:** `record()` se une a la transacción activa y se revierte con el cambio. `recordIndependently()` confirma por su cuenta, para los intentos denegados y los inicios de sesión fallidos que ocurren dentro de una transacción que se revierte.
+  - **Contexto de la solicitud:** quien registra indica la acción, el recurso, el resultado y los cambios. El resto sale de la solicitud guardada en el contexto de `nestjs-cls`: identificador de correlación, IP (solo si es una dirección válida), agente de usuario (hasta 512 caracteres) y usuario autenticado (el contrato de T-120, `request.user.id`).
+  - **Actor:** el indicado por quien registra (por ejemplo, ANONYMOUS en un login fallido); si no, el usuario autenticado; ANONYMOUS en una solicitud sin usuario; SYSTEM fuera de una solicitud, como en un job.
+  - **Cambios sin datos personales ni sensibles:**
+    - `changesBetween(antes, después, { personal })` guarda solo los campos modificados, como `{ "status": { "from": "PAID", "to": "CANCELLED" } }`, con los valores como los enviaría JSON.
+    - Los campos declarados en `personal` quedan como `{ "changed": true }`.
+    - Red de seguridad: una lista fija de nombres (contraseña, hash, token, secreto, correo, teléfono, nombres, apellidos, dirección) se oculta aunque no se declare, también dentro de valores anidados.
+  - **Código de acción** con el formato `<área>.<acción>` en minúsculas (por ejemplo, `orders.cancel`); otro formato es un error de programación.
+  - **Accesos denegados automáticos:** el filtro de errores (ADR-0095) registra todo 403 en `/v1/admin` como `http.access-denied`, resultado DENIED, con la ruta declarada como recurso. Si esa escritura falla, se registra en el log y la respuesta no cambia. Los 401 no se auditan: no hay un actor conocido y los cubren el rate limiting y los logs.
+- **Alternativas consideradas:**
+  - Un puerto de auditoría por contexto (ADR-0005): ocho puertos y adaptadores idénticos.
+  - Que cada caso de uso pase la IP, el agente y el actor: mete datos de HTTP en Application.
+  - Solo la lista fija, sin declaración por caso de uso: no reconoce todos los datos personales, como los nombres de contacto.
+  - Auditar también los 401: llenaría la tabla con intentos anónimos.
+- **Consecuencias:**
+  - Los casos de uso del staff y los eventos de seguridad de T-120 en adelante registran con `AuditTrail`.
+  - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
+  - La lista fija puede ocultar de más (por ejemplo, `addressId`); se acepta a cambio de no filtrar datos personales.
+  - La consulta con `audit.read` y el archivo de registros antiguos quedan en T-220.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).

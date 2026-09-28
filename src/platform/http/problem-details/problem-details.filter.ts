@@ -8,6 +8,7 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 import { ClsService } from 'nestjs-cls';
 import {
+  AuditTrail,
   DomainError,
   type DomainErrorCategory,
   newId,
@@ -40,6 +41,9 @@ const STATUS_CODES: Readonly<Record<number, ProblemCode>> = {
   429: 'rate-limit-exceeded',
 };
 
+/** Administrative routes, where a 403 is an audited security event (ADR-0037, ADR-0100). */
+const ADMIN_PATH = /^\/v\d+\/admin(\/|$)/;
+
 /** Members of RFC 9457 and `correlationId`; an extension can never replace them. */
 const RESERVED_MEMBERS = new Set([
   'type',
@@ -62,7 +66,8 @@ interface Problem {
 /**
  * Turns every error into Problem Details (RFC 9457) with `application/problem+json` (ADR-0035, ADR-0064,
  * ADR-0095). Responses never carry stack traces or internal messages, in any environment: those go to the
- * log together with the correlation id.
+ * log together with the correlation id. A 403 on an administrative route is also recorded in the audit
+ * trail (ADR-0100).
  */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
@@ -71,24 +76,37 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   constructor(
     private readonly adapterHost: HttpAdapterHost,
     private readonly cls: ClsService,
+    private readonly audit: AuditTrail,
   ) {}
 
-  catch(exception: unknown, host: ArgumentsHost): void {
+  async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const http = host.switchToHttp();
-    const request = http.getRequest<{ originalUrl?: string; url: string }>();
+    const request = http.getRequest<{
+      method: string;
+      originalUrl?: string;
+      url: string;
+      route?: { path?: string };
+    }>();
     const response = http.getResponse<unknown>();
     const adapter = this.adapterHost.httpAdapter;
 
     const correlationId = this.correlationId();
     const problem = this.toProblem(exception, correlationId);
 
+    // Path only: the query string could hold search text or filters.
+    const path = (request.originalUrl ?? request.url).split('?')[0];
+    if (problem.status === 403 && ADMIN_PATH.test(path)) {
+      await this.auditDeniedAccess(
+        `${request.method} ${request.route?.path ?? path}`,
+      );
+    }
+
     const body: Record<string, unknown> = {
       type: problemTypeUri(problem.code),
       title: problem.title,
       status: problem.status,
       detail: problem.detail,
-      // Path only: the query string could hold search text or filters.
-      instance: (request.originalUrl ?? request.url).split('?')[0],
+      instance: path,
       correlationId,
     };
     for (const [name, value] of Object.entries(problem.extensions)) {
@@ -101,6 +119,22 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       adapter.setHeader(response, name, value);
     }
     adapter.reply(response, body, problem.status);
+  }
+
+  /** An audit failure is logged and never changes the response. */
+  private async auditDeniedAccess(route: string): Promise<void> {
+    try {
+      await this.audit.recordIndependently({
+        action: 'http.access-denied',
+        resource: { type: 'route', id: route },
+        result: 'DENIED',
+      });
+    } catch (error) {
+      this.logger.error(
+        `Could not audit a denied access to ${route}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   /** The id set by the correlation middleware, or a new one when the error happened outside of it. */
