@@ -196,3 +196,32 @@ describe('JOBS_ENABLED (ADR-0101)', () => {
     ).toThrow(/JOBS_ENABLED/);
   });
 });
+
+describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
+  it('defaults to the limits of ADR-0065', () => {
+    expect(validateEnvironment(REQUIRED)).toMatchObject({
+      RATE_LIMIT_DEFAULT: '100/1m',
+      RATE_LIMIT_LOGIN_EMAIL: '5/15m',
+      RATE_LIMIT_LOGIN_IP: '20/15m',
+      RATE_LIMIT_REGISTER: '5/1h',
+      RATE_LIMIT_PASSWORD_RESET_EMAIL: '3/1h',
+      RATE_LIMIT_PASSWORD_RESET_IP: '10/1h',
+      RATE_LIMIT_EMAIL_VERIFICATION: '3/1h',
+      RATE_LIMIT_GUEST_ORDER: '10/15m',
+      RATE_LIMIT_PLACE_ORDER: '10/10m',
+    });
+  });
+
+  it('accepts another value', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, RATE_LIMIT_REGISTER: '20/30m' })
+        .RATE_LIMIT_REGISTER,
+    ).toBe('20/30m');
+  });
+
+  it.each(['5', '5/15', '0/1m', 'many'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, RATE_LIMIT_REGISTER: value }),
+    ).toThrow(/RATE_LIMIT_REGISTER must look like 5\/15m/);
+  });
+});
