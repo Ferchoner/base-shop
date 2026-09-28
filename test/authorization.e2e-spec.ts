@@ -79,8 +79,12 @@ describe('Authorization (e2e, T-130)', () => {
     expect(response.body.type).toBe(`/problems/${type}`);
   }
 
-  it('leaves public routes open', async () => {
-    await http().get('/v1/test-authorization-public').expect(200);
+  it('leaves public routes open, and cacheable', async () => {
+    const response = await http()
+      .get('/v1/test-authorization-public')
+      .expect(200);
+
+    expect(response.headers['cache-control']).not.toBe('no-store');
   });
 
   describe('administrative routes (/v1/admin)', () => {
