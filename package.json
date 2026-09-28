@@ -116,5 +116,15 @@
   "overrides": {
     "deepmerge-ts": "^8.0.2",
     "mysql2": "^3.24.4"
+  },
+  "allowScripts": {
+    "cpu-features": false,
+    "prisma": false,
+    "protobufjs": false,
+    "ssh2": false,
+    "unrs-resolver": false,
+    "@parcel/watcher": false,
+    "@prisma/engines": false,
+    "@scarf/scarf": false
   }
 }
