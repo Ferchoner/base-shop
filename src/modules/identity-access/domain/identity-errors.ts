@@ -52,3 +52,44 @@ export class UnknownRolesError extends DomainError {
     });
   }
 }
+
+/** Why a state and municipality pair cannot be used in an address (BR-ADR-02, BR-ADR-03). */
+export type AddressLocationProblem =
+  'unknown-state' | 'municipality-not-in-state' | 'inactive-municipality';
+
+const LOCATION_ERRORS: Record<
+  AddressLocationProblem,
+  { field: string; code: string; message: string }
+> = {
+  'unknown-state': {
+    field: 'stateCode',
+    code: 'isState',
+    message: 'El estado no existe.',
+  },
+  'municipality-not-in-state': {
+    field: 'municipalityCode',
+    code: 'isMunicipalityOfState',
+    message: 'El municipio no pertenece al estado elegido.',
+  },
+  'inactive-municipality': {
+    field: 'municipalityCode',
+    code: 'isActiveMunicipality',
+    message:
+      'El municipio ya no está en el catálogo del INEGI; elige uno vigente.',
+  },
+};
+
+/**
+ * The state or municipality of an address is not valid (BR-ADR-02, BR-ADR-03). Answered as a validation
+ * error of the field, like the example of API_SPEC.md §6.1.
+ */
+export class InvalidAddressLocationError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+
+  constructor(problem: AddressLocationProblem) {
+    super(`Invalid address location: ${problem}`, {
+      errors: [LOCATION_ERRORS[problem]],
+    });
+  }
+}

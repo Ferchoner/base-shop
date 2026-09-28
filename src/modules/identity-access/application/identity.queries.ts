@@ -129,4 +129,13 @@ export abstract class IdentityQueries {
   ): Promise<Page<CustomerView>>;
 
   abstract findCustomer(id: UserId): Promise<CustomerDetailView | null>;
+
+  /** The customer's addresses, the default first and then the newest (API_SPEC.md §9.14). */
+  abstract listAddresses(customerId: UserId): Promise<AddressView[]>;
+
+  /** One of the customer's addresses; another customer's address is answered as missing. */
+  abstract findAddress(
+    customerId: UserId,
+    addressId: string,
+  ): Promise<AddressView | null>;
 }
