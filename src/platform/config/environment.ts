@@ -68,6 +68,14 @@ export class EnvironmentVariables {
   @IsBoolean()
   JOBS_ENABLED: boolean = true;
 
+  /** Seconds a cached value lives (ADR-0028, ADR-0104). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(86400)
+  CACHE_TTL_SECONDS: number = 120;
+
   /** Requests per IP on every endpoint without a specific limit. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
   @Matches(RATE_LIMIT_PATTERN, {

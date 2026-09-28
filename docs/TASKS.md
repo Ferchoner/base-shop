@@ -45,7 +45,7 @@ Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOC
 | T-116 | Bus de eventos en proceso | DONE | T-112 | Despacho después del commit; fallos de handlers registrados en logs (ADR-0014) |
 | T-117 | Scheduler de jobs | DONE | T-100 | `@nestjs/schedule` configurado; ejecuciones superpuestas omitidas; zona horaria America/Mexico_City para jobs diarios; fallos registrados en logs |
 | T-118 | Observabilidad base (local) | DONE | T-100 | Logs en consola sin datos sensibles; nivel configurable por variable de entorno declarada en `.env.example`; identificador de correlación incluido en todos los logs de cada solicitud (el identificador existe desde T-113, ADR-0095) |
-| T-119 | Cache base | TODO | T-100, T-116 | Módulo de cache en memoria con TTL de 120 s configurable; invalidación por eventos de Catalog; regla de límites que impide usarlo desde Domain y Application |
+| T-119 | Cache base | DONE | T-100, T-116 | Módulo de cache en memoria con TTL de 120 s configurable; invalidación por eventos de Catalog; regla de límites que impide usarlo desde Domain y Application |
 
 ## Contextos de negocio
 

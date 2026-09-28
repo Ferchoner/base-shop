@@ -33,6 +33,20 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Cache (ADR-0028, ADR-0104):
+
+- Solo en Infrastructure o Presentation, y solo para lecturas públicas del catálogo (y datos de referencia como el catálogo geográfico). Nunca para stock en el checkout, precios al colocar una orden, pagos, carrito, permisos ni tokens.
+- Se usa `AppCache`, con una clave por consulta dentro de su espacio de nombres; cada espacio se vacía por separado con `clear()`:
+
+  ```ts
+  return this.cache
+    .namespace('catalog')
+    .getOrLoad(`product:${slug}`, () => this.readProduct(slug));
+  ```
+
+- Todo valor vence con `CACHE_TTL_SECONDS` (120 por defecto). Si un cambio debe verse de inmediato, se invalida con un handler de eventos que vacía el espacio correspondiente.
+- Las respuestas que no guardan nada invalidable pueden usar `CacheInterceptor` de `@nestjs/cache-manager`, que tiene el mismo TTL.
+
 Rate limiting (ADR-0065, ADR-0102):
 
 - Todo endpoint tiene el límite general por IP. Uno con un límite de `API_SPEC.md` (sección 7) lo declara con `@RateLimit('register')` (o varios: `@RateLimit('password-reset-email', 'password-reset-ip')`), que reemplaza al general.

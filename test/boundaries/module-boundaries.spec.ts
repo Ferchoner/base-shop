@@ -51,8 +51,10 @@ describe('Module boundaries (ADR-0103)', () => {
       .sort();
     expect(found).toEqual(
       [
+        'application-depends-on-domain-and-shared-kernel: src/modules/catalog/application/uses-cache-manager.ts',
         'application-depends-on-domain-and-shared-kernel: src/modules/catalog/application/uses-platform.ts',
         'application-depends-on-domain-and-shared-kernel: src/modules/catalog/application/uses-prisma.ts',
+        'domain-depends-only-on-shared-kernel: src/modules/catalog/domain/uses-cache.ts',
         'domain-depends-only-on-shared-kernel: src/modules/catalog/domain/uses-infrastructure.ts',
         'domain-depends-only-on-shared-kernel: src/modules/catalog/domain/uses-nestjs.ts',
         'infrastructure-not-presentation: src/modules/catalog/infrastructure/uses-presentation.ts',

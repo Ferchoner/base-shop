@@ -10,6 +10,7 @@ import { PaymentsModule } from './modules/payments/index.js';
 import { PricingModule } from './modules/pricing/index.js';
 import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
+import { AppCacheModule } from './platform/cache/app-cache.module.js';
 import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
 import { EventsModule } from './platform/events/events.module.js';
@@ -37,6 +38,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     EventsModule,
     JobsModule.forRoot(),
     ClockModule,
+    AppCacheModule,
     ProblemDetailsModule,
     IdempotencyModule,
     RateLimitingModule,
