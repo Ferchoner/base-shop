@@ -10,7 +10,8 @@ ENV NPM_CONFIG_UPDATE_NOTIFIER=false \
 FROM base AS development
 ENV NODE_ENV=development
 # npm ci runs `prisma generate` (postinstall), which needs the Prisma schema and config.
-COPY package.json package-lock.json prisma.config.ts ./
+# .npmrc makes install scripts that allowScripts does not cover fail the install (ADR-0108).
+COPY package.json package-lock.json .npmrc prisma.config.ts ./
 COPY prisma ./prisma
 RUN npm ci
 COPY . .
@@ -19,7 +20,7 @@ EXPOSE 3000
 CMD ["sh", "-c", "npm run db:generate && npm run start:dev"]
 
 FROM base AS build
-COPY package.json package-lock.json prisma.config.ts ./
+COPY package.json package-lock.json .npmrc prisma.config.ts ./
 COPY prisma ./prisma
 RUN npm ci
 COPY . .
