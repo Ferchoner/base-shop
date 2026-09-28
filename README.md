@@ -61,4 +61,4 @@ La fuente de verdad del proyecto está en `docs/`:
 
 ## Flujo de trabajo
 
-GitHub Flow: una rama corta por tarea y pull request hacia `main` (ADR-0030). Las instrucciones para trabajar con Claude Code están en `CLAUDE.md`.
+GitHub Flow: una rama corta por tarea y pull request hacia `main` (ADR-0030). Cada pull request pasa por la CI de GitHub Actions (`.github/workflows/ci.yml`, ADR-0105); cómo repetirla en local está en `docs/DEVELOPMENT_GUIDE.md`. Las instrucciones para trabajar con Claude Code están en `CLAUDE.md`.

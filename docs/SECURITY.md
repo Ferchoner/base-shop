@@ -10,8 +10,9 @@
 - No exponer stack traces ni mensajes internos en ninguna respuesta, en ningún entorno: solo van al log (ADR-0095).
 - Logging sin secretos ni datos sensibles innecesarios.
 - Aplicar rate limiting cuando corresponda.
-- Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas, y Dependabot propone actualizaciones semanales (ADR-0030).
-- Detectar secretos en cada cambio mediante la CI (ADR-0030).
+- Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas (`npm audit --audit-level=high`), y Dependabot propone actualizaciones semanales (ADR-0030, ADR-0105).
+- Detectar secretos en cada cambio: el secret scanning y la protección de push de GitHub bloquean los secretos conocidos al subirlos, y la CI revisa todo el historial con gitleaks (ADR-0030, ADR-0105).
+- La CI corre con permisos de solo lectura, actions de terceros fijadas por SHA y sin interpolar datos del pull request (como el título) en sus scripts (ADR-0105).
 
 ## Contratos de la API (ADR-0071)
 
@@ -95,7 +96,7 @@ ADR-0032:
 - Configuración y secretos se leen de variables de entorno. En local, desde `.env`, que nunca se versiona.
 - `.env.example` lista todas las variables del proyecto con descripción y valores de ejemplo no reales; al desplegar se usa como base.
 - La API no arranca si falta una variable obligatoria.
-- La detección de secretos de la CI (ADR-0030) es la segunda barrera.
+- La detección de secretos es la segunda barrera: la protección de push de GitHub y gitleaks en la CI (ADR-0105). Un secreto detectado se rota de inmediato y se saca del historial; solo los falsos positivos revisados van en `.gitleaksignore`, con un comentario.
 - Almacén de secretos en el servidor: PENDIENTE DE DECISIÓN hasta elegir hosting (P-13).
 
 ## CORS / CSRF
