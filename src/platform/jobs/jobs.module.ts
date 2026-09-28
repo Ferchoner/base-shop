@@ -40,6 +40,9 @@ export class JobsModule {
         ConditionalModule.registerWhen(
           ScheduleModule.forRoot(),
           (env) => env.JOBS_ENABLED !== 'false',
+          // Without this, every start with JOBS_ENABLED=false, as in every test, logs a debug line
+          // about the skipped scheduler.
+          { debug: false },
         ),
       ],
       providers: [JobRunsLifecycle],
