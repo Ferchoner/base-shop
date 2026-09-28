@@ -37,13 +37,14 @@ src/
 │   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno (T-100)
-│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger e idempotencia (T-100, T-113, T-114, T-115)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia y rate limiting (T-100, T-113, T-114, T-115, T-126)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y los puertos TransactionManager, DomainEventPublisher y AuditTrail (T-111, T-116, T-127); sin NestJS
 └── modules/
+    ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
         ├── domain/
         ├── application/

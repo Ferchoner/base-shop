@@ -14,7 +14,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 | Paso | Tareas |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR; pull requests iniciales de Dependabot; scripts de instalación de dependencias que npm 11.19 marca como no autorizados en `allowScripts` (entre ellos Prisma y la telemetría de `@scarf/scarf`) |
+| 0 | Terminado el 2026-09-28 (ver "Resultado del paso 0"): revisión del repositorio contra los ADR; pull requests iniciales de Dependabot; scripts de instalación de las dependencias |
 | 1 | T-124 (catálogo geográfico del INEGI) y T-122 (puerto de envío de correos) |
 | 2 | T-130 (usuarios, roles, permisos y direcciones) |
 | 3 | T-120 (autenticación) |
@@ -26,6 +26,25 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - la autenticación corre antes del guard de rate limiting;
   - los logins fallidos se cuentan con `FailedAttemptLimiter`.
 - **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106).
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso;
+  - las variables de `.env.example` coinciden con las que valida el código;
+  - existen los scripts que cita la documentación;
+  - los módulos tienen sus cuatro capas;
+  - las dependencias coinciden con el stack;
+  - los `overrides` de ADR-0091 siguen siendo necesarios.
+- **Arreglos menores:**
+  - el árbol de `ARCHITECTURE.md` suma el rate limiting y el módulo `audit/`;
+  - `JobsModule` ya no escribe una línea `DEBUG` en cada arranque de los tests.
+- **Dependabot:**
+  - #30 (versiones menores y parches) fusionado;
+  - #31 (TypeScript 7) cerrado, porque las herramientas todavía no lo admiten (ADR-0107).
+- **Scripts de instalación:** los 8 de las dependencias quedan negados y npm falla ante uno sin revisar (ADR-0108).
+- **Aviso de OpenSSL en la imagen de producción:** anotado para P-05 en `DATABASE.md`, sección 13.
+- **Sin acción:** `glob@10.5.0` aparece como obsoleto, pero llega por testcontainers y ts-jest, ya tiene la corrección de seguridad y `npm audit` está limpio.
 
 ## Risks
 

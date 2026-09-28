@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import { Injectable } from '@nestjs/common';
+import { jest } from '@jest/globals';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -67,6 +68,21 @@ describe('Scheduled jobs (T-117)', () => {
       expect(moduleRef.get(EverySecondJob).runs).toBe(0);
     } finally {
       await moduleRef.close();
+    }
+  });
+
+  it('skips the scheduler without a debug line on every start', async () => {
+    const debug = jest.spyOn(Logger, 'debug').mockImplementation(() => {});
+    try {
+      const moduleRef = await createModule('false');
+      await moduleRef.close();
+
+      const fromConditionalModule = debug.mock.calls.filter(
+        ([, context]) => context === 'ConditionalModule',
+      );
+      expect(fromConditionalModule).toEqual([]);
+    } finally {
+      debug.mockRestore();
     }
   });
 });

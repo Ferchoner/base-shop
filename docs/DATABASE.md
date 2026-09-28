@@ -678,6 +678,11 @@ Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
 - **Migraciones en el despliegue: PENDIENTE DE DECISIÓN (P-05)**, se decide junto con el hosting (P-06). Análisis previo (2026-09-27):
   - **Candidata:** ejecutar `prisma migrate deploy` como paso único antes de arrancar la nueva versión de la API, con la misma imagen de producción. Desde T-111 esa imagen incluye el CLI de Prisma: el adaptador transaccional de Prisma para `nestjs-cls` lo declara como dependencia obligatoria. Ejemplos: `docker compose run --rm api npx prisma migrate deploy` en un VPS, o el comando previo al despliegue que ofrezca el hosting.
   - **Requisito para la candidata:** la etapa `production` del `Dockerfile` tendrá que copiar también `prisma/` y `prisma.config.ts`; hoy solo copia el código compilado.
+  - **Aviso de OpenSSL en la imagen (paso 0 del Sprint 2, 2026-09-28):** la imagen base `node:24-bookworm-slim` no trae OpenSSL. Prisma avisa que no detecta su versión y usa el motor de migraciones para OpenSSL 1.1 (`schema-engine-debian-openssl-1.1.x`).
+    - Se probó `prisma migrate deploy` desde la imagen, montando `prisma/` y `prisma.config.ts`, contra un PostgreSQL 18 sin TLS: aplicó la migración sin errores.
+    - No se probó con conexiones TLS, las habituales en bases administradas.
+    - Al decidir P-05 hay que probarlo con TLS; si falla, se instala `openssl` en la etapa `production`.
+    - La API no se ve afectada: las consultas usan el adaptador `pg`, no ese motor.
   - **Seguridad recomendada:** dos usuarios de PostgreSQL. Uno con permisos para cambiar el esquema, usado solo por el paso de migración, y otro para la API, que solo lee y escribe datos. Cada uno con su propio `DATABASE_URL`. Así, una vulnerabilidad en la API no puede borrar ni alterar tablas.
   - **Descartadas por ahora:**
     - Migrar desde el pipeline de CD: la base tendría que ser accesible desde GitHub Actions, o habría que abrir un túnel.
