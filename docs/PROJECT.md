@@ -93,4 +93,4 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 ## 8. Estado
 
-Fase: Inicialización. Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. En curso: Sprint 1 (fundaciones técnicas), desde el 2026-09-26. Ver `SPRINT.md` y `PROGRESS.md`.
+Fase: Inicialización. Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Siguiente: Sprint 2 (Identity & Access), aprobado. Ver `SPRINT.md` y `PROGRESS.md`.

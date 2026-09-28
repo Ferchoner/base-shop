@@ -36,7 +36,99 @@ Detalle y criterios de aceptación en `docs/TASKS.md`, sección "Fundaciones té
 
 ## Sprint Review
 
-PENDIENTE.
+**Fecha:** 2026-09-28. **Resultado:** objetivo cumplido. Las 20 tareas están en DONE y el pipeline de CI está en verde en `main`.
+
+### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Configuración validada al arrancar, CORS y encabezados de seguridad | DONE | T-100, ADR-0085, ADR-0086, ADR-0087 |
+| Estructura de módulos por contexto con cuatro capas | DONE | T-101, ADR-0088 |
+| Entorno local con Docker Compose (PostgreSQL 18, Mailpit y la API) y `Dockerfile` con etapa de producción | DONE | T-102, ADR-0089 |
+| Verificación automática de límites entre módulos y capas (9 reglas) | DONE | T-103, ADR-0103 |
+| Lint y formato ejecutables con un comando | DONE | T-104, ADR-0073, ADR-0084 |
+| Tests unitarios, de integración y end-to-end contra PostgreSQL 18 real con Testcontainers | DONE | T-105, ADR-0090 |
+| Pipeline de CI con los 10 pasos, detección de secretos y revisión de los mensajes de commit | DONE | T-106, ADR-0105 |
+| `main` protegida con un ruleset; Dependabot con alertas y actualizaciones de seguridad | DONE | T-107, ADR-0106 |
+| Prisma 7 y primera migración con las 38 tablas del modelo aprobado | DONE | T-110, ADR-0091 |
+| Contexto transaccional con `nestjs-cls` | DONE | T-111, ADR-0093 |
+| Shared kernel: `Money`, identificadores, errores de dominio, eventos y `Clock` | DONE | T-112, ADR-0094 |
+| Errores como Problem Details (36 tipos) e identificador de correlación | DONE | T-113, ADR-0095 |
+| Rutas bajo `/v1` y documento OpenAPI | DONE | T-114, ADR-0096 |
+| Idempotencia HTTP | DONE | T-115, ADR-0099 |
+| Bus de eventos en proceso con despacho después del commit | DONE | T-116, ADR-0098 |
+| Scheduler de jobs | DONE | T-117, ADR-0101 |
+| Logs con identificador de correlación y redacción de datos sensibles | DONE | T-118, ADR-0097 |
+| Cache en memoria con espacios de nombres | DONE | T-119, ADR-0104 |
+| Rate limiting con los límites de ADR-0065 | DONE | T-126, ADR-0102 |
+| Registro de auditoría | DONE | T-127, ADR-0100 |
+| Valores iniciales del método de envío | Decidido | P-72, ADR-0092 |
+| 315 tests (207 unitarios, 39 de integración y 69 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 106 ADR: 105 aceptados y 1 reemplazado parcialmente (ADR-0001); 20 nuevos en este sprint (ADR-0087 a ADR-0106) | — | `DECISIONS.md` |
+| 63 de 72 decisiones pendientes (P-xx) cerradas; P-72 se abrió y se cerró en este sprint | — | `PROGRESS.md` |
+
+El trabajo se integró en 20 pull requests a `main` (del #10 al #29). Desde T-106, cada uno pasa por la CI, que tarda unos 2 minutos.
+
+### Decisiones abiertas que pasan al siguiente sprint
+
+Son las mismas nueve con las que empezó el sprint. Ninguna bloquea Identity & Access.
+
+| Grupo | Decisiones |
+|---|---|
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
+
+### Riesgos que pasan al siguiente sprint
+
+- Efectos en segundo plano: si un handler falla, su efecto se pierde; solo los pagos tienen conciliación (ADR-0014, ADR-0098). La lista de efectos está en `API_SPEC.md`, sección 2.5.
+- El rate limiting y el cache guardan su estado en memoria: sirven mientras la API corra en una sola instancia (ADR-0102, ADR-0104).
+- Dos reglas se revisan solo en code review: las lecturas SQL entre contextos del catálogo público (ADR-0060) y el acceso a la base siempre con la transacción activa (`txHost.tx`, ADR-0093).
+- Limitaciones de Prisma y la función `partialIndexes`, en vista previa (ADR-0091).
+- La imagen de producción pesa 913 MB porque incluye el CLI de Prisma (ADR-0093).
+- Jest corre en modo ESM, una función experimental de Node.js, y necesita `test/setup-esm-interop.ts` para cargar paquetes CommonJS como `@nestjs/throttler` (ADR-0102).
+- Fuera de este sprint: adaptador de PayPal sin verificar (ADR-0040) y validaciones externas antes de operar con clientes reales (P-61, P-69).
+
+### Qué funcionó
+
+- Cada tarea siguió el mismo ciclo: plan con preguntas numeradas y una recomendación, aprobación, rama desde `main` actualizada, tres commits (código, tests y documentación), ADR y pull request. Cada cambio se puede rastrear hasta su decisión.
+- Cada tarea tuvo pruebas de mutación: se rompe el código a propósito para comprobar que los tests fallan. Así se atrapó, por ejemplo, que `JOBS_ENABLED` se leía una sola vez al importar el módulo (T-117).
+- La CI pasó a la primera. Antes de abrir el pull request se simuló el pipeline en un contenedor Linux con un clon limpio.
+- Se aplicaron las mejoras del Sprint 0: ninguna rama apilada, cada rama salió de `main` ya actualizada, y los pull requests se crearon con `gh`.
+
+### Qué mejorar
+
+- La CI llegó en el último paso del sprint, así que 18 tareas se verificaron solo en local. Desde T-106 corre en cada pull request; en proyectos nuevos conviene montarla al principio.
+- Algunas dependencias trajeron sorpresas que aparecieron tarde:
+  - la imagen de producción creció por el CLI de Prisma (ADR-0093);
+  - Jest necesitó un arreglo para cargar `@nestjs/throttler`.
+
+  Conviene probar cada dependencia nueva en el pipeline completo (build, tests y Docker) en cuanto se agrega.
+- Varias ediciones de documentación hechas con comandos de shell perdieron caracteres escapados, y un `git add` fallido dejó los commits de T-119 desordenados. Para la documentación conviene usar edición directa y comprobar el resultado de cada paso de Git.
+- Quedaban 32 ramas locales ya fusionadas. Se borraron al cerrar el sprint, y desde T-107 las ramas del remoto se borran al fusionar.
+
+### Propuesta para el Sprint 2 (aprobada el 2026-09-28)
+
+- **Objetivo:** Identity & Access completo, porque todo endpoint del staff necesita autenticación y permisos. Clientes y staff podrán registrarse, verificar su correo, iniciar y cerrar sesión, recuperar su contraseña y operar con permisos.
+- **Tareas:**
+  - T-124: catálogo geográfico del INEGI.
+  - T-122: puerto de envío de correos.
+  - T-130: usuarios, roles, permisos y direcciones.
+  - T-120: autenticación.
+  - T-131: primer superadministrador y alta de staff.
+  - T-121: verificación de email.
+  - T-123: recuperación de contraseña.
+- **Orden por dependencias:**
+  1. T-124 y T-122.
+  2. T-130.
+  3. T-120.
+  4. T-131, T-121 y T-123.
+- **Antes de la primera tarea:**
+  - Revisar el repositorio contra los ADR, como propuso el Sprint 0.
+  - Revisar los pull requests iniciales de Dependabot.
+- **Pospuesto:** reducir la imagen de producción.
+- **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
 
 ---
 

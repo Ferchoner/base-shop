@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery and Architecture) se cerró el 2026-09-26; su review está en el historial de `SPRINT.md`.
+Sprint 1 — Fundaciones técnicas, cerrado el 2026-09-28 con el objetivo cumplido; su review está en `SPRINT.md`. Siguiente: Sprint 2 (Identity & Access), aprobado el 2026-09-28.
 
 ## Completed
 
