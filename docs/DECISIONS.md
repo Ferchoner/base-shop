@@ -118,6 +118,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0098 | Bus de eventos en proceso con despacho en segundo plano | Aceptada |
 | ADR-0099 | Mecanismo de idempotencia HTTP | Aceptada |
 | ADR-0100 | Mecanismo de registro de auditoría | Aceptada |
+| ADR-0101 | Base de los jobs programados | Aceptada |
 
 ---
 
@@ -562,7 +563,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101.
 
 ---
 
@@ -2092,7 +2093,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una aplicación de test que no instala `AppLogger` escribe con el logger de NestJS, sin identificador ni redacción.
   - T-116 y T-117 registran sus fallos con este logger.
 - **Revisar si:** se elige una herramienta de observabilidad (P-07) o el volumen de logs afecta el rendimiento.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). Modificada por ADR-0101: cada ejecución de un job tiene su propio identificador, que sus logs llevan igual que los de una solicitud.
 
 ---
 
@@ -2176,4 +2177,29 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
   - La lista fija puede ocultar de más (por ejemplo, `addressId`); se acepta a cambio de no filtrar datos personales.
   - La consulta con `audit.read` y el archivo de registros antiguos quedan en T-220.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0101 — Base de los jobs programados
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-117. ADR-0029 eligió `@nestjs/schedule` en el proceso de la API y fijó reglas para todos los jobs: son puntos de entrada que llaman a un caso de uso, no se superponen, procesan por lotes con una transacción por elemento, son idempotentes, registran sus fallos y usan la hora de México en los jobs diarios. Faltaba la base común; los jobs concretos llegan con sus tareas.
+- **Decisión:**
+  - **Decorador `@ScheduledJob(nombre, expresiónCron)`** en `src/platform/jobs/`, que envuelve el `@Cron` de NestJS y garantiza para todo job:
+    - **Sin superposición:** si la ejecución anterior sigue en curso, la nueva se omite con un aviso (`warn`) en el log.
+    - **Fallos en el log:** un error se registra con el nombre del job y el stack, y nunca detiene el scheduler.
+    - **Contexto propio:** cada ejecución corre en su contexto asíncrono con un identificador nuevo (UUIDv7) que llevan todos sus logs. Las transacciones y los eventos funcionan igual que en una solicitud, y la auditoría registra el actor SYSTEM. Modifica ADR-0097, que dejaba sin identificador los logs de los jobs.
+    - **Hora de México:** toda expresión cron se interpreta en America/Mexico_City, sin importar la zona horaria del servidor o del contenedor.
+  - **`JOBS_ENABLED`:** variable opcional, `true` por defecto y validada al arrancar. Con `false` no se registra el scheduler. Los tests la ponen en `false` para que ningún job toque sus datos; el test del scheduler la activa. `JobsModule.forRoot()` la lee cada vez que arranca una aplicación.
+  - **Cierre ordenado:** al cerrar la aplicación se dejan de aceptar ejecuciones y se espera a las que están en curso antes de desconectar la base (`beforeApplicationShutdown`, igual que ADR-0098).
+  - **Lotes y transacción por elemento:** quedan como regla de la guía para el caso de uso de cada job, sin una utilidad genérica por ahora.
+- **Alternativas consideradas:**
+  - `@Cron` directo con su opción `waitForCompletion`: omite la superposición, pero cada job tendría que atrapar sus errores y crear su contexto.
+  - Correr siempre el scheduler: un job de cada minuto podría tocar los datos de los tests end-to-end.
+  - Una utilidad genérica de procesamiento por lotes: se agrega si varios jobs repiten el mismo patrón.
+- **Consecuencias:**
+  - Los jobs concretos (expiración de reservas y órdenes y conciliación de pagos en T-230, limpieza diaria en T-231, archivo de auditoría en T-220) usan `@ScheduledJob`.
+  - El registro de ejecuciones en curso es del proceso completo, coherente con una sola instancia (ADR-0029); con varias instancias harán falta bloqueos en PostgreSQL.
+  - Un test de un job llama a su método directamente, porque el scheduler está apagado.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
