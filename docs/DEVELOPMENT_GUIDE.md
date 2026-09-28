@@ -147,7 +147,11 @@ Ramas e integración continua (ADR-0030):
 - El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
 - Dependabot abre actualizaciones de dependencias agrupadas cada semana.
 
-Lint con oxlint (`npm run lint`, ADR-0073).
+Lint (ADR-0073, ADR-0103): `npm run lint` corre oxlint (`npm run lint:code`) y la verificación de límites entre módulos y capas (`npm run lint:boundaries`, con `dependency-cruiser`).
+
+- Si `lint:boundaries` falla, el mensaje dice qué regla se rompió y entre qué archivos. La solución es mover el código a la capa correcta o pasar por la API pública del otro módulo (`index.ts`), no relajar la regla. Cambiar una regla requiere un ADR.
+- Resumen de las reglas: Domain solo usa su domain, el shared kernel y módulos nativos de Node; Application usa su domain y application, el shared kernel y `@nestjs/common`; Infrastructure no usa presentation; Presentation no usa domain ni infrastructure; entre módulos solo por `index.ts`; Prisma solo en `platform` e `infrastructure`; el shared kernel no usa frameworks; `platform` no usa módulos; sin dependencias circulares. Los archivos de test quedan fuera.
+- `test/boundaries/` tiene un proyecto de ejemplo con una violación por regla; su test comprueba que cada regla la detecta y que `src` no tiene violaciones.
 
 Formato con Prettier (ADR-0084): `npm run format` escribe y `npm run format:check` verifica. Cubre código y configuración; la documentación Markdown queda fuera (`.prettierignore`).
 

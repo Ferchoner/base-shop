@@ -29,7 +29,8 @@ Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `np
 
 | Script | Uso |
 |---|---|
-| `npm run lint` | Lint con oxlint |
+| `npm run lint` | Lint con oxlint y verificación de límites entre módulos y capas |
+| `npm run lint:boundaries` | Solo la verificación de límites (`dependency-cruiser`) |
 | `npm run format` | Formato con Prettier |
 | `npm test` | Tests unitarios (Jest en modo ESM) |
 | `npm run test:int` | Tests de integración contra PostgreSQL 18 real (requiere Docker en marcha) |

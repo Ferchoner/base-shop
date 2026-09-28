@@ -120,6 +120,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0100 | Mecanismo de registro de auditoría | Aceptada |
 | ADR-0101 | Base de los jobs programados | Aceptada |
 | ADR-0102 | Mecanismo de rate limiting | Aceptada |
+| ADR-0103 | Verificación automática de límites entre módulos y capas | Aceptada |
 
 ---
 
@@ -202,7 +203,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Excepción: la consulta del catálogo público puede leer tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060).
 - **Alternativas consideradas:** Acceso directo a repositorios de otros contextos; joins entre tablas de contextos distintos.
 - **Consecuencias:** Los listados que combinan Catalog, Pricing e Inventory requieren fachadas con operaciones por lotes para evitar N+1.
-- **Estado:** Aceptada (aprobación formal 2026-09-24).
+- **Estado:** Aceptada (aprobación formal 2026-09-24). Los límites se verifican con `dependency-cruiser` (ADR-0103).
 
 ---
 
@@ -1813,7 +1814,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se retira el ejemplo "Hello World" (`AppController` y `AppService`), que no forma parte de la API.
 - **Alternativas consideradas:** Carpetas por capa en la raíz con subcarpetas por contexto (dispersa cada contexto); alias de rutas (`@modules/...`); crear desde ahora los módulos transversales vacíos.
 - **Consecuencias:**
-  - T-103 verifica automáticamente las dependencias entre capas y que un módulo solo importe de otro a través de su `index.ts`.
+  - T-103 verifica automáticamente las dependencias entre capas y que un módulo solo importe de otro a través de su `index.ts`. Hecho en ADR-0103.
   - Las carpetas de capa vacías se conservan en Git con un archivo `.gitkeep` hasta tener código.
 - **Estado:** Aceptada (aprobación formal 2026-09-26).
 
@@ -2239,4 +2240,42 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una ruta inexistente responde 404 antes de los guards, así que no gasta el límite general.
   - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
   - Los endpoints de T-120, T-130, T-180 y siguientes declaran su límite con `@RateLimit`, y el login usa `FailedAttemptLimiter`.
+- **Estado:** Aceptada (aprobación formal 2026-09-27).
+
+---
+
+## ADR-0103 — Verificación automática de límites entre módulos y capas
+
+- **Fecha:** 2026-09-27
+- **Contexto:** T-103. ADR-0003 y ADR-0005 piden verificar automáticamente los límites entre módulos (por ejemplo, con `dependency-cruiser` o `eslint-plugin-boundaries`); ADR-0088 fijó qué capa puede depender de cuál, y `ARCHITECTURE.md` agregó que `platform` solo lo usan `infrastructure` y `presentation`, y el shared kernel, todas las capas. El proyecto usa oxlint, no ESLint (ADR-0073).
+- **Decisión:**
+  - **Herramienta:** `dependency-cruiser`, que funciona sin ESLint, entiende TypeScript ESM con imports `.js` a través del `tsconfig` y detecta dependencias circulares. Reglas en `.dependency-cruiser.cjs`.
+  - **Reglas estrictas según la tabla de ADR-0088:**
+
+    | Desde | Solo puede importar | Regla |
+    |---|---|---|
+    | `domain` | su propio `domain`, el shared kernel y módulos nativos de Node | `domain-depends-only-on-shared-kernel` |
+    | `application` | su `domain` y su `application`, el shared kernel y `@nestjs/common` | `application-depends-on-domain-and-shared-kernel` |
+    | `infrastructure` | cualquier cosa salvo `presentation` | `infrastructure-not-presentation` |
+    | `presentation` | cualquier cosa salvo `domain` e `infrastructure` | `presentation-not-domain-or-infrastructure` |
+    | un módulo | otro módulo solo por su `index.ts` | `modules-only-through-public-api` |
+    | todo el código | Prisma y su cliente generado solo desde `platform` e `infrastructure` | `prisma-only-in-infrastructure` |
+    | `shared-kernel` | nada de `src` fuera de sí mismo, ni NestJS, Prisma o `nestjs-cls` | `shared-kernel-stays-pure` |
+    | `platform` | nada de `modules` | `platform-not-modules` |
+    | todo el código | sin dependencias circulares | `no-circular` |
+
+  - **Prisma también en `platform`:** `platform` es infraestructura técnica transversal. El almacén de idempotencia (ADR-0099) accede a la base desde `platform/http`, además de `platform/persistence`.
+  - **Tests fuera de las reglas:** los tests de integración combinan capas a propósito. También se incluyen los imports de solo tipos, porque acoplan igual.
+  - **Ejecución:** `npm run lint` corre oxlint (`lint:code`) y los límites (`lint:boundaries`); la CI (T-106) puede llamarlos como pasos separados, igual que los enumera ADR-0030.
+  - **Prueba de las reglas:** `test/boundaries/` contiene un proyecto de ejemplo con una violación por regla junto a imports permitidos. Un test comprueba que se detectan exactamente esas violaciones y que `src` no tiene ninguna.
+  - **Excepción de ADR-0060:** que el servicio de consultas del catálogo público lea tablas de Pricing e Inventory no se ve en los imports, porque todos los contextos usan el mismo cliente de Prisma. Queda como convención revisada en el code review.
+- **Alternativas consideradas:**
+  - `eslint-plugin-boundaries`: obliga a instalar y mantener ESLint junto a oxlint.
+  - Reglas menos estrictas (presentation con acceso a domain, domain con paquetes npm): se apartan de la tabla de ADR-0088.
+  - Prisma solo en `platform/persistence`: obligaría a mover el almacén de idempotencia a persistencia, mezclando HTTP con la base.
+  - Verificar la excepción de ADR-0060 con análisis de los modelos de Prisma: fuera del alcance de una herramienta de imports.
+- **Consecuencias:**
+  - Una violación hace fallar `npm run lint` y, desde T-106, la CI. La solución es mover el código, no relajar la regla; cambiar una regla requiere un ADR.
+  - T-119 agrega a estas reglas la que impide usar el cache desde Domain y Application.
+  - La regla de ADR-0093 (usar `txHost.tx` y no `PrismaService` en los repositories) sigue en el code review: los dos se importan desde `platform/persistence`.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
