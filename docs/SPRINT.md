@@ -31,7 +31,7 @@ Detalle y criterios de aceptación en `docs/TASKS.md`, sección "Fundaciones té
 - La función `partialIndexes` de Prisma, usada para los índices únicos parciales, está en vista previa y puede cambiar al actualizar Prisma (ADR-0091).
 - Eventos sin outbox (ADR-0014): riesgo aceptado, depende de la conciliación y de handlers idempotentes (T-116).
 - Jest corre en modo ESM con `--experimental-vm-modules`, una función experimental de Node.js (T-105).
-- T-107 requiere permisos de administrador del repositorio en GitHub.
+- Resuelto en T-107: la configuración de GitHub se aplicó con la cuenta administradora del repositorio (ADR-0106).
 - Riesgos del proyecto fuera de este sprint: adaptador de PayPal sin verificar (ADR-0040) y validaciones externas pendientes antes de operar con clientes reales (P-61, P-69).
 
 ## Sprint Review

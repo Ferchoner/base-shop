@@ -109,7 +109,8 @@
     ],
     "roots": [
       "<rootDir>",
-      "<rootDir>/../test/boundaries"
+      "<rootDir>/../test/boundaries",
+      "<rootDir>/../test/repository"
     ]
   },
   "overrides": {

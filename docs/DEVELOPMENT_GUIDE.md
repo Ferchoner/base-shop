@@ -161,6 +161,16 @@ Ramas e integración continua (ADR-0030):
 - El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
 - Dependabot abre actualizaciones de dependencias agrupadas cada semana.
 
+Protección de `main` y Dependabot (ADR-0106):
+
+- **Ruleset de `main`:** exige pull request, los checks `Pipeline` y `Commit messages` en verde y la rama al día con `main`. Tiene 0 aprobaciones y ninguna excepción, ni para administradores. Si GitHub pide actualizar la rama, se usa "Update branch" (o se fusiona `main` en la rama) y se espera a la CI.
+- **Ruleset como código:** la definición vive en `.github/rulesets/main.json`, y `npm test` comprueba que coincide con los jobs de la CI y con ADR-0106. Para cambiarlo se edita el archivo y se aplica con `gh api --method PUT repos/Ferchoner/base-shop/rulesets/<id> --input .github/rulesets/main.json`. El `<id>` sale de `gh api repos/Ferchoner/base-shop/rulesets`. Un cambio hecho en la interfaz de GitHub se copia al archivo.
+- **Dependabot** (`.github/dependabot.yml`) revisa npm y GitHub Actions los lunes a las 06:00:
+  - Menores y parches de npm llegan en un solo pull request; cada versión mayor, en el suyo, y se revisa como un cambio de código (notas de la versión y tests).
+  - Espera 7 días desde que se publica una versión.
+  - Las actualizaciones de seguridad llegan en cuanto se publica la alerta.
+- **Ramas:** se borran solas al fusionar; en local se limpian con `git fetch --prune`.
+
 Pipeline de CI (ADR-0105): `.github/workflows/ci.yml` corre en cada pull request hacia `main` y en cada push a `main`. Tiene dos jobs: `Pipeline` (los 10 pasos) y `Commit messages` (solo en pull requests). Antes de abrir un pull request se puede repetir todo en local, con Docker en marcha:
 
 ```bash
@@ -180,7 +190,7 @@ git log --no-merges --format=%s origin/main..HEAD | bash .github/scripts/check-c
   - **Si es un secreto real,** se rota de inmediato y se saca del historial; nunca se ignora.
   - **Si es un falso positivo,** se agrega su huella (`Fingerprint`) a `.gitleaksignore` con un comentario que explique por qué.
 - Si falla `Commit messages`, se corrigen los mensajes de la rama (por ejemplo, con `git rebase` y `reword`) y se vuelve a subir con `git push --force-with-lease`. Las pruebas del script: `bash .github/scripts/check-commit-messages.test.sh`.
-- Los nombres de los jobs son los checks obligatorios de `main` (T-107): cambiarlos exige actualizar la protección de la rama.
+- Los nombres de los jobs son los checks obligatorios de `main` (ADR-0106): cambiarlos exige actualizar `.github/rulesets/main.json` y volver a aplicarlo.
 - Las actions de terceros se fijan por SHA, con la versión en un comentario (`uses: actions/checkout@<sha> # v7.0.1`).
 
 Lint (ADR-0073, ADR-0103): `npm run lint` corre oxlint (`npm run lint:code`) y la verificación de límites entre módulos y capas (`npm run lint:boundaries`, con `dependency-cruiser`).

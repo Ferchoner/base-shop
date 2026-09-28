@@ -123,6 +123,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0103 | Verificación automática de límites entre módulos y capas | Aceptada |
 | ADR-0104 | Base del cache con espacios de nombres | Aceptada |
 | ADR-0105 | Pipeline de CI en GitHub Actions | Aceptada |
+| ADR-0106 | Protección de la rama principal y Dependabot | Aceptada |
 
 ---
 
@@ -597,7 +598,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La protección de la rama principal y la activación de Dependabot se configuran en GitHub; requieren permisos de administrador del repositorio.
   - Herramientas concretas de lint, formato, límites y detección de secretos se eligen en las tareas correspondientes (T-103, T-104, T-106).
   - Despliegue continuo: pospuesto mientras no haya hosting (ADR-0031).
-- **Estado:** Aceptada. El pipeline se implementó en ADR-0105; la protección de la rama principal y Dependabot se configuran en T-107.
+- **Estado:** Aceptada. El pipeline se implementó en ADR-0105; la protección de la rama principal y Dependabot, en ADR-0106.
 
 ---
 
@@ -2339,7 +2340,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - Checkout sin credenciales persistidas.
     - Un push nuevo a un pull request cancela su ejecución anterior; las de `main` siempre terminan.
     - Límite de 20 minutos para `Pipeline` y 5 para `Commit messages`.
-  - Los nombres de los jobs (`Pipeline` y `Commit messages`) serán los checks obligatorios de la rama principal (T-107); cambiarlos exige actualizar la protección.
+  - Los nombres de los jobs (`Pipeline` y `Commit messages`) son los checks obligatorios de la rama principal (ADR-0106); cambiarlos exige actualizar la protección.
 - **Alternativas consideradas:**
   - Jobs en paralelo: más rápidos, pero repiten `npm ci` en cada job y suman checks obligatorios.
   - TruffleHog: para verificar un hallazgo lo prueba contra el servicio correspondiente, así que envía lo encontrado a terceros.
@@ -2355,3 +2356,46 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un commit con otro formato hace fallar `Commit messages`: se corrige reescribiendo los commits de la rama antes de fusionar. Dependabot (T-107) debe usar el prefijo `chore`.
   - Dependabot puede actualizar las actions fijadas por SHA. La imagen de gitleaks, por estar en una variable del workflow, se actualiza a mano.
 - **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28).
+
+---
+
+## ADR-0106 — Protección de la rama principal y Dependabot
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-107. ADR-0030 exige que la rama principal solo reciba pull requests con el pipeline en verde y que Dependabot proponga actualizaciones agrupadas cada semana. ADR-0105 dejó los checks `Pipeline` y `Commit messages`. Hasta ahora `main` no tenía protección y Dependabot estaba desactivado. La cuenta dueña del repositorio es administradora.
+- **Decisión:**
+  - **Ruleset `main`**, definido en `.github/rulesets/main.json` y aplicado con la API de GitHub. Se aplica a la rama por defecto:
+    - Pull request obligatorio: no se puede hacer push directo.
+    - 0 aprobaciones, porque GitHub no permite que el autor apruebe su propio pull request.
+    - Checks obligatorios `Pipeline` y `Commit messages`, solo si los publica GitHub Actions (aplicación 15368).
+    - La rama debe estar al día con `main` antes de fusionar.
+    - Ni force push ni borrado de `main`.
+    - Sin excepciones, ni para administradores.
+  - **Dependabot** (`.github/dependabot.yml`), con revisión semanal los lunes a las 06:00 (America/Mexico_City):
+    - **npm:** un pull request agrupa las versiones menores y los parches, y cada versión mayor va en su propio pull request. Las versiones mayores de `@types/node` se ignoran, porque debe seguir a Node.js 24 (ADR-0025). Prefijo `chore`.
+    - **GitHub Actions:** todas en un solo pull request, con prefijo `ci`.
+    - **Espera de 7 días** (`cooldown`) antes de proponer una versión recién publicada, contra paquetes comprometidos. No aplica a las actualizaciones de seguridad.
+    - **Sin imágenes de Docker:** siguen su versión mayor (`node:24`, `postgres:18`) y toman la última al construir.
+  - **Otros ajustes del repositorio:**
+    - Se activan las alertas de Dependabot y las actualizaciones de seguridad automáticas, que abren un pull request en cuanto se publica una vulnerabilidad, sin esperar al lunes.
+    - Las ramas se borran automáticamente al fusionar.
+    - Se mantienen el secret scanning y la protección de push.
+  - `test/repository/github-settings.spec.ts` comprueba varias cosas:
+    - que los checks obligatorios del ruleset son exactamente los jobs de `ci.yml`;
+    - que el ruleset no tiene excepciones y exige rama al día;
+    - que los prefijos de Dependabot pasan la comprobación de `Commit messages`.
+- **Alternativas consideradas:**
+  - Protección clásica de rama: equivalente, pero más difícil de exportar y versionar.
+  - Exigir una aprobación: bloquearía todos los merges de un único desarrollador.
+  - Excepción para administradores: permitiría saltarse la CI.
+  - No exigir rama al día: se fusionaría código probado contra un `main` anterior.
+  - Dependabot sin grupos: demasiados pull requests.
+  - Dependabot sin espera: propondría versiones recién publicadas.
+  - Dependabot con Docker: no hay versiones fijas que actualizar.
+- **Consecuencias:**
+  - Nada llega a `main` sin la CI en verde, ni siquiera de los administradores. En una emergencia se desactiva el ruleset a mano; queda registrado en GitHub y hay que volver a activarlo.
+  - Si `main` avanzó mientras un pull request estaba abierto, hay que actualizar la rama ("Update branch") y esperar a la CI.
+  - Renombrar un job de la CI exige actualizar `.github/rulesets/main.json` y volver a aplicarlo; el test lo detecta antes.
+  - El archivo del ruleset no se sincroniza solo: un cambio hecho en la interfaz de GitHub debe copiarse al archivo, y un cambio en el archivo se aplica con `gh api` (`DEVELOPMENT_GUIDE.md`).
+  - Los pull requests de Dependabot pasan por la CI como cualquier otro; los de versión mayor pueden requerir cambios de código.
+- **Estado:** Aceptada (plan de T-107 aprobado el 2026-09-28; ruleset y ajustes aplicados ese mismo día).
