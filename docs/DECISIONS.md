@@ -126,6 +126,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0106 | Protección de la rama principal y Dependabot | Aceptada |
 | ADR-0107 | TypeScript se mantiene en 6.x | Aceptada |
 | ADR-0108 | Scripts de instalación de las dependencias | Aceptada |
+| ADR-0109 | Catálogo geográfico del INEGI y scripts de operación | Aceptada |
 
 ---
 
@@ -1138,7 +1139,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - El catálogo geográfico es dato de referencia compartido: lo consultan Identity & Access (direcciones) y Ordering (checkout de invitado) mediante una fachada de solo lectura.
   - Periodicidad de revisión del catálogo: los cambios de municipios son poco frecuentes; se recomienda revisarlo al menos cada trimestre.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0109 (T-124).
 
 ---
 
@@ -2075,7 +2076,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las opciones del plugin se repiten en `nest-cli.json` y en `test/swagger-plugin.cjs`; cambian juntas.
   - Una aplicación de test que no llama a `configureHttp` no tiene el prefijo `/v1`.
   - Cuando existan endpoints, el documento generado debe coincidir con `API_SPEC.md` (sección OpenAPI).
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0109 agrega una convención: la respuesta de éxito y los campos que contienen otros DTO se declaran de forma explícita.
 
 ---
 
@@ -2452,3 +2453,48 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Con una versión de npm anterior a 11.19, `allowScripts` se ignora y los scripts vuelven a ejecutarse; el proyecto usa la que trae Node.js 24 (ADR-0025).
   - Verificado con instalaciones limpias en Windows y Linux: tests unitarios, de integración (con las migraciones) y end-to-end, build, e imágenes de Docker de desarrollo y producción. La imagen de producción queda igual que antes, de 913 MB y con el mismo motor de Prisma.
 - **Estado:** Aceptada (aprobada el 2026-09-28).
+
+---
+
+## ADR-0109 — Catálogo geográfico del INEGI y scripts de operación
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-124 (UC-IAM-21 y UC-IAM-22). ADR-0057 decidió cargar el catálogo de estados y municipios del INEGI con un script manual e idempotente a partir del archivo descargado, sin que la API descargue nada. `ARCHITECTURE.md` lo define como capacidad transversal. El proyecto no tenía todavía ningún script de operación, y T-131 necesitará otro para crear el primer superadministrador.
+- **Decisión:**
+  - **Módulo transversal `src/modules/geo/`**, con dominio, aplicación, infraestructura y presentación:
+    - `GeoCatalogSnapshot` valida el archivo completo antes de escribir nada.
+    - `planGeoCatalogImport` calcula qué se crea, se renombra, se desactiva o se reactiva.
+    - `ImportGeoCatalog` es el caso de uso de importación.
+    - `GeoCatalog` es la fachada de solo lectura que exporta su `index.ts`, para las direcciones (T-130) y el checkout de invitados.
+    - `PrismaGeoCatalogRepository` escribe con una sentencia SQL por tabla (`INSERT … SELECT unnest(…) ON CONFLICT DO UPDATE`), porque 2,478 escrituras una a una podrían pasar del límite de 5 s por transacción (ADR-0093).
+  - **Archivo de entrada:** el CSV en UTF-8 del "Catálogo de Municipios Nacional" (`AGEEML_…_utf8.csv` dentro de `catun_municipio.zip`). Trae el nombre de cada estado, así que no hace falta el catálogo de entidades. Se lee con un lector CSV (RFC 4180) propio, sin dependencias. Un archivo que no es UTF-8, como el CSV sin sufijo del mismo ZIP, o que no tiene las columnas `CVE_ENT`, `NOM_ENT`, `CVE_MUN` y `NOM_MUN`, se rechaza.
+  - **Reglas de la importación:**
+    - Aborta sin cambiar nada si el archivo no trae exactamente 32 estados, si tiene claves mal formadas, municipios repetidos o un estado con dos nombres.
+    - Todo va en una transacción.
+    - Los municipios que faltan en el archivo se desactivan, nunca se borran, y los que vuelven se reactivan.
+    - Importar dos veces el mismo archivo no cambia nada.
+    - `--dry-run` informa los cambios sin escribir.
+    - Cada importación real deja una entrada de auditoría `geo.catalog-imported`, a nombre de SYSTEM, con los conteos de antes y después.
+  - **Catálogo versionado:** el archivo del INEGI se guarda sin cambios en `data/inegi/municipios-2026-06.csv`, con su fecha de corte (2026/06), procedencia, checksum y el crédito que piden los términos de libre uso del INEGI (`data/inegi/README.md`). `.gitattributes` conserva sus bytes (CRLF).
+  - **Scripts de operación:**
+    - Viven en `src/scripts/` y se compilan con la API.
+    - Cada uno arranca un contexto de aplicación de Nest con solo los módulos que necesita: sin servidor HTTP, sin scheduler y sin bus de eventos.
+    - La operación corre en su propio contexto asíncrono con identificador, como un job (ADR-0101).
+    - Terminan con código 0 si todo salió bien y 1 ante un error de argumentos o de datos, y cada línea del resultado va al log.
+    - `npm run geo:import -- <archivo> [--dry-run]` compila y ejecuta el script.
+    - Donde el código ya está compilado se usa `node dist/scripts/import-geo-catalog.js <archivo>`: en el contenedor de desarrollo, cuyo `start:dev` compila sin parar, y en la imagen de producción.
+  - **Consulta pública (UC-IAM-22):** `GET /v1/geo/states` y `GET /v1/geo/states/{stateCode}/municipalities`, con solo los municipios activos, ordenados por nombre.
+    - Una clave de estado inexistente o mal formada responde 404 `not-found`.
+    - Las respuestas se cachean en el espacio `geo` (ADR-0104) durante el TTL. La importación corre en otro proceso y no puede vaciar ese cache, así que un catálogo nuevo se ve en la API a más tardar al vencer el TTL (120 s por defecto).
+  - **Convención de OpenAPI** (complementa ADR-0096): la respuesta de éxito de cada endpoint se declara con `@ApiOkResponse` (o `@ApiCreatedResponse`), y los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type })`. El plugin de Swagger solo los deduce con el análisis de tipos de `nest build`; en los tests (ts-jest compila archivo por archivo) no, y el documento de los tests quedaría incompleto.
+- **Alternativas consideradas:**
+  - Cargar el catálogo como datos iniciales (`prisma db seed`): no permite actualizarlo de forma idempotente ni desactivar municipios.
+  - Leer el ZIP directamente: sumaría una dependencia; el operador lo descomprime.
+  - No versionar el archivo: cada desarrollador y la CI tendrían que descargarlo.
+  - Escribir municipio por municipio: lento y cerca del límite de la transacción.
+  - Dejar que el plugin documente las respuestas: los tests no verían el mismo documento que producción.
+- **Consecuencias:**
+  - La base local se carga una vez con `npm run geo:import -- data/inegi/municipios-2026-06.csv`. Actualizar el catálogo es reemplazar el archivo versionado e importarlo (`data/inegi/README.md`).
+  - T-131 (primer superadministrador) usa el mismo mecanismo de scripts.
+  - Para ejecutar el script en producción, la imagen necesitará el archivo del catálogo, igual que `prisma/` para las migraciones (P-05).
+- **Estado:** Aceptada (plan de T-124 aprobado el 2026-09-28).

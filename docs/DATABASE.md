@@ -642,7 +642,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | `geo_states` | code char(2) PK, name text, updated_at | `CHECK (code ~ '^[0-9]{2}$')` |
 | `geo_municipalities` | code char(5) PK (clave de entidad y municipio del INEGI), state_code char(2) FK → `geo_states`, name text, is_active boolean, updated_at | `CHECK (left(code, 2) = state_code)`; índice `(state_code, name)` |
 
-Se cargan con el script de UC-IAM-21; nunca se borran (ADR-0057).
+Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir del catálogo versionado en `data/inegi/`; nunca se borran (ADR-0057).
 
 ---
 

@@ -102,9 +102,12 @@ Logs (ADR-0097):
 Versionado y documentación OpenAPI (ADR-0096):
 
 - Todo controlador queda bajo `/v1` sin declararlo. Una ruta de una versión futura se marca con `@Version('2')`.
-- Los DTOs se escriben en archivos `*.dto.ts`: el plugin de Swagger toma sus tipos, sus reglas de class-validator y el comentario de cada propiedad, así que no se repite `@ApiProperty`. Los comentarios de las propiedades se publican como descripción en OpenAPI y por eso van en español, como `API_SPEC.md`.
+- Los DTOs se escriben en archivos `*.dto.ts`. El plugin de Swagger toma sus tipos, sus reglas de class-validator y el comentario de cada propiedad, así que en los campos simples no se repite `@ApiProperty`. Los comentarios de las propiedades se publican como descripción en OpenAPI y por eso van en español, como `API_SPEC.md`.
+- Se declara de forma explícita lo que el plugin solo deduce con el análisis de tipos de `nest build` (ADR-0109):
+  - la respuesta de éxito de cada endpoint, con `@ApiOkResponse({ type })` o `@ApiCreatedResponse({ type })`;
+  - los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type: () => [OtroDto] })`.
 - Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos.
-- Los tests end-to-end aplican el mismo plugin (`test/swagger-plugin.cjs`), así que el documento de los tests es igual al real.
+- Los tests end-to-end aplican el mismo plugin (`test/swagger-plugin.cjs`). Como ts-jest compila archivo por archivo, el plugin no deduce ahí los tipos de retorno ni los campos con otros DTO; declarándolos de forma explícita, el documento de los tests coincide con el real.
 
 Errores HTTP y validación (ADR-0095):
 
@@ -239,7 +242,7 @@ ADR-0089. Requiere Docker Desktop (o Docker Engine con Compose) en ejecución y 
 
 Comandos:
 
-- Todo en contenedores: `docker compose up --build`. La API recarga sola al guardar cambios. La primera vez, y cada vez que lleguen migraciones nuevas, aplicarlas (sección Migraciones).
+- Todo en contenedores: `docker compose up --build`. La API recarga sola al guardar cambios. La primera vez, y cada vez que lleguen migraciones nuevas, aplicarlas (sección Migraciones). La primera vez, cargar también el catálogo geográfico (sección Catálogo geográfico y scripts de operación).
 - Solo los servicios, con la API en el equipo (suele ser más rápido en Windows): `docker compose up -d postgres mailpit` y después `npm run start:dev`.
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
@@ -267,6 +270,26 @@ Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `
 - Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
 - Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.
+
+## Catálogo geográfico y scripts de operación
+
+ADR-0057, ADR-0109. Los estados y municipios del INEGI se cargan con un script, nunca desde la API. El archivo del catálogo está versionado en `data/inegi/` con su procedencia (`data/inegi/README.md`).
+
+- **Cargar la base local** (la primera vez, o después de borrar sus datos):
+  - con la API en el equipo: `npm run geo:import -- data/inegi/municipios-2026-06.csv`;
+  - con la API en el contenedor: `docker compose exec api node dist/scripts/import-geo-catalog.js data/inegi/municipios-2026-06.csv`.
+- **Ver qué cambiaría sin escribir nada:** agregar `--dry-run`.
+- **Qué hace la importación:**
+  - Es idempotente: repetirla no cambia nada.
+  - Los municipios que faltan en un archivo nuevo se desactivan y nunca se borran; los que vuelven se reactivan.
+  - Si el archivo no trae los 32 estados, tiene claves mal formadas o no está en UTF-8, termina con código 1 y no cambia nada.
+  - Cada importación queda en la auditoría como `geo.catalog-imported`.
+- **La API** ve el catálogo nuevo a más tardar en `CACHE_TTL_SECONDS` (120 s por defecto), porque sus respuestas están en cache.
+- **Actualizar el catálogo:** pasos en `data/inegi/README.md`.
+- **Scripts de operación en general:**
+  - Van en `src/scripts/` y arrancan un contexto de aplicación de Nest con solo los módulos que usan.
+  - Registran cada línea del resultado en el log y terminan con código 0 o 1.
+  - `npm run <script>` compila antes de ejecutar. En el contenedor de desarrollo (cuyo `start:dev` compila solo) y en la imagen de producción se ejecutan con `node dist/scripts/<script>.js`.
 
 ## Pull Requests
 

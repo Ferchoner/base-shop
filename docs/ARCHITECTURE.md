@@ -42,9 +42,11 @@ src/
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
+├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y los puertos TransactionManager, DomainEventPublisher y AuditTrail (T-111, T-116, T-127); sin NestJS
 └── modules/
     ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)
+    ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
         ├── domain/
         ├── application/
