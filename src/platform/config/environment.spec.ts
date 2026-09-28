@@ -1,5 +1,6 @@
 import {
   isExactOrigin,
+  isFrontendBaseUrl,
   isPostgresUrl,
   validateEnvironment,
 } from './environment.js';
@@ -223,5 +224,110 @@ describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
     expect(() =>
       validateEnvironment({ ...REQUIRED, RATE_LIMIT_REGISTER: value }),
     ).toThrow(/RATE_LIMIT_REGISTER must look like 5\/15m/);
+  });
+});
+
+describe('Email and frontend links (ADR-0110)', () => {
+  /** Production with every variable it requires. */
+  const PRODUCTION = {
+    ...REQUIRED,
+    NODE_ENV: 'production',
+    SMTP_HOST: 'smtp.example.com',
+    SMTP_PORT: '587',
+    MAIL_FROM: 'Tienda <no-reply@example.com>',
+    FRONTEND_BASE_URL: 'https://shop.example.com',
+  };
+
+  it('defaults to Mailpit and a local frontend in development and test', () => {
+    expect(validateEnvironment(REQUIRED)).toMatchObject({
+      SMTP_HOST: 'localhost',
+      SMTP_PORT: 1025,
+      MAIL_FROM: 'base-shop <no-reply@base-shop.test>',
+      FRONTEND_BASE_URL: 'http://localhost:5173',
+    });
+  });
+
+  it('accepts a complete production configuration', () => {
+    expect(validateEnvironment(PRODUCTION)).toMatchObject({
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_PORT: 587,
+      FRONTEND_BASE_URL: 'https://shop.example.com',
+    });
+  });
+
+  it.each(['SMTP_HOST', 'SMTP_PORT', 'MAIL_FROM', 'FRONTEND_BASE_URL'])(
+    'requires %s in production, so emails never go to the defaults',
+    (name) => {
+      const withoutIt: Record<string, unknown> = { ...PRODUCTION };
+      delete withoutIt[name];
+
+      expect(() => validateEnvironment(withoutIt)).toThrow(
+        `${name} is required when NODE_ENV is production`,
+      );
+      expect(() => validateEnvironment({ ...PRODUCTION, [name]: '' })).toThrow(
+        name,
+      );
+    },
+  );
+
+  it.each([
+    'no-reply@example.com',
+    'Tienda <no-reply@example.com>',
+    'Café Ñandú <hola@example.com.mx>',
+  ])('accepts MAIL_FROM %p', (value) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, MAIL_FROM: value }).MAIL_FROM,
+    ).toBe(value);
+  });
+
+  it.each([
+    'no-reply',
+    'Tienda no-reply@example.com',
+    'Tienda <no-reply@example.com>\r\nBcc: someone@example.com',
+    'Tienda\r\nBcc: someone@example.com <no-reply@example.com>',
+    'Tienda\nBcc: someone@example.com <no-reply@example.com>',
+    '<no-reply@example.com>',
+  ])('rejects MAIL_FROM %p, including a second header line', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, MAIL_FROM: value }),
+    ).toThrow(/MAIL_FROM must be an email address/);
+  });
+
+  it.each(['smtp host', '-smtp.example.com', 'smtp.example.com.'])(
+    'rejects SMTP_HOST %p',
+    (value) => {
+      expect(() =>
+        validateEnvironment({ ...REQUIRED, SMTP_HOST: value }),
+      ).toThrow(/SMTP_HOST must be a host name/);
+    },
+  );
+
+  it.each(['0', '65536', 'smtp'])('rejects SMTP_PORT %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, SMTP_PORT: value }),
+    ).toThrow(/SMTP_PORT/);
+  });
+});
+
+describe('isFrontendBaseUrl', () => {
+  it.each([
+    'https://shop.example.com',
+    'http://localhost:5173',
+    'https://example.com/tienda',
+  ])('accepts %p', (value) => {
+    expect(isFrontendBaseUrl(value)).toBe(true);
+  });
+
+  it.each([
+    'https://shop.example.com/',
+    'https://shop.example.com?ref=email',
+    'https://shop.example.com#top',
+    'https://user:secret@shop.example.com',
+    'ftp://shop.example.com',
+    'javascript:alert(1)',
+    'shop.example.com',
+    42,
+  ])('rejects %p', (value) => {
+    expect(isFrontendBaseUrl(value)).toBe(false);
   });
 });
