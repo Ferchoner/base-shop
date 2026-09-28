@@ -14,7 +14,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 | Paso | Tareas |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR y de los pull requests iniciales de Dependabot |
+| 0 | Revisión del repositorio contra los ADR; pull requests iniciales de Dependabot; scripts de instalación de dependencias que npm 11.19 marca como no autorizados en `allowScripts` (entre ellos Prisma y la telemetría de `@scarf/scarf`) |
 | 1 | T-124 (catálogo geográfico del INEGI) y T-122 (puerto de envío de correos) |
 | 2 | T-130 (usuarios, roles, permisos y direcciones) |
 | 3 | T-120 (autenticación) |
@@ -36,7 +36,10 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - secretos de JWT solo en variables de entorno;
   - rotación de refresh tokens y detección de su reutilización;
   - mensajes que no revelan si una cuenta existe (ADR-0022, ADR-0023, ADR-0062).
-- **TypeScript 7:** Dependabot ya propuso esta versión mayor. Antes de aceptarla hay que comprobar que funcione con ts-jest, la CLI de Nest y el plugin de Swagger (paso 0).
+- **TypeScript 7 (resuelto: pospuesto, ADR-0107):**
+  - La propuesta de Dependabot (#31) fallaba en `npm ci`, porque ts-jest no admite TypeScript 7.
+  - Además, TypeScript 7 ya no expone la API de compilador que usan ts-jest, la CLI de Nest y el plugin de Swagger.
+  - El proyecto sigue en 6.x y Dependabot ignora las versiones mayores de TypeScript.
 - **Riesgos heredados del Sprint 1:** ver su review en el historial.
 
 ## Sprint Review
