@@ -37,6 +37,9 @@ services:
     environment:
       # Inside the compose network the database host is the postgres service, not localhost.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Emails go to the mailpit service (ADR-0045, ADR-0110).
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
       # File changes made on Windows or macOS are not always seen inside the container; poll instead.
       TSC_WATCHFILE: DynamicPriorityPolling
       TSC_WATCHDIRECTORY: DynamicPriorityPolling

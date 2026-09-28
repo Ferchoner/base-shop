@@ -6,15 +6,19 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNotEmpty,
   Matches,
   Max,
   Min,
   ValidateBy,
   validateSync,
-  type ValidationError,
   type ValidationOptions,
 } from 'class-validator';
 import { RATE_LIMIT_PATTERN } from './rate-limit-value.js';
+
+/** An address, or `Name <address>`; one line only, so it cannot inject email headers. */
+const MAIL_FROM_PATTERN =
+  /^(?:[^<>\r\n]+ <[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)$/;
 
 export const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
@@ -138,7 +142,48 @@ export class EnvironmentVariables {
     message: '$property must look like 5/15m (count / duration in s, m or h)',
   })
   RATE_LIMIT_PLACE_ORDER: string = '10/10m';
+
+  /** Host name or IP of the SMTP server (ADR-0045, ADR-0110): Mailpit in development. Required in production. */
+  @Expose()
+  @IsNotEmpty()
+  @Matches(/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/, {
+    message:
+      '$property must be a host name or IP address, such as smtp.example.com',
+  })
+  SMTP_HOST: string = 'localhost';
+
+  /** Port of the SMTP server; 465 uses TLS from the start. Required in production. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  SMTP_PORT: number = 1025;
+
+  /** Sender of every email: `address` or `Name <address>`. Required in production. */
+  @Expose()
+  @Matches(MAIL_FROM_PATTERN, {
+    message:
+      '$property must be an email address or "Name <address>", on one line',
+  })
+  MAIL_FROM: string = 'base-shop <no-reply@base-shop.test>';
+
+  /** Base URL of the frontend for the links in emails (ADR-0056, ADR-0110). Required in production. */
+  @Expose()
+  @IsFrontendBaseUrl()
+  FRONTEND_BASE_URL: string = 'http://localhost:5173';
 }
+
+/**
+ * Variables with a development default that production must set explicitly: with the defaults, emails would
+ * go nowhere and their links would point to localhost (ADR-0110).
+ */
+export const REQUIRED_IN_PRODUCTION = [
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'MAIL_FROM',
+  'FRONTEND_BASE_URL',
+] as const;
 
 /**
  * Validates and types the raw environment. Throws when a variable is missing or invalid,
@@ -152,17 +197,20 @@ export function validateEnvironment(
     excludeExtraneousValues: true,
     exposeDefaultValues: true,
   });
-  const errors = validateSync(environment);
-  if (errors.length > 0) {
-    throw new Error(`Invalid environment variables:\n${formatErrors(errors)}`);
+  const problems = validateSync(environment).map(
+    (error) => `- ${Object.values(error.constraints ?? {}).join('; ')}`,
+  );
+  if (environment.NODE_ENV === 'production') {
+    for (const name of REQUIRED_IN_PRODUCTION) {
+      if (raw[name] === undefined || raw[name] === '') {
+        problems.push(`- ${name} is required when NODE_ENV is production`);
+      }
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(`Invalid environment variables:\n${problems.join('\n')}`);
   }
   return environment;
-}
-
-function formatErrors(errors: ValidationError[]): string {
-  return errors
-    .map((error) => `- ${Object.values(error.constraints ?? {}).join('; ')}`)
-    .join('\n');
 }
 
 /** `true` or `false` as text; anything else is left as is, so validation rejects it. */
@@ -234,6 +282,48 @@ export function isPostgresUrl(value: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The frontend base URL: `http` or `https`, host, optional port and path; no query, fragment, credentials
+ * or trailing slash, so page paths can be appended to it.
+ */
+export function isFrontendBaseUrl(value: unknown): boolean {
+  if (
+    typeof value !== 'string' ||
+    value.endsWith('/') ||
+    value.includes('?') ||
+    value.includes('#')
+  ) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.username === '' &&
+      url.password === ''
+    );
+  } catch {
+    return false;
+  }
+}
+
+function IsFrontendBaseUrl(options?: ValidationOptions): PropertyDecorator {
+  return ValidateBy(
+    {
+      name: 'isFrontendBaseUrl',
+      validator: {
+        validate: isFrontendBaseUrl,
+        defaultMessage: buildMessage(
+          () =>
+            '$property must be an http or https URL such as https://shop.example.com or https://example.com/shop (no query, fragment, credentials or trailing slash)',
+          options,
+        ),
+      },
+    },
+    options,
+  );
 }
 
 function IsPostgresUrl(options?: ValidationOptions): PropertyDecorator {
