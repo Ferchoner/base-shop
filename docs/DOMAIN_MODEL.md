@@ -19,7 +19,7 @@ Convención: los nombres de código (aggregates, eventos, casos de uso) van en i
 
 Capacidades transversales (no son contextos): auditoría técnica, notificaciones por correo (ADR-0074) y catálogo geográfico de estados y municipios del INEGI (dato de referencia de solo lectura, ADR-0057).
 
-Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de domain event, y los puertos `Clock` y `TransactionManager` (ADR-0093, ADR-0094).
+Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de domain event, y los puertos `Clock`, `TransactionManager`, `DomainEventPublisher` y `AuditTrail` (ADR-0093, ADR-0094, ADR-0098, ADR-0100).
 
 ---
 

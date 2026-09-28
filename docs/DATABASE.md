@@ -615,6 +615,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Índices:** `(occurred_at, id)` (paginación por cursor y exportación diaria); `(resource_type, resource_id)`; `(actor_id, occurred_at)`.
 - **Integridad:** trigger que rechaza `UPDATE`; solo el job de retención borra registros (ADR-0037).
+- **Uso (ADR-0100):** `changes` guarda `{ "campo": { "from", "to" } }` para cada campo modificado, o `{ "campo": { "changed": true } }` si es personal o sensible. Actor: el indicado por quien registra; si no, el usuario autenticado de la solicitud; ANONYMOUS en una solicitud sin usuario; SYSTEM fuera de una solicitud. `action` sigue el formato `<área>.<acción>` en minúsculas.
 
 ### 11.2 `idempotency_keys`
 

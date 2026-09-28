@@ -33,6 +33,23 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 
+Auditoría (ADR-0037, ADR-0100):
+
+- Todo caso de uso que modifica datos a pedido del staff, y todo evento de seguridad, registra con el puerto `AuditTrail` del shared kernel:
+
+  ```ts
+  await this.audit.record({
+    action: 'orders.cancel',
+    resource: { type: 'order', id: order.id },
+    changes: changesBetween(before, after, { personal: ['contactName'] }),
+  });
+  ```
+
+- `record` se une a la transacción del cambio; `recordIndependently` confirma por su cuenta, para intentos denegados e inicios de sesión fallidos que ocurren dentro de una transacción que se revierte.
+- El actor, la IP, el agente de usuario y la correlación salen de la solicitud; solo se indica `actor` cuando la solicitud no dice quién actuó (por ejemplo, `{ type: 'ANONYMOUS' }` en un login fallido).
+- Los campos personales o sensibles se declaran en `personal`; además, una lista fija oculta contraseñas, tokens, correos, teléfonos, nombres y direcciones aunque no se declaren.
+- Los 403 en `/v1/admin` ya se registran solos; no hace falta auditarlos en cada guard.
+
 Idempotencia (ADR-0063, ADR-0099):
 
 - Un endpoint que exige `Idempotency-Key` se marca con `@Idempotent(cartScope)` (rutas de invitado, alcance = `cartId` del cuerpo) o `@Idempotent(userScope)` (rutas de cliente, alcance = usuario autenticado). El decorador también documenta el encabezado en OpenAPI.
