@@ -103,6 +103,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] TypeScript se mantiene en 6.x: la versión 7 no expone la API de compilador que usan ts-jest, la CLI de Nest y el plugin de Swagger; Dependabot ignora sus versiones mayores (ADR-0107)
 - [x] Scripts de instalación de las dependencias negados con `allowScripts` y modo estricto de npm en local, CI y Docker, sin telemetría de `@scarf/scarf` (ADR-0108)
 - [x] T-124: catálogo geográfico del INEGI en el módulo transversal `geo`: importación idempotente con `npm run geo:import` (valida el archivo completo, desactiva sin borrar, audita), catálogo versionado en `data/inegi/`, consulta pública de estados y municipios con cache, y fachada para direcciones y checkout (ADR-0109)
+- [x] T-122: puertos `EmailSender` y `FrontendLinks` en el shared kernel, adaptador SMTP con nodemailer hacia Mailpit, `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` obligatorias en producción, y tests contra Mailpit real (ADR-0110)
 
 ## In Progress
 

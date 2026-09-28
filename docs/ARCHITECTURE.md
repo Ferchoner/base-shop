@@ -40,10 +40,11 @@ src/
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia y rate limiting (T-100, T-113, T-114, T-115, T-126)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
+│   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109)
-├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y los puertos TransactionManager, DomainEventPublisher y AuditTrail (T-111, T-116, T-127); sin NestJS
+├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) y los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122); sin NestJS
 └── modules/
     ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)
     ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)
@@ -83,7 +84,7 @@ Capacidades transversales:
 
 - Auditoría técnica: tabla append-only alimentada desde la capa de aplicación, en la misma transacción que el cambio; los registros con más de 3 meses se exportan a archivos comprimidos (ADR-0037). Application registra con el puerto `AuditTrail` del shared kernel, implementado en `src/modules/audit/` (ADR-0100); es la única integración transversal con un puerto compartido en lugar de un puerto por contexto (ADR-0005), porque los ocho contextos lo necesitan con la misma forma.
 - Notificaciones: módulo que reacciona a eventos, sin dominio propio.
-- Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock`, `TransactionManager`, `DomainEventPublisher` y `AuditTrail` (ADR-0094, ADR-0098, ADR-0100).
+- Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock`, `TransactionManager`, `DomainEventPublisher`, `AuditTrail`, `EmailSender` y `FrontendLinks` (ADR-0094, ADR-0098, ADR-0100, ADR-0110).
 
 ## Reglas de integración entre módulos
 

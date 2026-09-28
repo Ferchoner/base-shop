@@ -99,6 +99,14 @@ Logs (ADR-0097):
 - El identificador de correlación se agrega solo; no hace falta incluirlo en el mensaje.
 - Nunca se registran datos personales (correos, nombres, direcciones, teléfonos), contraseñas, tokens, cuerpos de solicitudes ni cadenas de consulta; se registran identificadores. La redacción automática del logger es una red de seguridad, no un permiso.
 
+Correos y enlaces al frontend (ADR-0045, ADR-0110):
+
+- **Cómo enviar:** el caso de uso inyecta `EmailSender` (shared kernel) y envía `{ to, subject, text, html? }`. Siempre fuera de la transacción: después del commit, normalmente desde un handler de eventos.
+- **Si falla:** `send` rechaza con `EmailDeliveryError` y el correo no se reintenta (ADR-0014). El que llama decide si el fallo cambia la respuesta.
+- **Enlaces:** se arman con `FrontendLinks.link('/ruta', { token })`, nunca concatenando `FRONTEND_BASE_URL` a mano, para que los parámetros vayan codificados.
+- **Qué no se registra:** el destinatario, el asunto y el cuerpo nunca van al log; el adaptador solo registra el identificador del mensaje.
+- **Tests:** los que envían correos usan Mailpit real con Testcontainers y leen el mensaje por su API (`smtp-email-sender.int-spec.ts`).
+
 Versionado y documentación OpenAPI (ADR-0096):
 
 - Todo controlador queda bajo `/v1` sin declararlo. Una ruta de una versión futura se marca con `@Version('2')`.
@@ -225,7 +233,7 @@ Ramas y commits (ADR-0084), en inglés:
 - Toda variable nueva se agrega a `.env.example` en el mismo cambio, con descripción y valor de ejemplo no real.
 - `DATABASE_URL` (obligatoria) apunta al PostgreSQL de Docker Compose desde el equipo (`localhost`) y la usan la API y el CLI de Prisma. El contenedor de la API recibe su propia URL, con host `postgres`, desde `docker-compose.yml`. La contraseña de PostgreSQL no debe llevar caracteres especiales de URL (`@`, `:`, `/`, `?`, `#`) o debe ir codificada en la URL.
 - El proyecto corre solo en local por ahora (ADR-0031).
-- Los correos que envía la API llegan a un capturador local en Docker Compose y se revisan en su bandeja web; no salen a internet (ADR-0045).
+- Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110).
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
 
 ## Entorno local con Docker

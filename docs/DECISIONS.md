@@ -127,6 +127,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0107 | TypeScript se mantiene en 6.x | Aceptada |
 | ADR-0108 | Scripts de instalación de las dependencias | Aceptada |
 | ADR-0109 | Catálogo geográfico del INEGI y scripts de operación | Aceptada |
+| ADR-0110 | Envío de correos y enlaces al frontend | Aceptada |
 
 ---
 
@@ -913,7 +914,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - La verificación de email, las notificaciones y el enlace de acceso al pedido pueden desarrollarse y probarse en local.
   - P-24 deja de bloquear el desarrollo; solo bloquea operar con clientes reales.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0110 (T-122).
 
 ---
 
@@ -1105,7 +1106,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Cambio obligatorio del staff:** pide la contraseña temporal, igual que un cambio normal pide la contraseña actual.
 - **Alternativas consideradas:** Código de 6 dígitos por correo (más independiente del frontend, pero expuesto a fuerza bruta y menos cómodo); passkeys (más seguras, pero un cambio mayor; candidatas junto con el 2FA, ADR-0048).
 - **Consecuencias:** Los tokens de recuperación se guardan en su propia tabla; los vencidos o usados se eliminan en la limpieza diaria (ADR-0029).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122).
 
 ---
 
@@ -1811,7 +1812,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:**
   - **Carpetas de primer nivel en `src/`:**
     - `platform/`: infraestructura técnica transversal, sin reglas de negocio (configuración, políticas HTTP y, después, persistencia, eventos, jobs, logs y cache).
-    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112), y los puertos `TransactionManager` (T-111, ADR-0093), `DomainEventPublisher` (T-116, ADR-0098) y `AuditTrail` (T-127, ADR-0100). TypeScript puro, sin NestJS.
+    - `shared-kernel/`: `Money`, tipos de ID, error de dominio, forma de los eventos y puerto `Clock` (T-112), y los puertos `TransactionManager` (T-111, ADR-0093), `DomainEventPublisher` (T-116, ADR-0098), `AuditTrail` (T-127, ADR-0100), `EmailSender` y `FrontendLinks` (T-122, ADR-0110). TypeScript puro, sin NestJS.
     - `modules/<contexto>/`: un módulo por bounded context, con nombre en inglés y kebab-case: `identity-access`, `catalog`, `pricing`, `inventory`, `shopping`, `ordering`, `payments` y `shipping`.
   - **Cada contexto** tiene las carpetas `domain/`, `application/`, `infrastructure/` y `presentation/`, un `<contexto>.module.ts` que conecta las capas y un `index.ts` que es su API pública: solo exporta el módulo de NestJS, la fachada y sus tipos públicos (ADR-0005).
   - **Capacidades transversales** (auditoría, notificaciones y catálogo geográfico): módulos bajo `modules/` con solo las capas que necesiten, creados en sus tareas (T-127, T-215 y T-124).
@@ -2498,3 +2499,38 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-131 (primer superadministrador) usa el mismo mecanismo de scripts.
   - Para ejecutar el script en producción, la imagen necesitará el archivo del catálogo, igual que `prisma/` para las migraciones (P-05).
 - **Estado:** Aceptada (plan de T-124 aprobado el 2026-09-28).
+
+---
+
+## ADR-0110 — Envío de correos y enlaces al frontend
+
+- **Fecha:** 2026-09-28
+- **Contexto:** T-122. ADR-0045 pide enviar los correos a través de un puerto, con un adaptador al capturador local (Mailpit) en desarrollo y el proveedor real cuando se decida P-24. ADR-0056 pide armar los enlaces de verificación y de recuperación con la URL base del frontend, configurable. Los usan la verificación de email (T-121), la recuperación de contraseña (T-123) y las notificaciones de la orden (T-215), así que el puerto no puede pertenecer a un solo contexto.
+- **Decisión:**
+  - **Puertos en el shared kernel**, como `AuditTrail`, para que Application los use desde cualquier contexto:
+    - `EmailSender.send({ to, subject, text, html? })` envía de inmediato. Si el servidor no acepta el mensaje, rechaza con `EmailDeliveryError`, cuyo mensaje nunca lleva el destinatario.
+    - No se llama dentro de una transacción: se envía después del commit, como hacen los handlers de eventos. Un correo fallido no se reintenta (ADR-0014).
+    - `FrontendLinks.link(ruta, parámetros)` devuelve la URL absoluta de una página del frontend, con los parámetros en la query codificados. Dónde va el token en cada enlace lo deciden T-121 y T-123.
+  - **Adaptador SMTP con nodemailer** en `src/platform/mail/`, con un módulo global.
+    - Protege contra la inyección de encabezados y codifica UTF-8 en asunto y cuerpo.
+    - Límites de tiempo: 10 s para conectar, 10 s para el saludo del servidor y 20 s de inactividad.
+    - El puerto 465 usa TLS desde el inicio; en los demás, nodemailer pasa a TLS (STARTTLS) si el servidor lo ofrece.
+    - El log registra solo el identificador del mensaje enviado, o el código de error SMTP, nunca el destinatario ni el contenido.
+    - Se instaló nodemailer 10.0.10 (sin dependencias ni scripts de instalación) y no la 10.0.12, publicada el mismo día: se respeta la misma espera de 7 días de Dependabot (ADR-0106).
+  - **Configuración** en `.env.example`:
+    - `SMTP_HOST` (por defecto `localhost`), `SMTP_PORT` (1025), `MAIL_FROM` (`base-shop <no-reply@base-shop.test>`) y `FRONTEND_BASE_URL` (`http://localhost:5173`).
+    - `MAIL_FROM` es una dirección, o `Nombre <dirección>` en una sola línea.
+    - `FRONTEND_BASE_URL` es `http` o `https`, con ruta opcional, sin query, fragmento, credenciales ni barra final.
+    - **Con `NODE_ENV=production` las cuatro son obligatorias**, para que nunca se envíe a Mailpit ni con enlaces a `localhost`.
+    - En Docker Compose, el contenedor de la API recibe `SMTP_HOST=mailpit`.
+  - **Tests** contra Mailpit real, con Testcontainers: envío con acentos y versión HTML, un asunto con saltos de línea que no agrega encabezados, y un log sin el destinatario. `testcontainers` pasa a ser dependencia de desarrollo directa.
+- **Alternativas consideradas:**
+  - Puerto dentro de Identity & Access: las notificaciones (T-215) no podrían usarlo sin depender de ese contexto.
+  - Cliente SMTP propio o la API HTTP de un proveedor: más código, y el proveedor todavía no está decidido (P-24).
+  - Mocks en lugar de Mailpit: no probarían la codificación ni el protocolo.
+  - Valores por defecto también en producción: los enlaces apuntarían a `localhost` sin que nadie lo note.
+- **Consecuencias:**
+  - T-121, T-123 y T-215 solo arman el mensaje; no conocen el mecanismo de envío.
+  - Cambiar de proveedor (P-24) es otro adaptador de `EmailSender` y otras variables SMTP. Si el proveedor pide usuario y contraseña, se agregan como variables nuevas.
+  - Los correos de desarrollo se leen en http://localhost:8025.
+- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28).
