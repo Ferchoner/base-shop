@@ -168,6 +168,7 @@ Protección de `main` y Dependabot (ADR-0106):
 - **Dependabot** (`.github/dependabot.yml`) revisa npm y GitHub Actions los lunes a las 06:00:
   - Menores y parches de npm llegan en un solo pull request; cada versión mayor, en el suyo, y se revisa como un cambio de código (notas de la versión y tests).
   - Espera 7 días desde que se publica una versión.
+  - No propone versiones mayores de `@types/node` (sigue a Node.js 24) ni de `typescript` (se queda en 6.x hasta que ts-jest, la CLI de Nest y el plugin de Swagger admitan TypeScript 7, ADR-0107). Ignorar otra versión mayor requiere registrar el motivo y actualizar el test de configuración.
   - Las actualizaciones de seguridad llegan en cuanto se publica la alerta.
 - **Ramas:** se borran solas al fusionar; en local se limpian con `git fetch --prune`.
 

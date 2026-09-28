@@ -26,6 +26,10 @@ updates:
       # @types/node follows the Node.js major version of the project (ADR-0025).
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # TypeScript 7 drops the JavaScript compiler API that ts-jest, the Nest CLI and the Swagger
+      # plugin need. Remove this once all three support it (ADR-0107).
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
