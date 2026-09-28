@@ -4,7 +4,7 @@ API REST de comercio electrónico: catálogo, precios, inventario, carrito, chec
 
 ## Estado
 
-Sprint 1 (fundaciones técnicas) en curso. La especificación, el modelo de datos y los contratos de la API están aprobados; aún no hay endpoints de negocio. Ver `docs/SPRINT.md`, `docs/PROGRESS.md` y `docs/TASKS.md`.
+Sprint 2 (Identity & Access) en curso. El Sprint 1 dejó listas las fundaciones técnicas (configuración, base de datos, mecanismos transversales y CI); aún no hay endpoints de negocio. Ver `docs/SPRINT.md`, `docs/PROGRESS.md` y `docs/TASKS.md`.
 
 ## Requisitos
 
