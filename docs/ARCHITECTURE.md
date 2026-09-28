@@ -53,7 +53,7 @@ src/
 ```
 
 - `platform` puede ser usado por `infrastructure` y `presentation`; `shared-kernel`, por todas las capas.
-- Un módulo solo importa de otro a través de su `index.ts`; la verificación automática llega con T-103.
+- Un módulo solo importa de otro a través de su `index.ts`; lo verifica `npm run lint:boundaries` (ADR-0103).
 - Las capacidades transversales (auditoría, notificaciones y catálogo geográfico) son módulos bajo `modules/`, con solo las capas que necesitan (T-127, T-215, T-124).
 
 ## Módulos (bounded contexts)
@@ -88,7 +88,7 @@ Ver ADR-0005.
 - Cada módulo expone una fachada pública; nunca exporta entidades, aggregates ni repositorios.
 - El consumidor define su propio puerto y un adaptador en su infraestructura.
 - Entre contextos solo se comparten IDs, snapshots y eventos. Sin relaciones de Prisma ni llaves foráneas entre contextos.
-- Los límites se verifican automáticamente en CI (herramienta a elegir en T-103).
+- Los límites se verifican automáticamente con `dependency-cruiser` (`npm run lint:boundaries`, reglas en `.dependency-cruiser.cjs`, ADR-0103): capas según la tabla de "Estructura", módulos solo por su `index.ts`, Prisma solo en `platform` e `infrastructure`, shared kernel sin frameworks, `platform` sin módulos y sin dependencias circulares. La excepción de ADR-0060 (lectura de tablas de otros contextos en el catálogo público) no se ve en los imports y se revisa en el code review.
 - Única excepción: el servicio de consultas del catálogo público lee tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060).
 
 ## Transacciones y concurrencia

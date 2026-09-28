@@ -96,6 +96,7 @@ Sprint 1 — Fundaciones técnicas (desde el 2026-09-26). El Sprint 0 (Discovery
 - [x] T-127: registro de auditoría con el puerto `AuditTrail` (en la transacción del cambio o por separado), actor, IP, agente y correlación tomados de la solicitud, cambios sin valores personales ni sensibles y 403 de `/v1/admin` auditados automáticamente (ADR-0100)
 - [x] T-117: scheduler con `@nestjs/schedule` y decorador `@ScheduledJob` (sin superposición, fallos en el log, contexto con identificador, hora de México), `JOBS_ENABLED` y espera de las ejecuciones en curso al cerrar (ADR-0101)
 - [x] T-126: rate limiting con `@nestjs/throttler` y `@RateLimit`, límites de ADR-0065 por variables `RATE_LIMIT_*`, intentos fallidos de login con `FailedAttemptLimiter`, webhooks excluidos y 429 con `Retry-After` (ADR-0102)
+- [x] T-103: verificación de límites entre módulos y capas con `dependency-cruiser` en `npm run lint`, con un proyecto de ejemplo que prueba cada regla (ADR-0103)
 
 ## In Progress
 
