@@ -331,3 +331,22 @@ describe('isFrontendBaseUrl', () => {
     expect(isFrontendBaseUrl(value)).toBe(false);
   });
 });
+
+describe('MAX_ADDRESSES_PER_CUSTOMER (BR-ADR-04, ADR-0113)', () => {
+  it('defaults to 10', () => {
+    expect(validateEnvironment(REQUIRED).MAX_ADDRESSES_PER_CUSTOMER).toBe(10);
+  });
+
+  it('accepts another whole number from 1 to 100', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, MAX_ADDRESSES_PER_CUSTOMER: '25' })
+        .MAX_ADDRESSES_PER_CUSTOMER,
+    ).toBe(25);
+  });
+
+  it.each(['0', '101', '2.5', 'ten'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, MAX_ADDRESSES_PER_CUSTOMER: value }),
+    ).toThrow(/MAX_ADDRESSES_PER_CUSTOMER/);
+  });
+});

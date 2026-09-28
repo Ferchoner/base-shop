@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
 import pg from 'pg';
+import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
@@ -67,6 +68,7 @@ describe('Identity & Access administration (T-130)', () => {
         ClsModule.forRoot({ global: true }),
         PersistenceModule,
         ClockModule,
+        AppCacheModule,
         AuditModule,
         IdentityAccessModule,
       ],
