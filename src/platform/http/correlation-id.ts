@@ -15,6 +15,8 @@ export function correlationIdMiddleware(): ClsMiddleware['use'] {
   return new ClsMiddleware({
     generateId: true,
     idGenerator: () => newId(),
+    // The request stays in the context for code outside controllers, such as the audit trail (ADR-0100).
+    saveReq: true,
     setup: (cls, _request, response: { setHeader: SetHeader }) => {
       response.setHeader(CORRELATION_ID_HEADER, cls.getId());
     },
