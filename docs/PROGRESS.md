@@ -106,6 +106,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] T-122: puertos `EmailSender` y `FrontendLinks` en el shared kernel, adaptador SMTP con nodemailer hacia Mailpit, `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` obligatorias en producción, y tests contra Mailpit real (ADR-0110)
 - [x] T-130 (parte a): catálogo de permisos en el shared kernel, autorización con `@RequirePermissions` y `@RequireAccount` (falla cerrado), paginación de ADR-0036, agregados `User` y `Role` con bloqueo optimista, roles iniciales por migración y `permissionsOf` para T-120 (ADR-0111). La anonimización pasa a T-132 y la reactivación del staff a T-131
 - [x] T-130 (parte b): catálogo de permisos, CRUD de roles, roles y suspensión del staff, y listado, detalle, suspensión y reactivación de clientes; motivo en `audit_logs.reason`; nunca sin superadministrador activo, con bloqueo y test de concurrencia; ordenamiento por varios campos y `Cache-Control: no-store` (ADR-0112)
+- [x] T-130 (parte c) y T-130 terminada: libreta de direcciones del cliente en `/v1/me/addresses`, con máximo configurable (`MAX_ADDRESSES_PER_CUSTOMER`) y una sola predeterminada bajo bloqueo; validación con el catálogo geográfico a través de un puerto y un adaptador hacia `geo` (ADR-0113)
 
 ## In Progress
 

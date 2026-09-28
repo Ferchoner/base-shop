@@ -118,6 +118,13 @@ Motivo del staff (ADR-0112): las acciones que piden `reason` (suspender, reactiv
 
 Concurrencia en recursos versionados: el repositorio guarda con `updateMany({ where: { id, version } })`. Si no actualiza ninguna fila, rechaza con `VersionConflictError(versiónActual)` (409 `version-conflict`, E-05) y el cliente vuelve a leer.
 
+Usar otro módulo (ADR-0005, ADR-0113):
+
+- La aplicación del consumidor declara un puerto con lo que necesita, en sus propios términos (por ejemplo, `AddressLocations.check(estado, municipio)`).
+- Un adaptador en la infraestructura del consumidor lo implementa con la fachada del otro módulo, importada solo desde su `index.ts`.
+- El módulo del consumidor importa el módulo del otro (`imports: [GeoModule]`), que exporta su fachada.
+- Domain y application nunca importan otro módulo; `lint:boundaries` lo impide.
+
 Correos y enlaces al frontend (ADR-0045, ADR-0110):
 
 - **Cómo enviar:** el caso de uso inyecta `EmailSender` (shared kernel) y envía `{ to, subject, text, html? }`. Siempre fuera de la transacción: después del commit, normalmente desde un handler de eventos.
