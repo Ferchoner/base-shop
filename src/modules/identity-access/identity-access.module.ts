@@ -11,7 +11,9 @@ import {
   MAX_ADDRESSES,
 } from './application/address-locations.js';
 import { ChangePassword } from './application/change-password.use-case.js';
+import { CreateFirstSuperadmin } from './application/create-first-superadmin.use-case.js';
 import { CreateRole } from './application/create-role.use-case.js';
+import { CreateStaff } from './application/create-staff.use-case.js';
 import { DeleteRole } from './application/delete-role.use-case.js';
 import { IdentityAccessFacade } from './application/identity-access.facade.js';
 import { IdentityQueries } from './application/identity.queries.js';
@@ -22,6 +24,7 @@ import {
   PasswordPolicy,
 } from './application/password-policy.js';
 import { ReactivateCustomer } from './application/reactivate-customer.use-case.js';
+import { ReactivateStaff } from './application/reactivate-staff.use-case.js';
 import { RefreshSession } from './application/refresh-session.use-case.js';
 import { RemoveAddress } from './application/remove-address.use-case.js';
 import { ReplaceStaffRoles } from './application/replace-staff-roles.use-case.js';
@@ -36,6 +39,7 @@ import { SignOut } from './application/sign-out.use-case.js';
 import { SuperadminContinuity } from './application/superadmin-continuity.js';
 import { SuspendCustomer } from './application/suspend-customer.use-case.js';
 import { SuspendStaff } from './application/suspend-staff.use-case.js';
+import { TemporaryPasswords } from './application/temporary-passwords.js';
 import { UpdateAddress } from './application/update-address.use-case.js';
 import { UpdateRole } from './application/update-role.use-case.js';
 import { AddressBookRepository } from './domain/address-book.repository.js';
@@ -45,6 +49,7 @@ import { UserRepository } from './domain/user.repository.js';
 import { AccessTokenKey } from './infrastructure/access-token-key.js';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.js';
 import { FileCommonPasswords } from './infrastructure/file-common-passwords.js';
+import { FirstSuperadminCommand } from './infrastructure/first-superadmin.command.js';
 import { GeoAddressLocations } from './infrastructure/geo-address-locations.js';
 import { JwtAccessTokens } from './infrastructure/jwt-access-tokens.js';
 import { JwtStrategy } from './infrastructure/jwt.strategy.js';
@@ -113,8 +118,13 @@ import { MeController } from './presentation/me.controller.js';
     CreateRole,
     UpdateRole,
     DeleteRole,
+    CreateStaff,
+    CreateFirstSuperadmin,
+    TemporaryPasswords,
+    FirstSuperadminCommand,
     ReplaceStaffRoles,
     SuspendStaff,
+    ReactivateStaff,
     SuspendCustomer,
     ReactivateCustomer,
     AddAddress,

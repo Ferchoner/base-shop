@@ -14,9 +14,10 @@ export class ClsTransactionManager extends TransactionManager {
   }
 
   async run<T>(work: () => Promise<T>): Promise<T> {
-    // A nested run joins the outer transaction, whose scope collects the after-commit work.
+    // A nested run joins the outer transaction, whose scope collects the after-commit work. It runs the work
+    // as is: asking nestjs-cls for a transaction again would log a warning that its options are ignored.
     if (this.txHost.isTransactionActive()) {
-      return this.txHost.withTransaction(work);
+      return work();
     }
     return withTransactionScope(async (scope) => {
       const result = await this.txHost.withTransaction(work);

@@ -37,14 +37,50 @@ export interface UserSnapshot {
 }
 
 /**
- * A customer or staff account (ADR-0043): its status, roles and sign-in (T-130, T-120). Staff creation and
- * reactivation come with T-131, and anonymization with T-132.
+ * A customer or staff account (ADR-0043): its status, roles and sign-in (T-130, T-120), and the creation and
+ * reactivation of staff (T-131). Anonymization comes with T-132.
  */
 export class User {
   private constructor(private state: UserSnapshot) {}
 
   static restore(snapshot: UserSnapshot): User {
     return new User(snapshot);
+  }
+
+  /**
+   * A new staff account (UC-IAM-13, BR-USR-09): ACTIVE, with at least one role and a temporary password it
+   * must change on first sign-in. Its email is not verified: verification only matters to customers
+   * (ADR-0046, ADR-0116).
+   */
+  static createStaff(input: {
+    id: UserId;
+    email: string;
+    firstNames: string;
+    lastNames: string;
+    roleIds: readonly RoleId[];
+    temporaryPasswordHash: string;
+    now: Date;
+  }): User {
+    const user = new User({
+      id: input.id,
+      type: 'STAFF',
+      status: 'ACTIVE',
+      email: normalizeEmail(input.email),
+      firstNames: input.firstNames,
+      lastNames: input.lastNames,
+      emailVerifiedAt: null,
+      passwordHash: input.temporaryPasswordHash,
+      passwordChangedAt: input.now,
+      mustChangePassword: true,
+      lastLoginAt: null,
+      suspendedAt: null,
+      anonymizedAt: null,
+      createdAt: input.now,
+      roleIds: [],
+      version: 1,
+    });
+    user.replaceRoles(input.roleIds);
+    return user;
   }
 
   get id(): UserId {
@@ -94,17 +130,37 @@ export class User {
 
   /**
    * SUSPENDED → ACTIVE for a customer, who keeps the password and the email verification (BR-USR-14,
-   * ADR-0076). An anonymized account is never reactivated. Staff reactivation also issues a temporary
-   * password, so it comes with T-131.
+   * ADR-0076). An anonymized account is never reactivated. Staff is reactivated with `reactivateStaff`.
    */
   reactivateCustomer(): void {
     if (this.state.type !== 'CUSTOMER') {
-      throw new Error('Staff reactivation issues a temporary password (T-131)');
+      throw new Error('Staff is reactivated with a new temporary password');
     }
     if (this.state.status !== 'SUSPENDED') {
       throw new InvalidStateTransitionError(this.state.status, 'reactivate');
     }
     this.state = { ...this.state, status: 'ACTIVE', suspendedAt: null };
+  }
+
+  /**
+   * SUSPENDED → ACTIVE for a staff member (BR-USR-14, ADR-0076): the suspension may have been over a leaked
+   * password, so they get a new temporary password to change on their next sign-in. Their roles stay.
+   */
+  reactivateStaff(temporaryPasswordHash: string, at: Date): void {
+    if (this.state.type !== 'STAFF') {
+      throw new Error('A customer keeps their password when reactivated');
+    }
+    if (this.state.status !== 'SUSPENDED') {
+      throw new InvalidStateTransitionError(this.state.status, 'reactivate');
+    }
+    this.state = {
+      ...this.state,
+      status: 'ACTIVE',
+      suspendedAt: null,
+      passwordHash: temporaryPasswordHash,
+      passwordChangedAt: at,
+      mustChangePassword: true,
+    };
   }
 
   /** The staff member's roles, replaced as a whole; at least one (API_SPEC.md §9.17, BR-USR-08). */

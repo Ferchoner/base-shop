@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsISO8601,
@@ -12,6 +13,7 @@ import {
   IsUUID,
   Length,
   Matches,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -254,6 +256,57 @@ export class ReplaceRolesDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+/** `POST /v1/admin/identity/staff` (API_SPEC.md §9.17, UC-IAM-13). */
+export class CreateStaffDto {
+  /**
+   * Se guarda en minúsculas; no puede tenerlo otra cuenta, de cliente o de staff.
+   * @example 'ana.perez@example.com'
+   */
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+
+  /** @example 'Ana' */
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  firstNames: string;
+
+  /** @example 'Pérez Gómez' */
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  lastNames: string;
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description: 'Al menos un rol.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
+  roleIds: string[];
+}
+
+/**
+ * A staff account with its temporary password (API_SPEC.md §9.17): shown only in this response, never
+ * again (ADR-0043, ADR-0076).
+ */
+export class StaffWithTemporaryPasswordDto {
+  @ApiProperty({ type: () => StaffUserDto })
+  user: StaffUserDto;
+
+  /**
+   * Contraseña temporal: se muestra solo en esta respuesta y se cambia en el primer inicio de sesión.
+   * @example 'k7qm-3xrt-9fzw-p4hd-2nvc'
+   */
+  temporaryPassword: string;
 }
 
 export class ReasonDto {

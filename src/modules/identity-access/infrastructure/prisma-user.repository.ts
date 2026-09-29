@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
+import { isUniqueViolation } from '../../../platform/persistence/prisma-errors.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
-import { toId, VersionConflictError } from '../../../shared-kernel/index.js';
+import {
+  DuplicateValueError,
+  toId,
+  VersionConflictError,
+} from '../../../shared-kernel/index.js';
 import type { RoleId } from '../domain/role.js';
 import { User, type UserId } from '../domain/user.js';
 import { UserRepository } from '../domain/user.repository.js';
@@ -43,6 +48,37 @@ export class PrismaUserRepository extends UserRepository {
     });
   }
 
+  async add(user: User, createdBy: UserId | null): Promise<void> {
+    const state = user.snapshot();
+    try {
+      await this.txHost.tx.user.create({
+        data: {
+          id: state.id,
+          type: state.type,
+          status: state.status,
+          email: state.email,
+          firstNames: state.firstNames,
+          lastNames: state.lastNames,
+          passwordHash: state.passwordHash,
+          passwordChangedAt: state.passwordChangedAt,
+          mustChangePassword: state.mustChangePassword,
+          emailVerifiedAt: state.emailVerifiedAt,
+          version: state.version,
+          createdAt: state.createdAt,
+          roles: {
+            create: state.roleIds.map((roleId) => ({
+              roleId,
+              assignedBy: createdBy,
+            })),
+          },
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new DuplicateValueError('email');
+      throw error;
+    }
+  }
+
   async save(user: User, changedBy: UserId | null): Promise<void> {
     const tx = this.txHost.tx;
     const state = user.snapshot();
@@ -81,12 +117,12 @@ export class PrismaUserRepository extends UserRepository {
     user.markSaved(state.version + 1);
   }
 
-  countActiveStaffWithRole(roleId: RoleId, except: UserId): Promise<number> {
+  countActiveStaffWithRole(roleId: RoleId, except?: UserId): Promise<number> {
     return this.txHost.tx.user.count({
       where: {
         type: 'STAFF',
         status: 'ACTIVE',
-        id: { not: except },
+        ...(except === undefined ? {} : { id: { not: except } }),
         roles: { some: { roleId } },
       },
     });

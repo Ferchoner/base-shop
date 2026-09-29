@@ -18,14 +18,20 @@ export abstract class UserRepository {
   abstract recordSignIn(id: UserId, at: Date): Promise<void>;
 
   /**
+   * Stores a new account and its roles, recording who assigned them (`null` for the system). Rejects with
+   * `DuplicateValueError` on the `email` when another account, customer or staff, has it (BR-USR-01).
+   */
+  abstract add(user: User, createdBy: UserId | null): Promise<void>;
+
+  /**
    * Saves the account and its roles, recording who assigned new roles. Rejects with `VersionConflictError`
    * when another change was saved since the account was read (optimistic locking).
    */
   abstract save(user: User, changedBy: UserId | null): Promise<void>;
 
-  /** ACTIVE staff members holding the role, not counting `except`. */
+  /** ACTIVE staff members holding the role, not counting `except` when given. */
   abstract countActiveStaffWithRole(
     roleId: RoleId,
-    except: UserId,
+    except?: UserId,
   ): Promise<number>;
 }

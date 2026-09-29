@@ -31,6 +31,7 @@
     "db:diff": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
     "geo:import": "nest build && node dist/scripts/import-geo-catalog.js",
     "passwords:build": "nest build && node dist/scripts/build-common-passwords.js",
+    "superadmin:create": "nest build && node dist/scripts/create-first-superadmin.js",
     "lint:code": "oxlint src/ test/",
     "lint:boundaries": "depcruise src --config .dependency-cruiser.cjs"
   },
