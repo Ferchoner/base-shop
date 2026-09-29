@@ -111,6 +111,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] T-120 (parte b) y T-120 terminada: política de contraseñas de ADR-0047 (longitud tras NFKC, caracteres imprimibles y 5,328 contraseñas comunes de SecLists en `data/passwords/`) y `POST /v1/me/password`, que conserva la sesión actual, revoca las demás y avisa por correo (ADR-0115)
 - [x] T-131: alta y reactivación del staff por la API con contraseña temporal mostrada una sola vez, y script del primer superadministrador que se niega si ya hay uno activo, con bloqueo y test de concurrencia (ADR-0116)
 - [x] T-121: registro de clientes, verificación de email con enlace de un solo uso (`/verify-email?token=…`, `EMAIL_VERIFICATION_TTL`), reenvío que no revela si el email existe, cambio de email con contraseña y aviso al anterior, y `PATCH /v1/me` (ADR-0117)
+- [x] T-123: recuperación de contraseña con enlace de un solo uso (`/reset-password?token=…`, `PASSWORD_RESET_TTL`), que revoca todas las sesiones, quita la contraseña temporal pendiente, verifica el email y avisa por correo; el cambio de email invalida los enlaces pendientes (ADR-0118)
 
 ## In Progress
 

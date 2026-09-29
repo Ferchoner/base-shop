@@ -641,6 +641,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Autenticación:** ninguna. **Rate limit:** 3 por email y 10 por IP por hora.
 - **Request:** `{ "email": "…" }`.
 - **Response 202** sin cuerpo, exista o no el email. No envía correo a cuentas suspendidas. Invalida enlaces anteriores (ADR-0056).
+- **Implementado en T-123 (ADR-0118):** el enlace es `FRONTEND_BASE_URL/reset-password?token=…` y vence según `PASSWORD_RESET_TTL` (30 minutos por defecto). Lo reciben clientes y staff activos. Cambiar el email invalida los enlaces pendientes.
 
 ### 9.9 `POST /v1/auth/password-reset/confirm` — Restablecer contraseña (UC-IAM-08)
 
@@ -648,6 +649,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Request:** `{ "token": "…", "newPassword": "…" }`.
 - **Response 204.** Revoca todas las sesiones del usuario y envía aviso por correo.
 - **Errores:** 400 `invalid-or-expired-token`; 400 `password-policy-violation`.
+- **Implementado en T-123 (ADR-0118):** `password-policy-violation` indica la regla en `newPassword`, y el enlace sigue sirviendo para corregirla. Restablecer quita `mustChangePassword`, verifica el email si no lo estaba y se audita.
 
 ### 9.10 `GET /v1/me` — Consultar la cuenta
 
