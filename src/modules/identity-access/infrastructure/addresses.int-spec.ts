@@ -1,4 +1,3 @@
-import { setTimeout as sleep } from 'node:timers/promises';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
@@ -6,6 +5,7 @@ import pg from 'pg';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
+import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import { newId, NotFoundError } from '../../../shared-kernel/index.js';
@@ -23,6 +23,7 @@ import {
 import { InvalidAddressLocationError } from '../domain/identity-errors.js';
 import type { UserId } from '../domain/user.js';
 import { IdentityAccessModule } from '../identity-access.module.js';
+import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
 
 /** A small limit, so the tests reach it quickly. */
 const LIMIT = 3;
@@ -62,6 +63,7 @@ describe('Customer addresses (T-130, UC-IAM-11)', () => {
         PersistenceModule,
         ClockModule,
         AppCacheModule,
+        RateLimitingModule,
         AuditModule,
         IdentityAccessModule,
       ],
@@ -207,7 +209,7 @@ describe('Customer addresses (T-130, UC-IAM-11)', () => {
     ]);
 
     const results = Promise.allSettled([add(customer), add(customer)]);
-    await waitForLockWaiters(holder, 2);
+    await waitForLockWaiters(2);
     await holder.query('COMMIT');
     await holder.end();
     const settled = await results;
@@ -293,17 +295,3 @@ describe('Customer addresses (T-130, UC-IAM-11)', () => {
     expect(await queries.findAddress(other, address)).toBeNull();
   });
 });
-
-/** Waits until `count` sessions are blocked on a lock, or a few seconds pass. */
-async function waitForLockWaiters(
-  client: pg.Client,
-  count: number,
-): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const { rows } = await client.query<{ waiting: string }>(
-      "SELECT count(*) AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock'",
-    );
-    if (Number(rows[0].waiting) >= count) return;
-    await sleep(100);
-  }
-}

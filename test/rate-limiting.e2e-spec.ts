@@ -96,7 +96,7 @@ describe('Rate limiting (e2e, T-126)', () => {
       controllers: [RateLimitTestController],
     }).compile();
     app = moduleFixture.createNestApplication();
-    // Stands in for authentication (T-120), which will run before the rate limit guard.
+    // Stands in for authentication, which runs before the rate limit guard (ADR-0114).
     app.use(
       (
         req: { headers: Record<string, string>; user?: { id: string } },

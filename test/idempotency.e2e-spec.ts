@@ -55,7 +55,7 @@ class CustomerOrderDto {
   expectedTotal: number;
 }
 
-/** Stands in for authentication (T-120): the user id comes from a test header. */
+/** Stands in for authentication (ADR-0114): the user id comes from a test header. */
 @Injectable()
 class FakeAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {

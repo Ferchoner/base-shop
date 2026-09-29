@@ -1,4 +1,3 @@
-import { setTimeout as sleep } from 'node:timers/promises';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
@@ -6,6 +5,7 @@ import pg from 'pg';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
+import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
@@ -34,6 +34,7 @@ import {
 import type { RoleId } from '../domain/role.js';
 import type { UserId, UserStatus, UserType } from '../domain/user.js';
 import { IdentityAccessModule } from '../identity-access.module.js';
+import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
 
 /** Roles created by the migration `20260928120000_identity_initial_roles` (ADR-0043). */
 const SUPERADMIN = '01a0ea00-c750-7792-a69b-a7289f1a8f47' as RoleId;
@@ -69,6 +70,7 @@ describe('Identity & Access administration (T-130)', () => {
         PersistenceModule,
         ClockModule,
         AppCacheModule,
+        RateLimitingModule,
         AuditModule,
         IdentityAccessModule,
       ],
@@ -362,7 +364,7 @@ describe('Identity & Access administration (T-130)', () => {
         replace(second, first, [ADMINISTRATOR]),
         replace(first, second, [ADMINISTRATOR]),
       ]);
-      await waitForLockWaiters(holder, 2);
+      await waitForLockWaiters(2);
       await holder.query('COMMIT');
       await holder.end();
       const [a, b] = await results;
@@ -635,17 +637,3 @@ describe('Identity & Access administration (T-130)', () => {
     });
   });
 });
-
-/** Waits until `count` sessions are blocked on a lock, or a few seconds pass. */
-async function waitForLockWaiters(
-  client: pg.Client,
-  count: number,
-): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const { rows } = await client.query<{ waiting: string }>(
-      "SELECT count(*) AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock'",
-    );
-    if (Number(rows[0].waiting) >= count) return;
-    await sleep(100);
-  }
-}

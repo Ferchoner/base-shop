@@ -21,12 +21,14 @@ const CUSTOMER: AuthenticatedUser = {
   type: 'CUSTOMER',
   permissions: [],
   mustChangePassword: false,
+  sessionId: '01a0eb00-0000-7000-8000-000000000011',
 };
 const STAFF_READER: AuthenticatedUser = {
   id: '01a0eb00-0000-7000-8000-000000000002',
   type: 'STAFF',
   permissions: ['customers.read'],
   mustChangePassword: false,
+  sessionId: '01a0eb00-0000-7000-8000-000000000012',
 };
 const STAFF_MANAGER: AuthenticatedUser = {
   ...STAFF_READER,

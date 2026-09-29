@@ -4,6 +4,7 @@ import { ClsModule, ClsService } from 'nestjs-cls';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
+import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
@@ -47,6 +48,7 @@ describe('Identity & Access persistence (T-130)', () => {
         PersistenceModule,
         ClockModule,
         AppCacheModule,
+        RateLimitingModule,
         AuditModule,
         IdentityAccessModule,
       ],

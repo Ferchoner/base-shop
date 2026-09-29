@@ -5,6 +5,7 @@ const STAFF = {
   type: 'STAFF',
   permissions: ['customers.read'],
   mustChangePassword: false,
+  sessionId: '01a0ea00-0000-7000-8000-000000000002',
 };
 
 describe('authenticatedUserOf (ADR-0111)', () => {
@@ -22,6 +23,7 @@ describe('authenticatedUserOf (ADR-0111)', () => {
     ['a permission outside the catalog', { ...STAFF, permissions: ['all'] }],
     ['no permission list', { ...STAFF, permissions: 'customers.read' }],
     ['no mustChangePassword', { ...STAFF, mustChangePassword: undefined }],
+    ['no session', { ...STAFF, sessionId: undefined }],
     ['not an object', 'user-1'],
   ])('treats a user with %s as signed out', (_, user) => {
     expect(authenticatedUserOf({ user })).toBeUndefined();
