@@ -70,9 +70,17 @@ export class PrismaSessionRepository extends SessionRepository {
     return count;
   }
 
-  async revokeAllOf(userId: UserId, at: Date): Promise<void> {
+  async revokeAllOf(
+    userId: UserId,
+    at: Date,
+    except?: SessionId,
+  ): Promise<void> {
     await this.txHost.tx.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
+      where: {
+        userId,
+        revokedAt: null,
+        ...(except === undefined ? {} : { sessionId: { not: except } }),
+      },
       data: { revokedAt: at },
     });
   }

@@ -35,8 +35,15 @@ export abstract class SessionRepository {
   /** Revokes the session's tokens that are still usable. Returns how many were. */
   abstract revokeSession(sessionId: SessionId, at: Date): Promise<number>;
 
-  /** Revokes every session of the user (suspension, ADR-0023). */
-  abstract revokeAllOf(userId: UserId, at: Date): Promise<void>;
+  /**
+   * Revokes every session of the user (suspension, ADR-0023), or every one but `except` (password change,
+   * which keeps the session it came from, ADR-0072).
+   */
+  abstract revokeAllOf(
+    userId: UserId,
+    at: Date,
+    except?: SessionId,
+  ): Promise<void>;
 
   /** Whether the user's session still has a usable token, so its access tokens are honored (ADR-0114). */
   abstract isActive(

@@ -51,6 +51,9 @@ export class PrismaUserRepository extends UserRepository {
       data: {
         status: state.status,
         suspendedAt: state.suspendedAt,
+        passwordHash: state.passwordHash,
+        passwordChangedAt: state.passwordChangedAt,
+        mustChangePassword: state.mustChangePassword,
         version: { increment: 1 },
       },
     });
@@ -100,6 +103,7 @@ function toUser(row: UserRow): User {
     lastNames: row.lastNames,
     emailVerifiedAt: row.emailVerifiedAt,
     passwordHash: row.passwordHash,
+    passwordChangedAt: row.passwordChangedAt,
     mustChangePassword: row.mustChangePassword,
     lastLoginAt: row.lastLoginAt,
     suspendedAt: row.suspendedAt,

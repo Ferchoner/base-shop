@@ -10,11 +10,17 @@ import {
   AddressLocations,
   MAX_ADDRESSES,
 } from './application/address-locations.js';
+import { ChangePassword } from './application/change-password.use-case.js';
 import { CreateRole } from './application/create-role.use-case.js';
 import { DeleteRole } from './application/delete-role.use-case.js';
 import { IdentityAccessFacade } from './application/identity-access.facade.js';
 import { IdentityQueries } from './application/identity.queries.js';
+import { PasswordChangeNotice } from './application/password-change-notice.js';
 import { PasswordHasher } from './application/password-hasher.js';
+import {
+  CommonPasswords,
+  PasswordPolicy,
+} from './application/password-policy.js';
 import { ReactivateCustomer } from './application/reactivate-customer.use-case.js';
 import { RefreshSession } from './application/refresh-session.use-case.js';
 import { RemoveAddress } from './application/remove-address.use-case.js';
@@ -38,6 +44,7 @@ import { SessionRepository } from './domain/session.repository.js';
 import { UserRepository } from './domain/user.repository.js';
 import { AccessTokenKey } from './infrastructure/access-token-key.js';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.js';
+import { FileCommonPasswords } from './infrastructure/file-common-passwords.js';
 import { GeoAddressLocations } from './infrastructure/geo-address-locations.js';
 import { JwtAccessTokens } from './infrastructure/jwt-access-tokens.js';
 import { JwtStrategy } from './infrastructure/jwt.strategy.js';
@@ -80,6 +87,9 @@ import { MeController } from './presentation/me.controller.js';
     SignIn,
     RefreshSession,
     SignOut,
+    ChangePassword,
+    PasswordPolicy,
+    PasswordChangeNotice,
     ResolveSignedInAccount,
     SessionTokens,
     JwtStrategy,
@@ -97,6 +107,7 @@ import { MeController } from './presentation/me.controller.js';
     },
     { provide: AccessTokens, useClass: JwtAccessTokens },
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },
+    { provide: CommonPasswords, useFactory: () => new FileCommonPasswords() },
     { provide: SessionRepository, useClass: PrismaSessionRepository },
     SuperadminContinuity,
     CreateRole,

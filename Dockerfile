@@ -32,6 +32,8 @@ ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app/package.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
+# The common password list, read at startup relative to /app (ADR-0115).
+COPY --from=build --chown=node:node /app/data/passwords ./data/passwords
 USER node
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

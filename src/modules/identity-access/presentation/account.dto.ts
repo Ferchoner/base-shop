@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import {
   PERMISSION_CODES,
   type PermissionCode,
@@ -39,4 +40,24 @@ export class AccountDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
+}
+
+/** `POST /v1/me/password` (API_SPEC.md §9.12). */
+export class ChangePasswordDto {
+  /**
+   * The current password; the temporary one for staff who must change it.
+   * @example 'una frase larga y segura'
+   */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  currentPassword: string;
+
+  /**
+   * 15 to 64 characters, not a common password and not the current one (ADR-0047). Checked by the password
+   * policy, which answers `password-policy-violation`.
+   * @example 'otra frase larga y distinta'
+   */
+  @IsString()
+  newPassword: string;
 }
