@@ -259,7 +259,7 @@ Error de validación:
 | `type` (`/problems/…`) | HTTP | E-xx | Cuándo | Extensiones |
 |---|---|---|---|---|
 | `validation-error` | 400 | E-01, E-11 | Campos, parámetros, cantidades o filtros inválidos | `errors` |
-| `password-policy-violation` | 400 | E-21 | Contraseña fuera de 15–64 caracteres o común | `errors` |
+| `password-policy-violation` | 400 | E-21 | Contraseña fuera de 15–64 caracteres, con caracteres no permitidos, común o igual a la actual; `errors[].code` dice cuál (ADR-0115) | `errors` |
 | `invalid-or-expired-token` | 400 | E-20 | Enlace de verificación o recuperación usado, vencido o invalidado | — |
 | `idempotency-key-missing` | 400 | E-25 | Falta `Idempotency-Key` | — |
 | `unauthenticated` | 401 | E-02 | Sin token, token inválido o vencido | — |
@@ -666,6 +666,11 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Validaciones:** `newPassword` según ADR-0047 y distinta de la actual.
 - **Response 204.** Quita `mustChangePassword`. Revoca todas las demás sesiones del usuario y conserva la actual; envía un correo avisando del cambio (ADR-0072).
 - **Errores:** 401 `invalid-credentials` si `currentPassword` no coincide; 400 `password-policy-violation`.
+- **Implementado en T-120 (ADR-0115):**
+  - `currentPassword` se comprueba antes que la política. Un 401 no cambia nada y se audita.
+  - `password-policy-violation` lleva en `errors` una entrada en `newPassword` con `code` `passwordLength`, `passwordCharacters`, `commonPassword` o `samePassword`.
+  - La sesión de la solicitud sigue funcionando con el mismo token de acceso, ya sin `mustChangePassword`.
+  - El correo de aviso se envía después del cambio; si falla, la respuesta no cambia.
 
 ### 9.13 `POST /v1/me/email` — Cambiar email (UC-IAM-10)
 

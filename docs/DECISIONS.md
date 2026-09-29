@@ -132,6 +132,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0112 | Administración de roles, staff y clientes, y motivo en la auditoría | Aceptada |
 | ADR-0113 | Direcciones de clientes y uso del catálogo geográfico desde Identity | Aceptada |
 | ADR-0114 | Sesiones: login, renovación, cierre y autenticación de cada solicitud | Aceptada |
+| ADR-0115 | Política de contraseñas, lista de contraseñas comunes y cambio de contraseña | Aceptada |
 
 ---
 
@@ -952,7 +953,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los gestores de contraseñas y las frases de contraseña funcionan sin restricciones.
   - Mitigaciones adicionales: Argon2id, rate limiting del login y auditoría de inicios de sesión.
 - **Revisar:** si se incorpora el segundo factor (ADR-0048), la longitud mínima puede mantenerse; no es necesario reducirla.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0115: longitud en caracteres tras normalizar a NFKC, y lista de 5,328 contraseñas comunes de SecLists en `data/passwords/`.
 
 ---
 
@@ -1451,7 +1452,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Riesgo aceptado:** cambiar el slug de una categoría o marca rompe los enlaces públicos que usaban el anterior (responden 404), y si el slug liberado se reutiliza, un enlace antiguo puede llevar a otra categoría o marca. No se implementan redirecciones.
 - **Alternativas consideradas:** Conservar las demás sesiones; revocar todas, incluida la actual; slugs inmutables; historial de slugs con redirección.
 - **Consecuencias:** La regla de slugs de productos no cambia: el slug de un producto se bloquea tras su primera publicación y nunca se reutiliza (BR-PRD-09, ADR-0071).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. El cambio de contraseña se implementa en ADR-0115.
 
 ---
 
@@ -2748,4 +2749,52 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Hasta T-121 y T-131 nadie puede iniciar sesión fuera de los tests: todavía no existen el registro de clientes ni el alta de staff.
   - La API de Argon2 de Node está en fase "release candidate"; si cambiara, el adaptador es el único punto que hay que tocar.
   - Los tests de autorización siguen con el autenticador de prueba de `test/support/`; los de autenticación inician sesión de verdad.
-- **Estado:** Aceptada (plan de T-120 aprobado el 2026-09-29).
+- **Estado:** Aceptada (plan de T-120 aprobado el 2026-09-29). La parte (b) de T-120 se decide en ADR-0115.
+
+---
+
+## ADR-0115 — Política de contraseñas, lista de contraseñas comunes y cambio de contraseña
+
+- **Fecha:** 2026-09-29
+- **Contexto:** T-120, parte (b). ADR-0047 fijó la política de 15 a 64 caracteres, sin reglas de composición, con los caracteres aceptados y una lista local de contraseñas comunes elegida al implementar. ADR-0072 pidió que el cambio de contraseña desde la cuenta revoque las demás sesiones, conserve la actual y avise por correo. `API_SPEC.md` §9.12 fijó el contrato de `POST /v1/me/password`. Faltaban cómo se miden la longitud y los caracteres, qué lista usar y dónde vive, la forma del error y el contenido del correo.
+- **Decisión:**
+  - **Longitud y caracteres:**
+    - La contraseña se normaliza a Unicode NFKC, como en el hash (ADR-0114), y la longitud se cuenta en caracteres (code points) de la forma normalizada. Así, una letra acentuada cuenta como uno aunque se haya escrito como letra más acento.
+    - Se aceptan letras de cualquier alfabeto con sus acentos, dígitos, signos de puntuación, símbolos (emojis incluidos) y el espacio. Los espacios especiales, como el de no separación, se vuelven espacios normales al normalizar.
+    - Se rechazan tabuladores, saltos de línea y caracteres de control o invisibles. Por eso quedan fuera los emojis compuestos, que llevan un unificador invisible.
+  - **Lista de contraseñas comunes:**
+    - Fuente: `Pwdb_top-1000000.txt` de SecLists (licencia MIT), en el commit `837153d`. El original no se versiona.
+    - Se guardan solo las entradas que la política aceptaría por longitud y caracteres, normalizadas a NFKC, en minúsculas y sin repetir: 5,328 de 1,000,000 (94 KB), en `data/passwords/common-passwords.txt`, con su procedencia en `data/passwords/README.md` y la licencia en `data/passwords/LICENSE`.
+    - La comparación es sin distinguir mayúsculas: la contraseña se normaliza igual antes de buscarla.
+    - La API carga la lista en memoria al arrancar y no inicia sin ella, para que la política nunca deje de rechazar contraseñas comunes sin que nadie lo note. Al cargarla vuelve a normalizar cada entrada, así que el archivo no puede desalinearse de la política.
+    - La imagen de producción copia `data/passwords/`, que se lee relativa al directorio de trabajo.
+    - `npm run passwords:build -- <lista descargada>` genera el archivo con las mismas reglas de la política.
+  - **Política reutilizable:** `PasswordPolicy.assertAcceptable(contraseña, campo)` en la aplicación de Identity, con el puerto `CommonPasswords` y su adaptador de archivo. La usarán el registro (T-121), el restablecimiento (T-123) y las contraseñas temporales (T-131).
+  - **Error:** 400 `password-policy-violation` con `errors` (`API_SPEC.md` §6.2): una entrada en el campo de la contraseña, con `code` `passwordLength`, `passwordCharacters`, `commonPassword` o `samePassword`, y su mensaje en español. Una contraseña nueva igual a la actual también responde así.
+  - **`POST /v1/me/password` (UC-IAM-09):**
+    - En una transacción:
+      - se comprueba primero la contraseña actual (la temporal, en el cambio obligatorio del staff), así que la política no le dice nada a quien no la conoce;
+      - después, que la nueva cumpla la política y sea distinta de la actual;
+      - se guardan el hash nuevo y `password_changed_at`, y se quita `mustChangePassword`;
+      - se revocan las demás sesiones, conservando la de la solicitud (`sessionId` del token);
+      - se audita `auth.password-change`, con los cambios ocultos por la lista fija de ADR-0100.
+    - Una contraseña actual incorrecta responde 401 `invalid-credentials`, se audita como DENIED aparte y no cambia nada. No tiene límite propio: queda el general por IP (ADR-0065 no lista este endpoint), y hace falta un token de acceso válido.
+    - El cambio sube la versión de la cuenta: si un administrador la modifica al mismo tiempo, una de las dos operaciones recibe 409 `version-conflict`.
+  - **Correo de aviso (ADR-0072):**
+    - Solo texto, con el asunto "Tu contraseña cambió".
+    - Lleva el nombre de la persona, la fecha y hora del cambio en hora del centro de México, y qué hacer si no fue ella: usar "Olvidé mi contraseña" y contactar a la tienda.
+    - No lleva enlace hasta que T-123 defina la página de recuperación.
+    - Se envía después del commit. Si falla, queda en el log sin la dirección y no se reintenta (ADR-0110): el cambio ya ocurrió.
+    - `PasswordChangeNotice` lo arma y lo reutilizará el restablecimiento de T-123.
+- **Alternativas consideradas:**
+  - Sumar la lista de 10 millones de SecLists: más entradas, casi todas contraseñas que aparecieron pocas veces en filtraciones, a cambio de una descarga de 94 MB.
+  - Contar la longitud en unidades UTF-16, como `String.length`: un emoji contaría dos y una letra con acento separado, también dos.
+  - Validar la longitud en el DTO: respondería `validation-error` en lugar del `password-policy-violation` del contrato.
+  - Contar los intentos fallidos del cambio en el presupuesto por email del login: ADR-0065 no lo pide, y el endpoint ya exige un token de acceso válido.
+  - Enviar el correo dentro de la transacción: un fallo del servidor de correo desharía el cambio (ADR-0110).
+- **Consecuencias:**
+  - Con el mínimo de 15 caracteres, la longitud es la protección principal; la lista atrapa las contraseñas largas más usadas, como `1q2w3e4r5t6y7u8i`.
+  - Actualizar la lista es descargar otra versión, regenerarla con el script y actualizar su README.
+  - Una API sin `data/passwords/` en su directorio de trabajo no arranca.
+  - T-121, T-123 y T-131 aplican la política con `PasswordPolicy`, y T-123 envía el mismo aviso.
+- **Estado:** Aceptada (plan de T-120 parte b aprobado el 2026-09-29).
