@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { jest } from '@jest/globals';
 import { Injectable } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -128,6 +129,21 @@ describe('ClsTransactionManager (T-111)', () => {
     ).rejects.toThrow('outer work failed');
 
     expect(await committedNames()).toEqual([]);
+  });
+
+  it('opens one transaction for nested runs, so nestjs-cls warns of no ignored options', async () => {
+    const txHost =
+      moduleRef.get<TransactionHost<PrismaTransactionAdapter>>(TransactionHost);
+    const opened = jest.spyOn(txHost, 'withTransaction');
+
+    await transactions.run(async () => {
+      await transactions.run(() => brands.insert('inner'));
+    });
+    const transactionsOpened = opened.mock.calls.length;
+    opened.mockRestore();
+
+    expect(transactionsOpened).toBe(1);
+    expect(await committedNames()).toEqual(['inner']);
   });
 
   it('commits writes made outside a transaction right away', async () => {
