@@ -9,7 +9,7 @@ export interface RequestContext {
   readonly correlationId?: string;
   readonly ip?: string;
   readonly userAgent?: string;
-  /** Authenticated user; authentication (T-120) leaves it in `request.user.id`. */
+  /** Authenticated user; authentication leaves it in `request.user.id` (ADR-0114). */
   readonly userId?: string;
 }
 

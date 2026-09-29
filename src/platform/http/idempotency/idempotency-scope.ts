@@ -31,8 +31,8 @@ export const cartScope: IdempotencyScopeResolver = ({ body }) => {
 };
 
 /**
- * Customer routes: the authenticated user. Authentication (T-120) must leave the user in `request.user`
- * with its `id`.
+ * Customer routes: the authenticated user, which authentication leaves in `request.user` with its `id`
+ * (ADR-0114).
  */
 export const userScope: IdempotencyScopeResolver = ({ user }) => {
   const userId =

@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
+import type { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import { toId, VersionConflictError } from '../../../shared-kernel/index.js';
 import type { RoleId } from '../domain/role.js';
 import { User, type UserId } from '../domain/user.js';
 import { UserRepository } from '../domain/user.repository.js';
+
+const ROLE_IDS = { roles: { select: { roleId: true } } } as const;
+
+type UserRow = Prisma.UserGetPayload<{ include: typeof ROLE_IDS }>;
 
 /** `users` and `user_roles` (DATABASE.md §3.1, §3.3), always through the active transaction. */
 @Injectable()
@@ -18,24 +23,23 @@ export class PrismaUserRepository extends UserRepository {
   async findById(id: UserId): Promise<User | null> {
     const row = await this.txHost.tx.user.findUnique({
       where: { id },
-      include: { roles: { select: { roleId: true } } },
+      include: ROLE_IDS,
     });
-    if (row === null) return null;
-    return User.restore({
-      id: toId<'User'>(row.id),
-      type: row.type,
-      status: row.status,
-      email: row.email,
-      firstNames: row.firstNames,
-      lastNames: row.lastNames,
-      emailVerifiedAt: row.emailVerifiedAt,
-      mustChangePassword: row.mustChangePassword,
-      lastLoginAt: row.lastLoginAt,
-      suspendedAt: row.suspendedAt,
-      anonymizedAt: row.anonymizedAt,
-      createdAt: row.createdAt,
-      roleIds: row.roles.map(({ roleId }) => toId<'Role'>(roleId)),
-      version: row.version,
+    return row === null ? null : toUser(row);
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    const row = await this.txHost.tx.user.findUnique({
+      where: { email },
+      include: ROLE_IDS,
+    });
+    return row === null ? null : toUser(row);
+  }
+
+  async recordSignIn(id: UserId, at: Date): Promise<void> {
+    await this.txHost.tx.user.update({
+      where: { id },
+      data: { lastLoginAt: at },
     });
   }
 
@@ -84,4 +88,24 @@ export class PrismaUserRepository extends UserRepository {
       },
     });
   }
+}
+
+function toUser(row: UserRow): User {
+  return User.restore({
+    id: toId<'User'>(row.id),
+    type: row.type,
+    status: row.status,
+    email: row.email,
+    firstNames: row.firstNames,
+    lastNames: row.lastNames,
+    emailVerifiedAt: row.emailVerifiedAt,
+    passwordHash: row.passwordHash,
+    mustChangePassword: row.mustChangePassword,
+    lastLoginAt: row.lastLoginAt,
+    suspendedAt: row.suspendedAt,
+    anonymizedAt: row.anonymizedAt,
+    createdAt: row.createdAt,
+    roleIds: row.roles.map(({ roleId }) => toId<'Role'>(roleId)),
+    version: row.version,
+  });
 }

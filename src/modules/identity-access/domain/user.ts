@@ -9,6 +9,11 @@ export type UserId = Id<'User'>;
 export type UserType = 'CUSTOMER' | 'STAFF';
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'ANONYMIZED';
 
+/** Emails are stored and compared in lowercase, without surrounding spaces (BR-USR-01, API_SPEC.md §9.2). */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export interface UserSnapshot {
   readonly id: UserId;
   /** Customers never have roles and staff never buys (BR-USR-08). */
@@ -19,6 +24,8 @@ export interface UserSnapshot {
   readonly firstNames: string | null;
   readonly lastNames: string | null;
   readonly emailVerifiedAt: Date | null;
+  /** Argon2id hash in PHC format (ADR-0023, ADR-0114); `null` only for an anonymized customer. */
+  readonly passwordHash: string | null;
   readonly mustChangePassword: boolean;
   readonly lastLoginAt: Date | null;
   readonly suspendedAt: Date | null;
@@ -29,8 +36,8 @@ export interface UserSnapshot {
 }
 
 /**
- * A customer or staff account (ADR-0043). T-130 covers its status and roles; credentials come with T-120,
- * staff creation and reactivation with T-131, and anonymization with T-132.
+ * A customer or staff account (ADR-0043): its status, roles and sign-in (T-130, T-120). Staff creation and
+ * reactivation come with T-131, and anonymization with T-132.
  */
 export class User {
   private constructor(private state: UserSnapshot) {}
@@ -53,6 +60,23 @@ export class User {
 
   get roleIds(): readonly RoleId[] {
     return this.state.roleIds;
+  }
+
+  get passwordHash(): string | null {
+    return this.state.passwordHash;
+  }
+
+  /** Staff with a temporary password, who may only change it (BR-USR-09, ADR-0071). */
+  get mustChangePassword(): boolean {
+    return this.state.mustChangePassword;
+  }
+
+  /**
+   * Whether the account may sign in and keep its sessions: only ACTIVE accounts (BR-USR-02). An anonymized
+   * customer has no password left either.
+   */
+  get canSignIn(): boolean {
+    return this.state.status === 'ACTIVE' && this.state.passwordHash !== null;
   }
 
   get version(): number {

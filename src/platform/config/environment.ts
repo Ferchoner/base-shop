@@ -7,13 +7,16 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   Matches,
   Max,
   Min,
+  MinLength,
   ValidateBy,
   validateSync,
   type ValidationOptions,
 } from 'class-validator';
+import { durationSeconds } from './duration.js';
 import { RATE_LIMIT_PATTERN } from './rate-limit-value.js';
 
 /** An address, or `Name <address>`; one line only, so it cannot inject email headers. */
@@ -180,17 +183,41 @@ export class EnvironmentVariables {
   @Expose()
   @IsFrontendBaseUrl()
   FRONTEND_BASE_URL: string = 'http://localhost:5173';
+
+  /**
+   * Key that signs the access tokens with HS256 (ADR-0023, ADR-0114): at least 32 characters. Required in
+   * production; without it, development and test sign with a random key generated at startup.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
+  @IsOptional()
+  @MinLength(32, { message: '$property must have at least 32 characters' })
+  JWT_SECRET?: string;
+
+  /** Lifetime of an access token, from 1 minute to 1 hour (ADR-0023, ADR-0114). */
+  @Expose()
+  @IsDurationWithin(60, 3_600, 'from 1m to 1h')
+  ACCESS_TOKEN_TTL: string = '15m';
+
+  /** Lifetime of a refresh token, renewed on every use: from 1 hour to 90 days (ADR-0023, ADR-0114). */
+  @Expose()
+  @IsDurationWithin(3_600, 90 * 86_400, 'from 1h to 90d')
+  REFRESH_TOKEN_TTL: string = '7d';
 }
 
 /**
- * Variables with a development default that production must set explicitly: with the defaults, emails would
- * go nowhere and their links would point to localhost (ADR-0110).
+ * Variables that production must set explicitly. With the development defaults, emails would go nowhere and
+ * their links would point to localhost (ADR-0110), and access tokens would be signed with a key that changes
+ * on every restart (ADR-0114).
  */
 export const REQUIRED_IN_PRODUCTION = [
   'SMTP_HOST',
   'SMTP_PORT',
   'MAIL_FROM',
   'FRONTEND_BASE_URL',
+  'JWT_SECRET',
 ] as const;
 
 /**
@@ -326,6 +353,36 @@ function IsFrontendBaseUrl(options?: ValidationOptions): PropertyDecorator {
         defaultMessage: buildMessage(
           () =>
             '$property must be an http or https URL such as https://shop.example.com or https://example.com/shop (no query, fragment, credentials or trailing slash)',
+          options,
+        ),
+      },
+    },
+    options,
+  );
+}
+
+/** A duration such as `15m` (s, m, h or d) between two bounds, in seconds. */
+function IsDurationWithin(
+  minSeconds: number,
+  maxSeconds: number,
+  range: string,
+  options?: ValidationOptions,
+): PropertyDecorator {
+  return ValidateBy(
+    {
+      name: 'isDurationWithin',
+      validator: {
+        validate: (value: unknown) => {
+          const seconds = durationSeconds(value);
+          return (
+            seconds !== undefined &&
+            seconds >= minSeconds &&
+            seconds <= maxSeconds
+          );
+        },
+        defaultMessage: buildMessage(
+          () =>
+            `$property must be a duration such as 15m or 7d (s, m, h or d), ${range}`,
           options,
         ),
       },
