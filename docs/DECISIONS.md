@@ -135,6 +135,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0115 | Política de contraseñas, lista de contraseñas comunes y cambio de contraseña | Aceptada |
 | ADR-0116 | Alta y reactivación del staff, contraseñas temporales y primer superadministrador | Aceptada |
 | ADR-0117 | Registro, verificación y cambio de email, y corrección de datos del cliente | Aceptada |
+| ADR-0118 | Recuperación de contraseña | Aceptada |
 
 ---
 
@@ -1113,7 +1114,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Cambio obligatorio del staff:** pide la contraseña temporal, igual que un cambio normal pide la contraseña actual.
 - **Alternativas consideradas:** Código de 6 dígitos por correo (más independiente del frontend, pero expuesto a fuerza bruta y menos cómodo); passkeys (más seguras, pero un cambio mayor; candidatas junto con el 2FA, ADR-0048).
 - **Consecuencias:** Los tokens de recuperación se guardan en su propia tabla; los vencidos o usados se eliminan en la limpieza diaria (ADR-0029).
-- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122). ADR-0117 fija la página de verificación (`/verify-email`) y reserva `/reset-password` para la recuperación.
+- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122). ADR-0117 fija la página de verificación (`/verify-email`) y reserva `/reset-password` para la recuperación. Recuperación implementada en ADR-0118: `/reset-password?token=…`, vigencia en `PASSWORD_RESET_TTL`, y el cambio de email invalida los enlaces pendientes.
 
 ---
 
@@ -2874,4 +2875,39 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-123 reutiliza los tokens de enlace (`link-tokens.ts`) y la hora de México de los avisos.
   - El pedido del cliente verificado lo exige Ordering (BR-USR-05) con el `emailVerified` de la cuenta.
   - Los tokens vencidos o usados los borrará la limpieza diaria (T-231).
-- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29).
+- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29). ADR-0118: el cambio de email también invalida los enlaces de recuperación pendientes.
+
+---
+
+## ADR-0118 — Recuperación de contraseña
+
+- **Fecha:** 2026-09-29
+- **Contexto:** T-123 (UC-IAM-07 y 08). ADR-0056 fijó la recuperación por un enlace de un solo uso, vigente 30 minutos y configurable, con el token guardado como hash. La respuesta no revela si el email existe, las cuentas suspendidas no reciben el correo, un enlace nuevo invalida los anteriores, y al restablecer se revocan todas las sesiones y se avisa por correo. ADR-0117 reservó la página `/reset-password` y dejó listos los tokens de enlace. Faltaban el rango de la vigencia, qué pasa con los enlaces pendientes al cambiar el email, si restablecer verifica el email, quién recibe el enlace y el contenido del correo.
+- **Decisión:**
+  - **Enlace:** `FRONTEND_BASE_URL/reset-password?token=…`, con el mismo token de 256 bits de ADR-0117, guardado como SHA-256. Vigencia `PASSWORD_RESET_TTL`: 30m por defecto, de 5m a 2h, en `.env.example`.
+  - **Solicitud (`POST /v1/auth/password-reset/request`):**
+    - Responde 202 siempre.
+    - Envía a clientes (verificados o no) y a staff activos; nada a cuentas suspendidas ni a emails inexistentes.
+    - Cada enlace nuevo invalida los anteriores.
+    - Las solicitudes no se auditan: son anónimas.
+    - La respuesta tarda algo más cuando el email existe, porque envía el correo. Se acepta porque el registro ya revela si un email existe (ADR-0062).
+  - **Restablecimiento (`POST /v1/auth/password-reset/confirm`):**
+    - El enlace sirve una vez, dentro de su vigencia y para una cuenta que puede iniciar sesión, con su fila bloqueada; si no, 400 `invalid-or-expired-token`.
+    - La contraseña nueva cumple la política en el campo `newPassword`. Si no la cumple, el enlace sigue sirviendo, así que se puede corregir sin pedir otro. No se exige que sea distinta de la anterior: quien restablece no la recuerda.
+    - Se revocan todas las sesiones y se quita `mustChangePassword`, porque la persona eligió su contraseña. Así, un staff que perdió su contraseña temporal recupera la cuenta sin que lo reactiven.
+    - Responde 204.
+    - Se audita `auth.password-reset` con el dueño como actor.
+    - Después del commit se envía el aviso "Tu contraseña cambió" de ADR-0115.
+  - **Email verificado al restablecer:** recibir el enlace prueba que la dirección funciona, así que un email sin verificar queda verificado. La fecha de una verificación anterior se conserva.
+  - **Enlaces pendientes al cambiar el email:** `ChangeEmail` (ADR-0117) también invalida los enlaces de recuperación pendientes. No guardan la dirección a la que se enviaron, y quien controle el buzón anterior no debe poder restablecer la contraseña después del cambio. Con esto, un enlace de recuperación usable siempre fue enviado a la dirección actual.
+  - **Correo "Restablece tu contraseña":** solo texto, con el nombre, el enlace, "vence en 30 minutos y sirve una sola vez" y "si no lo pediste, ignora este mensaje: tu contraseña no cambia". Si falla, queda en el log sin la dirección y no se reintenta (ADR-0110).
+  - **Regla común de los enlaces:** `isUsableLink` (sin usar, sin reemplazar y sin vencer) en `domain/one-time-link.ts`, compartida con la verificación de email.
+- **Alternativas consideradas:**
+  - Vigencia de hasta 24 horas: un enlace que cambia la contraseña vivo tanto tiempo es un riesgo si alguien lee el buzón.
+  - Guardar la dirección en cada enlace de recuperación: cambia la tabla, y la invalidación al cambiar el email da el mismo resultado.
+  - No verificar el email al restablecer: el cliente tendría que pedir otro enlace para comprar, aunque acaba de probar que recibe correo.
+  - Marcar el enlace como usado aunque la contraseña no cumpla la política: obligaría a pedir otro por un error de escritura.
+- **Consecuencias:**
+  - Identity & Access queda completo para el Sprint 2: todos sus casos de uso con API, salvo la anonimización (UC-IAM-19), que pasó a T-132.
+  - Los enlaces vencidos o usados los borrará la limpieza diaria (T-231).
+- **Estado:** Aceptada (plan de T-123 aprobado el 2026-09-29).

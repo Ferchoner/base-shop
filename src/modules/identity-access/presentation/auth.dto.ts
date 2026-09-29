@@ -137,3 +137,28 @@ export class EmailVerifiedDto {
   @ApiProperty({ enum: [true], example: true })
   emailVerified: true;
 }
+
+/** `POST /v1/auth/password-reset/request` (API_SPEC.md §9.8, UC-IAM-07). */
+export class PasswordResetRequestDto {
+  /** @example 'cliente@example.com' */
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+}
+
+/** `POST /v1/auth/password-reset/confirm` (API_SPEC.md §9.9, UC-IAM-08). */
+export class PasswordResetConfirmDto {
+  /** El token del enlace. */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(256)
+  token: string;
+
+  /**
+   * 15 a 64 caracteres y no una contraseña común (ADR-0047). La política responde `password-policy-violation`.
+   * @example 'una frase nueva y segura'
+   */
+  @IsString()
+  newPassword: string;
+}

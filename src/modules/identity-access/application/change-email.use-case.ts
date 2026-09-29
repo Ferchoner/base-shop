@@ -10,6 +10,7 @@ import { UserRepository } from '../domain/user.repository.js';
 import { EmailChangeNotice } from './email-change-notice.js';
 import { EmailVerifications } from './email-verifications.js';
 import { PasswordHasher } from './password-hasher.js';
+import { PasswordResets } from './password-resets.js';
 import { findUserOfType } from './user-support.js';
 
 export type ChangeEmailResult =
@@ -18,8 +19,8 @@ export type ChangeEmailResult =
 
 /**
  * A customer changes their email (UC-IAM-10, BR-USR-11): the current password is required, the new email
- * must be free and stays unverified, so they cannot buy until they verify it. Links sent to the previous
- * address stop working. After the commit, the new address gets its link and the previous one a notice
+ * must be free and stays unverified, so they cannot buy until they verify it. Verification and recovery
+ * links sent to the previous address stop working (ADR-0118). After the commit, the new address gets its link and the previous one a notice
  * (ADR-0117). Audited as a security event, without the addresses.
  */
 @Injectable()
@@ -28,6 +29,7 @@ export class ChangeEmail {
     private readonly users: UserRepository,
     private readonly hasher: PasswordHasher,
     private readonly verifications: EmailVerifications,
+    private readonly resets: PasswordResets,
     private readonly notice: EmailChangeNotice,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
@@ -52,6 +54,7 @@ export class ChangeEmail {
       const now = this.clock.now();
       const address = user.email as string;
       const token = await this.verifications.issue(user.id, address, now);
+      await this.resets.invalidatePendingOf(user.id, now);
       await this.audit.record({
         action: 'auth.email-change',
         resource: { type: 'user', id: user.id },

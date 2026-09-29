@@ -1,31 +1,16 @@
 import type { Id } from '../../../shared-kernel/index.js';
+import type { OneTimeLink } from './one-time-link.js';
 import type { UserId } from './user.js';
 
 export type EmailVerificationTokenId = Id<'EmailVerificationToken'>;
 
 /** A verification link as stored: only its SHA-256 hash, never the token (DATABASE.md §3.6, ADR-0046). */
-export interface EmailVerificationToken {
+export interface EmailVerificationToken extends OneTimeLink {
   readonly id: EmailVerificationTokenId;
   readonly userId: UserId;
   /** The address the link was sent to; it verifies only that one. */
   readonly email: string;
   readonly tokenHash: string;
-  readonly expiresAt: Date;
-  readonly usedAt: Date | null;
-  /** Set when a newer link replaced it. */
-  readonly invalidatedAt: Date | null;
-}
-
-/** A link verifies once, within its lifetime, and only until a newer one replaces it (BR-USR-11). */
-export function isUsableVerification(
-  token: EmailVerificationToken,
-  now: Date,
-): boolean {
-  return (
-    token.usedAt === null &&
-    token.invalidatedAt === null &&
-    token.expiresAt.getTime() > now.getTime()
-  );
 }
 
 /**

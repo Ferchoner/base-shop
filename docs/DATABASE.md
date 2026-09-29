@@ -168,6 +168,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 `email_verification_tokens` (ADR-0117): guarda el SHA-256 del token y el email al que se envió el enlace. Un enlace nuevo, o un cambio de email, pone `invalidated_at` en los pendientes de la cuenta; confirmarlo pone `used_at`, con la fila bloqueada.
 
+`password_reset_tokens` (ADR-0118): igual, sin la dirección. Un enlace nuevo o un cambio de email invalida los pendientes; restablecer pone `used_at`, con la fila bloqueada.
+
 ---
 
 ## 4. Catalog

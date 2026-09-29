@@ -6,6 +6,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import { EmailVerificationTokenRepository } from '../domain/email-verification.js';
 import type { UserId } from '../domain/user.js';
+import { lifetimeInWords } from './lifetime-in-words.js';
 import { newLinkToken } from './link-tokens.js';
 
 /** Seconds a verification link lives (`EMAIL_VERIFICATION_TTL`, BR-USR-11). */
@@ -64,7 +65,7 @@ export class EmailVerifications {
           'Confirma tu correo en este enlace:',
           this.links.link(VERIFY_EMAIL_PAGE, { token }),
           '',
-          `El enlace vence en ${lifetime(this.ttlSeconds)} y sirve una sola vez. Si pides otro, este deja de funcionar.`,
+          `El enlace vence en ${lifetimeInWords(this.ttlSeconds)} y sirve una sola vez. Si pides otro, este deja de funcionar.`,
           '',
           'Si no creaste una cuenta ni cambiaste tu correo, ignora este mensaje.',
         ].join('\n'),
@@ -75,13 +76,4 @@ export class EmailVerifications {
       );
     }
   }
-}
-
-/** `24 horas`, `1 hora` or `90 minutos`. */
-function lifetime(seconds: number): string {
-  if (seconds % 3600 === 0) {
-    const hours = seconds / 3600;
-    return hours === 1 ? '1 hora' : `${hours} horas`;
-  }
-  return `${Math.round(seconds / 60)} minutos`;
 }
