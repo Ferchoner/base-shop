@@ -112,6 +112,7 @@ Autenticación (ADR-0114):
 - `request.user` lo llena el guard global de `IdentityAccessModule`, que `AppModule` importa antes que `RateLimitingModule` y `AuthorizationModule`. Un módulo con guards globales nuevos debe respetar ese orden.
 - Cada solicitud autenticada lee la cuenta y la sesión, así que un cambio de estado, roles o sesión aplica desde la siguiente solicitud sin hacer nada más.
 - En local, `JWT_SECRET` puede quedar vacía: la API firma con una clave aleatoria y las sesiones terminan al reiniciar. En producción es obligatoria.
+- Toda contraseña nueva (registro, restablecimiento, cambio, contraseña temporal) pasa por `PasswordPolicy.assertAcceptable(contraseña, campo)`, que responde 400 `password-policy-violation` con el campo y la regla (ADR-0115). La API lee la lista de contraseñas comunes de `data/passwords/` al arrancar, relativa al directorio de trabajo; los pasos para actualizarla están en `data/passwords/README.md`.
 
 Listados (ADR-0036, ADR-0111):
 
@@ -331,6 +332,7 @@ ADR-0057, ADR-0109. Los estados y municipios del INEGI se cargan con un script, 
   - Van en `src/scripts/` y arrancan un contexto de aplicación de Nest con solo los módulos que usan.
   - Registran cada línea del resultado en el log y terminan con código 0 o 1.
   - `npm run <script>` compila antes de ejecutar. En el contenedor de desarrollo (cuyo `start:dev` compila solo) y en la imagen de producción se ejecutan con `node dist/scripts/<script>.js`.
+- **Scripts de mantenimiento:** también van en `src/scripts/`, pero no usan Nest ni la base. Por ejemplo, `npm run passwords:build -- <lista descargada>` regenera la lista de contraseñas comunes (ADR-0115).
 
 ## Pull Requests
 

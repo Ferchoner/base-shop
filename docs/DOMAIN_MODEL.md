@@ -34,7 +34,7 @@ Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de doma
 | Casos de uso | RegisterCustomer, Authenticate (`SignIn`), RefreshSession, Logout (`SignOut`), ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ReactivateUser (ADR-0076), ManageAddresses |
 | No sale del contexto | passwordHash, tokens, intentos de login, datos de recuperación |
 
-Autenticación: ADR-0022, ADR-0023 y ADR-0114. Los refresh tokens de un inicio de sesión forman una sesión, que se revoca completa. Suspender una cuenta revoca sus sesiones en la misma transacción (ADR-0111), no en respuesta a `UserSuspended`.
+Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR-0047) es una regla del dominio (`domain/password.ts`), aplicada por `PasswordPolicy` con el puerto `CommonPasswords` (ADR-0115). Los refresh tokens de un inicio de sesión forman una sesión, que se revoca completa. Suspender una cuenta revoca sus sesiones en la misma transacción (ADR-0111), no en respuesta a `UserSuspended`.
 
 ## Catalog
 

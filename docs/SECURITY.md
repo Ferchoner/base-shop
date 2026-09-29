@@ -55,6 +55,9 @@ Mecanismo (ADR-0023):
 - Hash de contraseñas con Argon2id de `node:crypto`: 19 MiB, 2 pasadas y 1 carril (mínimo de OWASP), formato PHC y normalización NFKC (ADR-0114).
 - El login responde igual y tarda lo mismo con un email inexistente: se compara contra un hash de reemplazo (ADR-0062, ADR-0114).
 - Política de contraseñas (ADR-0047): de 15 a 64 caracteres, sin reglas de composición, aceptando letras, dígitos, espacio y todos los símbolos imprimibles, y rechazo de contraseñas comunes mediante una lista local. Aplica a clientes, staff y contraseñas temporales (generadas por el sistema).
+  - Implementada en ADR-0115: la longitud se cuenta en caracteres tras normalizar a NFKC, y se rechazan tabuladores, saltos de línea y caracteres de control o invisibles.
+  - La lista son 5,328 contraseñas comunes de SecLists (`data/passwords/`). La API no arranca sin ella.
+  - El cambio de contraseña comprueba la actual antes que la política.
 - Segundo factor (2FA): pospuesto, con el diseño de autenticación preparado para incorporarlo (ADR-0048).
 - Cambio de contraseña desde la cuenta: revoca las demás sesiones, conserva la actual y envía aviso por correo (ADR-0072).
 - Recuperación de contraseña (ADR-0056): enlace de un solo uso vigente 30 minutos, token guardado con hash, respuesta que no revela si el email existe, límite por email y por IP, revocación de todas las sesiones al restablecer y aviso por correo. El cambio obligatorio del staff pide la contraseña temporal.

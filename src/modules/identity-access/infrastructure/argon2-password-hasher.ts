@@ -2,6 +2,7 @@ import { argon2, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Injectable } from '@nestjs/common';
 import { PasswordHasher } from '../application/password-hasher.js';
+import { normalizePassword } from '../domain/password.js';
 
 const deriveKey = promisify(argon2);
 
@@ -80,7 +81,7 @@ function derive(
   tagLength: number,
 ): Promise<Buffer> {
   return deriveKey('argon2id', {
-    message: password.normalize('NFKC'),
+    message: normalizePassword(password),
     nonce: salt,
     memory: cost.memory,
     passes: cost.passes,

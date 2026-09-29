@@ -26,6 +26,7 @@ export interface UserSnapshot {
   readonly emailVerifiedAt: Date | null;
   /** Argon2id hash in PHC format (ADR-0023, ADR-0114); `null` only for an anonymized customer. */
   readonly passwordHash: string | null;
+  readonly passwordChangedAt: Date | null;
   readonly mustChangePassword: boolean;
   readonly lastLoginAt: Date | null;
   readonly suspendedAt: Date | null;
@@ -116,6 +117,26 @@ export class User {
       throw new InvalidValueError('A staff member has at least one role');
     }
     this.state = { ...this.state, roleIds: unique };
+  }
+
+  /**
+   * Replaces the password with a new hash, already checked against the policy (UC-IAM-09, BR-USR-10). It
+   * also ends a pending change of a temporary password (BR-USR-09). Only an account that can sign in has a
+   * password to change.
+   */
+  changePassword(passwordHash: string, at: Date): void {
+    if (!this.canSignIn) {
+      throw new InvalidStateTransitionError(
+        this.state.status,
+        'change password',
+      );
+    }
+    this.state = {
+      ...this.state,
+      passwordHash,
+      passwordChangedAt: at,
+      mustChangePassword: false,
+    };
   }
 
   /** Called by the repository once a change is saved. */

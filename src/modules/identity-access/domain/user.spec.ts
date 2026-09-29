@@ -22,6 +22,7 @@ function user(type: UserType, status: UserStatus = 'ACTIVE'): User {
     lastNames: 'Pérez',
     emailVerifiedAt: null,
     passwordHash: status === 'ANONYMIZED' ? null : '$argon2id$v=19$…',
+    passwordChangedAt: null,
     mustChangePassword: false,
     lastLoginAt: null,
     suspendedAt: status === 'SUSPENDED' ? new Date('2026-09-01') : null,
@@ -141,6 +142,33 @@ describe('User (ADR-0043, ADR-0076)', () => {
       expect(withoutPassword.canSignIn).toBe(false);
     });
   });
+});
+
+describe('User.changePassword (UC-IAM-09, BR-USR-09)', () => {
+  it('replaces the hash, records when, and ends a pending temporary password', () => {
+    const staff = User.restore({
+      ...user('STAFF').snapshot(),
+      mustChangePassword: true,
+    });
+
+    staff.changePassword('$argon2id$v=19$new', NOW);
+
+    expect(staff.snapshot()).toMatchObject({
+      passwordHash: '$argon2id$v=19$new',
+      passwordChangedAt: NOW,
+      mustChangePassword: false,
+    });
+    expect(staff.canSignIn).toBe(true);
+  });
+
+  it.each(['SUSPENDED', 'ANONYMIZED'] as const)(
+    'never changes the password of a %s account',
+    (status) => {
+      expect(() =>
+        user('CUSTOMER', status).changePassword('$argon2id$v=19$new', NOW),
+      ).toThrow(InvalidStateTransitionError);
+    },
+  );
 });
 
 describe('normalizeEmail (BR-USR-01)', () => {

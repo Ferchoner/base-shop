@@ -6,6 +6,7 @@ import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
 import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
+import { MailModule } from '../../../platform/mail/mail.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import { newId, NotFoundError } from '../../../shared-kernel/index.js';
@@ -64,6 +65,7 @@ describe('Customer addresses (T-130, UC-IAM-11)', () => {
         ClockModule,
         AppCacheModule,
         RateLimitingModule,
+        MailModule,
         AuditModule,
         IdentityAccessModule,
       ],
