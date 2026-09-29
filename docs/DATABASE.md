@@ -166,6 +166,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 `refresh_tokens` (ADR-0114): guarda el SHA-256 del token. Al renovar, el token anterior queda con `revoked_at` y `replaced_by_id`, y el nuevo pertenece a la misma sesión (`session_id`). Una sesión está activa mientras tenga un token sin revocar y sin vencer. La renovación bloquea la fila del token (`SELECT … FOR UPDATE`) para que dos renovaciones simultáneas corran en serie.
 
+`email_verification_tokens` (ADR-0117): guarda el SHA-256 del token y el email al que se envió el enlace. Un enlace nuevo, o un cambio de email, pone `invalidated_at` en los pendientes de la cuenta; confirmarlo pone `used_at`, con la fila bloqueada.
+
 ---
 
 ## 4. Catalog

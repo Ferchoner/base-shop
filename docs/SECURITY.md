@@ -64,6 +64,9 @@ Mecanismo (ADR-0023):
 - Recuperación de contraseña (ADR-0056): enlace de un solo uso vigente 30 minutos, token guardado con hash, respuesta que no revela si el email existe, límite por email y por IP, revocación de todas las sesiones al restablecer y aviso por correo. El cambio obligatorio del staff pide la contraseña temporal.
 - Los enlaces de verificación y recuperación usan la URL base del frontend configurada por variable de entorno (ADR-0056).
 - Verificación de email (ADR-0046): enlace de un solo uso vigente 24 horas; reenvío limitado que invalida el anterior; nueva verificación al cambiar de email.
+  - Implementada en ADR-0117: el token del enlace (256 bits) se guarda solo como hash, y verifica únicamente la dirección a la que se envió.
+  - El reenvío responde igual en todos los casos y solo envía a clientes activos sin verificar.
+  - Cambiar el email pide la contraseña actual, se audita y avisa al email anterior, sin mostrarle el nuevo.
 - La clave de firma de los JWT se gestiona como secreto (ADR-0032).
 - El refresh token dura 7 días (configurable).
 - Si se presenta un refresh token ya rotado, se revoca toda la sesión a la que pertenece y el usuario debe volver a iniciar sesión.

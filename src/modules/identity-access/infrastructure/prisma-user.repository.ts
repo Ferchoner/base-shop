@@ -63,6 +63,7 @@ export class PrismaUserRepository extends UserRepository {
           passwordChangedAt: state.passwordChangedAt,
           mustChangePassword: state.mustChangePassword,
           emailVerifiedAt: state.emailVerifiedAt,
+          privacyNoticeVersion: state.privacyNoticeVersion,
           version: state.version,
           createdAt: state.createdAt,
           roles: {
@@ -82,17 +83,27 @@ export class PrismaUserRepository extends UserRepository {
   async save(user: User, changedBy: UserId | null): Promise<void> {
     const tx = this.txHost.tx;
     const state = user.snapshot();
-    const { count } = await tx.user.updateMany({
-      where: { id: state.id, version: state.version },
-      data: {
-        status: state.status,
-        suspendedAt: state.suspendedAt,
-        passwordHash: state.passwordHash,
-        passwordChangedAt: state.passwordChangedAt,
-        mustChangePassword: state.mustChangePassword,
-        version: { increment: 1 },
-      },
-    });
+    let count: number;
+    try {
+      ({ count } = await tx.user.updateMany({
+        where: { id: state.id, version: state.version },
+        data: {
+          status: state.status,
+          email: state.email,
+          emailVerifiedAt: state.emailVerifiedAt,
+          firstNames: state.firstNames,
+          lastNames: state.lastNames,
+          suspendedAt: state.suspendedAt,
+          passwordHash: state.passwordHash,
+          passwordChangedAt: state.passwordChangedAt,
+          mustChangePassword: state.mustChangePassword,
+          version: { increment: 1 },
+        },
+      }));
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new DuplicateValueError('email');
+      throw error;
+    }
     if (count === 0) {
       const current = await tx.user.findUnique({
         where: { id: state.id },
@@ -144,6 +155,7 @@ function toUser(row: UserRow): User {
     lastLoginAt: row.lastLoginAt,
     suspendedAt: row.suspendedAt,
     anonymizedAt: row.anonymizedAt,
+    privacyNoticeVersion: row.privacyNoticeVersion,
     createdAt: row.createdAt,
     roleIds: row.roles.map(({ roleId }) => toId<'Role'>(roleId)),
     version: row.version,

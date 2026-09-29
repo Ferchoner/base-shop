@@ -1,9 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import {
   PERMISSION_CODES,
   type PermissionCode,
 } from '../../../shared-kernel/index.js';
+import { NOT_BLANK, toNormalizedEmail } from './auth.dto.js';
 import { StaffRoleDto } from './identity-admin.dto.js';
 
 // Plain fields are documented by the Swagger plugin; enums, lists and dates declare their type with
@@ -60,4 +70,39 @@ export class ChangePasswordDto {
    */
   @IsString()
   newPassword: string;
+}
+
+/** `PATCH /v1/me` (API_SPEC.md §9.11): only the fields sent change; neither accepts `null`. */
+export class UpdateAccountDto {
+  /** @example 'María José' */
+  @ValidateIf((_, value) => value !== undefined)
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  firstNames?: string;
+
+  /** @example 'López Hernández' */
+  @ValidateIf((_, value) => value !== undefined)
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  lastNames?: string;
+}
+
+/** `POST /v1/me/email` (API_SPEC.md §9.13, UC-IAM-10). */
+export class ChangeEmailDto {
+  /**
+   * Se guarda en minúsculas y queda sin verificar.
+   * @example 'nuevo@example.com'
+   */
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  newEmail: string;
+
+  /** @example 'una frase larga y segura' */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  currentPassword: string;
 }

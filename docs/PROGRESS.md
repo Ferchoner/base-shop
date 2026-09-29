@@ -110,6 +110,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] T-120 (parte a): login, renovación con rotación y detección de reutilización, cierre de sesión y `GET /v1/me`; cada solicitud autenticada comprueba la cuenta y la sesión, así que suspender o cerrar sesión corta el token de acceso de inmediato; Argon2id de `node:crypto`; autenticación antes del rate limiting y de la autorización (ADR-0114)
 - [x] T-120 (parte b) y T-120 terminada: política de contraseñas de ADR-0047 (longitud tras NFKC, caracteres imprimibles y 5,328 contraseñas comunes de SecLists en `data/passwords/`) y `POST /v1/me/password`, que conserva la sesión actual, revoca las demás y avisa por correo (ADR-0115)
 - [x] T-131: alta y reactivación del staff por la API con contraseña temporal mostrada una sola vez, y script del primer superadministrador que se niega si ya hay uno activo, con bloqueo y test de concurrencia (ADR-0116)
+- [x] T-121: registro de clientes, verificación de email con enlace de un solo uso (`/verify-email?token=…`, `EMAIL_VERIFICATION_TTL`), reenvío que no revela si el email existe, cambio de email con contraseña y aviso al anterior, y `PATCH /v1/me` (ADR-0117)
 
 ## In Progress
 

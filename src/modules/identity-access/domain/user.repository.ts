@@ -25,7 +25,8 @@ export abstract class UserRepository {
 
   /**
    * Saves the account and its roles, recording who assigned new roles. Rejects with `VersionConflictError`
-   * when another change was saved since the account was read (optimistic locking).
+   * when another change was saved since the account was read (optimistic locking), and with
+   * `DuplicateValueError` on the `email` when a new email belongs to another account.
    */
   abstract save(user: User, changedBy: UserId | null): Promise<void>;
 

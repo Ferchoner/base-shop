@@ -3,6 +3,7 @@ import {
   InvalidValueError,
   newId,
 } from '../../../shared-kernel/index.js';
+import { SameEmailError } from './identity-errors.js';
 import type { RoleId } from './role.js';
 import {
   normalizeEmail,
@@ -27,6 +28,7 @@ function user(type: UserType, status: UserStatus = 'ACTIVE'): User {
     lastLoginAt: null,
     suspendedAt: status === 'SUSPENDED' ? new Date('2026-09-01') : null,
     anonymizedAt: null,
+    privacyNoticeVersion: type === 'CUSTOMER' ? '2026-09' : null,
     createdAt: new Date('2026-08-01'),
     roleIds: [],
     version: 3,
@@ -161,6 +163,7 @@ describe('User (ADR-0043, ADR-0076)', () => {
         lastLoginAt: null,
         suspendedAt: null,
         anonymizedAt: null,
+        privacyNoticeVersion: null,
         createdAt: NOW,
         roleIds: [roleId],
         version: 1,
@@ -255,5 +258,113 @@ describe('normalizeEmail (BR-USR-01)', () => {
     expect(normalizeEmail('  Ana.Perez@Example.COM ')).toBe(
       'ana.perez@example.com',
     );
+  });
+});
+
+describe('User.registerCustomer (UC-IAM-01, BR-USR-15)', () => {
+  it('creates an active customer with an email to verify and the privacy notice version', () => {
+    const id = newId<'User'>();
+
+    const customer = User.registerCustomer({
+      id,
+      email: ' Maria@Example.com ',
+      firstNames: 'María',
+      lastNames: 'López',
+      passwordHash: '$argon2id$v=19$hash',
+      privacyNoticeVersion: '2026-09',
+      now: NOW,
+    });
+
+    expect(customer.snapshot()).toEqual({
+      id,
+      type: 'CUSTOMER',
+      status: 'ACTIVE',
+      email: 'maria@example.com',
+      firstNames: 'María',
+      lastNames: 'López',
+      emailVerifiedAt: null,
+      passwordHash: '$argon2id$v=19$hash',
+      passwordChangedAt: NOW,
+      mustChangePassword: false,
+      lastLoginAt: null,
+      suspendedAt: null,
+      anonymizedAt: null,
+      privacyNoticeVersion: '2026-09',
+      createdAt: NOW,
+      roleIds: [],
+      version: 1,
+    });
+    expect(customer.emailVerified).toBe(false);
+  });
+});
+
+describe('User email (UC-IAM-02, UC-IAM-10, BR-USR-11)', () => {
+  it('verifies the email the link was sent to', () => {
+    const customer = user('CUSTOMER');
+
+    expect(customer.verifyEmail('persona@example.com', NOW)).toBe(true);
+    expect(customer.snapshot().emailVerifiedAt).toBe(NOW);
+    expect(customer.emailVerified).toBe(true);
+  });
+
+  it('never verifies an address the account no longer has, or an account that cannot sign in', () => {
+    const customer = user('CUSTOMER');
+    const suspended = user('CUSTOMER', 'SUSPENDED');
+
+    expect(customer.verifyEmail('anterior@example.com', NOW)).toBe(false);
+    expect(suspended.verifyEmail('persona@example.com', NOW)).toBe(false);
+    expect(customer.emailVerified).toBe(false);
+    expect(suspended.emailVerified).toBe(false);
+  });
+
+  it('changes the email in lowercase, and leaves it to verify again', () => {
+    const customer = User.restore({
+      ...user('CUSTOMER').snapshot(),
+      emailVerifiedAt: NOW,
+    });
+
+    customer.changeEmail(' Nueva@Example.com ');
+
+    expect(customer.snapshot()).toMatchObject({
+      email: 'nueva@example.com',
+      emailVerifiedAt: null,
+    });
+  });
+
+  it('answers the same email, whatever its case, as a validation error', () => {
+    expect(() => user('CUSTOMER').changeEmail('PERSONA@example.com')).toThrow(
+      SameEmailError,
+    );
+  });
+
+  it('only lets an active customer change their email', () => {
+    expect(() => user('STAFF').changeEmail('otro@example.com')).toThrow(
+      'Only customers change their own email',
+    );
+    expect(() =>
+      user('CUSTOMER', 'SUSPENDED').changeEmail('otro@example.com'),
+    ).toThrow(InvalidStateTransitionError);
+  });
+});
+
+describe('User.rectify (ADR-0067)', () => {
+  it('changes only the names given', () => {
+    const customer = user('CUSTOMER');
+
+    customer.rectify({ lastNames: 'Pérez Gómez' });
+
+    expect(customer.snapshot()).toMatchObject({
+      firstNames: 'Ana',
+      lastNames: 'Pérez Gómez',
+    });
+  });
+
+  it('is only for active customers', () => {
+    expect(() => user('STAFF').rectify({ firstNames: 'Luis' })).toThrow(
+      'Only customers rectify their own data',
+    );
+    expect(() =>
+      user('CUSTOMER', 'SUSPENDED').rectify({ firstNames: 'Luis' }),
+    ).toThrow(InvalidStateTransitionError);
   });
 });

@@ -14,7 +14,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-08. Cada cuenta es de tipo cliente o staff. Las cuentas de staff no compran y los clientes nunca tienen roles (ADR-0043).
 - BR-USR-09. Las cuentas de staff solo las crea un superadministrador, con contraseña temporal que se cambia obligatoriamente en el primer inicio de sesión.
 - BR-USR-10. Las contraseñas de todas las cuentas cumplen la política de ADR-0047 (implementada en ADR-0115: `PasswordPolicy`).
-- BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas; cambiar el email obliga a verificarlo de nuevo (ADR-0046).
+- BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas (`EMAIL_VERIFICATION_TTL`); cambiar el email obliga a verificarlo de nuevo, y el email anterior recibe un aviso (ADR-0046, ADR-0117).
 - BR-USR-12. La respuesta a una solicitud de reenvío de verificación no revela si el email existe (ADR-0046).
 - BR-USR-13. Las contraseñas temporales del staff las genera el sistema con al menos 15 caracteres (ADR-0047): 20 caracteres aleatorios en grupos de cuatro (ADR-0116).
 - BR-USR-14. Una cuenta suspendida se reactiva con una acción explícita, con motivo y auditada, por el mismo permiso que la suspende. El staff reactivado recibe una contraseña temporal nueva con cambio obligatorio y conserva sus roles; el cliente reactivado conserva su contraseña. Una cuenta anonimizada no se reactiva (ADR-0076).

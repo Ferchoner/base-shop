@@ -598,20 +598,21 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 - **Validaciones:** `email` con formato válido, máximo 254 caracteres, se normaliza a minúsculas; `password` según ADR-0047; `firstNames` y `lastNames` de 1 a 100 caracteres; `privacyNoticeVersion` de 1 a 50 caracteres (ADR-0067).
 - **Response 201:** `Account`. Se envía el correo de verificación (ADR-0046). No inicia sesión: el cliente llama a login.
+- **Implementado en T-121 (ADR-0117):** la respuesta lleva `Cache-Control: no-store`. `password-policy-violation` indica la regla en el campo `password`. El enlace es `FRONTEND_BASE_URL/verify-email?token=…` y vence según `EMAIL_VERIFICATION_TTL` (24 horas por defecto).
 - **Errores:** 400 `password-policy-violation`; 409 `duplicate-value` con `field: "email"` (el registro sí revela que el email existe, ADR-0062).
 
 ### 9.3 `POST /v1/auth/email-verification/confirm` — Verificar email (UC-IAM-02)
 
 - **Autenticación:** ninguna.
 - **Request:** `{ "token": "…" }` (el token del enlace; ADR-0056).
-- **Response 200:** `{ "emailVerified": true }`.
+- **Response 200:** `{ "emailVerified": true }`. Implementado en T-121 (ADR-0117): el enlace verifica solo la dirección a la que se envió, y solo si la cuenta sigue teniéndola y está activa.
 - **Errores:** 400 `invalid-or-expired-token`.
 
 ### 9.4 `POST /v1/auth/email-verification/resend` — Reenviar verificación (UC-IAM-03)
 
 - **Autenticación:** ninguna. **Rate limit:** 3 por email por hora.
 - **Request:** `{ "email": "cliente@example.com" }`.
-- **Response 202** sin cuerpo, exista o no el email y esté o no verificado (BR-USR-12). Invalida el enlace anterior.
+- **Response 202** sin cuerpo, exista o no el email y esté o no verificado (BR-USR-12). Invalida el enlace anterior. Implementado en T-121 (ADR-0117): solo envía a un cliente activo sin verificar; a cuentas verificadas, suspendidas o de staff no envía nada.
 
 ### 9.5 `POST /v1/auth/login` — Iniciar sesión (UC-IAM-04)
 
@@ -657,7 +658,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 - **Autenticación:** token de cliente.
 - **Request:** `{ "firstNames": "…", "lastNames": "…" }` (ambos opcionales, 1–100 caracteres). El email se cambia con `POST /v1/me/email`.
-- **Response 200:** `Account`. Se audita sin valores personales (ADR-0067).
+- **Response 200:** `Account`. Se audita sin valores personales (ADR-0067). Implementado en T-121 (ADR-0117): no acepta `null`; si nada cambia, no se guarda ni se audita.
 
 ### 9.12 `POST /v1/me/password` — Cambiar contraseña (UC-IAM-09)
 
@@ -677,6 +678,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Autenticación:** token de cliente. **Rate limit:** 3 por hora.
 - **Request:** `{ "newEmail": "…", "currentPassword": "…" }`.
 - **Response 200:** `Account` con `emailVerified: false`. Se envía verificación al nuevo email; el cliente no puede comprar hasta verificarlo (BR-USR-11).
+- **Implementado en T-121 (ADR-0117):** el email anterior recibe el aviso "Tu correo cambió", sin la dirección nueva, y sus enlaces pendientes dejan de servir. El mismo email que ya se tiene responde 400 `validation-error` con `sameEmail`. El límite cuenta también los intentos con contraseña incorrecta, que se auditan.
 - **Errores:** 401 `invalid-credentials`; 409 `duplicate-value` (`field: "email"`).
 
 ### 9.14 Direcciones (UC-IAM-11)

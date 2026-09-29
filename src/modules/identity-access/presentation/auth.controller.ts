@@ -1,5 +1,7 @@
 import { Body, Controller, Header, HttpCode, Post, Req } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
+  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -11,28 +13,91 @@ import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { FailedAttemptLimiter } from '../../../platform/http/rate-limiting/failed-attempt-limiter.js';
+import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { rateLimitKey } from '../../../platform/http/rate-limiting/rate-limit-keys.js';
-import { toId } from '../../../shared-kernel/index.js';
+import { NotFoundError, toId } from '../../../shared-kernel/index.js';
+import { ConfirmEmail } from '../application/confirm-email.use-case.js';
+import { IdentityQueries } from '../application/identity.queries.js';
 import { RefreshSession } from '../application/refresh-session.use-case.js';
+import { RegisterCustomer } from '../application/register-customer.use-case.js';
+import { ResendEmailVerification } from '../application/resend-email-verification.use-case.js';
 import type { IssuedTokens } from '../application/session-tokens.js';
 import { SignIn } from '../application/sign-in.use-case.js';
 import { SignOut } from '../application/sign-out.use-case.js';
-import { AuthResultDto, LoginDto, RefreshTokenDto } from './auth.dto.js';
+import { AccountDto } from './account.dto.js';
+import {
+  AuthResultDto,
+  ConfirmEmailDto,
+  EmailVerifiedDto,
+  LoginDto,
+  RefreshTokenDto,
+  RegisterDto,
+  ResendEmailVerificationDto,
+} from './auth.dto.js';
+import { toAccountDto } from './identity-admin.mappers.js';
 
 /**
- * Sign-in, renewal and sign-out (UC-IAM-04 to 06, API_SPEC.md §9.5 to §9.7, ADR-0023). Login is not a
- * Passport strategy: the body is validated first, like any other request, and then the use case checks the
- * credentials (ADR-0114).
+ * Sign-up and email verification (UC-IAM-01 to 03, API_SPEC.md §9.2 to §9.4, ADR-0117), and sign-in, renewal
+ * and sign-out (UC-IAM-04 to 06, §9.5 to §9.7, ADR-0023). Login is not a Passport strategy: the body is
+ * validated first, like any other request, and then the use case checks the credentials (ADR-0114).
  */
 @ApiTags('Autenticación')
 @Controller('auth')
 export class AuthController {
   constructor(
+    private readonly registerCustomer: RegisterCustomer,
+    private readonly confirmEmail: ConfirmEmail,
+    private readonly resendEmailVerification: ResendEmailVerification,
+    private readonly queries: IdentityQueries,
     private readonly signIn: SignIn,
     private readonly refreshSession: RefreshSession,
     private readonly signOut: SignOut,
     private readonly failedAttempts: FailedAttemptLimiter,
   ) {}
+
+  @ApiOperation({
+    summary: 'Registrarse como cliente',
+    description:
+      'Crea la cuenta sin verificar y envía el enlace de verificación. No inicia sesión. Si el email ya está registrado, lo indica. Límite: 5 por IP por hora.',
+  })
+  @ApiCreatedResponse({ type: AccountDto })
+  @ApiProblemResponses('password-policy-violation', 'duplicate-value')
+  @RateLimit('register')
+  @Post('register')
+  @Header('Cache-Control', 'no-store')
+  async register(@Body() body: RegisterDto): Promise<AccountDto> {
+    const userId = await this.registerCustomer.execute(body);
+    const account = await this.queries.findAccount(userId);
+    if (account === null) throw new NotFoundError('User', userId);
+    return toAccountDto(account, []);
+  }
+
+  @ApiOperation({
+    summary: 'Verificar mi email',
+    description:
+      'Con el token del enlace. Sirve una sola vez, dentro de su vigencia, y solo si es el último enviado.',
+  })
+  @ApiOkResponse({ type: EmailVerifiedDto })
+  @ApiProblemResponses('invalid-or-expired-token')
+  @Post('email-verification/confirm')
+  @HttpCode(200)
+  async confirm(@Body() body: ConfirmEmailDto): Promise<EmailVerifiedDto> {
+    await this.confirmEmail.execute(body);
+    return { emailVerified: true };
+  }
+
+  @ApiOperation({
+    summary: 'Reenviar el enlace de verificación',
+    description:
+      'Responde igual exista o no el email, y esté o no verificado. El enlace nuevo invalida los anteriores. Límite: 3 por email por hora.',
+  })
+  @ApiAcceptedResponse()
+  @RateLimit('email-verification')
+  @Post('email-verification/resend')
+  @HttpCode(202)
+  async resend(@Body() body: ResendEmailVerificationDto): Promise<void> {
+    await this.resendEmailVerification.execute(body);
+  }
 
   @ApiOperation({
     summary: 'Iniciar sesión',

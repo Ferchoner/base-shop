@@ -10,11 +10,18 @@ import {
   AddressLocations,
   MAX_ADDRESSES,
 } from './application/address-locations.js';
+import { ChangeEmail } from './application/change-email.use-case.js';
 import { ChangePassword } from './application/change-password.use-case.js';
+import { ConfirmEmail } from './application/confirm-email.use-case.js';
 import { CreateFirstSuperadmin } from './application/create-first-superadmin.use-case.js';
 import { CreateRole } from './application/create-role.use-case.js';
 import { CreateStaff } from './application/create-staff.use-case.js';
 import { DeleteRole } from './application/delete-role.use-case.js';
+import { EmailChangeNotice } from './application/email-change-notice.js';
+import {
+  EMAIL_VERIFICATION_TTL_SECONDS,
+  EmailVerifications,
+} from './application/email-verifications.js';
 import { IdentityAccessFacade } from './application/identity-access.facade.js';
 import { IdentityQueries } from './application/identity.queries.js';
 import { PasswordChangeNotice } from './application/password-change-notice.js';
@@ -25,9 +32,12 @@ import {
 } from './application/password-policy.js';
 import { ReactivateCustomer } from './application/reactivate-customer.use-case.js';
 import { ReactivateStaff } from './application/reactivate-staff.use-case.js';
+import { RectifyCustomer } from './application/rectify-customer.use-case.js';
 import { RefreshSession } from './application/refresh-session.use-case.js';
+import { RegisterCustomer } from './application/register-customer.use-case.js';
 import { RemoveAddress } from './application/remove-address.use-case.js';
 import { ReplaceStaffRoles } from './application/replace-staff-roles.use-case.js';
+import { ResendEmailVerification } from './application/resend-email-verification.use-case.js';
 import { ResolveSignedInAccount } from './application/resolve-signed-in-account.js';
 import {
   AccessTokens,
@@ -43,6 +53,7 @@ import { TemporaryPasswords } from './application/temporary-passwords.js';
 import { UpdateAddress } from './application/update-address.use-case.js';
 import { UpdateRole } from './application/update-role.use-case.js';
 import { AddressBookRepository } from './domain/address-book.repository.js';
+import { EmailVerificationTokenRepository } from './domain/email-verification.js';
 import { RoleRepository } from './domain/role.repository.js';
 import { SessionRepository } from './domain/session.repository.js';
 import { UserRepository } from './domain/user.repository.js';
@@ -54,6 +65,7 @@ import { GeoAddressLocations } from './infrastructure/geo-address-locations.js';
 import { JwtAccessTokens } from './infrastructure/jwt-access-tokens.js';
 import { JwtStrategy } from './infrastructure/jwt.strategy.js';
 import { PrismaAddressBookRepository } from './infrastructure/prisma-address-book.repository.js';
+import { PrismaEmailVerificationTokenRepository } from './infrastructure/prisma-email-verification-token.repository.js';
 import { PrismaIdentityQueries } from './infrastructure/prisma-identity.queries.js';
 import { PrismaRoleRepository } from './infrastructure/prisma-role.repository.js';
 import { PrismaSessionRepository } from './infrastructure/prisma-session.repository.js';
@@ -92,6 +104,13 @@ import { MeController } from './presentation/me.controller.js';
     SignIn,
     RefreshSession,
     SignOut,
+    RegisterCustomer,
+    ConfirmEmail,
+    ResendEmailVerification,
+    ChangeEmail,
+    RectifyCustomer,
+    EmailVerifications,
+    EmailChangeNotice,
     ChangePassword,
     PasswordPolicy,
     PasswordChangeNotice,
@@ -105,6 +124,12 @@ import { MeController } from './presentation/me.controller.js';
         AccessTokenKey.fromConfig(config),
     },
     {
+      provide: EMAIL_VERIFICATION_TTL_SECONDS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        parseDuration(config.get('EMAIL_VERIFICATION_TTL', { infer: true })),
+    },
+    {
       provide: REFRESH_TOKEN_TTL_SECONDS,
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
@@ -114,6 +139,10 @@ import { MeController } from './presentation/me.controller.js';
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },
     { provide: CommonPasswords, useFactory: () => new FileCommonPasswords() },
     { provide: SessionRepository, useClass: PrismaSessionRepository },
+    {
+      provide: EmailVerificationTokenRepository,
+      useClass: PrismaEmailVerificationTokenRepository,
+    },
     SuperadminContinuity,
     CreateRole,
     UpdateRole,
