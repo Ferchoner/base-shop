@@ -44,7 +44,7 @@ src/
 │   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
-├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109), y de mantenimiento, como la generación de la lista de contraseñas comunes (ADR-0115)
+├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109) y la creación del primer superadministrador (ADR-0116), y de mantenimiento, como la generación de la lista de contraseñas comunes (ADR-0115)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122), el catálogo de permisos, la paginación y los errores de versión y de estado (T-130); sin NestJS
 └── modules/
     ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)

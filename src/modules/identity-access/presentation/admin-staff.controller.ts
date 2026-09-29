@@ -7,8 +7,14 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../../platform/auth/authenticated-user.js';
 import { RequirePermissions } from '../../../platform/auth/authorization.decorators.js';
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
@@ -22,20 +28,24 @@ import {
   IdentityQueries,
   type StaffSortField,
 } from '../application/identity.queries.js';
+import { CreateStaff } from '../application/create-staff.use-case.js';
+import { ReactivateStaff } from '../application/reactivate-staff.use-case.js';
 import { ReplaceStaffRoles } from '../application/replace-staff-roles.use-case.js';
 import { SuspendStaff } from '../application/suspend-staff.use-case.js';
 import {
+  CreateStaffDto,
   ReasonDto,
   ReplaceRolesDto,
   StaffListDto,
   StaffListQueryDto,
   StaffUserDto,
+  StaffWithTemporaryPasswordDto,
 } from './identity-admin.dto.js';
 import { pathId, toStaffUserDto } from './identity-admin.mappers.js';
 
 /**
- * Staff accounts (UC-IAM-14 and 16, API_SPEC.md §9.17). Creating staff and reactivating it issue a temporary
- * password, so they come with T-131.
+ * Staff accounts (UC-IAM-13, 14 and 16, API_SPEC.md §9.17). Creating and reactivating a staff member answer
+ * its temporary password once; every response here is `Cache-Control: no-store` (ADR-0112).
  */
 @ApiTags('Administración: identidad')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -44,8 +54,10 @@ import { pathId, toStaffUserDto } from './identity-admin.mappers.js';
 export class AdminStaffController {
   constructor(
     private readonly queries: IdentityQueries,
+    private readonly createStaff: CreateStaff,
     private readonly replaceStaffRoles: ReplaceStaffRoles,
     private readonly suspendStaff: SuspendStaff,
+    private readonly reactivateStaff: ReactivateStaff,
   ) {}
 
   @ApiOperation({ summary: 'Listar el staff' })
@@ -63,6 +75,31 @@ export class AdminStaffController {
       query,
     );
     return toPageResponse(page, query, toStaffUserDto);
+  }
+
+  @ApiOperation({
+    summary: 'Dar de alta a un miembro del staff',
+    description:
+      'Genera una contraseña temporal que se muestra solo en esta respuesta y se cambia en el primer inicio de sesión. No se envía invitación por correo.',
+  })
+  @ApiCreatedResponse({ type: StaffWithTemporaryPasswordDto })
+  @ApiProblemResponses('duplicate-value')
+  @Post()
+  async create(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() body: CreateStaffDto,
+    @Res({ passthrough: true })
+    response: { setHeader(name: string, value: string): void },
+  ): Promise<StaffWithTemporaryPasswordDto> {
+    const { userId, temporaryPassword } = await this.createStaff.execute({
+      actorId: toId(actor.id),
+      email: body.email,
+      firstNames: body.firstNames,
+      lastNames: body.lastNames,
+      roleIds: body.roleIds.map((roleId) => toId<'Role'>(roleId)),
+    });
+    response.setHeader('Location', `/v1/admin/identity/staff/${userId}`);
+    return { user: await this.read(userId), temporaryPassword };
   }
 
   @ApiOperation({ summary: 'Consultar un miembro del staff' })
@@ -123,6 +160,34 @@ export class AdminStaffController {
       version: body.version,
     });
     return this.read(id);
+  }
+
+  @ApiOperation({
+    summary: 'Reactivar a un miembro del staff',
+    description:
+      'Solo desde SUSPENDED. Conserva sus roles y recibe una contraseña temporal nueva, que se muestra solo en esta respuesta y se cambia en el siguiente inicio de sesión.',
+  })
+  @ApiOkResponse({ type: StaffWithTemporaryPasswordDto })
+  @ApiProblemResponses(
+    'not-found',
+    'version-conflict',
+    'invalid-state-transition',
+  )
+  @HttpCode(200)
+  @Post(':userId/reactivate')
+  async reactivate(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('userId') userId: string,
+    @Body() body: ReasonDto,
+  ): Promise<StaffWithTemporaryPasswordDto> {
+    const id = pathId<'User'>(userId, 'Staff member');
+    const { temporaryPassword } = await this.reactivateStaff.execute({
+      actorId: toId(actor.id),
+      userId: id,
+      reason: body.reason,
+      version: body.version,
+    });
+    return { user: await this.read(id), temporaryPassword };
   }
 
   private async read(userId: string): Promise<StaffUserDto> {

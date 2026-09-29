@@ -36,7 +36,8 @@
 - Los errores de validación nunca repiten el valor rechazado, y la ruta de `instance` va sin la cadena de consulta (ADR-0095).
 - El identificador de correlación lo genera siempre el servidor; uno enviado por el cliente se ignora, para que no se pueda falsificar ni usar para inyectar texto en los logs (ADR-0095).
 - `Cache-Control: no-store` en respuestas autenticadas o con datos personales o tokens.
-- La contraseña temporal del staff se muestra una sola vez, en la respuesta de creación o de reactivación (ADR-0076).
+- La contraseña temporal del staff se muestra una sola vez, en la respuesta de creación o de reactivación (ADR-0076). Son 20 caracteres aleatorios (unos 100 bits), pasan la política de contraseñas y se guardan solo como hash (ADR-0116).
+- El primer superadministrador se crea con un script que muestra su contraseña temporal una sola vez en la terminal, nunca en el log, y que se niega a correr si ya hay un superadministrador activo (ADR-0116).
 - Un staff con cambio de contraseña pendiente solo accede a su cuenta, al cambio de contraseña y al cierre de sesión.
 - Las rutas públicas de carrito solo operan sobre carritos sin dueño.
 - El pago de un invitado exige el `cartId` de origen de la orden.

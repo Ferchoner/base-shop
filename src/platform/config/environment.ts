@@ -4,12 +4,15 @@ import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
 import {
   buildMessage,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
+  Length,
   Matches,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateBy,
@@ -205,6 +208,41 @@ export class EnvironmentVariables {
   @Expose()
   @IsDurationWithin(3_600, 90 * 86_400, 'from 1h to 90d')
   REFRESH_TOKEN_TTL: string = '7d';
+
+  /**
+   * Email of the first superadmin, read only by the script that creates it (UC-IAM-20, ADR-0116). Optional:
+   * the API never uses it.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value !== ''
+      ? value.trim().toLowerCase()
+      : undefined,
+  )
+  @IsOptional()
+  @IsEmail({}, { message: '$property must be an email address' })
+  @MaxLength(254, { message: '$property must have at most 254 characters' })
+  SUPERADMIN_EMAIL?: string;
+
+  /** First names of the first superadmin, for the same script: 1 to 100 characters. */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
+  @IsOptional()
+  @Length(1, 100, { message: '$property must have 1 to 100 characters' })
+  @Matches(/\S/, { message: '$property must not be blank' })
+  SUPERADMIN_FIRST_NAMES?: string;
+
+  /** Last names of the first superadmin, for the same script: 1 to 100 characters. */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
+  @IsOptional()
+  @Length(1, 100, { message: '$property must have 1 to 100 characters' })
+  @Matches(/\S/, { message: '$property must not be blank' })
+  SUPERADMIN_LAST_NAMES?: string;
 }
 
 /**

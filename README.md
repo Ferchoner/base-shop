@@ -25,7 +25,7 @@ Levanta PostgreSQL 18, Mailpit (bandeja en `http://localhost:8025`) y la API en 
 docker compose exec api npm run db:migrate:deploy
 ```
 
-La primera vez también hay que cargar el catálogo geográfico: `docker compose exec api node dist/scripts/import-geo-catalog.js data/inegi/municipios-2026-06.csv`.
+La primera vez también hay que cargar el catálogo geográfico: `docker compose exec api node dist/scripts/import-geo-catalog.js data/inegi/municipios-2026-06.csv`. Y crear el primer superadministrador, que muestra su contraseña temporal una sola vez: `docker compose exec -e SUPERADMIN_EMAIL=… -e SUPERADMIN_FIRST_NAMES=… -e SUPERADMIN_LAST_NAMES=… api node dist/scripts/create-first-superadmin.js`.
 
 Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci`, `npm run db:migrate:deploy`, `npm run geo:import -- data/inegi/municipios-2026-06.csv` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
 
@@ -43,6 +43,8 @@ Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `np
 | `npm run db:diff` | Verifica que la base coincide con el esquema de Prisma |
 | `npm run db:generate` | Genera el cliente de Prisma |
 | `npm run geo:import -- <archivo>` | Carga o actualiza el catálogo de estados y municipios del INEGI (`data/inegi/`) |
+| `npm run superadmin:create` | Crea el primer superadministrador con las variables `SUPERADMIN_*` y muestra su contraseña temporal |
+| `npm run passwords:build -- <archivo>` | Regenera la lista de contraseñas comunes (`data/passwords/`) |
 
 ## Documentación
 

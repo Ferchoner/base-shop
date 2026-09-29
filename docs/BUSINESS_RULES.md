@@ -16,7 +16,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-10. Las contraseñas de todas las cuentas cumplen la política de ADR-0047 (implementada en ADR-0115: `PasswordPolicy`).
 - BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas; cambiar el email obliga a verificarlo de nuevo (ADR-0046).
 - BR-USR-12. La respuesta a una solicitud de reenvío de verificación no revela si el email existe (ADR-0046).
-- BR-USR-13. Las contraseñas temporales del staff las genera el sistema con al menos 15 caracteres (ADR-0047).
+- BR-USR-13. Las contraseñas temporales del staff las genera el sistema con al menos 15 caracteres (ADR-0047): 20 caracteres aleatorios en grupos de cuatro (ADR-0116).
 - BR-USR-14. Una cuenta suspendida se reactiva con una acción explícita, con motivo y auditada, por el mismo permiso que la suspende. El staff reactivado recibe una contraseña temporal nueva con cambio obligatorio y conserva sus roles; el cliente reactivado conserva su contraseña. Una cuenta anonimizada no se reactiva (ADR-0076).
 - BR-USR-15. El registro de cliente pide email, contraseña, nombres y apellidos; el teléfono se pide en cada dirección (ADR-0057).
 - BR-USR-16. La contraseña se recupera con un enlace enviado al email, de un solo uso y vigente 30 minutos; la respuesta no revela si el email existe; las cuentas suspendidas no reciben el correo; restablecer revoca todas las sesiones y envía un aviso (ADR-0056).

@@ -89,9 +89,88 @@ describe('User (ADR-0043, ADR-0076)', () => {
       },
     );
 
-    it('leaves staff reactivation to T-131, which issues a temporary password', () => {
+    it('never reactivates staff this way: staff gets a new temporary password', () => {
       expect(() => user('STAFF', 'SUSPENDED').reactivateCustomer()).toThrow(
-        'Staff reactivation issues a temporary password (T-131)',
+        'Staff is reactivated with a new temporary password',
+      );
+    });
+  });
+
+  describe('reactivateStaff (BR-USR-14, ADR-0076)', () => {
+    it('reactivates a suspended staff member with a new temporary password, keeping the roles', () => {
+      const roleId = newId<'Role'>();
+      const staff = User.restore({
+        ...user('STAFF', 'SUSPENDED').snapshot(),
+        roleIds: [roleId],
+      });
+
+      staff.reactivateStaff('$argon2id$v=19$temporary', NOW);
+
+      expect(staff.snapshot()).toMatchObject({
+        status: 'ACTIVE',
+        suspendedAt: null,
+        passwordHash: '$argon2id$v=19$temporary',
+        passwordChangedAt: NOW,
+        mustChangePassword: true,
+        roleIds: [roleId],
+      });
+    });
+
+    it.each(['ACTIVE', 'ANONYMIZED'] as const)(
+      'rejects reactivating %s staff with its current status',
+      (status) => {
+        expect(() =>
+          user('STAFF', status).reactivateStaff('$argon2id$v=19$x', NOW),
+        ).toThrow(InvalidStateTransitionError);
+      },
+    );
+
+    it('never gives a customer a temporary password', () => {
+      expect(() =>
+        user('CUSTOMER', 'SUSPENDED').reactivateStaff('$argon2id$v=19$x', NOW),
+      ).toThrow('A customer keeps their password when reactivated');
+    });
+  });
+
+  describe('createStaff (UC-IAM-13, BR-USR-09)', () => {
+    const roleId = newId<'Role'>();
+    const input = {
+      id: newId<'User'>(),
+      email: ' Ana.Perez@Example.com ',
+      firstNames: 'Ana',
+      lastNames: 'Pérez',
+      roleIds: [roleId, roleId],
+      temporaryPasswordHash: '$argon2id$v=19$temporary',
+      now: NOW,
+    };
+
+    it('creates an active staff account that must change its temporary password', () => {
+      const staff = User.createStaff(input);
+
+      expect(staff.snapshot()).toEqual({
+        id: input.id,
+        type: 'STAFF',
+        status: 'ACTIVE',
+        email: 'ana.perez@example.com',
+        firstNames: 'Ana',
+        lastNames: 'Pérez',
+        emailVerifiedAt: null,
+        passwordHash: '$argon2id$v=19$temporary',
+        passwordChangedAt: NOW,
+        mustChangePassword: true,
+        lastLoginAt: null,
+        suspendedAt: null,
+        anonymizedAt: null,
+        createdAt: NOW,
+        roleIds: [roleId],
+        version: 1,
+      });
+      expect(staff.canSignIn).toBe(true);
+    });
+
+    it('needs at least one role', () => {
+      expect(() => User.createStaff({ ...input, roleIds: [] })).toThrow(
+        InvalidValueError,
       );
     });
   });

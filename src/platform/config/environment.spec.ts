@@ -437,3 +437,56 @@ describe('Sessions (ADR-0023, ADR-0114)', () => {
     },
   );
 });
+
+describe('First superadmin (UC-IAM-20, ADR-0116)', () => {
+  it('leaves the script variables unset by default, also when empty as in .env.example', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        SUPERADMIN_EMAIL: '',
+        SUPERADMIN_FIRST_NAMES: '',
+        SUPERADMIN_LAST_NAMES: '',
+      }),
+    ).toMatchObject({
+      SUPERADMIN_EMAIL: undefined,
+      SUPERADMIN_FIRST_NAMES: undefined,
+      SUPERADMIN_LAST_NAMES: undefined,
+    });
+  });
+
+  it('keeps the email in lowercase, and the names as given', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        SUPERADMIN_EMAIL: ' Admin@Example.COM ',
+        SUPERADMIN_FIRST_NAMES: 'Ana María',
+        SUPERADMIN_LAST_NAMES: 'Pérez',
+      }),
+    ).toMatchObject({
+      SUPERADMIN_EMAIL: 'admin@example.com',
+      SUPERADMIN_FIRST_NAMES: 'Ana María',
+      SUPERADMIN_LAST_NAMES: 'Pérez',
+    });
+  });
+
+  it('rejects an invalid email without writing it in the error', () => {
+    const validate = () =>
+      validateEnvironment({ ...REQUIRED, SUPERADMIN_EMAIL: 'not-an-email' });
+
+    expect(validate).toThrow('SUPERADMIN_EMAIL must be an email address');
+    expect(validate).not.toThrow('not-an-email');
+  });
+
+  it.each([
+    ['blank', '   ', 'SUPERADMIN_FIRST_NAMES must not be blank'],
+    [
+      'too long',
+      'a'.repeat(101),
+      'SUPERADMIN_FIRST_NAMES must have 1 to 100 characters',
+    ],
+  ])('rejects %s names', (_, value, message) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, SUPERADMIN_FIRST_NAMES: value }),
+    ).toThrow(message);
+  });
+});
