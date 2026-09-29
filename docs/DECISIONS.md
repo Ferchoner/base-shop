@@ -131,6 +131,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0111 | Autorización, catálogo de permisos y base de Identity & Access | Aceptada |
 | ADR-0112 | Administración de roles, staff y clientes, y motivo en la auditoría | Aceptada |
 | ADR-0113 | Direcciones de clientes y uso del catálogo geográfico desde Identity | Aceptada |
+| ADR-0114 | Sesiones: login, renovación, cierre y autenticación de cada solicitud | Aceptada |
 
 ---
 
@@ -421,7 +422,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las estrategias delegan en casos de uso de Application (por ejemplo, Authenticate). La validación de credenciales y las reglas (usuario suspendido, BR-USR-02) no se implementan dentro de la estrategia.
   - El dominio no depende de Passport (ADR-0003).
 - **Consecuencias:** Passport define cómo se conectan las estrategias, no el mecanismo de sesión. El mecanismo concreto se define en ADR-0023. Los guards de autorización por permiso (ADR-0017) son independientes de Passport.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0114: Passport solo para el token de acceso; el login no usa estrategia.
 
 ---
 
@@ -444,7 +445,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La clave de firma de los JWT es un secreto y se gestiona según ADR-0032.
   - Cada refresh token pertenece a una sesión (familia de tokens), para poder revocarla completa al detectar reutilización.
   - Con 7 días sin renovar, el usuario debe volver a iniciar sesión.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada y modificada por ADR-0114: el login no usa la estrategia local, y cada solicitud comprueba la cuenta y la sesión, así que revocar una sesión o suspender una cuenta corta también el token de acceso.
 
 ---
 
@@ -966,7 +967,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La auditoría ya registra los eventos de autenticación, a los que se sumarán los del segundo factor.
 - **Alternativas consideradas:** Crear desde ahora columnas y endpoints de 2FA sin usarlos (descartado por la regla de evitar abstracciones sin uso).
 - **Consecuencias:** El tipo de segundo factor (aplicación de autenticación, correo u otro) y si será obligatorio para el staff se deciden al implementarlo.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Desenlaces de `SignIn` en ADR-0114.
 
 ---
 
@@ -2160,7 +2161,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las reglas del dominio deben impedir duplicados por sí mismas (carrito ya marcado, un pago por orden), porque una llave abandonada puede volver a ejecutarse.
   - T-120 debe dejar el usuario autenticado en `request.user.id` para `userScope`.
   - La limpieza de llaves vencidas queda en el job diario (T-231).
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 deja el usuario autenticado en `request.user.id`.
 
 ---
 
@@ -2250,7 +2251,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una ruta inexistente responde 404 antes de los guards, así que no gasta el límite general.
   - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
   - Los endpoints de T-120, T-130, T-180 y siguientes declaran su límite con `@RateLimit`, y el login usa `FailedAttemptLimiter`.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 conecta `FailedAttemptLimiter` al login y ejecuta la autenticación antes del rate limiting.
 
 ---
 
@@ -2594,7 +2595,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
   - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
   - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
-- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas.
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender.
 
 ---
 
@@ -2688,3 +2689,63 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Toda integración futura entre contextos sigue este puerto con su adaptador.
   - Las órdenes guardan su propia copia de la dirección, así que borrar o cambiar una dirección no las afecta.
 - **Estado:** Aceptada (plan de T-130 parte c aprobado el 2026-09-28).
+
+---
+
+## ADR-0114 — Sesiones: login, renovación, cierre y autenticación de cada solicitud
+
+- **Fecha:** 2026-09-29
+- **Contexto:** T-120, parte (a). ADR-0022 y ADR-0023 fijaron Passport, un JWT de acceso de 15 minutos, un refresh token opaco rotado con detección de reutilización y Argon2id. ADR-0048 pidió desenlaces y una respuesta de login preparados para 2FA. ADR-0099, ADR-0100 y ADR-0102 esperan el usuario en `request.user.id` y la autenticación antes del rate limiting, y ADR-0111 dejó la autorización lista, a la espera de `request.user`. Faltaban el mecanismo concreto, qué se comprueba en cada solicitud, la clave de firma y la implementación de Argon2id.
+- **Decisión:**
+  - **Reparto de T-120** en dos pull requests: (a) sesiones, esta decisión; (b) contraseñas, con la política de ADR-0047, la lista de contraseñas comunes y `POST /v1/me/password` (UC-IAM-09).
+  - **Login sin la estrategia local de Passport** (modifica ADR-0023). El controlador valida el cuerpo como en cualquier otra ruta, así que un campo desconocido o un email mal formado responden 400, y después llama al caso de uso `SignIn`. En NestJS los guards corren antes de la validación, y la estrategia local habría leído el cuerpo sin validar. Passport queda para el token de acceso (ADR-0022).
+  - **Desenlaces (ADR-0048):**
+    - `SignIn` devuelve `AUTHENTICATED`, `INVALID_CREDENTIALS` o `ACCOUNT_DISABLED`, y la API responde a los dos últimos igual: 401 `invalid-credentials` (ADR-0062).
+    - El staff con contraseña temporal recibe tokens (`API_SPEC.md` §9.5), así que su desenlace es `AUTHENTICATED` con `mustChangePassword`. Un segundo factor sería otro desenlace, sin tokens.
+    - Un email inexistente se compara contra un hash de reemplazo, para que la respuesta tarde lo mismo que con una cuenta real.
+  - **Token de acceso:** JWT firmado con HS256, que lleva solo `sub` (el usuario) y `sid` (la sesión), además de `iat` y `exp`. La verificación acepta solo HS256.
+  - **Cada solicitud autenticada lee la cuenta** (modifica ADR-0023 y el criterio de UC-IAM-06):
+    - El guard global `AccessTokenGuard` usa la estrategia JWT de Passport.
+    - Con un token válido, `ResolveSignedInAccount` comprueba que la cuenta siga ACTIVE y que la sesión tenga un refresh token usable, y lee los permisos y `mustChangePassword` actuales. Los permisos salen de la misma función que `IdentityAccessFacade.permissionsOf`, sobre la cuenta ya leída.
+    - Así, una suspensión, un cierre de sesión, una sesión revocada o un cambio de roles aplican desde la siguiente solicitud, no al vencer el token.
+    - Cuesta tres consultas indexadas por solicitud autenticada.
+    - El guard nunca rechaza: sin `Authorization`, o con un token inválido o vencido, la solicitud sigue sin usuario. `AuthorizationGuard` responde 401 en las rutas que lo exigen, y las públicas ignoran el token.
+  - **Orden de los guards:** `IdentityAccessModule` registra el guard de autenticación, y `AppModule` lo importa antes que `RateLimitingModule` y `AuthorizationModule`. Corren autenticación, rate limiting (los límites por usuario ven quién llama) y autorización.
+  - **`AuthenticatedUser` gana `sessionId`**, para conservar la sesión actual al cambiar la contraseña (ADR-0072).
+  - **Refresh token:**
+    - Es `rt_` más 256 bits aleatorios en base64url. Se guarda solo su SHA-256: con esa entropía, un hash rápido basta.
+    - Al renovar se bloquea su fila (`SELECT … FOR UPDATE`), se crea uno nuevo en la misma sesión y el anterior queda con `revoked_at` y `replaced_by_id`.
+    - Una sesión está activa mientras tenga un token sin revocar y sin vencer.
+    - Presentar un token ya rotado revoca la sesión y audita `auth.refresh-token-reuse`, y eso se confirma aunque la respuesta sea 401. Dos renovaciones simultáneas con el mismo token cuentan como reutilización; un test de concurrencia lo comprueba.
+    - Un token vencido, revocado o desconocido, o de una cuenta que ya no puede entrar, responde 401 `invalid-refresh-token`.
+  - **Cierre de sesión:** revoca la sesión del refresh token si es del usuario autenticado; si no, responde 204 igual. Se permite con la contraseña temporal pendiente.
+  - **Suspensión:** `SuspendStaff` y `SuspendCustomer` revocan todas las sesiones de la cuenta en la misma transacción (ADR-0111).
+  - **Argon2id de `node:crypto`** (Node 24.7 o posterior; `engines` lo exige), sin dependencia nativa:
+    - costo mínimo recomendado por OWASP: 19 MiB, 2 pasadas y 1 carril; sal de 16 bytes y hash de 32;
+    - formato PHC, compatible con la implementación de referencia (un test verifica un hash de argon2-cffi), con el costo en cada hash para poder subirlo después;
+    - las contraseñas se normalizan a NFKC antes del hash (NIST SP 800-63B);
+    - un hash guardado mal formado, o con un costo fuera de límites (más de 1 GiB de memoria), nunca coincide.
+  - **Auditoría:** `auth.login` (éxito, con el usuario como actor; fallo, DENIED, con actor ANONYMOUS y registrado aparte), `auth.logout` y `auth.refresh-token-reuse`. `last_login_at` se guarda sin cambiar la versión de la cuenta, así que no provoca conflictos con un administrador que la edita.
+  - **Intentos fallidos:** el controlador de login consulta `FailedAttemptLimiter` por email y por IP antes de verificar las credenciales, y registra el fallo cuando no son válidas (ADR-0102). Login, renovación y cierre también cuentan en el límite general por IP.
+  - **`Cache-Control: no-store`** en las respuestas de login y renovación, que llevan tokens.
+  - **Configuración** en `.env.example`:
+    - `JWT_SECRET`, de al menos 32 caracteres, obligatoria en producción. En desarrollo y en tests, si falta, se usa una clave aleatoria por proceso (con un aviso en el log de desarrollo) y las sesiones terminan al reiniciar.
+    - `ACCESS_TOKEN_TTL` (15m por defecto, de 1m a 1h) y `REFRESH_TOKEN_TTL` (7d, de 1h a 90d), con el formato `<cantidad><s|m|h|d>`.
+  - **`GET /v1/me`**, que no tenía tarea, entra aquí; `PATCH /v1/me` pasa a T-121.
+  - **Dependencias:** `@nestjs/passport` 12.0.0, `@nestjs/jwt` 12.0.2, `passport` 0.7.0 y `passport-jwt` 4.0.1, sin scripts de instalación. `PassportModule` se registra con `register({})`, porque Nest 12 no hereda el `@Optional()` del guard de Passport en una subclase.
+- **Alternativas consideradas:**
+  - Estrategia local de Passport para el login: lee el cuerpo antes de validarlo.
+  - Permisos y estado dentro del token: sin consultas, pero una suspensión o un cambio de roles tardarían hasta 15 minutos en aplicar.
+  - Revisar la cuenta pero no la sesión: el cierre de sesión dejaría vivo el token de acceso hasta 15 minutos.
+  - Paquete `argon2`, nativo y con script de instalación (ADR-0108), o `@node-rs/argon2`.
+  - Firma asimétrica (EdDSA o RS256): solo esta API firma y verifica.
+  - Periodo de gracia para renovaciones simultáneas: ADR-0023 pide revocar ante cualquier reutilización.
+  - Exigir `JWT_SECRET` también en desarrollo: obligaría a llenar `.env` antes de levantar Docker Compose.
+- **Consecuencias:**
+  - El frontend debe renovar de una en una: dos renovaciones simultáneas con el mismo refresh token cierran la sesión.
+  - Cambiar `JWT_SECRET` invalida los tokens de acceso vigentes; los refresh tokens siguen sirviendo para obtener otros.
+  - Una sesión dura mientras se renueve antes de que venza su refresh token; no hay duración máxima absoluta.
+  - Hasta T-121 y T-131 nadie puede iniciar sesión fuera de los tests: todavía no existen el registro de clientes ni el alta de staff.
+  - La API de Argon2 de Node está en fase "release candidate"; si cambiara, el adaptador es el único punto que hay que tocar.
+  - Los tests de autorización siguen con el autenticador de prueba de `test/support/`; los de autenticación inician sesión de verdad.
+- **Estado:** Aceptada (plan de T-120 aprobado el 2026-09-29).

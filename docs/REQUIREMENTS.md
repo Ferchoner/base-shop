@@ -161,7 +161,7 @@ Criterios de aceptación:
 - **UC-IAM-03:** la respuesta es idéntica exista o no el email; el reenvío invalida el enlace anterior; aplica límite de frecuencia.
 - **UC-IAM-04:** credenciales válidas devuelven token de acceso y refresh token en un objeto con campos nombrados; un usuario suspendido no obtiene tokens; un staff con contraseña temporal recibe el desenlace "cambio de contraseña obligatorio"; los intentos fallidos se auditan y tienen rate limiting. Email inexistente, contraseña incorrecta y cuenta suspendida producen la misma respuesta de credenciales no válidas (ADR-0062).
 - **UC-IAM-05:** cada renovación rota el refresh token; presentar uno ya rotado revoca toda la sesión; un refresh token vencido (7 días) o revocado se rechaza.
-- **UC-IAM-06:** el refresh token queda revocado; el token de acceso sigue válido hasta vencer (15 minutos).
+- **UC-IAM-06:** el refresh token queda revocado, y los tokens de acceso de esa sesión dejan de servir en la siguiente solicitud (ADR-0114; antes se aceptaba que siguieran válidos hasta vencer).
 - **UC-IAM-07:** respuesta idéntica exista o no el email; no envía correo a cuentas suspendidas; límite de frecuencia por email y por IP; el nuevo enlace invalida los anteriores; el enlace usa la URL base del frontend configurada.
 - **UC-IAM-08:** token de un solo uso, vigente 30 minutos; la nueva contraseña cumple ADR-0047; revoca todas las sesiones del usuario; envía un correo avisando del cambio; se audita.
 - **UC-IAM-09:** exige la contraseña actual (la temporal, en el cambio obligatorio del staff); aplica la política de ADR-0047; se audita. Revoca las demás sesiones del usuario, conserva la actual y envía un aviso por correo (ADR-0072).

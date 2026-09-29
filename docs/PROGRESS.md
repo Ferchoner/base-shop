@@ -107,6 +107,7 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 - [x] T-130 (parte a): catálogo de permisos en el shared kernel, autorización con `@RequirePermissions` y `@RequireAccount` (falla cerrado), paginación de ADR-0036, agregados `User` y `Role` con bloqueo optimista, roles iniciales por migración y `permissionsOf` para T-120 (ADR-0111). La anonimización pasa a T-132 y la reactivación del staff a T-131
 - [x] T-130 (parte b): catálogo de permisos, CRUD de roles, roles y suspensión del staff, y listado, detalle, suspensión y reactivación de clientes; motivo en `audit_logs.reason`; nunca sin superadministrador activo, con bloqueo y test de concurrencia; ordenamiento por varios campos y `Cache-Control: no-store` (ADR-0112)
 - [x] T-130 (parte c) y T-130 terminada: libreta de direcciones del cliente en `/v1/me/addresses`, con máximo configurable (`MAX_ADDRESSES_PER_CUSTOMER`) y una sola predeterminada bajo bloqueo; validación con el catálogo geográfico a través de un puerto y un adaptador hacia `geo` (ADR-0113)
+- [x] T-120 (parte a): login, renovación con rotación y detección de reutilización, cierre de sesión y `GET /v1/me`; cada solicitud autenticada comprueba la cuenta y la sesión, así que suspender o cerrar sesión corta el token de acceso de inmediato; Argon2id de `node:crypto`; autenticación antes del rate limiting y de la autorización (ADR-0114)
 
 ## In Progress
 

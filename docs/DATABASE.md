@@ -164,6 +164,8 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 
 Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo las columnas de uso, revocación e invalidación.
 
+`refresh_tokens` (ADR-0114): guarda el SHA-256 del token. Al renovar, el token anterior queda con `revoked_at` y `replaced_by_id`, y el nuevo pertenece a la misma sesión (`session_id`). Una sesión está activa mientras tenga un token sin revocar y sin vencer. La renovación bloquea la fila del token (`SELECT … FOR UPDATE`) para que dos renovaciones simultáneas corran en serie.
+
 ---
 
 ## 4. Catalog

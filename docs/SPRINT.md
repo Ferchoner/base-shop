@@ -56,7 +56,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 - **Ruta crítica:** T-124 → T-130 → T-120 → T-131, T-121 y T-123. Un retraso en T-130 o T-120 retrasa el resto del sprint.
 - **Datos del INEGI:** T-124 necesita el archivo del catálogo del INEGI, que se descarga a mano (ADR-0057).
-- **Módulo nativo de Argon2id:** hay que comprobarlo en Windows, en la CI y en la imagen de Docker en cuanto se agregue.
+- **Módulo nativo de Argon2id (resuelto, ADR-0114):** se usa el Argon2id de `node:crypto` (Node 24.7 o posterior), sin módulo nativo, así que no depende de Windows, la CI ni la imagen de Docker.
 - **Seguridad de la autenticación:**
   - secretos de JWT solo en variables de entorno;
   - rotación de refresh tokens y detección de su reutilización;
