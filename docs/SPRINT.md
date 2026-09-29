@@ -2,11 +2,11 @@
 
 ## Sprint actual
 
-2 — Identity & Access. Inicio: 2026-09-28 (propuesta aprobada en el Sprint Review del Sprint 1).
+3 — Catálogo vendible (Catalog, Pricing e Inventory). Inicio: 2026-09-29 (propuesta aprobada en el Sprint Review del Sprint 2).
 
 ## Goal
 
-Identity & Access completo: clientes y staff pueden registrarse, verificar su correo, iniciar y cerrar sesión, recuperar su contraseña y operar con permisos. Todo endpoint del staff depende de esta base.
+Catálogo vendible: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas y costo de envío. Es lo que necesitan el carrito y el checkout del Sprint 4.
 
 ## Tasks
 
@@ -14,64 +14,39 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 | Paso | Tareas |
 |---|---|
-| 0 | Terminado el 2026-09-28 (ver "Resultado del paso 0"): revisión del repositorio contra los ADR; pull requests iniciales de Dependabot; scripts de instalación de las dependencias |
-| 1 | T-124 (catálogo geográfico del INEGI) y T-122 (puerto de envío de correos) |
-| 2 | T-130 (usuarios, roles, permisos y direcciones) |
-| 3 | T-120 (autenticación) |
-| 4 | T-131 (primer superadministrador y alta de staff), T-121 (verificación de email) y T-123 (recuperación de contraseña) |
+| 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot que haya; `npm run secrets:scan` para correr gitleaks en local antes de commitear |
+| 1 | T-150 (categorías y marcas), T-141 (almacenamiento de imágenes) y T-196 (costo de envío y envío gratis) |
+| 2 | T-140 (productos, variantes e imágenes, con la consulta pública) |
+| 3 | T-145 (precios) y T-160 (almacenes, stock y reservas) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
-- **T-130 en tres partes (ADR-0111):**
-  - (a) base: usuarios, roles, permisos, autorización y paginación;
-  - (b) administración de roles, staff y clientes;
-  - (c) direcciones.
-
-  Salen del sprint la anonimización, que pasa a la tarea nueva T-132 porque depende de Ordering, Shopping y Shipping, y la reactivación del staff, que pasa a T-131.
-- **T-120:** debe cumplir lo que esperan ADR-0099, ADR-0100 y ADR-0102:
-  - el usuario autenticado queda en `request.user.id`;
-  - la autenticación corre antes del guard de rate limiting;
-  - los logins fallidos se cuentan con `FailedAttemptLimiter`.
-- **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106).
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR, sin contradicciones:**
-  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso;
-  - las variables de `.env.example` coinciden con las que valida el código;
-  - existen los scripts que cita la documentación;
-  - los módulos tienen sus cuatro capas;
-  - las dependencias coinciden con el stack;
-  - los `overrides` de ADR-0091 siguen siendo necesarios.
-- **Arreglos menores:**
-  - el árbol de `ARCHITECTURE.md` suma el rate limiting y el módulo `audit/`;
-  - `JobsModule` ya no escribe una línea `DEBUG` en cada arranque de los tests.
-- **Dependabot:**
-  - #30 (versiones menores y parches) fusionado;
-  - #31 (TypeScript 7) cerrado, porque las herramientas todavía no lo admiten (ADR-0107).
-- **Scripts de instalación:** los 8 de las dependencias quedan negados y npm falla ante uno sin revisar (ADR-0108).
-- **Aviso de OpenSSL en la imagen de producción:** anotado para P-05 en `DATABASE.md`, sección 13.
-- **Sin acción:** `glob@10.5.0` aparece como obsoleto, pero llega por testcontainers y ts-jest, ya tiene la corrección de seguridad y `npm audit` está limpio.
+- **T-160:** incluye pruebas de concurrencia de las reservas (`DEVELOPMENT_GUIDE.md`, sección de tests).
+- **Pospuesto:** T-220 (consulta de auditoría) y reducir la imagen de producción.
+- **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan` (lecciones del Sprint 2).
 
 ## Risks
 
-- **Ruta crítica:** T-124 → T-130 → T-120 → T-131, T-121 y T-123. Un retraso en T-130 o T-120 retrasa el resto del sprint.
-- **Datos del INEGI:** T-124 necesita el archivo del catálogo del INEGI, que se descarga a mano (ADR-0057).
-- **Módulo nativo de Argon2id (resuelto, ADR-0114):** se usa el Argon2id de `node:crypto` (Node 24.7 o posterior), sin módulo nativo, así que no depende de Windows, la CI ni la imagen de Docker.
-- **Seguridad de la autenticación:**
-  - secretos de JWT solo en variables de entorno;
-  - rotación de refresh tokens y detección de su reutilización;
-  - mensajes que no revelan si una cuenta existe (ADR-0022, ADR-0023, ADR-0062).
-- **TypeScript 7 (resuelto: pospuesto, ADR-0107):**
-  - La propuesta de Dependabot (#31) fallaba en `npm ci`, porque ts-jest no admite TypeScript 7.
-  - Además, TypeScript 7 ya no expone la API de compilador que usan ts-jest, la CLI de Nest y el plugin de Swagger.
-  - El proyecto sigue en 6.x y Dependabot ignora las versiones mayores de TypeScript.
-- **Riesgos heredados del Sprint 1:** ver su review en el historial.
+- **Ruta crítica:** T-141 → T-140 → T-145 y T-160. Un retraso en T-140 retrasa el resto del sprint.
+- **Consulta pública del catálogo (ADR-0060):** lee en una sola consulta tablas de Catalog, Pricing e Inventory y oculta los productos sin precio vigente (BR-PRD-06). T-140 llega antes que T-145 y T-160, así que su plan debe decidir cómo se reparte la consulta pública entre esas tareas.
+- **Imágenes en el disco del servidor (ADR-0024):** hay que incluirlas en los respaldos, y la imagen de Docker necesita un volumen para ellas.
+- **Cache del catálogo público (ADR-0028):** se invalida por eventos de Catalog. Nunca se usa para stock ni precios al colocar una orden.
+- **Riesgos heredados del Sprint 2:** ver su review en el historial.
 
 ## Sprint Review
 
+PENDIENTE.
+
+---
+
+## Historial
+
+### Sprint 2 — Identity & Access (2026-09-28 a 2026-09-29)
+
+**Goal:** Identity & Access completo: clientes y staff pueden registrarse, verificar su correo, iniciar y cerrar sesión, recuperar su contraseña y operar con permisos. **Tareas:** T-124, T-122, T-130 (en tres partes), T-120 (en dos partes), T-131, T-121 y T-123, todas en DONE, precedidas por un paso 0.
+
 **Fecha:** 2026-09-29. **Resultado:** objetivo cumplido. Las 7 tareas están en DONE y el pipeline de CI está en verde en `main`. Clientes y staff pueden registrarse, verificar su correo, iniciar y cerrar sesión, recuperar su contraseña y operar con permisos. Queda fuera la anonimización (UC-IAM-19), que pasó a T-132 porque depende de Ordering.
 
-### Entregables
+#### Entregables
 
 | Entregable | Estado | Referencia |
 |---|---|---|
@@ -92,7 +67,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 El trabajo se integró en 15 pull requests a `main` (del #30 al #45; el #31, TypeScript 7, se cerró sin fusionar). La CI pasó en todos los de las tareas; sus dos únicos fallos fueron los del #31.
 
-### Decisiones abiertas que pasan al siguiente sprint
+#### Decisiones abiertas que pasan al siguiente sprint
 
 Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario.
 
@@ -103,7 +78,7 @@ Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario
 | Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
 | Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
 
-### Riesgos que pasan al siguiente sprint
+#### Riesgos que pasan al siguiente sprint
 
 - **Heredados del Sprint 1, siguen vigentes:**
   - si falla un handler de un evento, su efecto se pierde; solo los pagos tienen conciliación (ADR-0014, ADR-0098);
@@ -121,7 +96,7 @@ Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario
 - **Correos:** van a Mailpit hasta decidir el proveedor (P-24), y un envío fallido no se reintenta (ADR-0110).
 - **Fuera de este sprint:** adaptador de PayPal sin verificar (ADR-0040) y validaciones externas antes de operar con clientes reales (P-61, P-69).
 
-### Qué funcionó
+#### Qué funcionó
 
 - Partir las tareas grandes mantuvo cada pull request revisable: T-130 en tres partes y T-120 en dos, cada parte con su propio plan y preguntas.
 - Las pruebas de mutación encontraron huecos reales. Por ejemplo:
@@ -130,7 +105,7 @@ Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario
 - Cada bloqueo de fila tiene su test de concurrencia (direcciones, superadministrador, refresh tokens y primer superadministrador). El script del primer superadministrador se probó contra un PostgreSQL desechable, y la imagen de producción se construyó cada vez que cambió el `Dockerfile` o los datos que copia.
 - La CI pasó a la primera en todos los pull requests de las tareas.
 
-### Qué mejorar
+#### Qué mejorar
 
 - **gitleaks después del commit:** detectó tres falsos positivos en tests (T-120, T-131 y T-121), por la palabra "password" junto a un valor literal. Se corrigieron rehaciendo commits locales. Conviene correrlo antes de commitear: el paso 0 del Sprint 3 agrega `npm run secrets:scan`.
 - **Commits mezclados:** un `git mv` que ya estaba en el índice entró en el commit de código de T-123. Conviene revisar lo preparado (`git diff --cached --stat`) antes de cada commit.
@@ -138,31 +113,28 @@ Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario
 - **Test inestable latente:** el test de concurrencia de T-130 fallaba corrido solo, porque `pg_stat_activity` se leía dentro de la transacción que sostiene el bloqueo. Se detectó en T-120 y se arregló para todos. Conviene correr cada test de concurrencia nuevo también aislado.
 - **Particularidades de NestJS 12 descubiertas al ejecutar:** `@Optional()` no se hereda en una subclase (`PassportModule.register({})`, ADR-0114). Conviene escribir primero el test de integración de cada integración nueva con Nest.
 
-### Propuesta para el Sprint 3 (aprobada el 2026-09-29)
+#### Resultado del paso 0
 
-- **Objetivo:** catálogo vendible. Categorías, marcas, productos con variantes e imágenes, precios, stock con reservas y costo de envío: lo que necesitan el carrito y el checkout del Sprint 4.
-- **Tareas:**
-  - T-150: categorías y marcas.
-  - T-141: almacenamiento de imágenes.
-  - T-196: costo de envío y envío gratis.
-  - T-140: productos, variantes e imágenes, con la consulta pública.
-  - T-145: precios.
-  - T-160: almacenes, stock y reservas, con pruebas de concurrencia.
-- **Orden por dependencias:**
-  1. T-150, T-141 y T-196.
-  2. T-140.
-  3. T-145 y T-160.
-- **Antes de la primera tarea (paso 0):**
-  - Revisar el repositorio contra los ADR.
-  - Revisar los pull requests de Dependabot que haya.
-  - Agregar `npm run secrets:scan`, que corre gitleaks en local igual que la CI, y documentarlo como paso antes de commitear.
-- **Pospuesto:** T-220 (consulta de auditoría) y reducir la imagen de producción.
-- **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
-- **Limpieza:** se borraron las 6 ramas locales ya fusionadas; las del remoto se borran solas al fusionar.
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso;
+  - las variables de `.env.example` coinciden con las que valida el código;
+  - existen los scripts que cita la documentación;
+  - los módulos tienen sus cuatro capas;
+  - las dependencias coinciden con el stack;
+  - los `overrides` de ADR-0091 siguen siendo necesarios.
+- **Arreglos menores:**
+  - el árbol de `ARCHITECTURE.md` suma el rate limiting y el módulo `audit/`;
+  - `JobsModule` ya no escribe una línea `DEBUG` en cada arranque de los tests.
+- **Dependabot:**
+  - #30 (versiones menores y parches) fusionado;
+  - #31 (TypeScript 7) cerrado, porque las herramientas todavía no lo admiten (ADR-0107).
+- **Scripts de instalación:** los 8 de las dependencias quedan negados y npm falla ante uno sin revisar (ADR-0108).
+- **Aviso de OpenSSL en la imagen de producción:** anotado para P-05 en `DATABASE.md`, sección 13.
+- **Sin acción:** `glob@10.5.0` aparece como obsoleto, pero llega por testcontainers y ts-jest, ya tiene la corrección de seguridad y `npm audit` está limpio.
 
----
+#### Siguiente sprint
 
-## Historial
+La propuesta del Sprint 3 se aprobó el 2026-09-29; ver "Sprint actual".
 
 ### Sprint 1 — Fundaciones técnicas (2026-09-26 a 2026-09-28)
 
