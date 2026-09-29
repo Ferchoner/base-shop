@@ -368,3 +368,42 @@ describe('User.rectify (ADR-0067)', () => {
     ).toThrow(InvalidStateTransitionError);
   });
 });
+
+describe('User.resetPassword (UC-IAM-08, BR-USR-16)', () => {
+  it('sets the new hash, ends a temporary password and verifies the email the link reached', () => {
+    const staff = User.restore({
+      ...user('STAFF').snapshot(),
+      mustChangePassword: true,
+    });
+
+    staff.resetPassword('$argon2id$v=19$new', NOW);
+
+    expect(staff.snapshot()).toMatchObject({
+      passwordHash: '$argon2id$v=19$new',
+      passwordChangedAt: NOW,
+      mustChangePassword: false,
+      emailVerifiedAt: NOW,
+    });
+  });
+
+  it('keeps an earlier verification date', () => {
+    const verifiedAt = new Date('2026-09-01T00:00:00Z');
+    const customer = User.restore({
+      ...user('CUSTOMER').snapshot(),
+      emailVerifiedAt: verifiedAt,
+    });
+
+    customer.resetPassword('$argon2id$v=19$new', NOW);
+
+    expect(customer.snapshot().emailVerifiedAt).toBe(verifiedAt);
+  });
+
+  it.each(['SUSPENDED', 'ANONYMIZED'] as const)(
+    'never resets the password of a %s account',
+    (status) => {
+      expect(() =>
+        user('CUSTOMER', status).resetPassword('$argon2id$v=19$new', NOW),
+      ).toThrow(InvalidStateTransitionError);
+    },
+  );
+});

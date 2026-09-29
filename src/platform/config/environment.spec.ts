@@ -511,3 +511,24 @@ describe('EMAIL_VERIFICATION_TTL (BR-USR-11, ADR-0117)', () => {
     );
   });
 });
+
+describe('PASSWORD_RESET_TTL (BR-USR-16, ADR-0118)', () => {
+  it('defaults to 30 minutes', () => {
+    expect(validateEnvironment(REQUIRED).PASSWORD_RESET_TTL).toBe('30m');
+  });
+
+  it.each(['5m', '1h', '2h'])('accepts %p', (value) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, PASSWORD_RESET_TTL: value })
+        .PASSWORD_RESET_TTL,
+    ).toBe(value);
+  });
+
+  it.each(['4m', '121m', '1d'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, PASSWORD_RESET_TTL: value }),
+    ).toThrow(
+      'PASSWORD_RESET_TTL must be a duration such as 15m or 7d (s, m, h or d), from 5m to 2h',
+    );
+  });
+});
