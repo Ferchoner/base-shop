@@ -214,6 +214,11 @@ export class EnvironmentVariables {
   @IsDurationWithin(3_600, 7 * 86_400, 'from 1h to 7d')
   EMAIL_VERIFICATION_TTL: string = '24h';
 
+  /** Lifetime of a password recovery link, from 5 minutes to 2 hours (BR-USR-16, ADR-0056, ADR-0118). */
+  @Expose()
+  @IsDurationWithin(300, 7_200, 'from 5m to 2h')
+  PASSWORD_RESET_TTL: string = '30m';
+
   /**
    * Email of the first superadmin, read only by the script that creates it (UC-IAM-20, ADR-0116). Optional:
    * the API never uses it.

@@ -243,6 +243,27 @@ export class User {
   }
 
   /**
+   * Replaces a forgotten password through a recovery link (UC-IAM-08, BR-USR-16): the person chose it, so a
+   * pending temporary password ends too. Getting the link proves the account's address works, so an
+   * unverified email becomes verified (ADR-0118).
+   */
+  resetPassword(passwordHash: string, at: Date): void {
+    if (!this.canSignIn) {
+      throw new InvalidStateTransitionError(
+        this.state.status,
+        'reset password',
+      );
+    }
+    this.state = {
+      ...this.state,
+      passwordHash,
+      passwordChangedAt: at,
+      mustChangePassword: false,
+      emailVerifiedAt: this.state.emailVerifiedAt ?? at,
+    };
+  }
+
+  /**
    * Marks the email as verified (UC-IAM-02, ADR-0046), only while it is still the address the link was sent
    * to: a link for an address the account no longer has verifies nothing.
    */

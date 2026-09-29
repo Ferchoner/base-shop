@@ -20,7 +20,9 @@ import { ConfirmEmail } from '../application/confirm-email.use-case.js';
 import { IdentityQueries } from '../application/identity.queries.js';
 import { RefreshSession } from '../application/refresh-session.use-case.js';
 import { RegisterCustomer } from '../application/register-customer.use-case.js';
+import { RequestPasswordReset } from '../application/request-password-reset.use-case.js';
 import { ResendEmailVerification } from '../application/resend-email-verification.use-case.js';
+import { ResetPassword } from '../application/reset-password.use-case.js';
 import type { IssuedTokens } from '../application/session-tokens.js';
 import { SignIn } from '../application/sign-in.use-case.js';
 import { SignOut } from '../application/sign-out.use-case.js';
@@ -30,6 +32,8 @@ import {
   ConfirmEmailDto,
   EmailVerifiedDto,
   LoginDto,
+  PasswordResetConfirmDto,
+  PasswordResetRequestDto,
   RefreshTokenDto,
   RegisterDto,
   ResendEmailVerificationDto,
@@ -37,8 +41,9 @@ import {
 import { toAccountDto } from './identity-admin.mappers.js';
 
 /**
- * Sign-up and email verification (UC-IAM-01 to 03, API_SPEC.md §9.2 to §9.4, ADR-0117), and sign-in, renewal
- * and sign-out (UC-IAM-04 to 06, §9.5 to §9.7, ADR-0023). Login is not a Passport strategy: the body is
+ * Sign-up and email verification (UC-IAM-01 to 03, API_SPEC.md §9.2 to §9.4, ADR-0117), sign-in, renewal
+ * and sign-out (UC-IAM-04 to 06, §9.5 to §9.7, ADR-0023), and password recovery (UC-IAM-07 and 08, §9.8 and
+ * §9.9, ADR-0118). Login is not a Passport strategy: the body is
  * validated first, like any other request, and then the use case checks the credentials (ADR-0114).
  */
 @ApiTags('Autenticación')
@@ -48,6 +53,8 @@ export class AuthController {
     private readonly registerCustomer: RegisterCustomer,
     private readonly confirmEmail: ConfirmEmail,
     private readonly resendEmailVerification: ResendEmailVerification,
+    private readonly requestPasswordReset: RequestPasswordReset,
+    private readonly resetPassword: ResetPassword,
     private readonly queries: IdentityQueries,
     private readonly signIn: SignIn,
     private readonly refreshSession: RefreshSession,
@@ -162,6 +169,32 @@ export class AuthController {
       userId: toId(user.id),
       refreshToken: body.refreshToken,
     });
+  }
+
+  @ApiOperation({
+    summary: 'Pedir un enlace para restablecer la contraseña',
+    description:
+      'Responde igual exista o no el email. Las cuentas suspendidas no reciben el correo. El enlace nuevo invalida los anteriores. Límite: 3 por email y 10 por IP por hora.',
+  })
+  @ApiAcceptedResponse()
+  @RateLimit('password-reset-email', 'password-reset-ip')
+  @Post('password-reset/request')
+  @HttpCode(202)
+  async requestReset(@Body() body: PasswordResetRequestDto): Promise<void> {
+    await this.requestPasswordReset.execute(body);
+  }
+
+  @ApiOperation({
+    summary: 'Restablecer la contraseña',
+    description:
+      'Con el token del enlace, que sirve una sola vez. Revoca todas las sesiones y avisa por correo. Si la contraseña no cumple la política, el enlace sigue sirviendo.',
+  })
+  @ApiNoContentResponse()
+  @ApiProblemResponses('invalid-or-expired-token', 'password-policy-violation')
+  @Post('password-reset/confirm')
+  @HttpCode(204)
+  async confirmReset(@Body() body: PasswordResetConfirmDto): Promise<void> {
+    await this.resetPassword.execute(body);
   }
 }
 

@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Clock, TransactionManager } from '../../../shared-kernel/index.js';
-import {
-  EmailVerificationTokenRepository,
-  isUsableVerification,
-} from '../domain/email-verification.js';
+import { EmailVerificationTokenRepository } from '../domain/email-verification.js';
 import { InvalidOrExpiredTokenError } from '../domain/identity-errors.js';
+import { isUsableLink } from '../domain/one-time-link.js';
 import { UserRepository } from '../domain/user.repository.js';
 import { hashLinkToken } from './link-tokens.js';
 
@@ -28,7 +26,7 @@ export class ConfirmEmail {
         hashLinkToken(input.token),
       );
       const now = this.clock.now();
-      if (token === null || !isUsableVerification(token, now)) {
+      if (token === null || !isUsableLink(token, now)) {
         throw new InvalidOrExpiredTokenError();
       }
       const user = await this.users.findById(token.userId);

@@ -27,6 +27,10 @@ import { IdentityQueries } from './application/identity.queries.js';
 import { PasswordChangeNotice } from './application/password-change-notice.js';
 import { PasswordHasher } from './application/password-hasher.js';
 import {
+  PASSWORD_RESET_TTL_SECONDS,
+  PasswordResets,
+} from './application/password-resets.js';
+import {
   CommonPasswords,
   PasswordPolicy,
 } from './application/password-policy.js';
@@ -37,7 +41,9 @@ import { RefreshSession } from './application/refresh-session.use-case.js';
 import { RegisterCustomer } from './application/register-customer.use-case.js';
 import { RemoveAddress } from './application/remove-address.use-case.js';
 import { ReplaceStaffRoles } from './application/replace-staff-roles.use-case.js';
+import { RequestPasswordReset } from './application/request-password-reset.use-case.js';
 import { ResendEmailVerification } from './application/resend-email-verification.use-case.js';
+import { ResetPassword } from './application/reset-password.use-case.js';
 import { ResolveSignedInAccount } from './application/resolve-signed-in-account.js';
 import {
   AccessTokens,
@@ -54,6 +60,7 @@ import { UpdateAddress } from './application/update-address.use-case.js';
 import { UpdateRole } from './application/update-role.use-case.js';
 import { AddressBookRepository } from './domain/address-book.repository.js';
 import { EmailVerificationTokenRepository } from './domain/email-verification.js';
+import { PasswordResetTokenRepository } from './domain/password-reset.js';
 import { RoleRepository } from './domain/role.repository.js';
 import { SessionRepository } from './domain/session.repository.js';
 import { UserRepository } from './domain/user.repository.js';
@@ -67,6 +74,7 @@ import { JwtStrategy } from './infrastructure/jwt.strategy.js';
 import { PrismaAddressBookRepository } from './infrastructure/prisma-address-book.repository.js';
 import { PrismaEmailVerificationTokenRepository } from './infrastructure/prisma-email-verification-token.repository.js';
 import { PrismaIdentityQueries } from './infrastructure/prisma-identity.queries.js';
+import { PrismaPasswordResetTokenRepository } from './infrastructure/prisma-password-reset-token.repository.js';
 import { PrismaRoleRepository } from './infrastructure/prisma-role.repository.js';
 import { PrismaSessionRepository } from './infrastructure/prisma-session.repository.js';
 import { PrismaUserRepository } from './infrastructure/prisma-user.repository.js';
@@ -111,6 +119,9 @@ import { MeController } from './presentation/me.controller.js';
     RectifyCustomer,
     EmailVerifications,
     EmailChangeNotice,
+    RequestPasswordReset,
+    ResetPassword,
+    PasswordResets,
     ChangePassword,
     PasswordPolicy,
     PasswordChangeNotice,
@@ -130,6 +141,12 @@ import { MeController } from './presentation/me.controller.js';
         parseDuration(config.get('EMAIL_VERIFICATION_TTL', { infer: true })),
     },
     {
+      provide: PASSWORD_RESET_TTL_SECONDS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        parseDuration(config.get('PASSWORD_RESET_TTL', { infer: true })),
+    },
+    {
       provide: REFRESH_TOKEN_TTL_SECONDS,
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
@@ -142,6 +159,10 @@ import { MeController } from './presentation/me.controller.js';
     {
       provide: EmailVerificationTokenRepository,
       useClass: PrismaEmailVerificationTokenRepository,
+    },
+    {
+      provide: PasswordResetTokenRepository,
+      useClass: PrismaPasswordResetTokenRepository,
     },
     SuperadminContinuity,
     CreateRole,
