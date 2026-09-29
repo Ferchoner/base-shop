@@ -19,7 +19,7 @@ const ACCOUNT_PATH = /^\/v\d+\/me(\/|$)/;
 
 /**
  * Authorization of every request (ADR-0111), from the route metadata of `@RequirePermissions` and
- * `@RequireAccount` and the user that authentication left in `request.user` (T-120). Routes without them are
+ * `@RequireAccount` and the user that authentication left in `request.user` (ADR-0114). Routes without them are
  * public. It fails closed: an administrative or account route that declares neither is a programming error,
  * answered 500 so it cannot go unnoticed as public.
  */

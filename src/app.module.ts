@@ -45,12 +45,13 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     MailModule,
     ProblemDetailsModule,
     IdempotencyModule,
+    // Global guards run in import order: authentication (in IdentityAccessModule, ADR-0114), then rate
+    // limiting, which counts some limits per user (ADR-0102), then authorization (ADR-0111).
+    IdentityAccessModule,
     RateLimitingModule,
-    // After RateLimitingModule: global guards run in import order (ADR-0111).
     AuthorizationModule,
     AuditModule,
     GeoModule,
-    IdentityAccessModule,
     CatalogModule,
     PricingModule,
     InventoryModule,

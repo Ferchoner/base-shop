@@ -89,7 +89,13 @@ describe('My addresses (e2e, T-130)', () => {
         passwordHash: 'not-a-real-hash',
       },
     });
-    return { id, type: 'CUSTOMER', permissions: [], mustChangePassword: false };
+    return {
+      id,
+      type: 'CUSTOMER',
+      permissions: [],
+      mustChangePassword: false,
+      sessionId: newId(),
+    };
   }
 
   const http = () => request(app.getHttpServer());
@@ -106,6 +112,7 @@ describe('My addresses (e2e, T-130)', () => {
           type: 'STAFF',
           permissions: ['customers.read'],
           mustChangePassword: false,
+          sessionId: newId(),
         }),
       )
       .expect(403);

@@ -236,6 +236,7 @@ describe('Email and frontend links (ADR-0110)', () => {
     SMTP_PORT: '587',
     MAIL_FROM: 'Tienda <no-reply@example.com>',
     FRONTEND_BASE_URL: 'https://shop.example.com',
+    JWT_SECRET: 'x'.repeat(32),
   };
 
   it('defaults to Mailpit and a local frontend in development and test', () => {
@@ -349,4 +350,90 @@ describe('MAX_ADDRESSES_PER_CUSTOMER (BR-ADR-04, ADR-0113)', () => {
       validateEnvironment({ ...REQUIRED, MAX_ADDRESSES_PER_CUSTOMER: value }),
     ).toThrow(/MAX_ADDRESSES_PER_CUSTOMER/);
   });
+});
+
+describe('Sessions (ADR-0023, ADR-0114)', () => {
+  const SECRET = 'x'.repeat(32);
+
+  it('has no signing key by default, and the token lifetimes of ADR-0023', () => {
+    expect(validateEnvironment(REQUIRED)).toMatchObject({
+      JWT_SECRET: undefined,
+      ACCESS_TOKEN_TTL: '15m',
+      REFRESH_TOKEN_TTL: '7d',
+    });
+  });
+
+  it('treats an empty JWT_SECRET as unset, as in a copied .env.example', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, JWT_SECRET: '' }).JWT_SECRET,
+    ).toBeUndefined();
+  });
+
+  it('accepts a JWT_SECRET of at least 32 characters', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, JWT_SECRET: SECRET }).JWT_SECRET,
+    ).toBe(SECRET);
+  });
+
+  it('rejects a shorter JWT_SECRET without writing it in the error', () => {
+    const secret = 'y'.repeat(31);
+    const validate = () =>
+      validateEnvironment({ ...REQUIRED, JWT_SECRET: secret });
+
+    expect(validate).toThrow('JWT_SECRET must have at least 32 characters');
+    expect(validate).not.toThrow(secret);
+  });
+
+  it.each([undefined, ''])(
+    'requires JWT_SECRET in production (%p)',
+    (value) => {
+      expect(() =>
+        validateEnvironment({
+          ...REQUIRED,
+          NODE_ENV: 'production',
+          JWT_SECRET: value,
+        }),
+      ).toThrow('JWT_SECRET is required when NODE_ENV is production');
+    },
+  );
+
+  it.each(['1m', '15m', '60m', '1h', '3600s'])(
+    'accepts ACCESS_TOKEN_TTL %p',
+    (value) => {
+      expect(
+        validateEnvironment({ ...REQUIRED, ACCESS_TOKEN_TTL: value })
+          .ACCESS_TOKEN_TTL,
+      ).toBe(value);
+    },
+  );
+
+  it.each(['59s', '61m', '2h', '1d', '15', 'soon'])(
+    'rejects ACCESS_TOKEN_TTL %p',
+    (value) => {
+      expect(() =>
+        validateEnvironment({ ...REQUIRED, ACCESS_TOKEN_TTL: value }),
+      ).toThrow(
+        'ACCESS_TOKEN_TTL must be a duration such as 15m or 7d (s, m, h or d), from 1m to 1h',
+      );
+    },
+  );
+
+  it.each(['1h', '60m', '7d', '90d'])(
+    'accepts REFRESH_TOKEN_TTL %p',
+    (value) => {
+      expect(
+        validateEnvironment({ ...REQUIRED, REFRESH_TOKEN_TTL: value })
+          .REFRESH_TOKEN_TTL,
+      ).toBe(value);
+    },
+  );
+
+  it.each(['59m', '91d', '7', '1w'])(
+    'rejects REFRESH_TOKEN_TTL %p',
+    (value) => {
+      expect(() =>
+        validateEnvironment({ ...REQUIRED, REFRESH_TOKEN_TTL: value }),
+      ).toThrow(/REFRESH_TOKEN_TTL must be a duration .*, from 1h to 90d/);
+    },
+  );
 });

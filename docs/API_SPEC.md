@@ -126,6 +126,11 @@ Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Option
 - Login con email y contraseña → token de acceso JWT (15 minutos) y refresh token opaco (7 días, rotado en cada uso).
 - Token de acceso en `Authorization: Bearer`; refresh token en el cuerpo JSON de `/v1/auth/refresh` y `/v1/auth/logout`.
 - Presentar un refresh token ya rotado revoca toda la sesión.
+- Implementado en T-120 (ADR-0114):
+  - El token de acceso es un JWT HS256 que solo lleva el usuario (`sub`) y la sesión (`sid`).
+  - Cada solicitud autenticada comprueba que la cuenta siga activa y la sesión abierta, y lee los permisos actuales. Suspender una cuenta, cerrar sesión o cambiar roles aplica desde la siguiente solicitud, sin esperar a que venza el token.
+  - Un token ausente, inválido o vencido deja la solicitud sin usuario: las rutas que lo exigen responden 401 `unauthenticated`, y las públicas lo ignoran.
+  - Duraciones configurables con `ACCESS_TOKEN_TTL` y `REFRESH_TOKEN_TTL`.
 
 ### 3.2 Grupos de rutas (ADR-0036)
 
@@ -615,6 +620,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Response 200:** `AuthResult`. Si `mustChangePassword` es `true` (staff con contraseña temporal), el token solo permite las rutas de la sección 3.2.
 - **Errores:** 401 `invalid-credentials` para email inexistente, contraseña incorrecta o cuenta suspendida o anonimizada (ADR-0062).
 - **Auditoría:** éxito y fallo (ADR-0037).
+- **Implementado en T-120 (ADR-0114):** 400 `validation-error` ante un email mal formado, una contraseña de más de 64 caracteres o un campo desconocido. La respuesta lleva `Cache-Control: no-store`. Al agotar el límite de intentos fallidos, 429 `rate-limit-exceeded` con `Retry-After`, también con la contraseña correcta.
 
 ### 9.6 `POST /v1/auth/refresh` — Renovar sesión (UC-IAM-05)
 
@@ -622,11 +628,12 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Request:** `{ "refreshToken": "rt_…" }`.
 - **Response 200:** `AuthResult` con un par nuevo; el refresh token anterior queda invalidado.
 - **Errores:** 401 `invalid-refresh-token` (inválido, vencido, revocado, cuenta suspendida o reutilizado; en este último caso se revoca toda la sesión).
+- **Implementado en T-120 (ADR-0114):** la renovación conserva la sesión (`sid`). Dos renovaciones simultáneas con el mismo refresh token cuentan como reutilización, así que el cliente debe renovar de una en una. La respuesta lleva `Cache-Control: no-store`.
 
 ### 9.7 `POST /v1/auth/logout` — Cerrar sesión (UC-IAM-06)
 
 - **Autenticación:** token de acceso. **Request:** `{ "refreshToken": "rt_…" }`.
-- **Response 204.** Revoca la sesión del refresh token si pertenece al usuario autenticado; si no pertenece o ya estaba revocado, responde igual (idempotente). El token de acceso vigente expira solo.
+- **Response 204.** Revoca la sesión del refresh token si pertenece al usuario autenticado; si no pertenece o ya estaba revocado, responde igual (idempotente). Desde T-120, los tokens de acceso de esa sesión dejan de servir de inmediato (ADR-0114). Se permite con un cambio de contraseña pendiente.
 
 ### 9.8 `POST /v1/auth/password-reset/request` — Solicitar recuperación (UC-IAM-07)
 
@@ -643,8 +650,8 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 ### 9.10 `GET /v1/me` — Consultar la cuenta
 
-- **Autenticación:** token de acceso (cliente o staff).
-- **Response 200:** `Account`.
+- **Autenticación:** token de acceso (cliente o staff; permitido con `mustChangePassword`).
+- **Response 200:** `Account`. `roles` lleva `id` y `name` de cada rol. Implementado en T-120 (ADR-0114).
 
 ### 9.11 `PATCH /v1/me` — Rectificar datos del cliente
 

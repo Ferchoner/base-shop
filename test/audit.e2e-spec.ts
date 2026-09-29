@@ -42,6 +42,7 @@ function staffWithoutPermission(id: string) {
     type: 'STAFF',
     permissions: ['orders.read'],
     mustChangePassword: false,
+    sessionId: randomUUID(),
   });
 }
 

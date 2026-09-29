@@ -5,8 +5,10 @@ import type { AuthenticatedUser } from '../../src/platform/auth/authenticated-us
 const TEST_USER_HEADER = 'x-test-user';
 
 /**
- * Stands in for authentication (T-120) in end-to-end tests: puts the user of the `x-test-user` header in
- * `request.user`, as the JWT strategy will. It only exists under `test/`, so it can never reach the API.
+ * Stands in for authentication in end-to-end tests of authorization and of the routes behind it: puts the
+ * user of the `x-test-user` header in `request.user`, as the JWT strategy does (ADR-0114). Requests without
+ * `Authorization` keep it. It only exists under `test/`, so it can never reach the API; the tests of
+ * authentication itself sign in for real.
  */
 export function useTestAuthentication(app: INestApplication): void {
   app.use(

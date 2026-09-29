@@ -17,8 +17,8 @@ const SWEEP_THRESHOLD = 10_000;
 /**
  * Limits failed attempts rather than requests (ADR-0065, ADR-0102): 5 failed logins per email and 20 per IP
  * in 15 minutes by default. It slows down by time and never locks accounts. Counters live in memory, like
- * the request limits. Authentication (T-120) calls `assertAllowed` before checking credentials and
- * `recordFailure` when they are wrong.
+ * the request limits. The login endpoint calls `assertAllowed` before checking credentials and
+ * `recordFailure` when they are wrong (ADR-0114).
  */
 @Injectable()
 export class FailedAttemptLimiter {

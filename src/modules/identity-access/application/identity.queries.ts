@@ -5,7 +5,7 @@ import type {
   SortOrder,
 } from '../../../shared-kernel/index.js';
 import type { RoleId } from '../domain/role.js';
-import type { UserId, UserStatus } from '../domain/user.js';
+import type { UserId, UserStatus, UserType } from '../domain/user.js';
 
 export interface RoleView {
   readonly id: RoleId;
@@ -65,6 +65,19 @@ export interface AddressView {
   readonly isDefault: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/** The signed-in account (`Account`, API_SPEC.md §8.10); `roles` is empty for customers. */
+export interface AccountView {
+  readonly id: UserId;
+  readonly type: UserType;
+  readonly email: string;
+  readonly firstNames: string;
+  readonly lastNames: string;
+  readonly emailVerified: boolean;
+  readonly mustChangePassword: boolean;
+  readonly roles: readonly { readonly id: RoleId; readonly name: string }[];
+  readonly createdAt: Date;
 }
 
 export interface CustomerDetailView extends CustomerView {
@@ -129,6 +142,9 @@ export abstract class IdentityQueries {
   ): Promise<Page<CustomerView>>;
 
   abstract findCustomer(id: UserId): Promise<CustomerDetailView | null>;
+
+  /** An account that can sign in: ACTIVE and not anonymized. */
+  abstract findAccount(id: UserId): Promise<AccountView | null>;
 
   /** The customer's addresses, the default first and then the newest (API_SPEC.md §9.14). */
   abstract listAddresses(customerId: UserId): Promise<AddressView[]>;

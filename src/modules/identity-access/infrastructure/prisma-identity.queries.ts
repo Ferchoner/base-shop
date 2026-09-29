@@ -12,6 +12,7 @@ import {
   toId,
 } from '../../../shared-kernel/index.js';
 import {
+  type AccountView,
   type AddressView,
   type CustomerDetailView,
   type CustomerFilter,
@@ -229,6 +230,39 @@ export class PrismaIdentityQueries extends IdentityQueries {
       this.txHost.tx.user.count({ where }),
     ]);
     return { items: rows.map(toCustomerView), totalItems };
+  }
+
+  async findAccount(id: UserId): Promise<AccountView | null> {
+    const row = await this.txHost.tx.user.findFirst({
+      select: {
+        id: true,
+        type: true,
+        email: true,
+        firstNames: true,
+        lastNames: true,
+        emailVerifiedAt: true,
+        mustChangePassword: true,
+        createdAt: true,
+        roles: STAFF_FIELDS.roles,
+      },
+      where: { id, status: 'ACTIVE' },
+    });
+    if (row === null) return null;
+    return {
+      id: toId<'User'>(row.id),
+      type: row.type,
+      // Only anonymized accounts lose these (CHECK on users, DATABASE.md §3.1).
+      email: row.email as string,
+      firstNames: row.firstNames as string,
+      lastNames: row.lastNames as string,
+      emailVerified: row.emailVerifiedAt !== null,
+      mustChangePassword: row.mustChangePassword,
+      roles: row.roles.map(({ role }) => ({
+        id: toId<'Role'>(role.id),
+        name: role.name,
+      })),
+      createdAt: row.createdAt,
+    };
   }
 
   async findCustomer(id: UserId): Promise<CustomerDetailView | null> {

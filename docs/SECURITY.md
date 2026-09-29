@@ -47,11 +47,13 @@ Integración: Passport mediante `@nestjs/passport` (ADR-0022). Las estrategias v
 
 Mecanismo (ADR-0023):
 
-- Login con estrategia local (email y contraseña).
+- Login con email y contraseña, validados como cualquier solicitud y comprobados por el caso de uso `SignIn`, sin estrategia de Passport (ADR-0114).
 - Token de acceso JWT de unos 15 minutos (configurable), enviado en `Authorization: Bearer`. Sin cookies.
 - Refresh token opaco, guardado con hash en base de datos y rotado en cada uso.
-- Suspender un usuario o cerrar sesión revoca sus refresh tokens. El token de acceso vigente sigue válido hasta vencer.
-- Hash de contraseñas con Argon2id.
+- Suspender un usuario o cerrar sesión revoca sus refresh tokens. Cada solicitud comprueba la cuenta y la sesión, así que el token de acceso deja de servir en la siguiente solicitud (ADR-0114).
+- Token de acceso: JWT HS256 con solo el usuario y la sesión; la verificación no acepta otro algoritmo. Clave `JWT_SECRET` de al menos 32 caracteres, obligatoria en producción (ADR-0114).
+- Hash de contraseñas con Argon2id de `node:crypto`: 19 MiB, 2 pasadas y 1 carril (mínimo de OWASP), formato PHC y normalización NFKC (ADR-0114).
+- El login responde igual y tarda lo mismo con un email inexistente: se compara contra un hash de reemplazo (ADR-0062, ADR-0114).
 - Política de contraseñas (ADR-0047): de 15 a 64 caracteres, sin reglas de composición, aceptando letras, dígitos, espacio y todos los símbolos imprimibles, y rechazo de contraseñas comunes mediante una lista local. Aplica a clientes, staff y contraseñas temporales (generadas por el sistema).
 - Segundo factor (2FA): pospuesto, con el diseño de autenticación preparado para incorporarlo (ADR-0048).
 - Cambio de contraseña desde la cuenta: revoca las demás sesiones, conserva la actual y envía aviso por correo (ADR-0072).

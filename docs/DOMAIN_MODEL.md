@@ -30,11 +30,11 @@ Shared kernel: `Money`, tipos de ID, error de dominio base, forma común de doma
 | Aggregates | `User` (tipo cliente o staff, email, passwordHash, status, roleIds solo para staff, emailVerifiedAt, cambio de contraseña obligatorio); `Role` (nombre, permisos); `CustomerAddressBook` (direcciones, predeterminada) |
 | Value Objects | `Email`, `PermissionCode`, `Address` (formato de ADR-0057), `PersonName` (nombres y apellidos) |
 | Eventos | `UserRegistered`, `UserSuspended`, `RolePermissionsChanged` |
-| Repositories | `UserRepository`, `RoleRepository`, `AddressBookRepository` |
-| Casos de uso | RegisterCustomer, Authenticate, RefreshSession, Logout, ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ReactivateUser (ADR-0076), ManageAddresses |
+| Repositories | `UserRepository`, `RoleRepository`, `AddressBookRepository`, `SessionRepository` (refresh tokens por sesión, ADR-0114) |
+| Casos de uso | RegisterCustomer, Authenticate (`SignIn`), RefreshSession, Logout (`SignOut`), ChangePassword, RequestPasswordReset, ResetPassword, CreateStaffUser, AssignRoles, DefineRole, SuspendUser, ReactivateUser (ADR-0076), ManageAddresses |
 | No sale del contexto | passwordHash, tokens, intentos de login, datos de recuperación |
 
-Autenticación: ADR-0022 y ADR-0023. Los refresh tokens son infraestructura del contexto; su revocación responde a `UserSuspended`.
+Autenticación: ADR-0022, ADR-0023 y ADR-0114. Los refresh tokens de un inicio de sesión forman una sesión, que se revoca completa. Suspender una cuenta revoca sus sesiones en la misma transacción (ADR-0111), no en respuesta a `UserSuspended`.
 
 ## Catalog
 

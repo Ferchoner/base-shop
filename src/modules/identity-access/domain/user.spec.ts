@@ -5,6 +5,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import type { RoleId } from './role.js';
 import {
+  normalizeEmail,
   User,
   type UserSnapshot,
   type UserStatus,
@@ -20,6 +21,7 @@ function user(type: UserType, status: UserStatus = 'ACTIVE'): User {
     firstNames: 'Ana',
     lastNames: 'Pérez',
     emailVerifiedAt: null,
+    passwordHash: status === 'ANONYMIZED' ? null : '$argon2id$v=19$…',
     mustChangePassword: false,
     lastLoginAt: null,
     suspendedAt: status === 'SUSPENDED' ? new Date('2026-09-01') : null,
@@ -113,5 +115,38 @@ describe('User (ADR-0043, ADR-0076)', () => {
     it('keeps at least one role', () => {
       expect(() => user('STAFF').replaceRoles([])).toThrow(InvalidValueError);
     });
+  });
+
+  describe('canSignIn (BR-USR-02, ADR-0114)', () => {
+    it.each(['CUSTOMER', 'STAFF'] as const)(
+      'lets an active %s sign in',
+      (type) => {
+        expect(user(type).canSignIn).toBe(true);
+      },
+    );
+
+    it.each(['SUSPENDED', 'ANONYMIZED'] as const)(
+      'never lets a %s account sign in',
+      (status) => {
+        expect(user('CUSTOMER', status).canSignIn).toBe(false);
+      },
+    );
+
+    it('never lets an account without a password sign in', () => {
+      const withoutPassword = User.restore({
+        ...user('CUSTOMER').snapshot(),
+        passwordHash: null,
+      });
+
+      expect(withoutPassword.canSignIn).toBe(false);
+    });
+  });
+});
+
+describe('normalizeEmail (BR-USR-01)', () => {
+  it('compares emails in lowercase and without surrounding spaces', () => {
+    expect(normalizeEmail('  Ana.Perez@Example.COM ')).toBe(
+      'ana.perez@example.com',
+    );
   });
 });

@@ -8,6 +8,15 @@ import type { User, UserId } from './user.js';
 export abstract class UserRepository {
   abstract findById(id: UserId): Promise<User | null>;
 
+  /** The account with this email, already normalized to lowercase (BR-USR-01). */
+  abstract findByEmail(email: string): Promise<User | null>;
+
+  /**
+   * Records a successful sign-in. It is not a change to the account, so the version stays and an
+   * administrator editing it at the same time gets no conflict.
+   */
+  abstract recordSignIn(id: UserId, at: Date): Promise<void>;
+
   /**
    * Saves the account and its roles, recording who assigned new roles. Rejects with `VersionConflictError`
    * when another change was saved since the account was read (optimistic locking).

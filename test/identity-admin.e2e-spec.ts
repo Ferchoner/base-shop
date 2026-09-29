@@ -41,6 +41,7 @@ describe('Identity & Access administration (e2e, T-130)', () => {
       type: 'STAFF',
       permissions: [...PERMISSION_CODES],
       mustChangePassword: false,
+      sessionId: newId(),
     };
   });
 
@@ -99,6 +100,7 @@ describe('Identity & Access administration (e2e, T-130)', () => {
       type: 'STAFF',
       permissions,
       mustChangePassword: false,
+      sessionId: newId(),
     });
   }
 

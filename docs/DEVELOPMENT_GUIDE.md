@@ -105,7 +105,13 @@ Autorización (ADR-0111):
 - Una ruta de `/v1/admin` o `/v1/me` sin su decorador responde 500 (falla cerrado), así que un olvido aparece en el primer test.
 - El usuario autenticado está en `request.user` (`AuthenticatedUser`); se usa su `id`, nunca un ID de la URL, para los recursos propios (ADR-0036).
 - Los permisos existen solo en `PERMISSIONS` del shared kernel. Uno nuevo se agrega ahí, con su descripción en español, y a los roles que lo necesiten; el superadministrador lo recibe solo.
-- En los tests e2e, `useTestAuthentication(app)` y `.set(signedInAs(usuario))` (`test/support/test-authentication.ts`) simulan la autenticación hasta T-120.
+- En los tests e2e de rutas protegidas, `useTestAuthentication(app)` y `.set(signedInAs(usuario))` (`test/support/test-authentication.ts`) ponen el usuario sin iniciar sesión. Los tests de la autenticación misma inician sesión con `POST /v1/auth/login` (`test/auth.e2e-spec.ts`).
+
+Autenticación (ADR-0114):
+
+- `request.user` lo llena el guard global de `IdentityAccessModule`, que `AppModule` importa antes que `RateLimitingModule` y `AuthorizationModule`. Un módulo con guards globales nuevos debe respetar ese orden.
+- Cada solicitud autenticada lee la cuenta y la sesión, así que un cambio de estado, roles o sesión aplica desde la siguiente solicitud sin hacer nada más.
+- En local, `JWT_SECRET` puede quedar vacía: la API firma con una clave aleatoria y las sesiones terminan al reiniciar. En producción es obligatoria.
 
 Listados (ADR-0036, ADR-0111):
 
@@ -180,7 +186,7 @@ Tests (Jest):
 
 - Integración y end-to-end contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución, le aplica todas las migraciones y expone su URL en `DATABASE_URL` (ADR-0090, ADR-0091). La infraestructura común está en `test/integration/`. Los tests corren en serie.
 - Cada test deja la base como la encontró, por ejemplo trabajando dentro de una transacción que se revierte al terminar.
-- Pruebas de concurrencia obligatorias para reservas de inventario y checkout.
+- Pruebas de concurrencia obligatorias para reservas de inventario y checkout. El patrón: un cliente `pg` aparte bloquea la fila, se lanzan las operaciones, `waitForLockWaiters(n)` (`test/support/lock-waiters.ts`) espera a que queden bloqueadas y se libera la fila. Esa espera consulta `pg_stat_activity` fuera de toda transacción: dentro de una, PostgreSQL responde con una foto tomada en la primera lectura.
 - El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:int`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
 Entorno (ADR-0025):
