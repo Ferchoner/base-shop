@@ -134,6 +134,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0114 | Sesiones: login, renovación, cierre y autenticación de cada solicitud | Aceptada |
 | ADR-0115 | Política de contraseñas, lista de contraseñas comunes y cambio de contraseña | Aceptada |
 | ADR-0116 | Alta y reactivación del staff, contraseñas temporales y primer superadministrador | Aceptada |
+| ADR-0117 | Registro, verificación y cambio de email, y corrección de datos del cliente | Aceptada |
 
 ---
 
@@ -934,7 +935,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Si el cliente cambia su email, debe verificarlo de nuevo antes de volver a comprar.
   - El enlace apunta a la URL base del frontend configurada por variable de entorno (ADR-0056).
 - **Consecuencias:** La respuesta a una solicitud de reenvío no revela si el email existe.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0117: enlace `/verify-email?token=…`, vigencia en `EMAIL_VERIFICATION_TTL` y aviso al email anterior al cambiarlo.
 
 ---
 
@@ -1112,7 +1113,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Cambio obligatorio del staff:** pide la contraseña temporal, igual que un cambio normal pide la contraseña actual.
 - **Alternativas consideradas:** Código de 6 dígitos por correo (más independiente del frontend, pero expuesto a fuerza bruta y menos cómodo); passkeys (más seguras, pero un cambio mayor; candidatas junto con el 2FA, ADR-0048).
 - **Consecuencias:** Los tokens de recuperación se guardan en su propia tabla; los vencidos o usados se eliminan en la limpieza diaria (ADR-0029).
-- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122).
+- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122). ADR-0117 fija la página de verificación (`/verify-email`) y reserva `/reset-password` para la recuperación.
 
 ---
 
@@ -1343,7 +1344,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Retención de datos personales en órdenes:** se conservan mientras sean necesarios y después se anonimizan con el mismo procedimiento. El plazo queda pendiente de validación legal (P-61); el mecanismo (job con plazo configurable) se prevé, pero no se implementa en el MVP.
 - **Alternativas consideradas:** Autoservicio de eliminación de cuenta; borrado físico de órdenes; conservar indefinidamente los datos personales en órdenes.
 - **Consecuencias:** Ajustes en el modelo de datos propuesto (ADR-0066): versión del aviso en `users` y `orders`; marca de anonimización en `orders` y `shipments`; email de contacto de `orders` vacío solo en órdenes anonimizadas.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117.
 
 ---
 
@@ -2539,7 +2540,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-121, T-123 y T-215 solo arman el mensaje; no conocen el mecanismo de envío.
   - Cambiar de proveedor (P-24) es otro adaptador de `EmailSender` y otras variables SMTP. Si el proveedor pide usuario y contraseña, se agregan como variables nuevas.
   - Los correos de desarrollo se leen en http://localhost:8025.
-- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28).
+- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28). Primer uso en ADR-0117: el token va en la query del enlace.
 
 ---
 
@@ -2834,3 +2835,43 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Tras el primer superadministrador, las cuentas de staff solo se crean por la API, con `staff.manage`.
   - En Docker Compose, el script corre dentro del contenedor, con las variables en `.env` o pasadas con `docker compose exec -e`.
 - **Estado:** Aceptada (plan de T-131 aprobado el 2026-09-29).
+
+---
+
+## ADR-0117 — Registro, verificación y cambio de email, y corrección de datos del cliente
+
+- **Fecha:** 2026-09-29
+- **Contexto:** T-121 (UC-IAM-01 a 03 y 10, y `PATCH /v1/me`, que ADR-0114 pasó a esta tarea). ADR-0046 fijó la verificación con un enlace de un solo uso, vigente 24 horas y configurable, con reenvío limitado que invalida el anterior; ADR-0056 y ADR-0110, que los enlaces se arman con la URL base del frontend, y que cada tarea decide dónde va el token; ADR-0062, que el registro sí revela un email ya registrado; ADR-0067, la versión del aviso de privacidad y la rectificación desde `/v1/me`. Faltaban la forma del enlace, el contenido de los correos, si se avisa al email anterior y qué cuentas reciben el reenvío.
+- **Decisión:**
+  - **Enlace:** `FRONTEND_BASE_URL/verify-email?token=…`, con `FrontendLinks`, tal como lo previó ADR-0110. El frontend lee el token y lo envía a `POST /v1/auth/email-verification/confirm`. La recuperación de T-123 usará `/reset-password?token=…`. El token son 256 bits aleatorios en base64url; se guarda solo su SHA-256.
+  - **Vigencia y reemplazo:** `EMAIL_VERIFICATION_TTL` (24h por defecto, de 1h a 7d, en `.env.example`). Cada enlace nuevo invalida los anteriores de la cuenta, también al cambiar el email. Un enlace verifica solo la dirección a la que se envió, solo si la cuenta sigue teniéndola y puede iniciar sesión, y una sola vez: su fila se bloquea al confirmarlo. Si no, 400 `invalid-or-expired-token`, sin decir por qué.
+  - **Registro (`POST /v1/auth/register`):**
+    - aplica la política de contraseñas en el campo `password` (ADR-0115);
+    - guarda el email en minúsculas y la versión del aviso de privacidad;
+    - la cuenta queda de cliente, activa y sin verificar;
+    - un email ya registrado, de cliente o de staff, responde 409 `duplicate-value` (ADR-0062);
+    - responde 201 con `Account` y `Cache-Control: no-store`, sin iniciar sesión, y envía el enlace después del commit;
+    - no se audita: ADR-0037 no lo incluye entre los eventos de seguridad.
+  - **Reenvío:** responde 202 siempre. Solo envía a un cliente activo con el email sin verificar; nada a un email inexistente, verificado, de una cuenta suspendida o de staff.
+  - **Cambio de email (`POST /v1/me/email`, solo clientes):**
+    - pide la contraseña actual: si no coincide, 401 `invalid-credentials`, se audita como DENIED aparte y no cambia nada;
+    - el mismo email que ya se tiene responde 400 `validation-error` con `sameEmail` en `newEmail`; uno de otra cuenta, 409 `duplicate-value`;
+    - el email nuevo queda sin verificar, así que el cliente no puede comprar hasta verificarlo (BR-USR-11);
+    - se audita `auth.email-change` como evento de seguridad, sin las direcciones;
+    - después del commit, el email nuevo recibe su enlace y el anterior un aviso.
+  - **Correos, solo texto:**
+    - **"Confirma tu correo":** el nombre, el enlace, su vigencia y que se ignore si la persona no pidió la cuenta ni el cambio;
+    - **"Tu correo cambió":** al email anterior, con la fecha en hora de México, sin mostrar la dirección nueva, y "si no fuiste tú, contacta a la tienda". Así, si alguien con acceso a la cuenta cambia el email, el dueño se entera en el buzón que sigue controlando;
+    - un correo que falla queda en el log sin la dirección y no se reintenta (ADR-0110): el cliente puede pedir el reenvío.
+  - **Corrección de datos (`PATCH /v1/me`, solo clientes):** cambian solo los nombres y apellidos enviados, de 1 a 100 caracteres y sin `null`. Se audita `customers.rectify` sin los valores (ADR-0067); si nada cambia, no se guarda ni se audita.
+  - **Límites:** registro, 5 por IP por hora; reenvío, 3 por email por hora; cambio de email, 3 por cliente por hora, fallidos incluidos (ADR-0065, ADR-0102).
+- **Alternativas consideradas:**
+  - Token en el fragmento del enlace (`#token=`): no llega a los logs del servidor del frontend ni al `Referer`, pero hay que ampliar `FrontendLinks`. Con la query, el frontend debería enviar `Referrer-Policy: no-referrer`.
+  - No avisar al email anterior: la documentación no lo pedía, pero un cambio hecho por otra persona pasaría inadvertido.
+  - Reenviar también a cuentas verificadas o suspendidas: no sirve de nada, y a una suspendida le llegarían correos de una cuenta que no puede usar.
+  - Mostrar la dirección nueva en el aviso al email anterior: se la revelaría a quien tenga ese buzón.
+- **Consecuencias:**
+  - T-123 reutiliza los tokens de enlace (`link-tokens.ts`) y la hora de México de los avisos.
+  - El pedido del cliente verificado lo exige Ordering (BR-USR-05) con el `emailVerified` de la cuenta.
+  - Los tokens vencidos o usados los borrará la limpieza diaria (T-231).
+- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29).

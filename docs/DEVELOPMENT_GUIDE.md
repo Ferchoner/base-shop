@@ -137,6 +137,8 @@ Correos y enlaces al frontend (ADR-0045, ADR-0110):
 - **Cómo enviar:** el caso de uso inyecta `EmailSender` (shared kernel) y envía `{ to, subject, text, html? }`. Siempre fuera de la transacción: después del commit, normalmente desde un handler de eventos.
 - **Si falla:** `send` rechaza con `EmailDeliveryError` y el correo no se reintenta (ADR-0014). El que llama decide si el fallo cambia la respuesta.
 - **Enlaces:** se arman con `FrontendLinks.link('/ruta', { token })`, nunca concatenando `FRONTEND_BASE_URL` a mano, para que los parámetros vayan codificados.
+- **Enlaces con token (ADR-0117):** el token sale de `newLinkToken()` y se guarda solo su hash. Las páginas son `/verify-email` y, con T-123, `/reset-password`. En local, el enlace se lee en Mailpit (`http://localhost:8025`) y su token se envía directamente a la API.
+- **Avisos de la cuenta:** los avisos de cambio (contraseña, email) atrapan el fallo del envío y lo registran sin la dirección, porque el cambio ya ocurrió.
 - **Qué no se registra:** el destinatario, el asunto y el cuerpo nunca van al log; el adaptador solo registra el identificador del mensaje.
 - **Tests:** los que envían correos usan Mailpit real con Testcontainers y leen el mensaje por su API (`smtp-email-sender.int-spec.ts`).
 
