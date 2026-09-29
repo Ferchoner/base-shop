@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones técnicas) se cerró el 2026-09-28 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-29). El Sprint 2 (Identity & Access) se cerró el 2026-09-29 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
 
 ## Completed
 
@@ -115,11 +115,12 @@ Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones t
 
 ## In Progress
 
-- [ ] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123); plan en `SPRINT.md`
+- [x] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123), cerrado el 2026-09-29
+- [ ] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160); plan en `SPRINT.md`
 
 ## Next
 
-- [ ] Contextos de negocio restantes (Catalog, Pricing, Inventory, Shopping, Ordering, Payments y Shipping), después del Sprint 2
+- [ ] Contextos de negocio restantes (Shopping, Ordering, Payments y el resto de Shipping), después del Sprint 3
 
 ## Blocked
 
