@@ -1,13 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 // Plain fields are documented by the Swagger plugin; enums and constants declare their type with
 // @ApiProperty (ADR-0109, ADR-0112).
 
 /** Emails are compared in lowercase and without surrounding spaces (BR-USR-01). */
-const toNormalizedEmail = ({ value }: { value: unknown }) =>
+export const toNormalizedEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
+
+export const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
 
 /** `POST /v1/auth/login` (API_SPEC.md §9.5). */
 export class LoginDto {
@@ -64,4 +73,67 @@ export class AuthResultDto {
 
   /** Staff with a temporary password: the token only allows `GET /v1/me`, `POST /v1/me/password` and logout. */
   mustChangePassword: boolean;
+}
+
+/** `POST /v1/auth/register` (API_SPEC.md §9.2, UC-IAM-01). */
+export class RegisterDto {
+  /**
+   * Se guarda en minúsculas.
+   * @example 'cliente@example.com'
+   */
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+
+  /**
+   * 15 a 64 caracteres y no una contraseña común (ADR-0047). La política responde `password-policy-violation`.
+   * @example 'una frase larga y segura'
+   */
+  @IsString()
+  password: string;
+
+  /** @example 'María' */
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  firstNames: string;
+
+  /** @example 'López Hernández' */
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  lastNames: string;
+
+  /**
+   * Versión del aviso de privacidad que se mostró al registrarse (ADR-0067).
+   * @example '2026-09'
+   */
+  @IsString()
+  @Length(1, 50)
+  @Matches(/\S/, NOT_BLANK)
+  privacyNoticeVersion: string;
+}
+
+/** `POST /v1/auth/email-verification/confirm` (API_SPEC.md §9.3). */
+export class ConfirmEmailDto {
+  /** El token del enlace. */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(256)
+  token: string;
+}
+
+/** `POST /v1/auth/email-verification/resend` (API_SPEC.md §9.4). */
+export class ResendEmailVerificationDto {
+  /** @example 'cliente@example.com' */
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+}
+
+export class EmailVerifiedDto {
+  @ApiProperty({ enum: [true], example: true })
+  emailVerified: true;
 }

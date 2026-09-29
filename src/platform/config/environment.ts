@@ -209,6 +209,11 @@ export class EnvironmentVariables {
   @IsDurationWithin(3_600, 90 * 86_400, 'from 1h to 90d')
   REFRESH_TOKEN_TTL: string = '7d';
 
+  /** Lifetime of an email verification link, from 1 hour to 7 days (BR-USR-11, ADR-0046, ADR-0117). */
+  @Expose()
+  @IsDurationWithin(3_600, 7 * 86_400, 'from 1h to 7d')
+  EMAIL_VERIFICATION_TTL: string = '24h';
+
   /**
    * Email of the first superadmin, read only by the script that creates it (UC-IAM-20, ADR-0116). Optional:
    * the API never uses it.

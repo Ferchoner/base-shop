@@ -3,6 +3,7 @@ import {
   InvalidStateTransitionError,
   InvalidValueError,
 } from '../../../shared-kernel/index.js';
+import { SameEmailError } from './identity-errors.js';
 import type { RoleId } from './role.js';
 
 export type UserId = Id<'User'>;
@@ -31,6 +32,8 @@ export interface UserSnapshot {
   readonly lastLoginAt: Date | null;
   readonly suspendedAt: Date | null;
   readonly anonymizedAt: Date | null;
+  /** Version of the privacy notice shown when a customer signed up (ADR-0067); `null` for staff. */
+  readonly privacyNoticeVersion: string | null;
   readonly createdAt: Date;
   readonly roleIds: readonly RoleId[];
   readonly version: number;
@@ -75,12 +78,48 @@ export class User {
       lastLoginAt: null,
       suspendedAt: null,
       anonymizedAt: null,
+      privacyNoticeVersion: null,
       createdAt: input.now,
       roleIds: [],
       version: 1,
     });
     user.replaceRoles(input.roleIds);
     return user;
+  }
+
+  /**
+   * A customer who signs up (UC-IAM-01, BR-USR-15): ACTIVE, with their own password, no roles, and an email
+   * to verify before buying (BR-USR-05, ADR-0046). Keeps the privacy notice version they were shown
+   * (ADR-0067).
+   */
+  static registerCustomer(input: {
+    id: UserId;
+    email: string;
+    firstNames: string;
+    lastNames: string;
+    passwordHash: string;
+    privacyNoticeVersion: string;
+    now: Date;
+  }): User {
+    return new User({
+      id: input.id,
+      type: 'CUSTOMER',
+      status: 'ACTIVE',
+      email: normalizeEmail(input.email),
+      firstNames: input.firstNames,
+      lastNames: input.lastNames,
+      emailVerifiedAt: null,
+      passwordHash: input.passwordHash,
+      passwordChangedAt: input.now,
+      mustChangePassword: false,
+      lastLoginAt: null,
+      suspendedAt: null,
+      anonymizedAt: null,
+      privacyNoticeVersion: input.privacyNoticeVersion,
+      createdAt: input.now,
+      roleIds: [],
+      version: 1,
+    });
   }
 
   get id(): UserId {
@@ -97,6 +136,14 @@ export class User {
 
   get roleIds(): readonly RoleId[] {
     return this.state.roleIds;
+  }
+
+  get email(): string | null {
+    return this.state.email;
+  }
+
+  get emailVerified(): boolean {
+    return this.state.emailVerifiedAt !== null;
   }
 
   get passwordHash(): string | null {
@@ -192,6 +239,47 @@ export class User {
       passwordHash,
       passwordChangedAt: at,
       mustChangePassword: false,
+    };
+  }
+
+  /**
+   * Marks the email as verified (UC-IAM-02, ADR-0046), only while it is still the address the link was sent
+   * to: a link for an address the account no longer has verifies nothing.
+   */
+  verifyEmail(sentTo: string, at: Date): boolean {
+    if (!this.canSignIn || this.state.email !== sentTo) return false;
+    this.state = { ...this.state, emailVerifiedAt: at };
+    return true;
+  }
+
+  /**
+   * A customer changes their email (UC-IAM-10, BR-USR-11): the new one stays unverified, so they cannot buy
+   * until they verify it. The same email as now is not a change.
+   */
+  changeEmail(newEmail: string): void {
+    if (this.state.type !== 'CUSTOMER') {
+      throw new Error('Only customers change their own email');
+    }
+    if (!this.canSignIn) {
+      throw new InvalidStateTransitionError(this.state.status, 'change email');
+    }
+    const email = normalizeEmail(newEmail);
+    if (email === this.state.email) throw new SameEmailError();
+    this.state = { ...this.state, email, emailVerifiedAt: null };
+  }
+
+  /** A customer corrects their names (ADR-0067); only the fields given change. */
+  rectify(changes: { firstNames?: string; lastNames?: string }): void {
+    if (this.state.type !== 'CUSTOMER') {
+      throw new Error('Only customers rectify their own data');
+    }
+    if (!this.canSignIn) {
+      throw new InvalidStateTransitionError(this.state.status, 'rectify');
+    }
+    this.state = {
+      ...this.state,
+      firstNames: changes.firstNames ?? this.state.firstNames,
+      lastNames: changes.lastNames ?? this.state.lastNames,
     };
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
 import {
   ApiNoContentResponse,
   ApiOkResponse,
@@ -10,12 +10,24 @@ import { RequireAccount } from '../../../platform/auth/authorization.decorators.
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
+import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
+import { ChangeEmail } from '../application/change-email.use-case.js';
 import { ChangePassword } from '../application/change-password.use-case.js';
 import { IdentityQueries } from '../application/identity.queries.js';
-import { AccountDto, ChangePasswordDto } from './account.dto.js';
+import { RectifyCustomer } from '../application/rectify-customer.use-case.js';
+import {
+  AccountDto,
+  ChangeEmailDto,
+  ChangePasswordDto,
+  UpdateAccountDto,
+} from './account.dto.js';
+import { toAccountDto } from './identity-admin.mappers.js';
 
-/** The signed-in account and its password (API_SPEC.md §9.10, §9.12). The account comes from the token, never from the URL. */
+/**
+ * The signed-in account: its data, password and email (API_SPEC.md §9.10 to §9.13). The account comes from the token,
+ * never from the URL.
+ */
 @ApiTags('Cuenta')
 @ApiProblemResponses('unauthenticated')
 @Controller('me')
@@ -23,6 +35,8 @@ export class MeController {
   constructor(
     private readonly queries: IdentityQueries,
     private readonly changePassword: ChangePassword,
+    private readonly changeEmail: ChangeEmail,
+    private readonly rectifyCustomer: RectifyCustomer,
   ) {}
 
   @ApiOperation({
@@ -33,14 +47,55 @@ export class MeController {
   @ApiOkResponse({ type: AccountDto })
   @RequireAccount({ allowPendingPasswordChange: true })
   @Get()
-  async account(@CurrentUser() user: AuthenticatedUser): Promise<AccountDto> {
-    const account = await this.queries.findAccount(toId(user.id));
-    if (account === null) throw new NotFoundError('User', user.id);
-    return {
-      ...account,
-      roles: [...account.roles],
-      permissions: [...user.permissions],
-    };
+  account(@CurrentUser() user: AuthenticatedUser): Promise<AccountDto> {
+    return this.read(user);
+  }
+
+  @ApiOperation({
+    summary: 'Corregir mis datos',
+    description:
+      'Solo clientes. Cambian solo los campos enviados; el email se cambia con `POST /v1/me/email`.',
+  })
+  @ApiOkResponse({ type: AccountDto })
+  @ApiProblemResponses('forbidden')
+  @RequireAccount({ customerOnly: true })
+  @Patch()
+  async rectify(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateAccountDto,
+  ): Promise<AccountDto> {
+    await this.rectifyCustomer.execute({
+      userId: toId(user.id),
+      firstNames: body.firstNames,
+      lastNames: body.lastNames,
+    });
+    return this.read(user);
+  }
+
+  @ApiOperation({
+    summary: 'Cambiar mi email',
+    description:
+      'Solo clientes. Pide la contraseña actual. El email nuevo queda sin verificar y recibe un enlace; el anterior recibe un aviso. Límite: 3 por hora.',
+  })
+  @ApiOkResponse({ type: AccountDto })
+  @ApiProblemResponses('forbidden', 'invalid-credentials', 'duplicate-value')
+  @RequireAccount({ customerOnly: true })
+  @RateLimit('email-verification')
+  @Post('email')
+  @HttpCode(200)
+  async email(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: ChangeEmailDto,
+  ): Promise<AccountDto> {
+    const result = await this.changeEmail.execute({
+      userId: toId(user.id),
+      newEmail: body.newEmail,
+      currentPassword: body.currentPassword,
+    });
+    if (result.outcome === 'INVALID_CURRENT_PASSWORD') {
+      throw new ProblemException('invalid-credentials');
+    }
+    return this.read(user);
   }
 
   @ApiOperation({
@@ -66,5 +121,11 @@ export class MeController {
     if (result.outcome === 'INVALID_CURRENT_PASSWORD') {
       throw new ProblemException('invalid-credentials');
     }
+  }
+
+  private async read(user: AuthenticatedUser): Promise<AccountDto> {
+    const account = await this.queries.findAccount(toId(user.id));
+    if (account === null) throw new NotFoundError('User', user.id);
+    return toAccountDto(account, user.permissions);
   }
 }

@@ -1,12 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailSender } from '../../../shared-kernel/index.js';
-
-/** The time of the change as people in Mexico read it, like the store's schedules (ADR-0101). */
-const WHEN = new Intl.DateTimeFormat('es-MX', {
-  dateStyle: 'long',
-  timeStyle: 'short',
-  timeZone: 'America/Mexico_City',
-});
+import { inMexicoTime } from './mexico-time.js';
 
 /**
  * Tells the account owner that their password changed (ADR-0056, ADR-0072, ADR-0115), so someone who did
@@ -30,7 +24,7 @@ export class PasswordChangeNotice {
         text: [
           `Hola, ${account.firstNames}:`,
           '',
-          `La contraseña de tu cuenta se cambió el ${WHEN.format(changedAt)} (hora del centro de México).`,
+          `La contraseña de tu cuenta se cambió el ${inMexicoTime(changedAt)} (hora del centro de México).`,
           '',
           'Si fuiste tú, no tienes que hacer nada.',
           '',

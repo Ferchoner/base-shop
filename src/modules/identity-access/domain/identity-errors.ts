@@ -93,3 +93,34 @@ export class InvalidAddressLocationError extends DomainError {
     });
   }
 }
+
+/** The new email is the one the account already has (UC-IAM-10, ADR-0117): a validation error of `newEmail`. */
+export class SameEmailError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+
+  constructor() {
+    super('The new email is the current one', {
+      errors: [
+        {
+          field: 'newEmail',
+          code: 'sameEmail',
+          message: 'Es el correo que ya tienes.',
+        },
+      ],
+    });
+  }
+}
+
+/**
+ * A verification or recovery link that was used, expired, or replaced by a newer one (E-20, ADR-0046,
+ * ADR-0056). The answer never says which.
+ */
+export class InvalidOrExpiredTokenError extends DomainError {
+  readonly code = 'invalid-or-expired-token';
+  readonly category = 'invalid';
+
+  constructor() {
+    super('The link was used, expired or replaced');
+  }
+}

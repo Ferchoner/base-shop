@@ -1,5 +1,11 @@
-import { type Id, NotFoundError, toId } from '../../../shared-kernel/index.js';
+import {
+  type Id,
+  NotFoundError,
+  type PermissionCode,
+  toId,
+} from '../../../shared-kernel/index.js';
 import type {
+  AccountView,
   AddressView,
   CustomerDetailView,
   CustomerView,
@@ -11,6 +17,7 @@ import type {
   RoleDto,
   StaffUserDto,
 } from './identity-admin.dto.js';
+import type { AccountDto } from './account.dto.js';
 import type { AddressDto } from './address.dto.js';
 
 /**
@@ -44,4 +51,12 @@ export function toAdminCustomerDto(
 ): AdminCustomerDto {
   if (!('addresses' in view)) return { ...view };
   return { ...view, addresses: view.addresses.map(toAddressDto) };
+}
+
+/** The signed-in account (`Account`, API_SPEC.md §8.10), with the permissions read for this request. */
+export function toAccountDto(
+  view: AccountView,
+  permissions: readonly PermissionCode[],
+): AccountDto {
+  return { ...view, roles: [...view.roles], permissions: [...permissions] };
 }
