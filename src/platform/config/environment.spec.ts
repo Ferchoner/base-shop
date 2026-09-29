@@ -490,3 +490,24 @@ describe('First superadmin (UC-IAM-20, ADR-0116)', () => {
     ).toThrow(message);
   });
 });
+
+describe('EMAIL_VERIFICATION_TTL (BR-USR-11, ADR-0117)', () => {
+  it('defaults to 24 hours', () => {
+    expect(validateEnvironment(REQUIRED).EMAIL_VERIFICATION_TTL).toBe('24h');
+  });
+
+  it.each(['1h', '48h', '7d'])('accepts %p', (value) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, EMAIL_VERIFICATION_TTL: value })
+        .EMAIL_VERIFICATION_TTL,
+    ).toBe(value);
+  });
+
+  it.each(['59m', '8d', '24'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, EMAIL_VERIFICATION_TTL: value }),
+    ).toThrow(
+      'EMAIL_VERIFICATION_TTL must be a duration such as 15m or 7d (s, m, h or d), from 1h to 7d',
+    );
+  });
+});
