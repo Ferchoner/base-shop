@@ -69,7 +69,96 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 ## Sprint Review
 
-PENDIENTE.
+**Fecha:** 2026-09-29. **Resultado:** objetivo cumplido. Las 7 tareas están en DONE y el pipeline de CI está en verde en `main`. Clientes y staff pueden registrarse, verificar su correo, iniciar y cerrar sesión, recuperar su contraseña y operar con permisos. Queda fuera la anonimización (UC-IAM-19), que pasó a T-132 porque depende de Ordering.
+
+### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Scripts de instalación de las dependencias negados por defecto; TypeScript 7 pospuesto | DONE | Paso 0, ADR-0107, ADR-0108 |
+| Catálogo geográfico del INEGI: importación idempotente y consulta pública de estados y municipios | DONE | T-124, ADR-0109 |
+| Envío de correos por SMTP (Mailpit en local) y enlaces al frontend | DONE | T-122, ADR-0110 |
+| Autorización con catálogo de permisos, `@RequirePermissions` y `@RequireAccount` (falla cerrado), y paginación | DONE | T-130, ADR-0111 |
+| Administración de roles, staff y clientes, con motivo en la auditoría | DONE | T-130, ADR-0112 |
+| Libreta de direcciones del cliente, validada contra el catálogo geográfico | DONE | T-130, ADR-0113 |
+| Sesiones: login, renovación con rotación y detección de reutilización, cierre, y cuenta y sesión comprobadas en cada solicitud | DONE | T-120, ADR-0114 |
+| Política de contraseñas con lista de contraseñas comunes, y cambio de contraseña | DONE | T-120, ADR-0115 |
+| Alta y reactivación del staff con contraseña temporal, y script del primer superadministrador | DONE | T-131, ADR-0116 |
+| Registro, verificación y cambio de email, y corrección de datos del cliente | DONE | T-121, ADR-0117 |
+| Recuperación de contraseña | DONE | T-123, ADR-0118 |
+| 856 tests (498 unitarios, 163 de integración y 195 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 118 ADR: 117 aceptados y 1 reemplazado parcialmente (ADR-0001); 12 nuevos en este sprint (ADR-0107 a ADR-0118) | — | `DECISIONS.md` |
+| Las 9 decisiones pendientes (P-xx) siguen abiertas; ninguna se abrió en este sprint | — | `PROGRESS.md` |
+
+El trabajo se integró en 15 pull requests a `main` (del #30 al #45; el #31, TypeScript 7, se cerró sin fusionar). La CI pasó en todos los de las tareas; sus dos únicos fallos fueron los del #31.
+
+### Decisiones abiertas que pasan al siguiente sprint
+
+Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario.
+
+| Grupo | Decisiones |
+|---|---|
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
+
+### Riesgos que pasan al siguiente sprint
+
+- **Heredados del Sprint 1, siguen vigentes:**
+  - si falla un handler de un evento, su efecto se pierde; solo los pagos tienen conciliación (ADR-0014, ADR-0098);
+  - el rate limiting, el límite de logins fallidos y el cache guardan su estado en memoria: sirven mientras la API corra en una sola instancia (ADR-0102, ADR-0104);
+  - dos reglas se revisan solo en code review: las lecturas SQL entre contextos del catálogo público (ADR-0060) y el acceso a la base con la transacción activa (ADR-0093);
+  - Prisma y su función `partialIndexes`, en vista previa (ADR-0091);
+  - la imagen de producción pesa 920 MB por el CLI de Prisma (ADR-0093);
+  - Jest en modo ESM necesita `test/setup-esm-interop.ts`, y bajo Jest algunas librerías registran con otra copia del `Logger` de Nest, así que sus logs no se pueden espiar (ADR-0102, ADR-0116).
+- **Nuevos de la autenticación:**
+  - cada solicitud autenticada hace unas tres consultas para leer la cuenta, la sesión y los permisos (ADR-0114); con carga alta podría necesitar cache;
+  - el Argon2id de `node:crypto` está en fase "release candidate" (ADR-0114);
+  - no hay duración máxima absoluta de sesión: dura mientras se renueve (ADR-0114);
+  - la lista de contraseñas comunes protege poco con el mínimo de 15 caracteres; la longitud es la protección principal (ADR-0115).
+- **Para el frontend, cuando exista:** debe renovar la sesión de una en una, porque dos renovaciones simultáneas la cierran (ADR-0114), y enviar `Referrer-Policy: no-referrer` en las páginas que reciben tokens en la URL (ADR-0117, ADR-0118).
+- **Correos:** van a Mailpit hasta decidir el proveedor (P-24), y un envío fallido no se reintenta (ADR-0110).
+- **Fuera de este sprint:** adaptador de PayPal sin verificar (ADR-0040) y validaciones externas antes de operar con clientes reales (P-61, P-69).
+
+### Qué funcionó
+
+- Partir las tareas grandes mantuvo cada pull request revisable: T-130 en tres partes y T-120 en dos, cada parte con su propio plan y preguntas.
+- Las pruebas de mutación encontraron huecos reales. Por ejemplo:
+  - no había tests de los límites de reenvío de verificación y de cambio de email (T-121);
+  - el test del aviso de transacciones anidadas no podía verlo y se cambió por uno que verifica la causa (T-131).
+- Cada bloqueo de fila tiene su test de concurrencia (direcciones, superadministrador, refresh tokens y primer superadministrador). El script del primer superadministrador se probó contra un PostgreSQL desechable, y la imagen de producción se construyó cada vez que cambió el `Dockerfile` o los datos que copia.
+- La CI pasó a la primera en todos los pull requests de las tareas.
+
+### Qué mejorar
+
+- **gitleaks después del commit:** detectó tres falsos positivos en tests (T-120, T-131 y T-121), por la palabra "password" junto a un valor literal. Se corrigieron rehaciendo commits locales. Conviene correrlo antes de commitear: el paso 0 del Sprint 3 agrega `npm run secrets:scan`.
+- **Commits mezclados:** un `git mv` que ya estaba en el índice entró en el commit de código de T-123. Conviene revisar lo preparado (`git diff --cached --stat`) antes de cada commit.
+- **Edición con comandos de shell:** siguió fallando por escapes (`\n`, `\S`) y por un here-document que el shell no pudo leer. Para código de varias líneas conviene la edición directa.
+- **Test inestable latente:** el test de concurrencia de T-130 fallaba corrido solo, porque `pg_stat_activity` se leía dentro de la transacción que sostiene el bloqueo. Se detectó en T-120 y se arregló para todos. Conviene correr cada test de concurrencia nuevo también aislado.
+- **Particularidades de NestJS 12 descubiertas al ejecutar:** `@Optional()` no se hereda en una subclase (`PassportModule.register({})`, ADR-0114). Conviene escribir primero el test de integración de cada integración nueva con Nest.
+
+### Propuesta para el Sprint 3 (aprobada el 2026-09-29)
+
+- **Objetivo:** catálogo vendible. Categorías, marcas, productos con variantes e imágenes, precios, stock con reservas y costo de envío: lo que necesitan el carrito y el checkout del Sprint 4.
+- **Tareas:**
+  - T-150: categorías y marcas.
+  - T-141: almacenamiento de imágenes.
+  - T-196: costo de envío y envío gratis.
+  - T-140: productos, variantes e imágenes, con la consulta pública.
+  - T-145: precios.
+  - T-160: almacenes, stock y reservas, con pruebas de concurrencia.
+- **Orden por dependencias:**
+  1. T-150, T-141 y T-196.
+  2. T-140.
+  3. T-145 y T-160.
+- **Antes de la primera tarea (paso 0):**
+  - Revisar el repositorio contra los ADR.
+  - Revisar los pull requests de Dependabot que haya.
+  - Agregar `npm run secrets:scan`, que corre gitleaks en local igual que la CI, y documentarlo como paso antes de commitear.
+- **Pospuesto:** T-220 (consulta de auditoría) y reducir la imagen de producción.
+- **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
+- **Limpieza:** se borraron las 6 ramas locales ya fusionadas; las del remoto se borran solas al fusionar.
 
 ---
 

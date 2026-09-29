@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 2 — Identity & Access (desde el 2026-09-28). El Sprint 1 (Fundaciones técnicas) se cerró el 2026-09-28 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Sprint 2 — Identity & Access, cerrado el 2026-09-29 con el objetivo cumplido; su review está en `SPRINT.md`. Siguiente: Sprint 3 (catálogo vendible: Catalog, Pricing e Inventory), aprobado el 2026-09-29.
 
 ## Completed
 
