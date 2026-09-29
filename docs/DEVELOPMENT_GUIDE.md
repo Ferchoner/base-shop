@@ -328,6 +328,11 @@ ADR-0057, ADR-0109. Los estados y municipios del INEGI se cargan con un script, 
   - Cada importación queda en la auditoría como `geo.catalog-imported`.
 - **La API** ve el catálogo nuevo a más tardar en `CACHE_TTL_SECONDS` (120 s por defecto), porque sus respuestas están en cache.
 - **Actualizar el catálogo:** pasos en `data/inegi/README.md`.
+- **Primer superadministrador** (UC-IAM-20, ADR-0116), después de las migraciones:
+  - con la API en el equipo: completar `SUPERADMIN_EMAIL`, `SUPERADMIN_FIRST_NAMES` y `SUPERADMIN_LAST_NAMES` en `.env` y correr `npm run superadmin:create`;
+  - con la API en el contenedor: `docker compose exec -e SUPERADMIN_EMAIL=… -e SUPERADMIN_FIRST_NAMES=… -e SUPERADMIN_LAST_NAMES=… api node dist/scripts/create-first-superadmin.js`, o las variables en `.env` antes de levantar el contenedor;
+  - el script muestra la contraseña temporal una sola vez; se inicia sesión con ella y se cambia con `POST /v1/me/password`;
+  - si ya hay un superadministrador activo, se niega: el resto del staff se da de alta por la API.
 - **Scripts de operación en general:**
   - Van en `src/scripts/` y arrancan un contexto de aplicación de Nest con solo los módulos que usan.
   - Registran cada línea del resultado en el log y terminan con código 0 o 1.

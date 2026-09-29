@@ -133,6 +133,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0113 | Direcciones de clientes y uso del catálogo geográfico desde Identity | Aceptada |
 | ADR-0114 | Sesiones: login, renovación, cierre y autenticación de cada solicitud | Aceptada |
 | ADR-0115 | Política de contraseñas, lista de contraseñas comunes y cambio de contraseña | Aceptada |
+| ADR-0116 | Alta y reactivación del staff, contraseñas temporales y primer superadministrador | Aceptada |
 
 ---
 
@@ -887,7 +888,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los roles se editan en base de datos, así que pueden crearse otros sin cambiar código.
   - Sin segundo factor, una contraseña del staff filtrada da acceso completo a sus permisos; el rate limiting del login y la auditoría de inicios de sesión son las mitigaciones actuales.
 - **Revisar:** segundo factor (2FA) para el staff como mejora de seguridad a mediano o largo plazo, idealmente antes de operar con clientes reales.
-- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111.
+- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116.
 
 ---
 
@@ -1557,7 +1558,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se retiran las notas "irreversible mientras P-49 esté abierta" (descontinuar variante) y "archivado mientras P-49 esté abierta" (publicar producto): un producto archivado primero se reactiva a DRAFT y luego se publica.
   - La reactivación de staff y clientes es un evento de seguridad auditado, igual que la suspensión (ADR-0037).
   - Fuera de alcance: almacenes y listas de precios desactivados (ADR-0038) tampoco tienen reactivación, pero no forman parte de P-49.
-- **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`.
+- **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`. Reactivación del staff implementada en ADR-0116.
 
 ---
 
@@ -1981,7 +1982,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-116 (despacho de eventos después del commit) amplía este mecanismo. Hecho en ADR-0098: la transacción más externa ejecuta acciones después de confirmar.
   - La imagen de producción pesa unos 880 MB e incluye el CLI de Prisma y sus dependencias; `npm audit` sigue sin vulnerabilidades gracias a los `overrides` de ADR-0091.
 - **Revisar si:** el adaptador deja de exigir el CLI (la imagen podría volver a 510 MB), un caso necesita savepoints o el límite de 5 s resulta corto.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0116: una ejecución anidada corre en la transacción de afuera sin volver a pedirla a `nestjs-cls`.
 
 ---
 
@@ -2798,3 +2799,38 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una API sin `data/passwords/` en su directorio de trabajo no arranca.
   - T-121, T-123 y T-131 aplican la política con `PasswordPolicy`, y T-123 envía el mismo aviso.
 - **Estado:** Aceptada (plan de T-120 parte b aprobado el 2026-09-29).
+
+---
+
+## ADR-0116 — Alta y reactivación del staff, contraseñas temporales y primer superadministrador
+
+- **Fecha:** 2026-09-29
+- **Contexto:** T-131 (UC-IAM-13, UC-IAM-16 y UC-IAM-20). ADR-0043 fijó que el staff lo da de alta un superadministrador con contraseña temporal, sin invitación por correo, y que el primer superadministrador se crea con un script a partir de variables de entorno. ADR-0076 fijó que el staff reactivado recibe una contraseña temporal nueva. BR-USR-13 pide contraseñas temporales generadas por el sistema, de al menos 15 caracteres. Faltaban el formato de la contraseña temporal, cómo recibe la suya el primer superadministrador, qué hace el script si ya hay uno y si el email del staff queda verificado.
+- **Decisión:**
+  - **Contraseña temporal:** 20 caracteres aleatorios (`crypto.randomInt`) de un alfabeto de 32 símbolos, minúsculas y dígitos sin `0`, `o`, `1` ni `l`, en cinco grupos de cuatro separados por guiones. Por ejemplo, `k7qm-3xrt-9fzw-p4hd-2nvc`: 24 caracteres y unos 100 bits, fácil de dictar o copiar. Pasa por la misma política que cualquier contraseña (ADR-0115) y se guarda solo su hash.
+  - **Alta (`POST /v1/admin/identity/staff`):**
+    - Con `staff.manage`. Exige email, nombres y apellidos (1 a 100 caracteres, no en blanco) y al menos un rol existente; si no existe, 400 `validation-error` con `unknownRoles`.
+    - El email se guarda en minúsculas. Si otra cuenta lo tiene, de cliente o de staff, responde 409 `duplicate-value`.
+    - Responde 201 con `Location` y `{ user, temporaryPassword }`, con `Cache-Control: no-store`. La cuenta queda ACTIVE y exige cambiar la contraseña en el primer inicio de sesión.
+    - Los roles registran quién los asignó.
+    - Se audita `staff.create`: los roles con su valor, y el email y los nombres solo como cambiados (ADR-0067).
+  - **Reactivación (`POST /v1/admin/identity/staff/{userId}/reactivate`):** solo desde SUSPENDED, con motivo y `version`. Genera una contraseña temporal nueva, marca el cambio obligatorio y conserva los roles; la contraseña anterior deja de servir. Responde 200 con `{ user, temporaryPassword }`. Se audita `staff.reactivate` con el motivo y el cambio de contraseña, sin su valor.
+  - **Email del staff sin verificar:** la verificación de ADR-0046 es de clientes y solo condiciona las compras, así que el staff se crea con `emailVerified: false`, sin efecto.
+  - **Primer superadministrador (`npm run superadmin:create`):**
+    - Lee `SUPERADMIN_EMAIL`, `SUPERADMIN_FIRST_NAMES` y `SUPERADMIN_LAST_NAMES`. Están en `.env.example` y en la configuración validada, como opcionales que la API no usa.
+    - Genera una contraseña temporal y la muestra una sola vez en la terminal, nunca en el log, que puede guardarse o enviarse a otro sistema. El cambio en el primer inicio de sesión es obligatorio. No existe una variable con la contraseña.
+    - Se niega, con código 1 y sin cambios, si hay un staff ACTIVE con el rol superadministrador (a partir de ahí las altas se hacen por la API), si el email ya existe o si falta alguna variable.
+    - Bloquea la fila del rol superadministrador mientras comprueba y crea, así que dos ejecuciones simultáneas crean uno a lo sumo; un test de concurrencia lo comprueba.
+    - La cuenta se audita como `staff.create` con actor SYSTEM, y sus roles quedan sin quien los asignó.
+  - **Transacciones anidadas:** `TransactionManager.run` dentro de otra transacción ejecuta el trabajo tal cual, en la transacción de afuera. Antes volvía a pedirla a `nestjs-cls`, que registraba un aviso de opciones ignoradas. Apareció al crear el primer superadministrador, que reutiliza el alta dentro de su propia transacción.
+- **Alternativas consideradas:**
+  - Frase de palabras aleatorias: necesita una lista de palabras y es más larga de escribir.
+  - Contraseña temporal con mayúsculas y símbolos: más difícil de dictar, sin necesidad, porque la longitud da la entropía.
+  - Variable `SUPERADMIN_PASSWORD`: la contraseña quedaría escrita en `.env` o en el historial de la terminal.
+  - Permitir el script aunque ya haya superadministradores: serviría como puerta trasera para crear más fuera de la API y de su auditoría por usuario.
+  - Dar por verificado el email del staff: no tiene efecto y ADR-0046 no lo pide.
+- **Consecuencias:**
+  - La contraseña temporal solo existe en la respuesta o en la terminal. Si se pierde, se suspende y reactiva la cuenta, o se usa la recuperación de T-123.
+  - Tras el primer superadministrador, las cuentas de staff solo se crean por la API, con `staff.manage`.
+  - En Docker Compose, el script corre dentro del contenedor, con las variables en `.env` o pasadas con `docker compose exec -e`.
+- **Estado:** Aceptada (plan de T-131 aprobado el 2026-09-29).

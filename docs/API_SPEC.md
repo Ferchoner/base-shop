@@ -730,7 +730,12 @@ Representación `StaffUser`: `{ "id", "email", "firstNames", "lastNames", "statu
 
 La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitación por correo (ADR-0043).
 
-`reason` tiene de 1 a 500 caracteres y no puede estar en blanco. Se guarda en la auditoría (`audit_logs.reason`), así que no debe llevar datos personales (ADR-0112). Implementados en T-130: listado, detalle, `PUT …/roles` y `POST …/suspend`; el alta y la reactivación llegan con T-131.
+`reason` tiene de 1 a 500 caracteres y no puede estar en blanco. Se guarda en la auditoría (`audit_logs.reason`), así que no debe llevar datos personales (ADR-0112). Implementados en T-130: listado, detalle, `PUT …/roles` y `POST …/suspend`. En T-131 (ADR-0116):
+
+- **Alta:** responde 201 con `Location: /v1/admin/identity/staff/{id}`. Nombres y apellidos tienen de 1 a 100 caracteres y no pueden estar en blanco. Un rol inexistente responde 400 `validation-error` con `code` `unknownRoles` en `roleIds`.
+- **Reactivación:** la contraseña anterior deja de servir.
+- **Contraseña temporal:** 20 caracteres en cinco grupos de cuatro separados por guiones (`k7qm-3xrt-9fzw-p4hd-2nvc`), sin caracteres que se confundan.
+- **Email:** el staff se crea con `emailVerified: false`, sin efecto (la verificación es de clientes).
 
 ### 9.18 Clientes (UC-IAM-17, 18, 19)
 
