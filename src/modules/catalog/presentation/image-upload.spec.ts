@@ -1,6 +1,14 @@
+import {
+  BadRequestException,
+  type CallHandler,
+  type ExecutionContext,
+  PayloadTooLargeException,
+} from '@nestjs/common';
+import { firstValueFrom, throwError } from 'rxjs';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import {
   IMAGE_FIELD,
+  ImageUploadLimit,
   imageUploadOptions,
   requireImage,
   type UploadedImage,
@@ -52,6 +60,36 @@ describe('Image uploads (API_SPEC.md §11.8, ADR-0121)', () => {
           { field: 'file', code: 'isDefined', message: 'Es obligatorio.' },
         ],
       },
+    });
+  });
+
+  describe('ImageUploadLimit', () => {
+    const failingWith = (error: Error): CallHandler => ({
+      handle: () => throwError(() => error),
+    });
+    const context = {} as ExecutionContext;
+
+    it('answers the cut of multer with maxBytes, as API_SPEC.md §6.2 asks', async () => {
+      const limit = new ImageUploadLimit(1_024);
+
+      await expect(
+        firstValueFrom(
+          limit.intercept(context, failingWith(new PayloadTooLargeException())),
+        ),
+      ).rejects.toMatchObject({
+        code: 'payload-too-large',
+        extensions: { maxBytes: 1_024 },
+      });
+    });
+
+    it('lets any other error through', async () => {
+      const error = new BadRequestException('Unexpected field');
+
+      await expect(
+        firstValueFrom(
+          new ImageUploadLimit(1_024).intercept(context, failingWith(error)),
+        ),
+      ).rejects.toBe(error);
     });
   });
 });
