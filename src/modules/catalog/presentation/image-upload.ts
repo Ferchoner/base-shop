@@ -1,10 +1,21 @@
-import { applyDecorators, UseInterceptors } from '@nestjs/common';
+import {
+  applyDecorators,
+  type CallHandler,
+  type ExecutionContext,
+  Inject,
+  Injectable,
+  type NestInterceptor,
+  PayloadTooLargeException,
+  UseInterceptors,
+} from '@nestjs/common';
 import {
   FileInterceptor,
   type MulterModuleOptions,
 } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
+import { catchError, type Observable, throwError } from 'rxjs';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
+import { IMAGE_MAX_BYTES } from '../application/product-image-files.js';
 
 /** Multipart field that carries the image (API_SPEC.md §11.8). */
 export const IMAGE_FIELD = 'file';
@@ -33,10 +44,37 @@ export function imageUploadOptions(maxBytes: number): MulterModuleOptions {
   };
 }
 
+/**
+ * Answers the 413 of multer as the domain answers it, with `maxBytes` (API_SPEC.md §6.2): multer cuts the
+ * upload before the domain sees the file.
+ */
+@Injectable()
+export class ImageUploadLimit implements NestInterceptor {
+  constructor(@Inject(IMAGE_MAX_BYTES) private readonly maxBytes: number) {}
+
+  intercept(
+    _context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
+    return next.handle().pipe(
+      catchError((error: unknown) =>
+        throwError(() =>
+          error instanceof PayloadTooLargeException
+            ? new ProblemException('payload-too-large', {
+                maxBytes: this.maxBytes,
+              })
+            : error,
+        ),
+      ),
+    );
+  }
+}
+
 /** An endpoint that receives one image in the `file` field of a `multipart/form-data` body. */
 export function ImageUpload(): MethodDecorator {
   return applyDecorators(
-    UseInterceptors(FileInterceptor(IMAGE_FIELD)),
+    // The first one wraps the second, so it sees the errors of multer.
+    UseInterceptors(ImageUploadLimit, FileInterceptor(IMAGE_FIELD)),
     ApiConsumes('multipart/form-data'),
   );
 }

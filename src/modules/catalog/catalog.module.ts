@@ -15,6 +15,7 @@ import {
   ProductImageFiles,
 } from './application/product-image-files.js';
 import { ProductImageStorage } from './application/product-image-storage.js';
+import { ProductImages } from './application/product-images.use-case.js';
 import { ProductLifecycle } from './application/product-lifecycle.use-case.js';
 import { ProductSearchIndex } from './application/product-search-index.js';
 import { ProductVariants } from './application/product-variants.use-case.js';
@@ -24,6 +25,7 @@ import { UpdateCategory } from './application/update-category.use-case.js';
 import { UpdateProduct } from './application/update-product.use-case.js';
 import { BrandRepository } from './domain/brand.repository.js';
 import { CategoryRepository } from './domain/category.repository.js';
+import { ProductGalleryRepository } from './domain/product-gallery.repository.js';
 import { ProductRepository } from './domain/product.repository.js';
 import {
   IMAGE_STORAGE_SETTINGS,
@@ -33,11 +35,13 @@ import {
 import { PrismaBrandRepository } from './infrastructure/prisma-brand.repository.js';
 import { PrismaCatalogQueries } from './infrastructure/prisma-catalog.queries.js';
 import { PrismaCategoryRepository } from './infrastructure/prisma-category.repository.js';
+import { PrismaProductGalleryRepository } from './infrastructure/prisma-product-gallery.repository.js';
 import { PrismaProductSearchIndex } from './infrastructure/prisma-product-search-index.js';
 import { PrismaProductRepository } from './infrastructure/prisma-product.repository.js';
 import { PublicCatalogCacheInvalidation } from './infrastructure/public-catalog-cache.event-handler.js';
 import { AdminBrandsController } from './presentation/admin-brands.controller.js';
 import { AdminCategoriesController } from './presentation/admin-categories.controller.js';
+import { AdminProductImagesController } from './presentation/admin-product-images.controller.js';
 import { AdminProductsController } from './presentation/admin-products.controller.js';
 import { CatalogController } from './presentation/catalog.controller.js';
 import { imageUploadOptions } from './presentation/image-upload.js';
@@ -81,6 +85,7 @@ export function imageUploads(): DynamicModule {
     AdminCategoriesController,
     AdminBrandsController,
     AdminProductsController,
+    AdminProductImagesController,
   ],
   providers: [
     PublicCatalogCacheInvalidation,
@@ -97,10 +102,15 @@ export function imageUploads(): DynamicModule {
     UpdateProduct,
     ProductLifecycle,
     ProductVariants,
+    ProductImages,
     { provide: CategoryRepository, useClass: PrismaCategoryRepository },
     { provide: BrandRepository, useClass: PrismaBrandRepository },
     { provide: ProductRepository, useClass: PrismaProductRepository },
     { provide: ProductSearchIndex, useClass: PrismaProductSearchIndex },
+    {
+      provide: ProductGalleryRepository,
+      useClass: PrismaProductGalleryRepository,
+    },
     { provide: CatalogQueries, useClass: PrismaCatalogQueries },
     ...PRODUCT_IMAGE_PROVIDERS,
   ],

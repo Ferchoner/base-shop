@@ -57,13 +57,16 @@ export class UnsupportedImageFormatError extends DomainError {
   }
 }
 
-/** The image is larger than the limit (BR-PRD-08, E-22). Answered 413 `payload-too-large`. */
+/**
+ * The image is larger than the limit (BR-PRD-08, E-22). Answered 413 `payload-too-large` with `maxBytes`
+ * (API_SPEC.md §6.2).
+ */
 export class ImageTooLargeError extends DomainError {
   readonly code = 'payload-too-large';
   readonly category = 'too-large';
 
   constructor(maxBytes: number) {
-    super(`The image is larger than ${maxBytes} bytes`);
+    super(`The image is larger than ${maxBytes} bytes`, { maxBytes });
   }
 }
 

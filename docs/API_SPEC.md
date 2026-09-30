@@ -283,6 +283,7 @@ Error de validación:
 | `idempotency-request-in-progress` | 409 | E-25 | Solicitud original aún en proceso | — |
 | `cart-not-active` | 409 | E-27 | Modificar un carrito CHECKED_OUT o MERGED | `cartStatus` |
 | `address-limit-reached` | 409 | E-28 | Más de 10 direcciones (BR-ADR-04) | `limit` |
+| `image-limit-reached` | 409 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | `limit` |
 | `last-superadmin` | 409 | E-29 | Dejar el sistema sin superadministrador (BR-USR-03) | — |
 | `restock-not-allowed` | 409 | E-30 | Reintegro que supera lo vendido o con reintegro previo (ADR-0052) | `lines` |
 | `active-orders-exist` | 409 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067) | — |
@@ -295,7 +296,7 @@ Error de validación:
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-34 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-35 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
