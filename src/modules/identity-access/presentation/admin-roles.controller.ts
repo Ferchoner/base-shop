@@ -22,6 +22,7 @@ import {
   toPageResponse,
   toSortOrders,
 } from '../../../platform/http/pagination/pagination.js';
+import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import {
   NotFoundError,
@@ -43,7 +44,7 @@ import {
   RoleListQueryDto,
   UpdateRoleDto,
 } from './identity-admin.dto.js';
-import { pathId, toRoleDto } from './identity-admin.mappers.js';
+import { toRoleDto } from './identity-admin.mappers.js';
 
 /** Catalog of permissions in code (API_SPEC.md §9.15, ADR-0111). */
 @ApiTags('Administración: identidad')

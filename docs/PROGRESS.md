@@ -113,6 +113,7 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 - [x] T-121: registro de clientes, verificación de email con enlace de un solo uso (`/verify-email?token=…`, `EMAIL_VERIFICATION_TTL`), reenvío que no revela si el email existe, cambio de email con contraseña y aviso al anterior, y `PATCH /v1/me` (ADR-0117)
 - [x] T-123: recuperación de contraseña con enlace de un solo uso (`/reset-password?token=…`, `PASSWORD_RESET_TTL`), que revoca todas las sesiones, quita la contraseña temporal pendiente, verifica el email y avisa por correo; el cambio de email invalida los enlaces pendientes (ADR-0118)
 - [x] Paso 0 del Sprint 3: revisión contra los ADR sin contradicciones; `brace-expansion` y `fast-uri` actualizados por avisos de seguridad (solo `package-lock.json`); `npm run secrets:scan` revisa con gitleaks los cambios preparados y todo el historial, antes de cada commit y en la CI, con la imagen fijada solo en `package.json` (ADR-0119)
+- [x] T-150: árbol público de categorías con cache, administración de categorías y marcas (crear, editar, mover, desactivar, reactivar y borrar), slugs generados del nombre y numerados si ya existen, movimientos sin ciclos con un bloqueo advisory y test de concurrencia; `GET /v1/catalog/brands` y el recálculo del `search_vector` pasan a T-140 (ADR-0120)
 
 ## In Progress
 

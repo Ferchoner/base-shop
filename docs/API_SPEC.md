@@ -1,6 +1,6 @@
 # API SPECIFICATION
 
-**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Implementados: autenticación, cuenta propia y direcciones, administración de Identity & Access y catálogo geográfico (Sprint 2); cada endpoint implementado indica su tarea y su ADR, y Swagger (`/docs/v1`, solo en local) muestra solo los implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
+**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Implementados: autenticación, cuenta propia y direcciones, administración de Identity & Access y catálogo geográfico (Sprint 2); categorías y marcas (T-150); cada endpoint implementado indica su tarea y su ADR, y Swagger (`/docs/v1`, solo en local) muestra solo los implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
 
 Índice:
 
@@ -276,7 +276,7 @@ Error de validación:
 | `total-mismatch` | 409 | E-06 | Total recalculado distinto de `expectedTotal` | `currentTotal` (Money) |
 | `insufficient-stock` | 409 | E-07 | No se puede reservar alguna línea | `lines` (`variantId`, `canFulfill`) |
 | `variant-not-sellable` | 409 | E-10 | Variante no publicada, descontinuada o sin precio | `variantIds` |
-| `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus` |
+| `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120) |
 | `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado | `field` |
 | `resource-in-use` | 409 | E-14 | Borrado de entidad con referencias | — |
 | `price-period-conflict` | 409 | E-15 | Periodo superpuesto o ya iniciado | — |
@@ -781,7 +781,7 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implem
 | GET | `/v1/catalog/products` | Público | UC-CAT-01 |
 | GET | `/v1/catalog/products/{slug}` | Público | UC-CAT-02 |
 | GET | `/v1/catalog/categories` | Público | UC-CAT-03 |
-| GET | `/v1/catalog/brands` | Público | Filtro de marca (ADR-0060) |
+| GET | `/v1/catalog/brands` | Público | Filtro de marca (ADR-0060); llega con T-140 (ADR-0120) |
 | GET, POST | `/v1/admin/catalog/products` | `catalog.read` / `catalog.write` | UC-CAT-14, UC-CAT-04 |
 | GET, PATCH | `/v1/admin/catalog/products/{productId}` | `catalog.read` / `catalog.write` | UC-CAT-05 |
 | POST | `/v1/admin/catalog/products/{productId}/publish` | `catalog.write` | UC-CAT-09 |
@@ -831,10 +831,12 @@ Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al 
 ### 11.4 `GET /v1/catalog/categories` — Árbol de categorías (UC-CAT-03)
 
 - **Response 200:** `{ "data": [ { "id", "name", "slug", "position", "children": [ … ] } ] }`. Solo categorías visibles (activas y con todos sus ancestros activos, ADR-0080), ordenadas por `position` y nombre. Sin paginación. Cache con TTL de 120 s.
+- **Implementado en T-150 (ADR-0120):** cada nodo lleva solo `id`, `name`, `slug`, `position` y `children`. El nombre se ordena como en español (la ñ después de la n, sin distinguir mayúsculas ni acentos) y el empate, por ID. Los cambios del staff se ven al vencer el TTL.
 
 ### 11.5 `GET /v1/catalog/brands` — Marcas
 
 - **Response 200:** `{ "data": [ { "id", "name", "slug" } ] }`. Marcas activas con al menos un producto visible. Sin paginación. Orden por nombre.
+- Se implementa en T-140, con la consulta pública del catálogo: un producto es visible con precio vigente (ADR-0120).
 
 ### 11.6 Productos administrativos
 
@@ -911,6 +913,18 @@ Representaciones: `AdminCategory { id, parentId, name, slug, status, position, p
 | `DELETE /v1/admin/catalog/brands/{brandId}` | `catalog.write`. 204. Errores: 409 `resource-in-use` |
 
 Categorías y marcas no tienen columna `version` en el modelo; se actualizan sin concurrencia optimista (último en escribir gana). Su slug se puede cambiar: el anterior deja de funcionar (404) y queda libre, con el riesgo aceptado de romper enlaces públicos anteriores (ADR-0072).
+
+Implementado en T-150 (ADR-0120):
+
+- **Campos:** `name` de 1 a 100 caracteres, sin quedar en blanco; `slug` de 1 a 100, con minúsculas, dígitos y guiones sencillos entre ellos; `position` entero de 0 a 10 000, 0 por defecto. En `PATCH`, `parentId: null` mueve la categoría a la raíz.
+- **Slug generado:** sin `slug`, se genera del nombre (`Camisas de Vestir` → `camisas-de-vestir`) y, si ya existe, se numera con el primer número libre (`camisas-2`). Un `slug` enviado que ya existe responde 409 `duplicate-value` con `field: slug`. Un nombre sin letras ni dígitos y sin `slug` responde 400 `validation-error` con `slugRequired` en `slug`.
+- **Nombre repetido:** 409 `duplicate-value` con `field: name`, sin distinguir mayúsculas: entre categorías hermanas (también entre raíces) y entre todas las marcas.
+- **Padre:** al crear o mover, uno inexistente o inactivo responde 400 `validation-error` con `unknownParent` o `inactiveParent` en `parentId`.
+- **Conflictos de estado:** 409 `invalid-state-transition` con `currentStatus`. Mover bajo sí misma o bajo una subcategoría lleva `reason: category-cycle`; reactivar bajo un padre inactivo, `reason: inactive-parent`. Dos movimientos simultáneos se ordenan, así que nunca forman un ciclo.
+- **Árbol administrativo:** con `status` (uno o más, separados por comas) incluye las categorías de esos estados y los ancestros que llevan a ellas, cada uno con su estado. `productCount` cuenta productos en cualquier estado; `childCount`, subcategorías directas.
+- **Respuestas:** el alta responde 201 con `Location: /v1/admin/catalog/categories/{id}` (o `…/brands/{id}`); editar, desactivar y reactivar responden 200 con `AdminCategory` o `AdminBrand`. Un ID que no es UUID responde 404.
+- **Marcas:** `q` busca parte del nombre sin distinguir mayúsculas; `status` acepta uno o más estados; `sort` solo `name` o `-name`.
+- **Auditoría:** cada cambio se audita con los campos que cambiaron (`categories.*` y `brands.*`); un `PATCH` sin cambios no se guarda ni se audita.
 
 ---
 

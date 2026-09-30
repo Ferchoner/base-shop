@@ -198,7 +198,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | position | integer | No | Orden entre hermanas; default 0 |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (parent_id <> id)`; índice único `(parent_id, lower(name)) NULLS NOT DISTINCT` (PostgreSQL 15 o posterior): sin `NULLS NOT DISTINCT`, dos categorías raíz podrían tener el mismo nombre, porque los `NULL` cuentan como distintos. La ausencia de ciclos se valida en la aplicación al mover (BR-PRD-03). Solo se borra sin productos ni subcategorías (BR-PRD-10), garantizado por las FK `RESTRICT`.
+- **Restricciones:** `CHECK (parent_id <> id)`; índice único `(parent_id, lower(name)) NULLS NOT DISTINCT` (PostgreSQL 15 o posterior): sin `NULLS NOT DISTINCT`, dos categorías raíz podrían tener el mismo nombre, porque los `NULL` cuentan como distintos. La ausencia de ciclos se valida en la aplicación al mover (BR-PRD-03), con un bloqueo advisory de transacción que ordena los movimientos simultáneos (ADR-0120). Solo se borra sin productos ni subcategorías (BR-PRD-10), garantizado por las FK `RESTRICT`.
 - **Índices:** `(parent_id)`.
 
 ### 4.3 `products`

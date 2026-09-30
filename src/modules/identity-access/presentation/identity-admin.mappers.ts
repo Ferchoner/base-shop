@@ -1,9 +1,4 @@
-import {
-  type Id,
-  NotFoundError,
-  type PermissionCode,
-  toId,
-} from '../../../shared-kernel/index.js';
+import type { PermissionCode } from '../../../shared-kernel/index.js';
 import type {
   AccountView,
   AddressView,
@@ -19,20 +14,6 @@ import type {
 } from './identity-admin.dto.js';
 import type { AccountDto } from './account.dto.js';
 import type { AddressDto } from './address.dto.js';
-
-/**
- * An ID from the URL. One that is not a UUID cannot exist, so it is answered 404 like any missing resource.
- */
-export function pathId<Entity extends string>(
-  value: string,
-  resource: string,
-): Id<Entity> {
-  try {
-    return toId<Entity>(value);
-  } catch {
-    throw new NotFoundError(resource, value);
-  }
-}
 
 export function toRoleDto(view: RoleView): RoleDto {
   return { ...view, permissions: [...view.permissions] };

@@ -22,6 +22,7 @@ import {
   toPageResponse,
   toSortOrders,
 } from '../../../platform/http/pagination/pagination.js';
+import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import {
@@ -41,7 +42,7 @@ import {
   StaffUserDto,
   StaffWithTemporaryPasswordDto,
 } from './identity-admin.dto.js';
-import { pathId, toStaffUserDto } from './identity-admin.mappers.js';
+import { toStaffUserDto } from './identity-admin.mappers.js';
 
 /**
  * Staff accounts (UC-IAM-13, 14 and 16, API_SPEC.md §9.17). Creating and reactivating a staff member answer

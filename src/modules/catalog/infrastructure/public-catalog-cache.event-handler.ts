@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppCache } from '../../../platform/cache/app-cache.js';
 import { OnDomainEvent } from '../../../platform/events/on-domain-event.decorator.js';
-
-/** Cache namespace of the public catalog reads: category tree, product detail and listings (ADR-0060). */
-export const PUBLIC_CATALOG_CACHE = 'catalog';
+import { PUBLIC_CATALOG_CACHE } from '../application/public-catalog-cache.js';
 
 /**
  * Clears the public catalog cache when a product is published or archived, or a variant is discontinued
