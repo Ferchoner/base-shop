@@ -112,6 +112,7 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 - [x] T-131: alta y reactivación del staff por la API con contraseña temporal mostrada una sola vez, y script del primer superadministrador que se niega si ya hay uno activo, con bloqueo y test de concurrencia (ADR-0116)
 - [x] T-121: registro de clientes, verificación de email con enlace de un solo uso (`/verify-email?token=…`, `EMAIL_VERIFICATION_TTL`), reenvío que no revela si el email existe, cambio de email con contraseña y aviso al anterior, y `PATCH /v1/me` (ADR-0117)
 - [x] T-123: recuperación de contraseña con enlace de un solo uso (`/reset-password?token=…`, `PASSWORD_RESET_TTL`), que revoca todas las sesiones, quita la contraseña temporal pendiente, verifica el email y avisa por correo; el cambio de email invalida los enlaces pendientes (ADR-0118)
+- [x] Paso 0 del Sprint 3: revisión contra los ADR sin contradicciones; `brace-expansion` y `fast-uri` actualizados por avisos de seguridad (solo `package-lock.json`); `npm run secrets:scan` revisa con gitleaks los cambios preparados y todo el historial, antes de cada commit y en la CI, con la imagen fijada solo en `package.json` (ADR-0119)
 
 ## In Progress
 

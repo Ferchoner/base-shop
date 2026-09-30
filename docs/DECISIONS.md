@@ -136,6 +136,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0116 | Alta y reactivación del staff, contraseñas temporales y primer superadministrador | Aceptada |
 | ADR-0117 | Registro, verificación y cambio de email, y corrección de datos del cliente | Aceptada |
 | ADR-0118 | Recuperación de contraseña | Aceptada |
+| ADR-0119 | Detección de secretos antes de cada commit | Aceptada |
 
 ---
 
@@ -2367,7 +2368,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una vulnerabilidad alta publicada en una dependencia hace fallar la CI aunque el pull request no la toque. Se actualiza la dependencia, o se registra la decisión si no hay arreglo.
   - Un commit con otro formato hace fallar `Commit messages`: se corrige reescribiendo los commits de la rama antes de fusionar. Dependabot (T-107) debe usar el prefijo `chore`.
   - Dependabot puede actualizar las actions fijadas por SHA. La imagen de gitleaks, por estar en una variable del workflow, se actualiza a mano.
-- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28).
+- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28). Modificada por ADR-0119: el paso 9 corre `npm run secrets:scan`, que también revisa los cambios preparados, y la imagen de gitleaks se fija en `package.json`, no en el workflow.
 
 ---
 
@@ -2911,3 +2912,37 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Identity & Access queda completo para el Sprint 2: todos sus casos de uso con API, salvo la anonimización (UC-IAM-19), que pasó a T-132.
   - Los enlaces vencidos o usados los borrará la limpieza diaria (T-231).
 - **Estado:** Aceptada (plan de T-123 aprobado el 2026-09-29).
+
+---
+
+## ADR-0119 — Detección de secretos antes de cada commit
+
+- **Fecha:** 2026-09-29
+- **Contexto:** Paso 0 del Sprint 3. En el Sprint 2, gitleaks encontró tres falsos positivos en tests (T-120, T-131 y T-121) después de commitear, y hubo que rehacer commits locales. La CI de ADR-0105 revisa todo el historial con una imagen fijada en el workflow. Para repetirla en local había que copiar un comando de Docker que cambiaba entre PowerShell y Git Bash, que necesitaba `MSYS_NO_PATHCONV=1`. Además, gitleaks solo revisaba lo ya commiteado.
+- **Decisión:**
+  - **`npm run secrets:scan`** corre dos revisiones con la imagen oficial de gitleaks y se detiene en el primer hallazgo:
+    1. `secrets:scan:staged`: los cambios preparados (`git --pre-commit --staged`), para detectar un hallazgo antes de commitear.
+    2. `secrets:scan:history`: todo el historial, igual que la CI, incluidos los commits que aún no se suben.
+  - **La imagen:** gitleaks 8.30.1, fijada por digest y solo en `package.json`, en los dos scripts.
+  - **Mismo comando en la CI:** el paso 9 corre `npm run secrets:scan`. En la CI no hay cambios preparados, así que la primera revisión termina sin hallazgos.
+  - **Montaje:** el repositorio se monta en solo lectura (`-v .:/repo:ro`). La ruta relativa funciona igual en PowerShell, Git Bash y Linux, porque npm ejecuta los scripts con su propio shell. Los hallazgos salen con `--redact`.
+  - **Paso manual, no hook:** antes de cada commit se revisa lo preparado (`git diff --cached --stat`) y se corre `npm run secrets:scan` (`DEVELOPMENT_GUIDE.md`, "Ramas y commits").
+  - **Test:** `test/repository/secrets-scan.spec.ts` comprueba:
+    - que la CI use el mismo comando;
+    - el orden de las dos revisiones;
+    - que las dos usen la misma imagen fijada por versión y digest, y que el workflow no fije otra;
+    - el montaje en solo lectura y `--redact`;
+    - que el checkout de la CI traiga todo el historial.
+- **Alternativas consideradas:**
+  - **Hook `pre-commit` con `core.hooksPath`:** cada clon tiene que activarlo y exige Docker encendido en cada commit, también en los de documentación. Si Docker está apagado, el commit falla o hay que saltarse el hook.
+  - **husky:** suma una dependencia y un script de instalación.
+  - **Un script de Node para armar el comando de Docker:** más código para lo mismo, porque Docker ya resuelve la ruta relativa en todos los sistemas.
+  - **Revisar solo el historial:** el falso positivo aparece después del commit, que fue el problema del Sprint 2.
+  - **Revisar solo los cambios preparados:** no cubre los commits hechos sin revisar ni los de otras ramas.
+  - **Mantener la imagen en el workflow:** el comando local y el de la CI podrían usar versiones distintas.
+- **Consecuencias:**
+  - Un falso positivo se corrige antes del commit. El paso depende de la disciplina de quien commitea, y la CI lo repite como segunda barrera.
+  - Commitear requiere Docker encendido, igual que los tests de integración y end-to-end.
+  - Actualizar gitleaks sigue siendo manual: Dependabot no revisa imágenes en `package.json`. Se cambian los dos scripts, y el test exige que coincidan.
+  - Modifica ADR-0105 en el paso 9.
+- **Estado:** Aceptada (plan del paso 0 del Sprint 3 aprobado el 2026-09-29).

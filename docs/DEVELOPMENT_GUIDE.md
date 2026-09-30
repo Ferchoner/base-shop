@@ -10,7 +10,7 @@
 6. Ejecutar verificaciones.
 7. Actualizar documentación.
 8. Actualizar `TASKS.md` y `PROGRESS.md`.
-9. Crear checkpoint Git.
+9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
 ## Convenciones
 
@@ -233,13 +233,13 @@ npm run lint:code && npm run format:check && npm run lint:boundaries
 npx tsc --noEmit
 npm test && npm run test:int && npm run test:e2e
 npm audit --audit-level=high
-docker run --rm -v "${PWD}:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
+npm run secrets:scan
 docker build --target production -t base-shop .
 git log --no-merges --format=%s origin/main..HEAD | bash .github/scripts/check-commit-messages.sh
 ```
 
 - La migración desde cero y la comparación con el esquema de Prisma (paso 7) van dentro de `npm run test:int`.
-- En Git Bash, el comando de gitleaks necesita `MSYS_NO_PATHCONV=1` delante para que no se reescriba la ruta `/repo`; en PowerShell funciona tal cual.
+- `npm run secrets:scan` (ADR-0119) corre gitleaks con Docker, igual que la CI: primero sobre los cambios preparados (`secrets:scan:staged`) y después sobre todo el historial (`secrets:scan:history`), y se detiene en el primer hallazgo. Monta el repositorio en solo lectura y oculta los secretos en la salida (`--redact`). Funciona igual desde PowerShell, Git Bash y Linux. La imagen está fijada por digest solo en `package.json`; para actualizarla se cambian los dos scripts, y el test `test/repository/secrets-scan.spec.ts` comprueba que la CI siga usando el mismo comando.
 - Si gitleaks reporta algo:
   - **Si es un secreto real,** se rota de inmediato y se saca del historial; nunca se ignora.
   - **Si es un falso positivo,** se agrega su huella (`Fingerprint`) a `.gitleaksignore` con un comentario que explique por qué.
@@ -260,6 +260,9 @@ Ramas y commits (ADR-0084), en inglés:
 - Ramas: `tipo/T-xxx-descripcion-corta`, en minúsculas y con guiones (por ejemplo, `feat/T-100-config-validation`). Sin tarea, el ID de la decisión (`chore/p-70-...`) o solo la descripción.
 - Commits: Conventional Commits, `tipo: descripción` en imperativo y en una línea corta (por ejemplo, `feat: validate environment variables at startup`). Cuerpo opcional; pie opcional con referencias (`Refs: T-100, ADR-0084`).
 - Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`.
+- Antes de cada commit, con Docker en marcha (ADR-0119):
+  1. `git diff --cached --stat`: comprobar que lo preparado es solo lo de ese commit. Un archivo movido con `git mv` queda preparado aunque no se haya agregado después.
+  2. `npm run secrets:scan`: si encuentra algo en lo preparado, se corrige antes de commitear. En los tests, un valor literal junto a palabras como "password" o "key" puede parecer un secreto: se construye el valor o se cambia el nombre, en lugar de ignorarlo.
 
 ## Configuración local
 
