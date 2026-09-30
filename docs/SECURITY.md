@@ -112,6 +112,13 @@ RBAC (ADR-0017):
 - El nombre en disco lo genera el servidor; nunca se usa el nombre enviado por el cliente (evita sobrescrituras y rutas manipuladas).
 - La carpeta de imágenes no permite ejecutar archivos.
 - Formatos permitidos: JPEG, PNG y WebP. Tamaño máximo: 5 MB por imagen, configurable (ADR-0024). El límite se aplica al recibir la solicitud, antes de procesar el archivo completo.
+- Implementación (ADR-0121):
+  - el formato se reconoce por los primeros bytes del archivo;
+  - la clave `products/<productId>/<imageId>.<ext>` la genera el servidor, y el adaptador rechaza cualquier otra antes de tocar el disco;
+  - los archivos se escriben primero en `.uploading/` y quedan con permisos `0644`, sin ejecución;
+  - la API los sirve en `/media` con `nosniff` y la CSP estricta, sin listar carpetas ni servir carpetas con punto.
+- Las imágenes no se reescriben, así que conservan sus metadatos EXIF, que pueden incluir la ubicación donde se tomó la foto: el staff debe subir fotos sin ubicación (ADR-0121).
+- `/media` es público y no pasa por el rate limiting de la API; cuando exista hosting (P-06), conviene servirlo desde un servidor web o un CDN.
 
 ## Gestión de secretos
 

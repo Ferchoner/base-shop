@@ -274,6 +274,7 @@ Ramas y commits (ADR-0084), en inglés:
 - `DATABASE_URL` (obligatoria) apunta al PostgreSQL de Docker Compose desde el equipo (`localhost`) y la usan la API y el CLI de Prisma. El contenedor de la API recibe su propia URL, con host `postgres`, desde `docker-compose.yml`. La contraseña de PostgreSQL no debe llevar caracteres especiales de URL (`@`, `:`, `/`, `?`, `#`) o debe ir codificada en la URL.
 - El proyecto corre solo en local por ahora (ADR-0031).
 - Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110).
+- Las imágenes de producto se guardan en `IMAGE_STORAGE_DIR` (`./storage/images` por defecto, fuera de Git) y la API las sirve en `http://localhost:3000/media` (ADR-0121). `IMAGE_BASE_URL` es obligatoria en producción.
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
 
 ## Entorno local con Docker
@@ -287,6 +288,7 @@ ADR-0089. Requiere Docker Desktop (o Docker Engine con Compose) en ejecución y 
 | Mailpit (bandeja web) | `http://localhost:8025` |
 | Mailpit (SMTP) | `localhost:1025` |
 | Swagger UI | `http://localhost:3000/docs/v1` (documento en `/docs/v1/openapi.json`); solo con `NODE_ENV=development` |
+| Imágenes de producto | `http://localhost:3000/media/<clave>`, desde `./storage/images` |
 
 Comandos:
 
@@ -295,7 +297,7 @@ Comandos:
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
 - **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
-- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13).
+- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13). Crea `/app/storage/images` con dueño `node`: al desplegar se monta ahí un volumen persistente, que debe ir en los respaldos (ADR-0024, ADR-0121).
 
 ## Migraciones
 

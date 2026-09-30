@@ -253,7 +253,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | id | uuid | No | PK |
 | product_id | uuid | No | FK → `products.id` `CASCADE` |
 | variant_id | uuid | Sí | FK → `product_variants.id` `SET NULL` |
-| storage_key | text | No | `UNIQUE`; ruta relativa (ADR-0024) |
+| storage_key | text | No | `UNIQUE`; ruta relativa (ADR-0024): `products/<productId>/<imageId>.<jpg\|png\|webp>`, elegida por el servidor (ADR-0121) |
 | content_type | text | No | `CHECK (content_type IN ('image/jpeg','image/png','image/webp'))` |
 | size_bytes | integer | No | `CHECK (size_bytes > 0 AND size_bytes <= 5242880)` |
 | alt_text | text | Sí | — |
@@ -261,7 +261,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at | timestamptz(3) | No | — |
 
 - **Índices:** `(product_id, position)`.
-- **Integridad:** borrado físico junto con el archivo (ADR-0038). El límite de tamaño es configurable; el `CHECK` refleja el valor inicial y se ajusta con una migración si cambia.
+- **Integridad:** borrado físico junto con el archivo (ADR-0038). El límite de tamaño es configurable con `IMAGE_MAX_BYTES`, que solo puede bajarlo: el `CHECK` refleja el máximo, y subirlo exige primero una migración (ADR-0121).
 
 ---
 

@@ -138,6 +138,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0118 | Recuperación de contraseña | Aceptada |
 | ADR-0119 | Detección de secretos antes de cada commit | Aceptada |
 | ADR-0120 | Categorías y marcas: slugs, ciclos y árbol | Aceptada |
+| ADR-0121 | Imágenes de producto en disco: validación, subida y `/media` | Aceptada |
 
 ---
 
@@ -474,7 +475,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Quién sirve las imágenes (la propia API o un servidor web delante) depende del hosting (P-06).
   - Formatos permitidos: JPEG, PNG y WebP. Tamaño máximo: 5 MB por imagen, configurable. Un archivo fuera de estos límites se rechaza.
 - **Revisar si:** se necesita más de una instancia de la API, el volumen de imágenes crece o se requieren varios tamaños de imagen.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0121: puerto `ProductImageStorage` con adaptador de disco, `IMAGE_STORAGE_DIR`, `IMAGE_BASE_URL` e `IMAGE_MAX_BYTES`, y la API sirve las imágenes en `/media` mientras P-06 siga abierta.
 
 ---
 
@@ -2025,7 +2026,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Ningún código llama a `new Date()` para la hora actual; los tests unitarios usan un reloj fijo.
   - BR-TAX-02 queda con el modo de redondeo; P-69 suma su validación.
 - **Revisar si:** se opera con otra moneda, un monto necesita superar el máximo de `integer`, el contador indica otro redondeo o se ejecuta más de una instancia (el orden de UUIDv7 solo se garantiza dentro de cada proceso).
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). Modificada por ADR-0121: dos categorías más, `too-large` (413) y `unsupported` (415), para las reglas de archivos del dominio (BR-PRD-08).
 
 ---
 
@@ -2995,3 +2996,57 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un enlace público a un slug anterior deja de funcionar, como aceptó ADR-0072.
   - T-140 hereda el listado público de marcas y el recálculo del `search_vector`.
 - **Estado:** Aceptada (plan de T-150 aprobado el 2026-09-30).
+
+---
+
+## ADR-0121 — Imágenes de producto en disco: validación, subida y `/media`
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-141. ADR-0024 fijó las imágenes en el disco del servidor detrás de un puerto de la aplicación, con la clave en la base y la URL armada al responder desde una URL base configurable. También fijó los formatos JPEG, PNG y WebP y el máximo de 5 MB, configurable. `SECURITY.md` pide validar el tipo por el contenido, que el servidor elija el nombre del archivo, que la carpeta no permita ejecutar y que el límite corte la subida antes de leer el archivo completo. Quién sirve las imágenes depende del hosting (P-06), que sigue abierto. Los endpoints de imágenes (UC-CAT-11) llegan con T-140, porque necesitan productos.
+- **Decisión:**
+  - **Alcance:** T-141 deja la infraestructura: validación, puerto, adaptador de disco, recepción de la subida, configuración y servicio de los archivos. T-140 agrega los endpoints de `API_SPEC.md` §11.8 sobre ella.
+  - **Validación (BR-PRD-08), en el dominio de Catalog (`ProductImageFile`):**
+    - El formato se reconoce solo por los primeros bytes: JPEG `FF D8 FF`, PNG `89 50 4E 47 0D 0A 1A 0A` y WebP `RIFF` más `WEBP` en el byte 8. El nombre del archivo y el tipo que declara el cliente se ignoran. Cualquier otro contenido, incluidos SVG, GIF y un archivo vacío, responde 415 `unsupported-media-type`.
+    - El tamaño no puede pasar de `IMAGE_MAX_BYTES`, ni nunca del `CHECK` de la base (5 242 880 bytes). Si pasa, responde 413 `payload-too-large`.
+    - La imagen no se decodifica ni se reescribe, así que conserva sus metadatos EXIF, incluida la ubicación donde se tomó, si la tiene.
+  - **Categorías de error:** el shared kernel suma `too-large` (413) y `unsupported` (415) a las cuatro de ADR-0094, porque estas reglas son del dominio y el dominio no conoce HTTP. Un código fuera del catálogo toma los textos de `payload-too-large` y `unsupported-media-type`.
+  - **Clave (ADR-0024):** `products/<productId>/<imageId>.<jpg|png|webp>`, con un UUIDv7 nuevo y la extensión del formato detectado. La elige el servidor. El adaptador rechaza cualquier clave de otra forma antes de tocar el disco, así que ni un error de programación puede escribir o borrar fuera de la carpeta.
+  - **Puerto `ProductImageStorage` (aplicación de Catalog):**
+    - `save(key, file)` guarda el archivo completo o nada;
+    - `delete(key)` borra, y un archivo que ya no existe no es un error, así que reintentar es seguro;
+    - `urlOf(key)` devuelve `IMAGE_BASE_URL` + `/` + clave.
+  - **Adaptador de disco (`LocalDiskProductImageStorage`):**
+    - Escribe en `.uploading/` dentro de la misma carpeta, con un nombre aleatorio, y renombra el archivo a su clave. Nadie lee un archivo a medias, y si algo falla, el temporal se borra.
+    - Los archivos quedan con permisos `0644`, sin ejecución; las carpetas, con `0755`.
+  - **Subida:**
+    - Multer, que ya trae `@nestjs/platform-express`, recibe en memoria un solo archivo en el campo `file`, con hasta 10 campos de texto de 4 KB.
+    - El límite de tamaño es `IMAGE_MAX_BYTES`: al pasarlo corta la lectura y responde 413. La regla del dominio vuelve a revisarlo.
+    - Sin archivo, 400 `validation-error` con `isDefined` en `file`; con dos archivos o en otro campo, 400.
+    - `@ImageUpload()` y `requireImage()` quedan listos para los endpoints de T-140.
+  - **Servir las imágenes:**
+    - La API las sirve en `/media/<clave>`, fuera de `/v1` como `/docs`, desde `IMAGE_STORAGE_DIR`.
+    - Como una clave nunca cambia de contenido, van con `Cache-Control: public, max-age=31536000, immutable`, y conservan los encabezados de helmet (`nosniff` y la CSP estricta).
+    - No lista carpetas, no redirige, ignora las carpetas con punto (`.uploading`), y un archivo inexistente responde 404 `not-found` como problema.
+    - Cuando el hosting ponga un servidor web o un CDN delante (P-06), basta con cambiar `IMAGE_BASE_URL`.
+  - **Configuración:**
+    - `IMAGE_STORAGE_DIR`: `storage/images` por defecto.
+    - `IMAGE_BASE_URL`: `http://localhost:3000/media` por defecto; obligatoria en producción, con las reglas de `FRONTEND_BASE_URL`.
+    - `IMAGE_MAX_BYTES`: de 1 a 5 242 880, con 5 242 880 por defecto. Subir de 5 MB exige primero una migración del `CHECK`.
+    - La validación de URL base se generaliza como `isBaseUrl`.
+  - **Docker y Git:**
+    - la imagen de producción crea `/app/storage/images` con dueño `node`, lista para montar un volumen persistente;
+    - `storage/` queda fuera de Git y del contexto de Docker;
+    - en local, las imágenes quedan en `./storage/images`.
+  - **Para T-140:** al subir, primero se guarda el archivo y después la fila; si la transacción falla, se borra el archivo. Al borrar una imagen, primero se borra la fila y después, ya confirmada la transacción, el archivo. Si ese borrado falla, el archivo queda huérfano y se registra en el log.
+- **Alternativas consideradas:**
+  - `sharp`: decodifica la imagen completa y puede quitar los metadatos, pero es una dependencia nativa pesada, que hay que revisar contra ADR-0108.
+  - La librería `file-type`: una dependencia más para tres firmas.
+  - No servir las imágenes hasta P-06: sus URL no funcionarían en local.
+  - Validar en la presentación, sin tocar las categorías de error: dejaría BR-PRD-08 fuera del dominio.
+  - Guardar el archivo con el nombre del cliente: permitiría sobrescribir otros archivos y manipular rutas.
+- **Consecuencias:**
+  - **Metadatos:** las fotos conservan su EXIF, así que el staff debe subirlas sin ubicación (`SECURITY.md`).
+  - **Límites de `/media`:** no pasa por el rate limiting de Nest ni por la autorización, porque las imágenes de producto son públicas.
+  - **Una sola instancia:** mientras las imágenes vivan en disco, la API corre en una sola instancia o sobre un volumen compartido. Además, la carpeta debe ir en los respaldos (ADR-0024).
+  - **Tests:** el de permisos `0644` solo corre en Linux, donde lo ejecuta la CI. La subida se prueba de punta a punta con un controlador que solo existe en los tests, porque los endpoints reales llegan con T-140.
+- **Estado:** Aceptada (plan de T-141 aprobado el 2026-09-30).
