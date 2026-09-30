@@ -6,13 +6,18 @@ import {
 } from '../../../shared-kernel/index.js';
 import type { BrandId } from '../domain/brand.js';
 import { BrandRepository } from '../domain/brand.repository.js';
+import { ProductSearchIndex } from './product-search-index.js';
 import { auditedBrandFields, findBrand } from './brand-support.js';
 
-/** Renames a brand or changes its slug (UC-CAT-13). Without changes, nothing is saved or audited. */
+/**
+ * Renames a brand or changes its slug (UC-CAT-13). A new name refreshes the search of its products (ADR-0060,
+ * ADR-0123). Without changes, nothing is saved or audited.
+ */
 @Injectable()
 export class UpdateBrand {
   constructor(
     private readonly brands: BrandRepository,
+    private readonly searchIndex: ProductSearchIndex,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
   ) {}
@@ -29,6 +34,7 @@ export class UpdateBrand {
       const audited = changesBetween(before, auditedBrandFields(brand));
       if (Object.keys(audited).length === 0) return;
       await this.brands.save(brand);
+      if ('name' in audited) await this.searchIndex.refreshBrand(id);
       await this.audit.record({
         action: 'brands.update',
         resource: { type: 'brand', id },

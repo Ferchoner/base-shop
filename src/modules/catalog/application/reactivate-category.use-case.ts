@@ -6,6 +6,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import type { CategoryId } from '../domain/category.js';
 import { CategoryRepository } from '../domain/category.repository.js';
+import { ProductSearchIndex } from './product-search-index.js';
 import { auditedFields, findCategory } from './category-support.js';
 
 /**
@@ -16,6 +17,7 @@ import { auditedFields, findCategory } from './category-support.js';
 export class ReactivateCategory {
   constructor(
     private readonly categories: CategoryRepository,
+    private readonly searchIndex: ProductSearchIndex,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
   ) {}
@@ -30,6 +32,8 @@ export class ReactivateCategory {
           : await findCategory(this.categories, category.parentId);
       category.reactivate(parent?.status ?? null);
       await this.categories.save(category);
+      // Which categories are visible changed, and the search uses only visible ones (ADR-0080).
+      await this.searchIndex.refreshCategories([id]);
       await this.audit.record({
         action: 'categories.reactivate',
         resource: { type: 'category', id },

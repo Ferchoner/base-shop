@@ -10,14 +10,19 @@ import {
   toId,
 } from '../../../shared-kernel/index.js';
 import {
+  type AdminProductView,
   type BrandFilter,
   type BrandSortField,
   type BrandView,
   CatalogQueries,
   type CategoryView,
+  type ProductFilter,
+  type ProductSortField,
 } from '../application/catalog.queries.js';
 import type { BrandId } from '../domain/brand.js';
 import type { CategoryId } from '../domain/category.js';
+import type { ProductId } from '../domain/product-id.js';
+import type { VariantOptions } from '../domain/variant.js';
 
 const CATEGORY_FIELDS = {
   id: true,
@@ -41,12 +46,36 @@ const BRAND_FIELDS = {
   _count: { select: { products: true } },
 } as const;
 
+const PRODUCT_FIELDS = {
+  id: true,
+  title: true,
+  slug: true,
+  brand: { select: { id: true, name: true } },
+  categories: {
+    select: { category: { select: { id: true, name: true } } },
+    orderBy: { category: { name: 'asc' } },
+  },
+  status: true,
+  variants: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+  images: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
+  publishedAt: true,
+  firstPublishedAt: true,
+  archivedAt: true,
+  version: true,
+  createdAt: true,
+  updatedAt: true,
+} as const satisfies Prisma.ProductSelect;
+
+type ProductRow = Prisma.ProductGetPayload<{
+  select: typeof PRODUCT_FIELDS & { description: true };
+}>;
+
 type CategoryRow = Prisma.CategoryGetPayload<{
   select: typeof CATEGORY_FIELDS;
 }>;
 type BrandRow = Prisma.BrandGetPayload<{ select: typeof BRAND_FIELDS }>;
 
-/** Read models of categories and brands (ADR-0120), straight from `categories` and `brands`. */
+/** Read models of the administration (ADR-0120, ADR-0123), straight from the Catalog tables. */
 @Injectable()
 export class PrismaCatalogQueries extends CatalogQueries {
   constructor(
@@ -107,6 +136,105 @@ export class PrismaCatalogQueries extends CatalogQueries {
     });
     return row === null ? null : toBrandView(row);
   }
+
+  async listProducts(
+    filter: ProductFilter,
+    sort: readonly SortOrder<ProductSortField>[],
+    page: PageRequest,
+  ): Promise<Page<AdminProductView>> {
+    const where: Prisma.ProductWhereInput = {
+      ...(filter.q === undefined
+        ? {}
+        : {
+            OR: [
+              { title: { contains: filter.q, mode: 'insensitive' } },
+              {
+                variants: {
+                  some: { sku: { contains: filter.q.toUpperCase() } },
+                },
+              },
+            ],
+          }),
+      ...(filter.statuses === undefined
+        ? {}
+        : { status: { in: [...filter.statuses] } }),
+      ...(filter.brandId === undefined ? {} : { brandId: filter.brandId }),
+      ...(filter.categoryId === undefined
+        ? {}
+        : { categories: { some: { categoryId: filter.categoryId } } }),
+    };
+    const [rows, totalItems] = await Promise.all([
+      this.txHost.tx.product.findMany({
+        select: PRODUCT_FIELDS,
+        where,
+        // Products never published go last by publication date; then the ID, so pages are stable (ADR-0036).
+        orderBy: [
+          ...sort.map(({ field, direction }) =>
+            field === 'publishedAt'
+              ? { publishedAt: { sort: direction, nulls: 'last' as const } }
+              : { [field]: direction },
+          ),
+          { id: 'asc' as const },
+        ],
+        skip: pageOffset(page),
+        take: page.pageSize,
+      }),
+      this.txHost.tx.product.count({ where }),
+    ]);
+    return { items: rows.map((row) => toProductView(row)), totalItems };
+  }
+
+  async findProduct(id: ProductId): Promise<AdminProductView | null> {
+    const row = await this.txHost.tx.product.findUnique({
+      select: { ...PRODUCT_FIELDS, description: true },
+      where: { id },
+    });
+    return row === null ? null : toProductView(row);
+  }
+}
+
+function toProductView(
+  row: Omit<ProductRow, 'description'> & { description?: string | null },
+): AdminProductView {
+  return {
+    id: toId<'Product'>(row.id),
+    title: row.title,
+    slug: row.slug,
+    ...(row.description === undefined ? {} : { description: row.description }),
+    brand:
+      row.brand === null
+        ? null
+        : { id: toId<'Brand'>(row.brand.id), name: row.brand.name },
+    categories: row.categories.map(({ category }) => ({
+      id: toId<'Category'>(category.id),
+      name: category.name,
+    })),
+    status: row.status,
+    variants: row.variants.map((variant) => ({
+      id: toId<'Variant'>(variant.id),
+      sku: variant.sku,
+      options: variant.options as VariantOptions,
+      status: variant.status,
+      weightGrams: variant.weightGrams,
+      lengthCm: variant.lengthCm?.toNumber() ?? null,
+      widthCm: variant.widthCm?.toNumber() ?? null,
+      heightCm: variant.heightCm?.toNumber() ?? null,
+    })),
+    images: row.images.map((image) => ({
+      id: image.id,
+      storageKey: image.storageKey,
+      altText: image.altText,
+      position: image.position,
+      variantId:
+        image.variantId === null ? null : toId<'Variant'>(image.variantId),
+    })),
+    publishedAt: row.publishedAt,
+    firstPublishedAt: row.firstPublishedAt,
+    archivedAt: row.archivedAt,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 function toCategoryView(row: CategoryRow): CategoryView {

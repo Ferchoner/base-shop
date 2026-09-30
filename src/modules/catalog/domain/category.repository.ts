@@ -7,6 +7,8 @@ import type { Category, CategoryId } from './category.js';
 export abstract class CategoryRepository {
   abstract findById(id: CategoryId): Promise<Category | null>;
 
+  abstract findByIds(ids: readonly CategoryId[]): Promise<Category[]>;
+
   /**
    * Creates a new category or saves the changes of a stored one. Rejects with `DuplicateValueError` on the
    * `name` when a sibling has it, whatever its case, or on the `slug` when any category has it.

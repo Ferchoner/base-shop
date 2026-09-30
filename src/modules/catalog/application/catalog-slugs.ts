@@ -6,18 +6,20 @@ import { slugCandidates, slugFromName } from '../domain/slug.js';
 export const GENERATED_SLUG_ATTEMPTS = 3;
 
 /**
- * The slug of a new category or brand (ADR-0120): the one the staff gave, as is, or one generated from the
- * name. A generated slug that is taken gets the first free number: `camisas`, `camisas-2`, `camisas-3`…
+ * The slug of a new category, brand or product (ADR-0120, ADR-0123): the one the staff gave, as is, or one
+ * generated from the name or title. A generated slug that is taken gets the first free number: `camisas`,
+ * `camisas-2`, `camisas-3`…
  */
 export async function slugFor(
   name: string,
   given: string | undefined,
   takenSlugs: (slugs: readonly string[]) => Promise<ReadonlySet<string>>,
+  maxLength?: number,
 ): Promise<string> {
   if (given !== undefined) return given;
-  const base = slugFromName(name);
+  const base = slugFromName(name, maxLength);
   if (base === null) throw new SlugRequiredError();
-  const candidates = slugCandidates(base);
+  const candidates = slugCandidates(base, maxLength);
   const taken = await takenSlugs(candidates);
   const free = candidates.find((candidate) => !taken.has(candidate));
   if (free === undefined) throw new DuplicateValueError('slug');
