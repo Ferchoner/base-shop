@@ -7,6 +7,7 @@ import { setupApiDocs } from './api-docs.js';
 import { rejectUnsupportedContentType } from './content-type.js';
 import { requestLoggingMiddleware } from '../logging/request-logging.middleware.js';
 import { correlationIdMiddleware } from './correlation-id.js';
+import { serveMedia } from './media.js';
 
 /**
  * Security response headers (ADR-0086). Every helmet middleware is listed explicitly
@@ -61,6 +62,8 @@ export function configureHttp(app: INestApplication): void {
   app.enableCors(
     buildCorsOptions(config.get('CORS_ALLOWED_ORIGINS', { infer: true })),
   );
+  // Stored product images at /media, after helmet so they get its headers (ADR-0121).
+  serveMedia(app, config.get('IMAGE_STORAGE_DIR', { infer: true }));
   // Every route lives under /v1; a future version is declared with @Version('2') (ADR-0034, ADR-0096).
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   // Swagger UI exists only in local development (ADR-0031, ADR-0096).

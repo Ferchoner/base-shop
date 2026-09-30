@@ -1,6 +1,6 @@
 import {
   isExactOrigin,
-  isFrontendBaseUrl,
+  isBaseUrl,
   isPostgresUrl,
   validateEnvironment,
 } from './environment.js';
@@ -237,6 +237,7 @@ describe('Email and frontend links (ADR-0110)', () => {
     MAIL_FROM: 'Tienda <no-reply@example.com>',
     FRONTEND_BASE_URL: 'https://shop.example.com',
     JWT_SECRET: 'x'.repeat(32),
+    IMAGE_BASE_URL: 'https://shop.example.com/media',
   };
 
   it('defaults to Mailpit and a local frontend in development and test', () => {
@@ -256,7 +257,13 @@ describe('Email and frontend links (ADR-0110)', () => {
     });
   });
 
-  it.each(['SMTP_HOST', 'SMTP_PORT', 'MAIL_FROM', 'FRONTEND_BASE_URL'])(
+  it.each([
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'MAIL_FROM',
+    'FRONTEND_BASE_URL',
+    'IMAGE_BASE_URL',
+  ])(
     'requires %s in production, so emails never go to the defaults',
     (name) => {
       const withoutIt: Record<string, unknown> = { ...PRODUCTION };
@@ -310,13 +317,59 @@ describe('Email and frontend links (ADR-0110)', () => {
   });
 });
 
-describe('isFrontendBaseUrl', () => {
+describe('Product images (ADR-0024, ADR-0121)', () => {
+  it('defaults to a local folder served by the API at /media, and 5 MB', () => {
+    expect(validateEnvironment(REQUIRED)).toMatchObject({
+      IMAGE_STORAGE_DIR: 'storage/images',
+      IMAGE_BASE_URL: 'http://localhost:3000/media',
+      IMAGE_MAX_BYTES: 5_242_880,
+    });
+  });
+
+  it('accepts another folder, base URL and a lower limit', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        IMAGE_STORAGE_DIR: '/var/lib/base-shop/images',
+        IMAGE_BASE_URL: 'https://cdn.example.com/shop',
+        IMAGE_MAX_BYTES: '1048576',
+      }),
+    ).toMatchObject({
+      IMAGE_STORAGE_DIR: '/var/lib/base-shop/images',
+      IMAGE_BASE_URL: 'https://cdn.example.com/shop',
+      IMAGE_MAX_BYTES: 1_048_576,
+    });
+  });
+
+  it.each(['0', '5242881', '2.5', 'mucho'])(
+    'rejects IMAGE_MAX_BYTES %p: the database allows 5 MB at most',
+    (value) => {
+      expect(() =>
+        validateEnvironment({ ...REQUIRED, IMAGE_MAX_BYTES: value }),
+      ).toThrow('IMAGE_MAX_BYTES');
+    },
+  );
+
+  it('rejects an empty folder and a base URL with a trailing slash', () => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, IMAGE_STORAGE_DIR: '' }),
+    ).toThrow('IMAGE_STORAGE_DIR must not be empty');
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        IMAGE_BASE_URL: 'https://cdn.example.com/',
+      }),
+    ).toThrow('IMAGE_BASE_URL must be an http or https URL');
+  });
+});
+
+describe('isBaseUrl', () => {
   it.each([
     'https://shop.example.com',
     'http://localhost:5173',
     'https://example.com/tienda',
   ])('accepts %p', (value) => {
-    expect(isFrontendBaseUrl(value)).toBe(true);
+    expect(isBaseUrl(value)).toBe(true);
   });
 
   it.each([
@@ -329,7 +382,7 @@ describe('isFrontendBaseUrl', () => {
     'shop.example.com',
     42,
   ])('rejects %p', (value) => {
-    expect(isFrontendBaseUrl(value)).toBe(false);
+    expect(isBaseUrl(value)).toBe(false);
   });
 });
 

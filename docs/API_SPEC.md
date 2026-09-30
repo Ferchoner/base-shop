@@ -386,7 +386,7 @@ Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `mu
 { "id": "0192…", "url": "https://…/products/0192…/a1b2.webp", "altText": "Vista frontal", "position": 1, "variantId": null }
 ```
 
-`url` absoluta, construida al responder (ADR-0024).
+`url` absoluta, construida al responder (ADR-0024): `IMAGE_BASE_URL` más la clave, como `http://localhost:3000/media/products/<productId>/<imageId>.webp` en local (ADR-0121).
 
 ### 8.4 `ProductSummary` (catálogo público)
 
@@ -892,6 +892,14 @@ La cantidad máxima de atributos y las longitudes se fijan en ADR-0071.
 | `DELETE …/images/{imageId}` | `catalog.write`. Borra registro y archivo (ADR-0038). 204 |
 
 Los cambios de imágenes no exigen `version` del producto (ADR-0071): no alteran reglas del aggregate más allá del orden.
+
+Base implementada en T-141 (ADR-0121); los endpoints llegan con T-140:
+
+- **Formato:** se reconoce por los primeros bytes; el nombre del archivo y su tipo declarado se ignoran. Cualquier otro contenido, incluidos SVG, GIF o un archivo vacío, responde 415 `unsupported-media-type`.
+- **Tamaño:** la subida se corta al pasar `IMAGE_MAX_BYTES` (5 MB por defecto) y responde 413 `payload-too-large`.
+- **Campos:** un solo archivo, en el campo `file`. Sin él, 400 `validation-error` con `isDefined` en `file`; con dos archivos o en otro campo, 400.
+- **Nombre en disco:** lo elige el servidor: `products/<productId>/<imageId>.<jpg|png|webp>`.
+- **Servidas en `/media/<clave>`:** fuera de `/v1`, públicas y con `Cache-Control: public, max-age=31536000, immutable`, porque una clave nunca cambia de contenido. Una clave inexistente responde 404 `not-found`.
 
 ### 11.9 Categorías y marcas (UC-CAT-12, 13)
 

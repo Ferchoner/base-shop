@@ -46,6 +46,17 @@ class UncataloguedError extends DomainError {
   readonly category = 'conflict';
 }
 
+/** Content rules of files (ADR-0121), with codes missing from the catalog, so their category decides. */
+class OversizedSampleError extends DomainError {
+  readonly code = 'oversized-sample';
+  readonly category = 'too-large';
+}
+
+class OddFormatError extends DomainError {
+  readonly code = 'odd-format';
+  readonly category = 'unsupported';
+}
+
 class LineDto {
   @IsInt()
   @Min(1)
@@ -123,6 +134,16 @@ class ProblemsTestController {
   @Get('uncatalogued')
   uncatalogued() {
     throw new UncataloguedError('A new rule without catalog entry');
+  }
+
+  @Get('too-large')
+  tooLarge() {
+    throw new OversizedSampleError('The sample is too large');
+  }
+
+  @Get('unsupported')
+  unsupported() {
+    throw new OddFormatError('The sample has an odd format');
   }
 
   @Get('rate-limited')
@@ -274,6 +295,26 @@ describe('Problem Details (e2e, T-113)', () => {
       expect(response.body).toMatchObject({
         type: '/problems/brand-new-rule',
         title: 'Acción no permitida en el estado actual',
+      });
+    });
+
+    it('answers content rules with 413 and 415, with the texts of their category (ADR-0121)', async () => {
+      const tooLarge = await http()
+        .get('/v1/test-problems/too-large')
+        .expect(413);
+      const unsupported = await http()
+        .get('/v1/test-problems/unsupported')
+        .expect(415);
+
+      expect(tooLarge.body).toMatchObject({
+        type: '/problems/oversized-sample',
+        title: 'Contenido demasiado grande',
+        status: 413,
+      });
+      expect(unsupported.body).toMatchObject({
+        type: '/problems/odd-format',
+        title: 'Formato no admitido',
+        status: 415,
       });
     });
   });

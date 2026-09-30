@@ -38,7 +38,7 @@ src/
 │   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno y el formato de sus valores, como las duraciones (T-100, ADR-0114)
-│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados e IDs de la URL (T-100, T-113, T-114, T-115, T-126, T-130, T-150)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados, IDs de la URL e imágenes servidas en `/media` (T-100, T-113, T-114, T-115, T-126, T-130, T-141, T-150)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
@@ -157,7 +157,7 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 |---|---|
 | Pagos | Método manual para pruebas; PayPal semiimplementado y no verificado; Mercado Pago y Stripe pospuestos (ADR-0040). Pruebas de webhooks pendientes (P-31) |
 | Paqueterías | Sin integración; envíos manuales (ADR-0041) |
-| Almacenamiento de imágenes | Disco del servidor detrás de un puerto; CDN a futuro (ADR-0024) |
+| Almacenamiento de imágenes | Disco del servidor detrás del puerto `ProductImageStorage` de Catalog, servido por la API en `/media`; CDN a futuro (ADR-0024, ADR-0121) |
 | Envío de correos | Puerto propio; en desarrollo, capturador local en Docker Compose (ADR-0045). Proveedor real pendiente de hosting (P-24) |
 
 ## Observabilidad

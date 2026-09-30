@@ -18,6 +18,9 @@ lerna-debug.log*
 # OS
 .DS_Store
 
+# Product images stored locally (ADR-0121)
+/storage
+
 # Tests
 /coverage
 /.nyc_output
