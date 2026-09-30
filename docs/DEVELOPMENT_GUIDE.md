@@ -190,6 +190,7 @@ Tests (Jest):
 - Integración y end-to-end contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución, le aplica todas las migraciones y expone su URL en `DATABASE_URL` (ADR-0090, ADR-0091). La infraestructura común está en `test/integration/`. Los tests corren en serie.
 - Cada test deja la base como la encontró, por ejemplo trabajando dentro de una transacción que se revierte al terminar.
 - Pruebas de concurrencia obligatorias para reservas de inventario y checkout. El patrón: un cliente `pg` aparte bloquea la fila, se lanzan las operaciones, `waitForLockWaiters(n)` (`test/support/lock-waiters.ts`) espera a que queden bloqueadas y se libera la fila. Esa espera consulta `pg_stat_activity` fuera de toda transacción: dentro de una, PostgreSQL responde con una foto tomada en la primera lectura.
+  - Lo que se bloquea en el test es lo que las operaciones van a escribir, no el candado que las protege. Así, sin ese candado las operaciones llegan juntas al punto crítico y el test falla (ADR-0120). Si el test retiene el propio candado, las operaciones solo esperan en fila, y el test pasa también sin él.
 - El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:int`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
 Entorno (ADR-0025):

@@ -137,6 +137,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0117 | Registro, verificación y cambio de email, y corrección de datos del cliente | Aceptada |
 | ADR-0118 | Recuperación de contraseña | Aceptada |
 | ADR-0119 | Detección de secretos antes de cada commit | Aceptada |
+| ADR-0120 | Categorías y marcas: slugs, ciclos y árbol | Aceptada |
 
 ---
 
@@ -551,7 +552,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un listado puede mostrar hasta 120 segundos un precio o una disponibilidad desactualizados. El checkout no usa cache y valida el total con `expectedTotal` (ADR-0019).
   - La cache se pierde al reiniciar la API; solo afecta el rendimiento de las primeras solicitudes.
   - Si la API se escala a varias instancias, se cambia a un almacén compartido (por ejemplo, Redis) sin tocar el código que usa la cache.
-- **Estado:** Aceptada. Implementada en ADR-0104.
+- **Estado:** Aceptada. Implementada en ADR-0104. ADR-0120 cachea el árbol público de categorías, que se actualiza al vencer el TTL.
 
 ---
 
@@ -2946,3 +2947,51 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Actualizar gitleaks sigue siendo manual: Dependabot no revisa imágenes en `package.json`. Se cambian los dos scripts, y el test exige que coincidan.
   - Modifica ADR-0105 en el paso 9.
 - **Estado:** Aceptada (plan del paso 0 del Sprint 3 aprobado el 2026-09-29).
+
+---
+
+## ADR-0120 — Categorías y marcas: slugs, ciclos y árbol
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-150 (UC-CAT-03, 12 y 13). `API_SPEC.md` §11.4, §11.5 y §11.9 fijan los contratos, y ADR-0072, ADR-0076 y ADR-0080 las reglas de slugs, reactivación y visibilidad. Quedaban cinco huecos:
+  - qué pasa con un slug generado del nombre que ya existe, algo común con subcategorías del mismo nombre ("Hombre › Camisas" y "Mujer › Camisas");
+  - cómo evitar que dos movimientos simultáneos creen un ciclo;
+  - qué muestra el árbol administrativo filtrado por estado cuando una categoría activa está bajo una inactiva;
+  - cómo decir por qué se rechaza un movimiento o una reactivación, si el `detail` de cada tipo de error es fijo (ADR-0095);
+  - dos piezas que dependen de productos visibles, que llegan después.
+- **Decisión:**
+  - **Slugs** (categorías y marcas, cada una con su propio espacio):
+    - Sin `slug` en la solicitud, se genera del nombre: descomposición NFKD, sin acentos, en minúsculas, con guiones entre palabras y hasta 100 caracteres ("Camisas de Vestir" → `camisas-de-vestir`).
+    - Si ya existe, se numera con el primer número libre: `camisas-2`, `camisas-3`…, hasta `-100`. Un slug largo se recorta para que quepa el número. Se consultan los 100 candidatos de una vez.
+    - Si otra alta toma el mismo slug generado entre la consulta y el guardado, el alta se repite hasta 3 veces, así que el staff nunca ve un conflicto por un slug que no envió.
+    - Un slug que envía el staff se usa tal cual y, si existe, responde 409 `duplicate-value` en `slug`: cambiarlo en silencio sorprendería a quien lo eligió.
+    - Un nombre sin letras ni dígitos utilizables ("¡!") y sin `slug` responde 400 `validation-error` con `slugRequired` en `slug`.
+  - **Ciclos (BR-PRD-03):** mover una categoría toma primero un bloqueo advisory de transacción (`pg_advisory_xact_lock`, con la clave `0x43415454`, "CATT"), y después lee la cadena de ancestros del nuevo padre con una consulta recursiva. Dos movimientos nunca revisan a la vez: el segundo espera a que el primero termine y ve su resultado. Solo los movimientos lo toman; crear, renombrar o desactivar no pueden crear ciclos.
+  - **Padre:** al crear o mover, el padre debe existir y estar activo. Si no, 400 `validation-error` con `unknownParent` o `inactiveParent` en `parentId`, como un rol inexistente (ADR-0112). Si el padre se borra entre la revisión y el guardado, la clave foránea lo detecta y se responde igual.
+  - **Motivo de un rechazo:** `detail` sigue fijo por tipo (ADR-0095). Los 409 `invalid-state-transition` de categorías llevan la extensión `reason`: `category-cycle` al mover bajo sí misma o bajo una subcategoría, e `inactive-parent` al reactivar bajo un padre inactivo, este con `currentStatus`.
+  - **Duplicados:** los índices únicos de la base deciden, y el repositorio distingue `name` de `slug` por el nombre del índice que rechazó la fila, que el adaptador de PostgreSQL informa (`uniqueViolationIndex`). El nombre se compara sin distinguir mayúsculas: entre hermanas en categorías, también entre raíces, y entre todas las marcas.
+  - **Borrado (BR-PRD-10):** lo garantizan las claves foráneas `RESTRICT`. Una categoría con subcategorías o productos, o una marca con productos, responde 409 `resource-in-use`. `productCount` cuenta productos en cualquier estado, igual que esa regla; `childCount`, subcategorías directas activas o no.
+  - **Árbol administrativo con filtro `status`:** incluye las categorías que coinciden y los ancestros que llevan a ellas, cada uno con su propio estado, para que ninguna rama se pierda. Sin filtro, todas.
+  - **Árbol público (UC-CAT-03):** solo categorías visibles (BR-PRD-17), con `id`, `name`, `slug`, `position` y `children`. Las hermanas se ordenan por `position`, después por nombre como lo ordena el español (la ñ después de la n, sin distinguir mayúsculas ni acentos) y al final por ID. Se guarda en el espacio `catalog` de la cache; los cambios del staff se ven al vencer el TTL, sin eventos nuevos (ADR-0028, ADR-0076).
+  - **Límites:** nombre de 1 a 100 caracteres, sin espacios alrededor; slug de 1 a 100, con minúsculas, dígitos y guiones sencillos entre ellos; `position` entero de 0 a 10 000, 0 por defecto.
+  - **Respuestas:** el alta responde 201 con `Location` hacia el recurso (`/v1/admin/catalog/categories/{id}` o `…/brands/{id}`), que identifica la categoría o marca aunque no tenga `GET` propio. Editar, desactivar y reactivar responden 200 con la representación.
+  - **Auditoría:** `categories.create`, `categories.update`, `categories.deactivate`, `categories.reactivate` y `categories.delete`, y lo mismo con `brands.*`, con los campos que cambiaron. Un `PATCH` sin cambios no guarda ni audita.
+  - **Pasan a T-140:**
+    - `GET /v1/catalog/brands`, porque lista "marcas activas con al menos un producto visible", y un producto es visible con precio vigente (T-145);
+    - recalcular el `search_vector` de los productos al renombrar, desactivar o reactivar una categoría, o al renombrar una marca (ADR-0080), porque T-140 define ese vector.
+  - **Código compartido:**
+    - `pathId`, que responde 404 a un ID de la URL que no es UUID, pasa de Identity a `src/platform/http/path-id.ts`;
+    - el nombre del espacio de cache del catálogo (`PUBLIC_CATALOG_CACHE`) pasa a la aplicación de Catalog, porque lo usan su presentación y su infraestructura;
+    - la presentación lee los límites del dominio a través de `application/catalog-limits.ts`, porque no puede importar el dominio (ADR-0103).
+- **Alternativas consideradas:**
+  - **Slug generado repetido:** responder 409 para que el staff elija uno, igual que en productos, o formar el slug con la ruta de ancestros (`hombre-camisas`), que cambia de sentido al mover la categoría.
+  - **Ciclos:** aislamiento SERIALIZABLE en los movimientos, que obliga a reintentar, o bloquear las filas de la cadena de ancestros, con riesgo de deadlock entre dos movimientos opuestos.
+  - **Filtro del árbol:** podar estrictamente, lo que deja fuera las categorías bajo un padre que no coincide, o una lista plana cuando hay filtro.
+  - **Cache:** vaciar el espacio `catalog` en cada cambio de categoría o marca.
+  - **Motivo:** un `detail` distinto por caso, que contradice ADR-0095.
+- **Consecuencias:**
+  - Es el primer bloqueo advisory del sistema. Su prueba de concurrencia retiene las filas de las dos categorías, para que ambos movimientos lleguen a guardar al mismo tiempo; sin el bloqueo, esa prueba falla.
+  - El orden del árbol no depende del idioma del servidor: usa un `Intl.Collator` en español.
+  - Un enlace público a un slug anterior deja de funcionar, como aceptó ADR-0072.
+  - T-140 hereda el listado público de marcas y el recálculo del `search_vector`.
+- **Estado:** Aceptada (plan de T-150 aprobado el 2026-09-30).
