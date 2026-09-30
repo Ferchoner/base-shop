@@ -317,6 +317,31 @@ describe('Email and frontend links (ADR-0110)', () => {
   });
 });
 
+describe('VAT rate (ADR-0027, ADR-0122)', () => {
+  it('defaults to 16%, in basis points', () => {
+    expect(validateEnvironment(REQUIRED).VAT_RATE_BP).toBe(1_600);
+  });
+
+  it.each([
+    ['0', 0],
+    ['800', 800],
+    ['10000', 10_000],
+  ])('accepts VAT_RATE_BP %p', (value, rate) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, VAT_RATE_BP: value }).VAT_RATE_BP,
+    ).toBe(rate);
+  });
+
+  it.each(['-1', '10001', '16.5', 'dieciseis'])(
+    'rejects VAT_RATE_BP %p',
+    (value) => {
+      expect(() =>
+        validateEnvironment({ ...REQUIRED, VAT_RATE_BP: value }),
+      ).toThrow('VAT_RATE_BP');
+    },
+  );
+});
+
 describe('Product images (ADR-0024, ADR-0121)', () => {
   it('defaults to a local folder served by the API at /media, and 5 MB', () => {
     expect(validateEnvironment(REQUIRED)).toMatchObject({
