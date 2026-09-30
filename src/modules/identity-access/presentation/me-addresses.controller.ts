@@ -19,6 +19,7 @@ import {
 import type { AuthenticatedUser } from '../../../platform/auth/authenticated-user.js';
 import { RequireAccount } from '../../../platform/auth/authorization.decorators.js';
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
+import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { AddAddress } from '../application/add-address.use-case.js';
@@ -31,7 +32,7 @@ import {
   CreateAddressDto,
   UpdateAddressDto,
 } from './address.dto.js';
-import { pathId, toAddressDto } from './identity-admin.mappers.js';
+import { toAddressDto } from './identity-admin.mappers.js';
 
 /**
  * The signed-in customer's address book (UC-IAM-11, API_SPEC.md §9.14). The customer comes from the token,

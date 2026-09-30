@@ -15,6 +15,7 @@ import {
   toPageResponse,
   toSortOrders,
 } from '../../../platform/http/pagination/pagination.js';
+import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import {
@@ -29,7 +30,7 @@ import {
   CustomerListQueryDto,
   ReasonDto,
 } from './identity-admin.dto.js';
-import { pathId, toAdminCustomerDto } from './identity-admin.mappers.js';
+import { toAdminCustomerDto } from './identity-admin.mappers.js';
 
 /** A date alone as the end of a range covers the whole day (API_SPEC.md §5.3, ADR-0112). */
 function rangeEnd(value: string | undefined): Date | undefined {

@@ -13,6 +13,23 @@ export function isUniqueViolation(error: unknown): boolean {
   return prismaCode(error) === 'P2002';
 }
 
+/**
+ * The name of the unique index that rejected the row, for tables with more than one, such as
+ * `categories_slug_key`. The PostgreSQL adapter reports it in `meta.driverAdapterError.cause.constraint`;
+ * `undefined` when the error is another one or does not say.
+ */
+export function uniqueViolationIndex(error: unknown): string | undefined {
+  if (!isUniqueViolation(error)) return undefined;
+  const index = (
+    error as {
+      meta?: {
+        driverAdapterError?: { cause?: { constraint?: { index?: unknown } } };
+      };
+    }
+  ).meta?.driverAdapterError?.cause?.constraint?.index;
+  return typeof index === 'string' ? index : undefined;
+}
+
 /** A foreign key rejected the change (Prisma P2003), for example deleting a role that has users. */
 export function isForeignKeyViolation(error: unknown): boolean {
   return prismaCode(error) === 'P2003';
