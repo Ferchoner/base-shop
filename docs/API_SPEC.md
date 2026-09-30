@@ -922,6 +922,19 @@ Base implementada en T-141 (ADR-0121); los endpoints llegan con T-140:
 - **Nombre en disco:** lo elige el servidor: `products/<productId>/<imageId>.<jpg|png|webp>`.
 - **Servidas en `/media/<clave>`:** fuera de `/v1`, públicas y con `Cache-Control: public, max-age=31536000, immutable`, porque una clave nunca cambia de contenido. Una clave inexistente responde 404 `not-found`.
 
+Implementado en T-140 parte b (ADR-0124):
+
+- **Límite:** hasta 20 imágenes por producto; la siguiente responde 409 `image-limit-reached` con `limit`.
+- **Tamaño:** el 413 lleva `maxBytes`, también cuando la subida se corta antes de leer el archivo.
+- **Posiciones:** consecutivas desde 1. Una imagen nueva va al final, y borrar una renumera las demás.
+- **Validación:**
+  - `variantId` debe ser de una variante del mismo producto (400 `unknownVariant`);
+  - un reorden trae cada imagen una vez (400 `imageOrder` en `imageIds`);
+  - `altText` vacío se guarda como `null`, y en el `PATCH` `null` lo quita.
+- **Producto archivado:** no cambia sus imágenes: 409 `invalid-state-transition`.
+- **Respuestas:** `POST` responde con `Location: /v1/admin/catalog/products/{productId}/images/{imageId}`. Cada cambio actualiza `updatedAt` del producto, no su `version`.
+- **Auditoría:** `products.image-add`, `image-update`, `image-reorder` e `image-delete`.
+
 ### 11.9 Categorías y marcas (UC-CAT-12, 13)
 
 Representaciones: `AdminCategory { id, parentId, name, slug, status, position, productCount, childCount, createdAt, updatedAt }`; `AdminBrand { id, name, slug, status, productCount, createdAt, updatedAt }`.

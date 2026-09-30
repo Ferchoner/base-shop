@@ -257,7 +257,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | content_type | text | No | `CHECK (content_type IN ('image/jpeg','image/png','image/webp'))` |
 | size_bytes | integer | No | `CHECK (size_bytes > 0 AND size_bytes <= 5242880)` |
 | alt_text | text | Sí | — |
-| position | integer | No | Orden de presentación |
+| position | integer | No | Orden de presentación: consecutivo desde 1; hasta 20 imágenes por producto (ADR-0124) |
 | created_at | timestamptz(3) | No | — |
 
 - **Índices:** `(product_id, position)`.

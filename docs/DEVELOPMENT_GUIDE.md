@@ -32,6 +32,7 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Errores de negocio:** una subclase de `DomainError` por error, con `code` igual al `type` de `API_SPEC.md` (sección 6.2) y una `category` (`invalid`, `forbidden`, `not-found` o `conflict`). `details` nunca lleva datos sensibles ni personales. El mensaje del error es para desarrolladores, en inglés: va al log y nunca a la respuesta.
 - **Eventos:** interfaz que extiende `DomainEvent<'NombreDelEvento'>`, con los campos comunes de `eventMetadata(nombre, clock.now())`.
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
+- **Fechas en la base:** las escribe la aplicación, igual que el `@updatedAt` de Prisma; no se mezclan con `now()` de PostgreSQL. El reloj del contenedor puede ir atrasado respecto al de la API, y una fecha escrita con `now()` quedaría antes que otra escrita un instante antes por la aplicación (ADR-0124).
 
 Cache (ADR-0028, ADR-0104):
 

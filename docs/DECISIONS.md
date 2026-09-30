@@ -141,6 +141,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0121 | Imágenes de producto en disco: validación, subida y `/media` | Aceptada |
 | ADR-0122 | Método de envío, cálculo del costo y tasa de IVA configurable | Aceptada |
 | ADR-0123 | Productos y variantes: división de T-140, slugs, opciones y búsqueda | Aceptada |
+| ADR-0124 | Imágenes de producto: galería, límite y subidas simultáneas | Aceptada |
 
 ---
 
@@ -3051,7 +3052,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Límites de `/media`:** no pasa por el rate limiting de Nest ni por la autorización, porque las imágenes de producto son públicas.
   - **Una sola instancia:** mientras las imágenes vivan en disco, la API corre en una sola instancia o sobre un volumen compartido. Además, la carpeta debe ir en los respaldos (ADR-0024).
   - **Tests:** el de permisos `0644` solo corre en Linux, donde lo ejecuta la CI. La subida se prueba de punta a punta con un controlador que solo existe en los tests, porque los endpoints reales llegan con T-140.
-- **Estado:** Aceptada (plan de T-141 aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-141 aprobado el 2026-09-30). Los endpoints de UC-CAT-11 llegan en ADR-0124, que además agrega `maxBytes` al 413 que corta multer.
 
 ---
 
@@ -3140,3 +3141,44 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Desactivar una categoría grande recalcula el `search_vector` de todos sus productos en la misma transacción; en el MVP el costo es aceptable.
   - Para agregar una dimensión de opciones a un producto sin publicar con varias variantes, primero se descontinúan las demás.
 - **Estado:** Aceptada (plan de T-140 aprobado el 2026-09-30).
+
+---
+
+## ADR-0124 — Imágenes de producto: galería, límite y subidas simultáneas
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-140 parte b (UC-CAT-11), sobre la base de T-141 (ADR-0121). Las imágenes no exigen la `version` del producto (ADR-0071), pero dos subidas simultáneas calcularían la misma posición "al final". El contrato no fija un máximo de imágenes, ni dice si un cambio de imágenes cuenta como una edición del producto. Además, `API_SPEC.md` §6.2 pide `maxBytes` en el 413, y el que corta multer no lo llevaba.
+- **Decisión:**
+  - **`ProductGallery`:** las imágenes de un producto son un aggregate propio, separado de `Product`. Subir una foto nunca choca con la `version` de quien edita los datos del producto. Sus reglas:
+    - las posiciones son consecutivas desde 1;
+    - una imagen nueva va al final;
+    - al borrar una imagen, las demás se renumeran;
+    - la variante de una imagen debe ser del mismo producto (400 `unknownVariant` en `variantId`);
+    - un reorden trae todas las imágenes una sola vez (400 `imageOrder` en `imageIds`);
+    - el texto alternativo se guarda sin espacios alrededor, hasta 200 caracteres, y uno vacío se guarda como `null`;
+    - un producto archivado no acepta cambios de imágenes (409, ADR-0123).
+  - **Límite:** 20 imágenes por producto. La siguiente responde 409 `image-limit-reached` con `limit` (nuevo tipo de problema y error E-35).
+  - **Subidas simultáneas:** cada cambio de imágenes toma un `SELECT … FOR UPDATE` sobre la fila del producto, así que los cambios de una misma galería se hacen uno tras otro.
+  - **Archivo y fila (ADR-0121):**
+    - Antes de escribir nada se revisan el producto (que exista y no esté archivado), la variante y el límite. Así una subida que se va a rechazar no escribe ni la carpeta.
+    - Después se guarda el archivo y se repiten las revisiones con el bloqueo. Si la fila no se guarda, el archivo se borra.
+    - Al borrar, la fila se borra en la transacción y el archivo después del commit. Si ese borrado falla, el archivo queda huérfano y se registra en el log con su clave.
+  - **Fecha de modificación:** cada cambio de imágenes actualiza `updated_at` del producto, pero no su `version`. Así el listado administrativo, ordenado por `-updatedAt`, lo muestra como editado recientemente. La fecha la pone la aplicación, como el `@updatedAt` de Prisma: el reloj de la base puede ir atrasado, y con `now()` el producto parecería editado antes de su último cambio.
+  - **413 con `maxBytes`:** el interceptor `ImageUploadLimit` envuelve al de multer y convierte su 413 en `payload-too-large` con `maxBytes`, igual que la regla del dominio.
+  - **Endpoints (`catalog.write`):**
+    - `POST …/images` (`multipart`: `file`, `altText` y `variantId`) responde 201 `Image` con `Location`;
+    - `PATCH …/images/{imageId}` responde 200 `Image`;
+    - `PUT …/images/order` responde 200 `{ data: [Image] }`;
+    - `DELETE …/images/{imageId}` responde 204.
+  - **Auditoría:** `products.image-add`, `image-update` e `image-delete` sobre la imagen, y `products.image-reorder` sobre el producto. Un cambio sin efecto no se guarda ni se audita.
+  - **Cache:** sin eventos nuevos; la tienda ve los cambios de imágenes al vencer el TTL (ADR-0028).
+- **Alternativas consideradas:**
+  - **Imágenes dentro de `Product`:** cada subida cambiaría la `version` y rompería las ediciones en curso de los datos del producto.
+  - **Posiciones con huecos o repetidas,** con la fecha como desempate: el orden dependería de la hora de cada subida.
+  - **Sin límite de imágenes.**
+  - **Dejar `updated_at` intacto:** un producto con fotos nuevas no subiría en el listado administrativo.
+- **Consecuencias:**
+  - Una subida bloquea la fila del producto mientras guarda la fila de la imagen; el archivo ya está escrito, así que el bloqueo dura poco.
+  - Los archivos huérfanos solo aparecen si falla el borrado del disco después del commit; hoy no hay limpieza automática para ellos.
+  - La imagen de un borrador se puede abrir con su URL, que lleva dos UUID difíciles de adivinar.
+- **Estado:** Aceptada (plan de T-140 parte b aprobado el 2026-09-30).
