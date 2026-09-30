@@ -68,7 +68,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-160 | Inventory: almacenes, stock y reservas (incluye pruebas de concurrencia); UC-INV-01 a 07 | TODO | T-140, T-111 |
 | T-161 | Inventory: reintegro de stock de órdenes canceladas o con envío devuelto (independiente, y opcional al cancelar o al registrar el reembolso sin reintegro previo, ADR-0052); UC-INV-09 | TODO | T-160, T-180, T-190, T-195 |
 | T-170 | Shopping: carrito, con `cartId` aleatorio y fusión explícita (ADR-0059); UC-CRT-01 a 06 | TODO | T-140, T-145, T-160 |
-| T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09. Conecta `orderCount` del detalle de cliente de Identity (ADR-0111) | TODO | T-170, T-196 |
+| T-180 | Ordering: checkout y pedidos, con número interno y código público (ADR-0049); UC-ORD-01 a 03, 06 a 09. Conecta `orderCount` del detalle de cliente de Identity (ADR-0111). El envío sale de `ShippingFacade.quote` y el IVA de `VAT_RATE_BP` (ADR-0122) | TODO | T-170, T-196 |
 | T-181 | Shopping: restaurar carrito al expirar una orden y copiar órdenes canceladas a un carrito; UC-CRT-08, UC-CRT-09 | TODO | T-170, T-180 |
 | T-185 | Ordering: consulta de pedido de invitado (email + código público, con rate limiting); UC-ORD-04 | TODO | T-180 |
 | T-186 | Ordering: enlace de acceso al pedido por correo; UC-ORD-05 | DEFERRED | ADR-0077 |
@@ -77,7 +77,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
 | T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
-| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 | TODO | T-110, T-112 |
+| T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 Hecha (ADR-0122): `GET` y `PUT /v1/admin/shipping/method` con bloqueo optimista, `ShippingRateCalculator` y `ShippingFacade.quote` para el checkout, tasa de IVA en `VAT_RATE_BP` y método inicial por migración | DONE | T-110, T-112 |
 | T-200 | Promotions | DEFERRED | ADR-0018 |
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |
 | T-215 | Notificaciones (ADR-0074); UC-NTF-01 | TODO | T-116, T-122, T-180, T-190, T-195 |

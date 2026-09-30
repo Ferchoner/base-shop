@@ -568,7 +568,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** único parcial `(is_active) WHERE is_active` (un solo método activo en el MVP). El umbral se compara con el subtotal con IVA menos el descuento (ADR-0079).
+- **Restricciones:** único parcial `(is_active) WHERE is_active` (un solo método activo en el MVP). El umbral se compara con el subtotal con IVA menos el descuento (ADR-0079). La aplicación limita el plazo a 30 días hábiles (ADR-0122).
+- **Método inicial:** la migración `20260930120000_shipping_initial_method` (T-196, ADR-0122) inserta "Envío Estándar" con los valores de ADR-0092 solo si la tabla está vacía.
 
 ### 10.2 `shipments`
 

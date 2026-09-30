@@ -139,6 +139,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0119 | Detección de secretos antes de cada commit | Aceptada |
 | ADR-0120 | Categorías y marcas: slugs, ciclos y árbol | Aceptada |
 | ADR-0121 | Imágenes de producto en disco: validación, subida y `/media` | Aceptada |
+| ADR-0122 | Método de envío, cálculo del costo y tasa de IVA configurable | Aceptada |
 
 ---
 
@@ -529,7 +530,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Si aparece un producto con otra tasa, se agrega una clase de impuesto por producto con valor por defecto del 16%, sin afectar las órdenes históricas.
   - Los clientes que requieran factura no pueden obtenerla desde la API.
 - **Revisar si:** se venden productos a tasa 0% o exentos, el negocio obtiene el estímulo fronterizo, o se requiere emitir facturas.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. La tasa se configura con `VAT_RATE_BP` (ADR-0122).
 
 ---
 
@@ -852,7 +853,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - No se usan peso, dimensiones ni zona del destino para calcular el costo.
   - Un cambio de tarifa no afecta a órdenes ya colocadas.
   - Si se requiere cobrar según zona o peso, se amplía `ShippingRateCalculator` sin cambiar el contrato del checkout.
-- **Estado:** Aceptada. Valores iniciales en ADR-0092.
+- **Estado:** Aceptada. Valores iniciales en ADR-0092. Implementada en ADR-0122: `ShippingRateCalculator` y la fachada de Shipping para el checkout.
 
 ---
 
@@ -1959,7 +1960,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Mientras nadie los cambie, la tienda cobra $99.00 por envío y lo da gratis desde $1,500.00. El umbral se muestra al cliente en la cotización (`freeShippingThreshold`); un cambio posterior solo afecta a cotizaciones y órdenes nuevas (ADR-0042).
   - Los tests no dependen de estos valores: cada test crea sus propios datos.
 - **Revisar si:** se contrata una paquetería con tarifas conocidas, se conoce el ticket promedio o se habilitan promociones (ADR-0018).
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). El método se crea con la migración `20260930120000_shipping_initial_method` (ADR-0122).
 
 ---
 
@@ -3050,3 +3051,42 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Una sola instancia:** mientras las imágenes vivan en disco, la API corre en una sola instancia o sobre un volumen compartido. Además, la carpeta debe ir en los respaldos (ADR-0024).
   - **Tests:** el de permisos `0644` solo corre en Linux, donde lo ejecuta la CI. La subida se prueba de punta a punta con un controlador que solo existe en los tests, porque los endpoints reales llegan con T-140.
 - **Estado:** Aceptada (plan de T-141 aprobado el 2026-09-30).
+
+---
+
+## ADR-0122 — Método de envío, cálculo del costo y tasa de IVA configurable
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-196 (UC-SHI-01 y 02). ADR-0042, ADR-0075, ADR-0079, ADR-0083 y ADR-0092 fijan el costo fijo con IVA incluido, el envío gratis por monto, el plazo estimado, el permiso para configurarlos y los valores iniciales. Quedaban tres huecos:
+  - ADR-0027 dice que la tasa de IVA es "un valor de configuración, no una constante", pero no dónde vive;
+  - ADR-0092 pide crear el método solo si no existe, pero no dice cómo;
+  - el contrato no fija máximos para el plazo ni para los montos.
+- **Decisión:**
+  - **Tasa de IVA:** variable de entorno `VAT_RATE_BP`, en puntos base, de 0 a 10 000, con 1600 (16%) por defecto, validada al arrancar (ADR-0032). La usan Shipping ahora, y Pricing y Ordering después. Cambiarla no altera órdenes colocadas, porque cada orden guarda la tasa que aplicó.
+  - **Método inicial:** la migración de datos `20260930120000_shipping_initial_method` inserta "Envío Estándar" con los valores de ADR-0092 solo si la tabla está vacía. Corre una vez por base, como los roles iniciales, y nunca sobrescribe lo que configure el administrador.
+  - **Cálculo (UC-SHI-01):** el servicio de dominio `ShippingRateCalculator` devuelve el costo, el IVA contenido y la tasa aplicada.
+    - El costo es el fijo, con IVA incluido, o 0 cuando el subtotal con IVA menos el descuento es mayor o igual al umbral. El propio envío no cuenta para alcanzarlo (ADR-0079).
+    - El IVA contenido se redondea como una línea (`Money.containedTax`, ADR-0094); con envío gratis es 0.
+    - Con umbral `null` nunca hay envío gratis. Un costo fijo de 0 es envío siempre gratis, sin IVA.
+  - **Fachada para el checkout:** `ShippingFacade.quote({ subtotal, discount })` se exporta en `index.ts` para T-180. Devuelve el método, el costo, el IVA, la tasa, el umbral y el plazo, lo que la cotización muestra y la orden guarda. Lee el método activo en cada llamada, sin cache (ADR-0028). Sin método activo falla con un error de programación, porque la migración siempre lo crea.
+  - **Configuración (UC-SHI-02):**
+    - `GET /v1/admin/shipping/method` requiere `shipping.manage`, y `PUT` requiere `shipping.configure` (ADR-0075).
+    - `PUT` reemplaza todos los valores con bloqueo optimista por `version`: un cambio sobre una versión anterior responde 409 `version-conflict` con `currentVersion`. El `UPDATE` compara la versión, así que dos cambios simultáneos sobre la misma nunca ganan los dos.
+    - Se audita `shipping-method.update` con los valores que cambiaron, en centavos. Un `PUT` sin cambios no guarda ni audita.
+  - **Límites:**
+    - nombre de 1 a 100 caracteres, sin espacios alrededor;
+    - `flatFee` entero de 0 a 2 147 483 647 centavos, el tope de la columna;
+    - `freeShippingThreshold` obligatorio en el cuerpo, `null` o de 1 al mismo tope;
+    - plazo entero de 1 a 30 días hábiles, con el máximo ≥ el mínimo. Si no, 400 `validation-error` con `deliveryRange` en `deliveryMaxBusinessDays`.
+  - **Dinero en las respuestas:** `MoneyDto` (`{ amount, currency }`, `API_SPEC.md` §8.1) queda en `src/platform/http/money.dto.ts` para todos los módulos.
+- **Alternativas consideradas:**
+  - **Tasa de IVA:**
+    - una tabla de configuración editable desde la API (tabla, migración y endpoint nuevos para un valor que casi nunca cambia);
+    - una constante en el código, que contradice ADR-0027.
+  - **Método inicial:** un script manual (`npm run shipping:seed`), que alguien podría olvidar, o crearlo al arrancar la API, lo que mezcla datos con el arranque.
+  - **Plazo:** sin máximo, que solo lo limita la columna `integer`.
+- **Consecuencias:**
+  - Las bases existentes reciben el método al aplicar la migración; los tests restauran sus valores después de cambiarlos.
+  - Cambiar la tasa de IVA exige reiniciar la API.
+  - T-180 usa `ShippingFacade.quote` y guarda como snapshot el costo, el IVA, la tasa y el plazo.
+- **Estado:** Aceptada (plan de T-196 aprobado el 2026-09-30).
