@@ -8,8 +8,8 @@ import {
   DomainEventPublisher,
   eventMetadata,
 } from '../../../shared-kernel/index.js';
-import { CatalogModule } from '../catalog.module.js';
-import { PUBLIC_CATALOG_CACHE } from './public-catalog-cache.event-handler.js';
+import { PUBLIC_CATALOG_CACHE } from '../application/public-catalog-cache.js';
+import { PublicCatalogCacheInvalidation } from './public-catalog-cache.event-handler.js';
 
 /** Invalidation of the public catalog cache by Catalog events (T-119, ADR-0104), with the real event bus. */
 describe('PublicCatalogCacheInvalidation', () => {
@@ -28,8 +28,9 @@ describe('PublicCatalogCacheInvalidation', () => {
         }),
         EventsModule,
         AppCacheModule,
-        CatalogModule,
       ],
+      // Only the handler: the rest of CatalogModule needs the database (ADR-0120).
+      providers: [PublicCatalogCacheInvalidation],
     }).compile();
     await moduleRef.init();
     cache = moduleRef.get(AppCache);
