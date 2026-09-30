@@ -28,6 +28,8 @@ const CATEGORY_STATUS: Readonly<Record<DomainErrorCategory, number>> = {
   forbidden: 403,
   'not-found': 404,
   conflict: 409,
+  'too-large': 413,
+  unsupported: 415,
 };
 
 /** Problem type used for an HTTP error raised by the framework itself, such as an unknown route. */
@@ -198,6 +200,8 @@ const CATEGORY_FALLBACK: Readonly<Record<DomainErrorCategory, ProblemCode>> = {
   forbidden: 'forbidden',
   'not-found': 'not-found',
   conflict: 'invalid-state-transition',
+  'too-large': 'payload-too-large',
+  unsupported: 'unsupported-media-type',
 };
 
 function fromCatalog(

@@ -184,8 +184,35 @@ export class EnvironmentVariables {
 
   /** Base URL of the frontend for the links in emails (ADR-0056, ADR-0110). Required in production. */
   @Expose()
-  @IsFrontendBaseUrl()
+  @IsBaseUrl()
   FRONTEND_BASE_URL: string = 'http://localhost:5173';
+
+  /**
+   * Folder of the product images on the server's disk, absolute or relative to the working directory
+   * (ADR-0024, ADR-0121). In Docker it must be a persistent volume, and it belongs in the backups.
+   */
+  @Expose()
+  @IsNotEmpty({ message: '$property must not be empty' })
+  IMAGE_STORAGE_DIR: string = 'storage/images';
+
+  /**
+   * Public base URL of the product images: each image URL is this plus its key (ADR-0024, ADR-0121). The API
+   * serves them at /media until the hosting chooses another server (P-06). Required in production.
+   */
+  @Expose()
+  @IsBaseUrl()
+  IMAGE_BASE_URL: string = 'http://localhost:3000/media';
+
+  /**
+   * Largest product image in bytes (BR-PRD-08): 5 MB at most, the limit of the `CHECK` on
+   * `product_images.size_bytes` (DATABASE.md §4.6). A higher limit needs a migration first.
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5_242_880)
+  IMAGE_MAX_BYTES: number = 5_242_880;
 
   /**
    * Key that signs the access tokens with HS256 (ADR-0023, ADR-0114): at least 32 characters. Required in
@@ -257,8 +284,8 @@ export class EnvironmentVariables {
 
 /**
  * Variables that production must set explicitly. With the development defaults, emails would go nowhere and
- * their links would point to localhost (ADR-0110), and access tokens would be signed with a key that changes
- * on every restart (ADR-0114).
+ * their links would point to localhost (ADR-0110), access tokens would be signed with a key that changes on
+ * every restart (ADR-0114), and image URLs would point to localhost (ADR-0121).
  */
 export const REQUIRED_IN_PRODUCTION = [
   'SMTP_HOST',
@@ -266,6 +293,7 @@ export const REQUIRED_IN_PRODUCTION = [
   'MAIL_FROM',
   'FRONTEND_BASE_URL',
   'JWT_SECRET',
+  'IMAGE_BASE_URL',
 ] as const;
 
 /**
@@ -368,10 +396,10 @@ export function isPostgresUrl(value: unknown): boolean {
 }
 
 /**
- * The frontend base URL: `http` or `https`, host, optional port and path; no query, fragment, credentials
- * or trailing slash, so page paths can be appended to it.
+ * A base URL, such as the frontend's or the images': `http` or `https`, host, optional port and path; no
+ * query, fragment, credentials or trailing slash, so paths can be appended to it.
  */
-export function isFrontendBaseUrl(value: unknown): boolean {
+export function isBaseUrl(value: unknown): boolean {
   if (
     typeof value !== 'string' ||
     value.endsWith('/') ||
@@ -392,12 +420,12 @@ export function isFrontendBaseUrl(value: unknown): boolean {
   }
 }
 
-function IsFrontendBaseUrl(options?: ValidationOptions): PropertyDecorator {
+function IsBaseUrl(options?: ValidationOptions): PropertyDecorator {
   return ValidateBy(
     {
-      name: 'isFrontendBaseUrl',
+      name: 'isBaseUrl',
       validator: {
-        validate: isFrontendBaseUrl,
+        validate: isBaseUrl,
         defaultMessage: buildMessage(
           () =>
             '$property must be an http or https URL such as https://shop.example.com or https://example.com/shop (no query, fragment, credentials or trailing slash)',

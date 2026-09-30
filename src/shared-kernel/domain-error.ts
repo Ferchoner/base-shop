@@ -1,9 +1,17 @@
 /**
  * What kind of rule a domain error breaks. The presentation layer maps each category to an HTTP status
- * (400, 403, 404 and 409, ADR-0064); the domain never knows HTTP (ADR-0035).
+ * (400, 403, 404 and 409, ADR-0064; 413 and 415 for files, ADR-0121); the domain never knows HTTP
+ * (ADR-0035).
  */
 export type DomainErrorCategory =
-  'invalid' | 'forbidden' | 'not-found' | 'conflict';
+  | 'invalid'
+  | 'forbidden'
+  | 'not-found'
+  | 'conflict'
+  /** The content is larger than the rule allows, such as an image over the size limit. */
+  | 'too-large'
+  /** The content has a format the rule does not accept, such as an image that is not JPEG, PNG or WebP. */
+  | 'unsupported';
 
 /**
  * Base class for business rule violations (ADR-0003, ADR-0094). Each subclass sets:
