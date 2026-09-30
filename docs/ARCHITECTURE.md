@@ -37,15 +37,15 @@ src/
 │   ├── auth/                  autorización: AuthenticatedUser, @RequirePermissions, @RequireAccount, @CurrentUser y el guard global, que también pone Cache-Control: no-store (T-130, ADR-0111, ADR-0112). La autenticación vive en identity-access: su guard global corre antes del rate limiting y de la autorización (T-120, ADR-0114)
 │   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
-│   ├── config/                variables de entorno (T-100)
-│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia y rate limiting (T-100, T-113, T-114, T-115, T-126)
+│   ├── config/                variables de entorno y el formato de sus valores, como las duraciones (T-100, ADR-0114)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting y paginación de listados (T-100, T-113, T-114, T-115, T-126, T-130)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
 ├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109) y la creación del primer superadministrador (ADR-0116), y de mantenimiento, como la generación de la lista de contraseñas comunes (ADR-0115)
-├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112) los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122), el catálogo de permisos, la paginación y los errores de versión y de estado (T-130); sin NestJS
+├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112), los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122), el catálogo de permisos, la paginación y los errores de versión y de estado (T-130); sin NestJS
 └── modules/
     ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)
     ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)

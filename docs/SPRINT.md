@@ -24,6 +24,31 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 - **Pospuesto:** T-220 (consulta de auditoría) y reducir la imagen de producción.
 - **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan` (lecciones del Sprint 2).
 
+### Resultado del paso 0
+
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso, y siguen abiertas las mismas 9 decisiones;
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - la estructura de `src/` coincide con `ARCHITECTURE.md`, y cada contexto tiene sus cuatro capas;
+  - las dependencias coinciden con el stack;
+  - los `overrides` de ADR-0091 siguen siendo necesarios, porque Prisma 7.10.0 todavía fija `mysql2` 3.15.3 y `deepmerge-ts` 7.1.5.
+- **Arreglos menores:**
+  - `API_SPEC.md` decía que no había endpoints implementados;
+  - el árbol de `ARCHITECTURE.md` suma la paginación de `platform/http/` y las duraciones de `platform/config/`.
+- **Vulnerabilidades nuevas** publicadas después de la última CI, sin arreglo de Dependabot todavía. Se corrigieron con `npm audit fix`, que solo cambia `package-lock.json`, y `npm audit` queda limpio:
+  - `brace-expansion` 5.0.9 → 5.0.12, alta, llega por la CLI de Nest y es solo de desarrollo;
+  - `fast-uri` 3.1.7 → 3.1.8, moderada, llega por el CLI de Prisma en la imagen de producción.
+
+  Las dos correcciones se publicaron hace más de 7 días, así que respetan el cooldown de ADR-0106.
+- **Dependabot:** no hay pull requests abiertos. Las versiones menores y los parches pendientes (NestJS 12.1.1, testcontainers 12.2.0, nodemailer 10.0.13, oxlint, prettier y supertest) llegan en el pull request agrupado del lunes 5 de octubre.
+- **`npm run secrets:scan` (ADR-0119):**
+  - corre gitleaks sobre los cambios preparados y sobre todo el historial;
+  - la CI usa el mismo comando;
+  - la imagen queda fijada solo en `package.json`;
+  - el paso manual antes de cada commit queda en `DEVELOPMENT_GUIDE.md`.
+- **Imagen de producción:** sigue en 920 MB.
+
 ## Risks
 
 - **Ruta crítica:** T-141 → T-140 → T-145 y T-160. Un retraso en T-140 retrasa el resto del sprint.

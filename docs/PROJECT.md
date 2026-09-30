@@ -63,7 +63,7 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 | Docker | Definido | `docker compose` para desarrollo local (PostgreSQL 18, Mailpit y la API en modo desarrollo); `Dockerfile` con etapas `development` y `production` | ADR-0002, ADR-0089 |
 | Lint y formato | Definido | oxlint para lint; Prettier para formato de código y configuración | ADR-0073, ADR-0084 |
 | Validación | Definido | class-validator y class-transformer para DTOs y configuración; `@nestjs/config` para las variables de entorno | ADR-0087 |
-| CI | Definido | GitHub Actions; pipeline en cada pull request y en la rama principal (10 pasos en un job, secretos con gitleaks, mensajes de commit revisados); rama principal protegida; GitHub Flow; Dependabot semanal | ADR-0030, ADR-0105, ADR-0106 |
+| CI | Definido | GitHub Actions; pipeline en cada pull request y en la rama principal (10 pasos en un job, secretos con gitleaks, también antes de cada commit, y mensajes de commit revisados); rama principal protegida; GitHub Flow; Dependabot semanal | ADR-0030, ADR-0105, ADR-0106, ADR-0119 |
 | CD | Pospuesto | Sin hosting no hay a dónde desplegar (P-05) | ADR-0031 |
 | Hosting | Definido (temporal) | Solo entorno local con Docker Compose. Candidatos futuros: Oracle Cloud Always Free o VPS de bajo costo (P-06) | ADR-0031 |
 | Observabilidad | Definido parcialmente | Logs en consola con nivel configurable por variable de entorno; registro de fallos de handlers. Herramientas se deciden con el hosting (P-07) | ADR-0014, ADR-0032 |

@@ -1,6 +1,6 @@
 # API SPECIFICATION
 
-**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Aún no hay endpoints implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
+**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Implementados: autenticación, cuenta propia y direcciones, administración de Identity & Access y catálogo geográfico (Sprint 2); cada endpoint implementado indica su tarea y su ADR, y Swagger (`/docs/v1`, solo en local) muestra solo los implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
 
 Índice:
 
