@@ -213,7 +213,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | status | enum `product_status` (DRAFT, PUBLISHED, ARCHIVED) | No | Default DRAFT |
 | published_at, archived_at | timestamptz(3) | Sí | `published_at` alimenta el orden "más recientes" (ADR-0060) |
 | first_published_at | timestamptz(3) | Sí | Se fija en la primera publicación y no cambia; mientras es `NULL`, SKU y opciones de sus variantes son editables (ADR-0068) |
-| search_vector | tsvector | Sí | Título, marca y categorías visibles (ADR-0080); configuración en español con `unaccent`; lo actualiza la aplicación al cambiar esos datos, incluida la visibilidad de sus categorías |
+| search_vector | tsvector | Sí | Título (peso A), marca (B) y categorías visibles (C) (ADR-0080); configuración `spanish` sobre el texto sin acentos (`unaccent`); lo recalcula la aplicación en la misma transacción al cambiar esos datos, incluida la visibilidad de sus categorías (ADR-0123) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 

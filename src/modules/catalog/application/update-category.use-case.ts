@@ -6,6 +6,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import type { CategoryId } from '../domain/category.js';
 import { CategoryRepository } from '../domain/category.repository.js';
+import { ProductSearchIndex } from './product-search-index.js';
 import {
   assertUsableParent,
   auditedFields,
@@ -15,12 +16,14 @@ import {
 /**
  * Renames, changes the slug, repositions or moves a category (UC-CAT-12). A move never creates a cycle
  * (BR-PRD-03): it takes the tree lock before checking, so two moves never check at the same time (ADR-0120).
- * Without changes, nothing is saved or audited.
+ * A new name or parent refreshes the search of the products below it (ADR-0080, ADR-0123). Without changes,
+ * nothing is saved or audited.
  */
 @Injectable()
 export class UpdateCategory {
   constructor(
     private readonly categories: CategoryRepository,
+    private readonly searchIndex: ProductSearchIndex,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
   ) {}
@@ -57,6 +60,9 @@ export class UpdateCategory {
       const audited = changesBetween(before, auditedFields(category));
       if (Object.keys(audited).length === 0) return;
       await this.categories.save(category);
+      if ('name' in audited || 'parentId' in audited) {
+        await this.searchIndex.refreshCategories([id]);
+      }
       await this.audit.record({
         action: 'categories.update',
         resource: { type: 'category', id },

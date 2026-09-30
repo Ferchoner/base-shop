@@ -6,6 +6,7 @@ import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
+import { EventsModule } from '../../../platform/events/events.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
@@ -66,6 +67,7 @@ describe('Categories and brands (T-150)', () => {
         ClsModule.forRoot({ global: true }),
         PersistenceModule,
         ClockModule,
+        EventsModule,
         AppCacheModule,
         AuditModule,
         CatalogModule,

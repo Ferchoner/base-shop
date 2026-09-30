@@ -31,17 +31,15 @@ export class PrismaCategoryRepository extends CategoryRepository {
 
   async findById(id: CategoryId): Promise<Category | null> {
     const row = await this.txHost.tx.category.findUnique({ where: { id } });
-    return row === null
-      ? null
-      : Category.restore({
-          id: toId<'Category'>(row.id),
-          parentId:
-            row.parentId === null ? null : toId<'Category'>(row.parentId),
-          name: row.name,
-          slug: row.slug,
-          status: row.status,
-          position: row.position,
-        });
+    return row === null ? null : toCategory(row);
+  }
+
+  async findByIds(ids: readonly CategoryId[]): Promise<Category[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.txHost.tx.category.findMany({
+      where: { id: { in: [...ids] } },
+    });
+    return rows.map(toCategory);
   }
 
   async save(category: Category): Promise<void> {
@@ -105,4 +103,22 @@ export class PrismaCategoryRepository extends CategoryRepository {
     await this.txHost.tx
       .$executeRaw`SELECT pg_advisory_xact_lock(${CATEGORY_TREE_LOCK}::bigint)`;
   }
+}
+
+function toCategory(row: {
+  id: string;
+  parentId: string | null;
+  name: string;
+  slug: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  position: number;
+}): Category {
+  return Category.restore({
+    id: toId<'Category'>(row.id),
+    parentId: row.parentId === null ? null : toId<'Category'>(row.parentId),
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+    position: row.position,
+  });
 }

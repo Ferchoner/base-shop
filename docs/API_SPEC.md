@@ -276,7 +276,7 @@ Error de validación:
 | `total-mismatch` | 409 | E-06 | Total recalculado distinto de `expectedTotal` | `currentTotal` (Money) |
 | `insufficient-stock` | 409 | E-07 | No se puede reservar alguna línea | `lines` (`variantId`, `canFulfill`) |
 | `variant-not-sellable` | 409 | E-10 | Variante no publicada, descontinuada o sin precio | `variantIds` |
-| `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120) |
+| `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120, ADR-0123) |
 | `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado | `field` |
 | `resource-in-use` | 409 | E-14 | Borrado de entidad con referencias | — |
 | `price-period-conflict` | 409 | E-15 | Periodo superpuesto o ya iniciado | — |
@@ -871,6 +871,18 @@ Representación `AdminProduct`:
 
 La generación automática del slug y su bloqueo tras la primera publicación se fijan en ADR-0071, por analogía con ADR-0068.
 
+Implementado en T-140 parte a (ADR-0123):
+
+- **Sin `storeVisibility`:** `AdminProduct` no lo lleva hasta T-140 parte c, que llega con la tienda después de T-145 y T-160.
+- **Slug:** sin él, se genera del título y se numera si ya existe (`camisa-lino-2`); un slug enviado y repetido responde 409 `duplicate-value`.
+- **Marca y categorías:** una nueva debe estar activa. Si no, 400 `validation-error` con `unknownBrand` o `inactiveBrand` en `brandId`, o con `unknownCategories` o `inactiveCategories` en `categoryIds`. Una que el producto ya tenía se conserva aunque se haya desactivado. Hasta 10 categorías; `null` en `brandId` quita la marca.
+- **Publicar sin variante activa:** 409 `invalid-state-transition` con `reason: no-active-variant`.
+- **Producto archivado:** no se edita ni cambia sus variantes: 409 `invalid-state-transition` con `currentStatus: ARCHIVED`.
+- **Campos fijos:** `field-locked` lleva `fields` (`slug`, `sku`, `options`).
+- **Listado:** no incluye `description`; `q` busca en el título y en los SKU; con `sort=publishedAt`, los nunca publicados van al final.
+- **Alta:** responde 201 con `Location: /v1/admin/catalog/products/{id}`.
+- **Auditoría:** cada cambio se audita (`products.*`); uno sin efecto no se guarda ni se audita.
+
 ### 11.7 Variantes (UC-CAT-06 a 08)
 
 | Endpoint | Detalle |
@@ -881,6 +893,14 @@ La generación automática del slug y su bloqueo tras la primera publicación se
 | `POST …/variants/{variantId}/reactivate` | `catalog.write`. Request `{ "version" }` (del producto). De DISCONTINUED a ACTIVE; SKU y opciones no cambian (ADR-0076). 200 `AdminProduct`. Errores: 409 `invalid-state-transition`; 409 `duplicate-value` (`options`) si otra variante activa tiene la misma combinación |
 
 La cantidad máxima de atributos y las longitudes se fijan en ADR-0071.
+
+Implementado en T-140 parte a (ADR-0123):
+
+- **Nombres de opción:** se guardan sin espacios alrededor y en minúsculas (`Talla` → `talla`); los valores, solo sin espacios alrededor.
+- **Mismos nombres en todas las variantes:** si no coinciden, 400 `validation-error` con `optionNames` en `options`; después de la primera publicación, 409 `field-locked`. La única variante de un producto sin publicar puede cambiarlos.
+- **Medidas:** `lengthCm`, `widthCm` y `heightCm` con un decimal; `null` en el `PATCH` borra un valor.
+- **Variante de otro producto:** 404.
+- **Descontinuar:** publica `VariantDiscontinued`, que vacía la cache pública.
 
 ### 11.8 Imágenes (UC-CAT-11, ADR-0024)
 
