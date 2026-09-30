@@ -86,6 +86,18 @@ export class EnvironmentVariables {
   @Max(86400)
   CACHE_TTL_SECONDS: number = 120;
 
+  /**
+   * VAT rate in basis points (1600 is 16%), a setting and not a constant (ADR-0027, ADR-0122): from 0 to 10000.
+   * Every price and the shipping cost include it; orders keep the rate they applied, so a change never alters
+   * placed orders.
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(10_000)
+  VAT_RATE_BP: number = 1_600;
+
   /** Addresses a customer can keep (BR-ADR-04, ADR-0057, ADR-0113). */
   @Expose()
   @Type(() => Number)
