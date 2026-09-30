@@ -140,6 +140,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0120 | Categorías y marcas: slugs, ciclos y árbol | Aceptada |
 | ADR-0121 | Imágenes de producto en disco: validación, subida y `/media` | Aceptada |
 | ADR-0122 | Método de envío, cálculo del costo y tasa de IVA configurable | Aceptada |
+| ADR-0123 | Productos y variantes: división de T-140, slugs, opciones y búsqueda | Aceptada |
 
 ---
 
@@ -1203,7 +1204,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La extensión `unaccent` y los índices de búsqueda se crean en una migración con SQL.
   - Si el catálogo crece o la consulta se vuelve lenta, se puede migrar a una proyección de lectura sin cambiar el contrato de la API.
   - El filtro "solo disponibles" usa la disponibilidad de ADR-0061.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. ADR-0123 fija el `search_vector` (pesos y configuración) y deja la consulta pública para T-140 parte c, después de T-145 y T-160.
 
 ---
 
@@ -1364,7 +1365,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Peso, dimensiones y estado se pueden editar en cualquier momento.
 - **Alternativas consideradas:** SKU nunca editable; SKU siempre editable con historial de valores anteriores.
 - **Consecuencias:** `products` guarda la fecha de la primera publicación (`first_published_at`), que no cambia aunque el producto se archive o se vuelva a publicar.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en ADR-0123 (409 `field-locked` con los campos fijos).
 
 ---
 
@@ -3090,3 +3091,52 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambiar la tasa de IVA exige reiniciar la API.
   - T-180 usa `ShippingFacade.quote` y guarda como snapshot el costo, el IVA, la tasa y el plazo.
 - **Estado:** Aceptada (plan de T-196 aprobado el 2026-09-30).
+
+---
+
+## ADR-0123 — Productos y variantes: división de T-140, slugs, opciones y búsqueda
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-140. La consulta pública (ADR-0060) oculta los productos sin precio vigente, filtra y ordena por precio, y filtra por disponibilidad. `storeVisibility` en la administración usa la fachada de Pricing, y `GET /v1/catalog/brands` lista las marcas con productos visibles. Todo eso depende de T-145 y T-160, que a su vez necesitan que existan las variantes. Además quedaban abiertos:
+  - el slug de producto repetido, que ADR-0120 resolvió solo para categorías y marcas;
+  - el momento en que se recalcula el `search_vector`;
+  - cómo se escriben los nombres de las opciones.
+- **Decisión:**
+  - **T-140 en tres partes, cada una con su pull request:**
+    - **a:** productos y variantes para el staff (UC-CAT-04 a 10 y 14), el `search_vector` y los eventos;
+    - **b:** imágenes (UC-CAT-11);
+    - **c:** consulta pública (UC-CAT-01 y 02), `GET /v1/catalog/brands`, `storeVisibility` y la cache de listados y detalle, después de T-145 y T-160.
+
+    Hasta la parte c, la tienda no muestra productos y `AdminProduct` no lleva `storeVisibility`. Así nunca se muestra un producto sin precio (BR-PRD-06).
+  - **Slug de producto (ADR-0071, ADR-0120):** sin `slug`, se genera del título y se numera si existe (`camisa-lino-2`), con hasta 200 caracteres. Un slug enviado y repetido responde 409 `duplicate-value`. Como los productos nunca se borran, ningún slug se reutiliza (BR-PRD-09).
+  - **Opciones:**
+    - los nombres se guardan sin espacios alrededor y en minúsculas (`Talla` → `talla`), y los valores solo sin espacios alrededor;
+    - todas las variantes de un producto tienen los mismos nombres. Si no, 400 `validation-error` con `optionNames` en `options`, o 409 `field-locked` después de la primera publicación, porque sería una dimensión nueva (ADR-0068);
+    - la única variante de un producto sin publicar puede cambiar sus nombres;
+    - la combinación repetida entre activas responde 409 `duplicate-value` en `options`;
+    - el SKU se guarda en mayúsculas, y un SKU repetido en cualquier producto responde 409 en `sku`.
+  - **Campos fijos (ADR-0068):** desde la primera publicación, cambiar el slug, el SKU o las opciones responde 409 `field-locked` con `fields`. Peso y medidas se editan siempre: gramos enteros mayores que 0, y centímetros mayores que 0 con un decimal, hasta los topes de sus columnas.
+  - **Publicar sin variante activa:** 409 `invalid-state-transition` con `reason: no-active-variant`, porque `detail` es fijo por tipo (ADR-0095).
+  - **Producto archivado:** no acepta cambios de datos ni de variantes (409 `invalid-state-transition`) hasta reactivarlo. Reactivar lo deja en DRAFT sin fecha de publicación.
+  - **Marca y categorías:** una marca o categoría nueva en un producto debe existir y estar activa (400 con `unknownBrand`, `inactiveBrand`, `unknownCategories` o `inactiveCategories`). Una que ya tenía y luego se desactivó puede quedarse. Hasta 10 categorías por producto.
+  - **`search_vector` (ADR-0060, ADR-0080):**
+    - configuración `spanish` sobre el texto sin acentos (`unaccent`), con peso A para el título, B para la marca (activa o no) y C para las categorías visibles;
+    - se recalcula con un solo `UPDATE`, en la misma transacción del cambio: al crear o editar el título, la marca o las categorías de un producto; al renombrar, mover, desactivar o reactivar una categoría (sus productos y los de todo su subárbol); y al renombrar una marca. Nunca queda desfasado.
+    - El stemmer español ya quita los acentos agudos; `unaccent` hace falta para la `ñ` y la `ü` ("piñata" se encuentra con "pinata").
+  - **Eventos:** `ProductPublished`, `ProductArchived` y `VariantDiscontinued` se publican después del commit; el manejador de ADR-0104 vacía la cache con ellos. Reactivar no publica eventos (ADR-0076). Sus tipos se exportan en `index.ts`.
+  - **Bloqueo optimista:** cada cambio de producto o de variante lleva la `version` del producto. El repositorio escribe solo las variantes nuevas o cambiadas, para no mover su `updated_at`.
+  - **Auditoría:**
+    - `products.create`, `update`, `publish`, `archive` y `reactivate` sobre el producto; la descripción se registra solo como cambiada, porque puede ser larga;
+    - `products.variant-create`, `variant-update`, `variant-discontinue` y `variant-reactivate` sobre la variante;
+    - un cambio sin efecto no se guarda ni se audita.
+  - **Listado administrativo:** `q` busca en el título y en los SKU; filtros `status`, `brandId` y `categoryId` (directa); orden `-updatedAt` por defecto, y `publishedAt` con los nunca publicados al final. El listado no incluye `description`.
+- **Alternativas consideradas:**
+  - **Toda la consulta pública ahora,** probada con precios y stock insertados a mano: T-140 fijaría cómo se leen tablas que todavía no tienen dueño, y `storeVisibility` quedaría sin fachada de Pricing.
+  - **Slug repetido con 409,** como decía `API_SPEC.md`: inconsistente con ADR-0120.
+  - **`search_vector` por eventos, en segundo plano:** la búsqueda puede quedar desfasada, y si el manejador falla el efecto se pierde (ADR-0014).
+  - **Nombres de opciones tal como llegan:** "Talla" y "talla" contarían como dos dimensiones.
+- **Consecuencias:**
+  - El orden del sprint queda así: T-140a → T-140b → T-145 y T-160 → T-140c.
+  - Desactivar una categoría grande recalcula el `search_vector` de todos sus productos en la misma transacción; en el MVP el costo es aceptable.
+  - Para agregar una dimensión de opciones a un producto sin publicar con varias variantes, primero se descontinúan las demás.
+- **Estado:** Aceptada (plan de T-140 aprobado el 2026-09-30).
