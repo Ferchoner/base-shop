@@ -33,7 +33,10 @@
     "passwords:build": "nest build && node dist/scripts/build-common-passwords.js",
     "superadmin:create": "nest build && node dist/scripts/create-first-superadmin.js",
     "lint:code": "oxlint src/ test/",
-    "lint:boundaries": "depcruise src --config .dependency-cruiser.cjs"
+    "lint:boundaries": "depcruise src --config .dependency-cruiser.cjs",
+    "secrets:scan": "npm run secrets:scan:staged && npm run secrets:scan:history",
+    "secrets:scan:staged": "docker run --rm -v .:/repo:ro ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git /repo --pre-commit --staged --redact --verbose --no-banner",
+    "secrets:scan:history": "docker run --rm -v .:/repo:ro ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git /repo --redact --verbose --no-banner"
   },
   "dependencies": {
     "@nestjs-cls/transactional": "^4.0.1",

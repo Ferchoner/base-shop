@@ -72,12 +72,11 @@ jobs:
       - name: 8. Dependency audit (fails on high and critical)
         run: npm audit --audit-level=high
 
-      # gitleaks reads the whole history offline; --redact keeps any finding out of the public log.
-      # Reviewed false positives live in .gitleaksignore.
+      # The same scan as before a local commit (ADR-0119): gitleaks, pinned by digest in package.json,
+      # reads the staged changes and the whole history offline; --redact keeps any finding out of the
+      # public log. Reviewed false positives live in .gitleaksignore.
       - name: 9. Secret scan
-        env:
-          GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
-        run: docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" git /repo --redact --verbose --no-banner
+        run: npm run secrets:scan
 
       - name: 10. Production Docker image
         run: docker build --target production --tag base-shop:ci .
