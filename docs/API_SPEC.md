@@ -1246,6 +1246,14 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 
 - `GET` — 200 el método activo.
 - `PUT` — Request `{ "name", "flatFee": 9900, "freeShippingThreshold": 150000, "deliveryMinBusinessDays": 3, "deliveryMaxBusinessDays": 7, "version" }`; `flatFee` ≥ 0, con IVA incluido (ADR-0079); umbral `null` (sin envío gratis) o > 0; plazo en días hábiles, enteros con mínimo ≥ 1 y máximo ≥ mínimo (ADR-0083). Los cambios no afectan órdenes colocadas (ADR-0042). 200. Permiso `shipping.configure` (ADR-0075).
+- **Implementado en T-196 (ADR-0122):**
+  - `name` de 1 a 100 caracteres, sin quedar en blanco;
+  - `flatFee` entero de 0 a 2147483647 centavos;
+  - `freeShippingThreshold` obligatorio en el cuerpo, `null` o de 1 al mismo tope;
+  - el plazo, enteros de 1 a 30. Un máximo menor que el mínimo responde 400 `validation-error` con `deliveryRange` en `deliveryMaxBusinessDays`.
+  - Una `version` anterior responde 409 `version-conflict` con `currentVersion`.
+  - Cada cambio se audita como `shipping-method.update`; sin cambios no se guarda ni se audita.
+  - El método inicial lo crea una migración con los valores de ADR-0092.
 
 **Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
 

@@ -115,6 +115,7 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 - [x] Paso 0 del Sprint 3: revisión contra los ADR sin contradicciones; `brace-expansion` y `fast-uri` actualizados por avisos de seguridad (solo `package-lock.json`); `npm run secrets:scan` revisa con gitleaks los cambios preparados y todo el historial, antes de cada commit y en la CI, con la imagen fijada solo en `package.json` (ADR-0119)
 - [x] T-150: árbol público de categorías con cache, administración de categorías y marcas (crear, editar, mover, desactivar, reactivar y borrar), slugs generados del nombre y numerados si ya existen, movimientos sin ciclos con un bloqueo advisory y test de concurrencia; `GET /v1/catalog/brands` y el recálculo del `search_vector` pasan a T-140 (ADR-0120)
 - [x] T-141: almacenamiento de imágenes de producto en disco detrás de un puerto (`ProductImageStorage`), formato reconocido por los primeros bytes, subida con multer cortada en `IMAGE_MAX_BYTES`, `IMAGE_STORAGE_DIR` e `IMAGE_BASE_URL`, e imágenes servidas en `/media` con cache inmutable; categorías de error `too-large` y `unsupported` en el shared kernel (ADR-0121)
+- [x] T-196: método de envío con `GET` y `PUT /v1/admin/shipping/method` (bloqueo optimista, auditoría y límites), cálculo del costo con IVA incluido y envío gratis por monto (`ShippingRateCalculator`), `ShippingFacade.quote` para el checkout, tasa de IVA en `VAT_RATE_BP` y "Envío Estándar" creado por migración con los valores de ADR-0092 (ADR-0122)
 
 ## In Progress
 

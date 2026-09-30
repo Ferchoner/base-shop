@@ -274,6 +274,7 @@ Ramas y commits (ADR-0084), en inglés:
 - `DATABASE_URL` (obligatoria) apunta al PostgreSQL de Docker Compose desde el equipo (`localhost`) y la usan la API y el CLI de Prisma. El contenedor de la API recibe su propia URL, con host `postgres`, desde `docker-compose.yml`. La contraseña de PostgreSQL no debe llevar caracteres especiales de URL (`@`, `:`, `/`, `?`, `#`) o debe ir codificada en la URL.
 - El proyecto corre solo en local por ahora (ADR-0031).
 - Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110).
+- La tasa de IVA es `VAT_RATE_BP` (1600, el 16%, por defecto); cambiarla exige reiniciar la API y no altera órdenes colocadas (ADR-0027, ADR-0122).
 - Las imágenes de producto se guardan en `IMAGE_STORAGE_DIR` (`./storage/images` por defecto, fuera de Git) y la API las sirve en `http://localhost:3000/media` (ADR-0121). `IMAGE_BASE_URL` es obligatoria en producción.
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
 
@@ -317,6 +318,7 @@ Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `
   3. Agregar el SQL manual que corresponda y revisar el SQL completo.
   4. `npm run db:migrate:dev` la aplica; después, `npm run db:diff` debe responder "No difference detected".
 - **SQL manual:** lo que el esquema de Prisma no expresa se escribe en la migración: extensiones, restricciones `CHECK` (nombre `<tabla>_<descripcion>_check`), restricciones de exclusión, índices de expresión y triggers. Prisma no los genera ni los borra, así que cambiarlos o quitarlos también requiere SQL manual en una migración nueva. Los índices parciales sí van en el esquema (`where: raw("...")`, función en vista previa `partialIndexes`).
+- **Datos iniciales:** los que el sistema necesita para funcionar van en migraciones de datos que no sobrescriben lo que ya exista, como los roles iniciales (ADR-0111) y el método de envío (ADR-0122).
 - Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
 - Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.
