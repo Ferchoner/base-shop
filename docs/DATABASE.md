@@ -455,6 +455,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | privacy_notice_version | text | Sí | Versión del aviso presentada en el checkout de invitado (ADR-0067) |
 | anonymized_at | timestamptz(3) | Sí | Marca de anonimización (ADR-0067) |
 | placed_at | timestamptz(3) | No | — |
+| payment_due_at | timestamptz(3) | No | Copia del `expires_at` de la reserva al colocar la orden: la orden vence entonces si no se paga (BR-ORD-07, ADR-0132) |
 | paid_at, shipped_at, delivered_at, cancelled_at, expired_at, refunded_at | timestamptz(3) | Sí | — |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
@@ -462,6 +463,11 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 - **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso).
 - **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
+- **Implementado en T-180 parte a (ADR-0132):**
+  - la orden se escribe con `INSERT … ON CONFLICT (public_code) DO NOTHING`: un código repetido no aborta la transacción, y la aplicación sortea otro;
+  - `payment_due_at` llegó con la migración `20261001120000_ordering_payment_due_at`, `NOT NULL` y sin valor predeterminado, porque la tabla estaba vacía;
+  - las fechas las pone la aplicación;
+  - la primera entrada de `order_status_history` lleva como actor al cliente, o `NULL` para un invitado.
 
 ### 8.2 `order_lines` (order_items)
 
@@ -674,7 +680,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
 
 - Bloqueo optimista con `version` en `users`, `roles`, `products`, `price_lists`, `variant_prices`, `reservations`, `carts`, `orders`, `payments`, `shipping_methods` y `shipments`; un conflicto responde 409 (ADR-0064).
 - Transacciones propagadas con `nestjs-cls` (ADR-0033, ADR-0093); aislamiento Read Committed; ninguna llamada externa dentro de una transacción; una transacción que dura más de 5 s se revierte.
-- Checkout en una transacción (ADR-0019): reserva, orden, líneas, historial y cambio de estado del carrito.
+- Checkout en una transacción (ADR-0019): reserva, orden, líneas, historial y cambio de estado del carrito. Empieza bloqueando el carrito como sus cambios (ADR-0131, ADR-0132).
 - Auditoría en la misma transacción que el cambio (ADR-0037).
 
 ---

@@ -31,7 +31,7 @@ import {
   MergeCartDto,
 } from './cart.dto.js';
 import { toCartDto } from './cart.mappers.js';
-import { NoStaffPurchases } from './no-staff-purchases.guard.js';
+import { NoStaffPurchases } from '../../../platform/auth/no-staff-purchases.guard.js';
 
 const customer = (user: AuthenticatedUser) => toId<'User'>(user.id);
 const line = (id: string) => pathId<'Variant'>(id, 'Cart line');

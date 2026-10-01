@@ -171,7 +171,7 @@ Obligatoria en:
 - Formato: 1 a 255 caracteres; se recomienda UUID. Una llave vacía responde 400 `idempotency-key-missing`; una de más de 255 caracteres, 400 `validation-error`.
 - Alcance: usuario autenticado o, para invitados, el `cartId` del cuerpo; y el endpoint, identificado por su ruta declarada (por ejemplo, `POST /v1/orders/{publicCode}/payments`).
 - "Mismo contenido" compara los parámetros de la ruta y el cuerpo, sin importar el orden de los campos. Usar la misma llave para pagar otra orden responde 422 (ADR-0099).
-- Se guardan éxitos (estado, cuerpo y `Location`) y errores de negocio; no errores de validación, 5xx, 401 ni 429, así que tras ellos se puede reintentar con la misma llave. Un error de negocio repetido lleva un `correlationId` nuevo. Retención de 24 horas.
+- Se guardan éxitos (estado, cuerpo y `Location`) y errores de negocio; no errores de validación (tampoco los que encuentra el dominio, como un estado que no existe, ADR-0132), 5xx, 401 ni 429, así que tras ellos se puede reintentar con la misma llave. Un error de negocio repetido lleva un `correlationId` nuevo. Retención de 24 horas.
 - El 409 `idempotency-request-in-progress` lleva `Retry-After: 2`. Si la solicitud original quedó abandonada (por ejemplo, porque el servidor se reinició) y sigue "en proceso" después de 60 segundos, la siguiente solicitud con la misma llave y el mismo contenido se ejecuta de nuevo; las reglas del dominio impiden duplicar la orden o el pago (ADR-0099).
 
 ---
@@ -492,6 +492,8 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - `grandTotal.amount` es el valor que el cliente envía como `expectedTotal`.
 - `estimatedDelivery`: plazo de entrega estimado en días hábiles, contado desde la confirmación del pago; es un estimado, no una fecha comprometida (ADR-0083).
 - `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
+- Una línea no vendible lleva `unitPrice`, `lineTotal`, `taxRateBp` y `taxAmount` en `null` y `canFulfill: false`; los totales suman solo las líneas vendibles (ADR-0132).
+- `freeShippingThreshold` es `null` si el envío nunca es gratis (ADR-0092).
 
 ### 8.8 `Order` (vista de cliente)
 
@@ -514,6 +516,8 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 - Nunca incluye `orderNumber` interno ni `id` (ADR-0049).
 - `payment` y `shipment` son `null` si no existen.
+- `contactEmail` es `null` solo en órdenes anonimizadas (ADR-0067).
+- `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
 - `paymentDueAt`: vencimiento de la reserva mientras la orden está en PENDING_PAYMENT; `null` en otros estados.
 
 ### 8.9 `AdminOrder`
@@ -752,7 +756,7 @@ La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitació
 
 `reason` sigue las mismas reglas que en §9.17. En `createdTo`, una fecha sola (`2026-09-30`) incluye todo el día. La anonimización llega con T-132 (ADR-0111).
 
-Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "status", "emailVerified", "addresses": [Address], "orderCount", "createdAt", "lastLoginAt", "anonymizedAt", "version" }` (`addresses` y `orderCount` solo en el detalle).
+Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "status", "emailVerified", "addresses": [Address], "orderCount", "createdAt", "lastLoginAt", "anonymizedAt", "version" }` (`addresses` y `orderCount` solo en el detalle). `orderCount` se quita en T-180 parte b (ADR-0132): Ordering usa a Identity, así que Identity no puede contar órdenes, y el panel lo obtiene de `meta.totalItems` de `GET /v1/admin/orders?customerId=…`.
 
 | Endpoint | Detalle |
 |---|---|
@@ -1063,7 +1067,8 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | GET | `/v1/admin/inventory/stock-items/{stockItemId}/movements` | `inventory.read` | UC-INV-04 |
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
 | POST | `/v1/admin/inventory/adjustments` | `inventory.write` | UC-INV-03 |
-| POST | `/v1/admin/inventory/restocks` | `inventory.write` | UC-INV-09 |
+
+El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
 **Almacenes.** `Warehouse { id, code, name, address: Address | null, status, createdAt, updatedAt }`. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081): `GET` devuelve `{ "data": [Warehouse] }` sin paginación y `PATCH` acepta `{ "name", "address" }`. La API no crea ni desactiva almacenes. En entradas y ajustes, `warehouseId` debe ser el almacén activo; otro valor → 404.
 
@@ -1084,14 +1089,7 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 - 201 `{ "stockItem", "movement" }`.
 - Errores: 409 `insufficient-stock` si dejaría `onHand` por debajo de `reserved` o de cero (BR-INV-01).
 
-**`POST …/restocks`** — Reintegro de una orden (ADR-0052, ADR-0053).
-
-- Request: `{ "orderId", "reasonCode": "ORDER_CANCELLED" | "SHIPMENT_RETURNED", "lines": [ { "orderLineId", "quantity" } ], "note" }`.
-- La orden debe estar cancelada o reembolsada con stock confirmado, o tener el envío en RETURNED, según el motivo. La suma por línea no supera lo vendido.
-- 201 `{ "movements": [StockMovement] }`.
-- Errores: 409 `restock-not-allowed` (con `lines`); 409 `invalid-state-transition` si la orden no admite reintegro.
-
-Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161):
+Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161, sección 15.7):
 
 - **Almacén:**
   - lo crea una migración: "Almacén principal", código `PRINCIPAL`, sin dirección;
@@ -1187,6 +1185,7 @@ Reglas comunes: solo órdenes CANCELLED o REFUNDED (409 `invalid-state-transitio
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
 | POST | `/v1/admin/orders/{orderId}/retry-fulfillment` | `orders.manage` | UC-ORD-08 |
+| POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` | UC-INV-09 (ADR-0132) |
 
 Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es).
 
@@ -1237,6 +1236,23 @@ o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección
 - **`GET /v1/me/orders`** — Paginado. Filtros: `status`, `placedFrom`, `placedTo`. Orden: `placedAt` (defecto `-placedAt`), `grandTotal`. Response: página de `Order` sin `lines` ni `shippingAddress` (resumen con `itemCount`).
 - **`GET /v1/me/orders/{publicCode}`** — 200 `Order`. 404 si no existe o es de otro cliente.
 
+Implementado en T-180 parte a (ADR-0132):
+
+- **Cotización:** las líneas no vendibles se marcan y no suman (§8.7). Un cliente sin carrito activo recibe 409 `empty-cart`, y el staff, 403 `staff-cannot-purchase` en las dos rutas.
+- **Orden de las validaciones al colocar:**
+  1. cuenta de staff (403);
+  2. email sin verificar (403);
+  3. carrito (404, 409 `cart-not-active` o 409 `empty-cart`);
+  4. dirección (404 si la guardada no es del cliente);
+  5. líneas no vendibles (409, con todas);
+  6. total (409 `total-mismatch`);
+  7. stock (409 `insufficient-stock`).
+- **Dirección:** sin `addressId` ni `shippingAddress`, o con los dos, 400 `validation-error` con `exactlyOneAddress` en `addressId`. La dirección escrita se valida contra el catálogo del INEGI: 400 `validation-error` en `shippingAddress.stateCode` o `shippingAddress.municipalityCode`.
+- **Invitado con sesión:** un cliente con sesión puede usar `/v1/orders` con un carrito de invitado, y la orden queda como de invitado.
+- **Respuesta:** `Order` sin `id` ni `orderNumber`, con `contactEmail` en minúsculas, `paymentDueAt` igual al vencimiento de la reserva, y `payment` y `shipment` en `null` hasta T-190 y T-195.
+- **Mis pedidos:** el staff recibe 403 `forbidden`. El orden predeterminado es `-placedAt`, con desempate por ID. Un código que no puede existir responde 404.
+- **Pendiente:** la administración (§15.7) y UC-ORD-09 son de la parte b.
+
 ### 15.5 Consulta de pedido de invitado (UC-ORD-04, ADR-0020)
 
 - **`POST /v1/orders/lookup`** — Request `{ "contactEmail", "publicCode" }`. Los datos van en el cuerpo, no en la URL, para no dejarlos en logs ni historiales (ADR-0071).
@@ -1271,6 +1287,13 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - Desde PENDING_PAYMENT: Cancelled y libera la reserva. Desde PAID o AWAITING_MANUAL_FULFILLMENT: Cancelled e inicia el reembolso total (ADR-0051).
 - 200 `AdminOrder`. Auditado.
 - Errores: 409 `invalid-state-transition` (Shipped o posterior, ya cancelada); 403 `forbidden` si pide `restock` sin `inventory.write`; 409 `restock-not-allowed`.
+
+**`POST /v1/admin/orders/{orderId}/restocks`** — `inventory.write`. Reintegro independiente de una orden (UC-INV-09, ADR-0052, ADR-0053). Lo atiende Ordering, que le pasa a Inventory cada línea con lo vendido; Inventory verifica con sus movimientos que no se reintegre de más (P-73, ADR-0132). Se implementa en T-161.
+
+- Request: `{ "reasonCode": "ORDER_CANCELLED" | "SHIPMENT_RETURNED", "lines": [ { "orderLineId", "quantity" } ], "note" }`.
+- La orden debe estar cancelada o reembolsada con stock confirmado, o tener el envío en RETURNED, según el motivo. La suma por línea no supera lo vendido.
+- 201 `{ "movements": [StockMovement] }`.
+- Errores: 409 `restock-not-allowed` (con `lines`); 409 `invalid-state-transition` si la orden no admite reintegro.
 
 **`POST /v1/admin/orders/{orderId}/retry-fulfillment`** — `orders.manage`.
 
@@ -1385,7 +1408,7 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 | `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED en segundo plano (sección 2.5). 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
 | `POST …/deliver` | Request `{ "version" }`. Desde DISPATCHED. La orden pasa a DELIVERED en segundo plano (sección 2.5). 200 |
 | `POST …/delivery-failure` | Request `{ "note", "version" }`. Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
-| `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/inventory/restocks`. 200 |
+| `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/orders/{orderId}/restocks` (ADR-0132). 200 |
 
 UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es una reacción a `OrderPaid`.
 
@@ -1433,7 +1456,8 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-CAT-01 a 14 | Sección 11 |
 | UC-PRC-01 a 05 | Sección 12 |
 | UC-PRC-06 | Sin API pública: fachada interna del módulo |
-| UC-INV-01 a 04, 09 | Sección 13 |
+| UC-INV-01 a 04 | Sección 13 |
+| UC-INV-09 | Sección 15.7 (ADR-0132) |
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |

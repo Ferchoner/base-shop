@@ -209,6 +209,18 @@ export class Cart {
     this.touch(now);
   }
 
+  /**
+   * Leaves the cart CHECKED_OUT, used by an order: it no longer changes, and the customer's next line opens a
+   * new cart (BR-CRT-03). The checkout does it in the transaction that creates the order (ADR-0019).
+   *
+   * @throws CartNotActiveError.
+   */
+  checkOut(now: Date): void {
+    this.assertActive();
+    this.state = 'CHECKED_OUT';
+    this.touch(now);
+  }
+
   private put(variantId: VariantId, quantity: number, now: Date): void {
     const current = this.lineMap.get(variantId);
     this.lineMap.set(variantId, {

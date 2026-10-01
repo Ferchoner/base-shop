@@ -250,7 +250,7 @@ Criterios de aceptación:
 - **UC-INV-06:** `onHand` y `reserved` disminuyen en la cantidad reservada; la reserva pasa a Committed. Confirmar dos veces no repite nada, y una reserva activa se confirma aunque haya pasado su `expiresAt`, mientras el job no la venza (ADR-0128).
 - **UC-INV-07:** `reserved` vuelve a disminuir y la reserva pasa a Released, una sola vez (ADR-0128).
 - **UC-INV-08:** las reservas vencidas se liberan en el minuto siguiente a su vencimiento, por lotes e idempotente.
-- **UC-INV-09:** solo para órdenes canceladas cuyo stock se había confirmado o con envío en Returned; admite cantidades parciales; la suma reintegrada por línea no supera lo vendido; genera movimiento con motivo y referencia a la orden; se audita. El motivo es Orden cancelada o Envío devuelto, según el caso.
+- **UC-INV-09:** solo para órdenes canceladas cuyo stock se había confirmado o con envío en Returned; admite cantidades parciales; la suma reintegrada por línea no supera lo vendido; genera movimiento con motivo y referencia a la orden; se audita. El motivo es Orden cancelada o Envío devuelto, según el caso. Se pide desde Ordering, que le pasa a Inventory las líneas y lo vendido de cada una (P-73, ADR-0132).
 
 ### 5.5 Shopping
 
@@ -307,6 +307,11 @@ Criterios de aceptación:
 - **UC-ORD-08:** si hay stock, reserva, confirma y pasa a Paid; si se decide no surtir, se cancela según UC-ORD-07.
 - **UC-ORD-09:** con reserva vigente, la confirma y pasa a Paid; si la orden está Expired, aplica BR-ORD-09; idempotente ante eventos duplicados.
 - **UC-ORD-10:** una orden en PendingPayment pasa a Expired junto con su reserva, y sus líneas regresan al carrito del cliente (UC-CRT-08).
+- **UC-ORD-01 a 03 (implementación, ADR-0132):**
+  - la cotización marca las líneas que no se pueden vender y suma solo las demás;
+  - colocar la orden bloquea el carrito y revisa, en este orden, al comprador, el carrito, la dirección, que todo sea vendible, el total y el stock;
+  - la orden guarda el vencimiento de su reserva (`paymentDueAt`);
+  - un cliente con sesión puede colocar una orden de invitado con un carrito de invitado.
 
 ### 5.7 Payments
 

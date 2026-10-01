@@ -149,6 +149,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0129 | Tienda pública: consulta, `storeVisibility`, tablas de cada contexto y cache acotada | Aceptada |
 | ADR-0130 | Validación: una regla por campo, primero la presencia y el tipo | Aceptada |
 | ADR-0131 | Carrito: bloqueos, límite de líneas, variantes no vendibles e imagen principal | Aceptada |
+| ADR-0132 | Checkout y pedidos: división de T-180, dependencias de Ordering, reintegro sin ciclo y vencimiento del pago | Aceptada |
 
 ---
 
@@ -395,7 +396,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una transacción cubre: validar carrito, cotizar precios, reservar stock, crear la orden en PendingPayment y marcar el carrito. La llamada al proveedor de pagos ocurre fuera de la transacción.
   - Esta transacción toca Ordering, Inventory y Shopping: es un acoplamiento transaccional consciente, aceptable en el monolito. Si se separa Inventory, se convierte en saga.
 - **Nota de la revisión del 2026-09-26:** en el MVP hay un solo método de envío (ADR-0042), así que la cotización no ofrece opciones de envío y la colocación de la orden no recibe una.
-- **Estado:** Aceptada (aprobación formal 2026-09-24).
+- **Estado:** Aceptada (aprobación formal 2026-09-24). Implementada en T-180 parte a (ADR-0132): la transacción bloquea el carrito, y revisa el comprador, el carrito, la dirección, la vendibilidad, el total y el stock, en ese orden.
 
 ---
 
@@ -1000,7 +1001,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - La secuencia no garantiza números continuos: una transacción revertida deja huecos. El consecutivo sirve para ordenar e identificar, no como conteo exacto.
   - Las respuestas a clientes (`/v1/me`, consulta de invitado, correos) muestran solo el código público; las administrativas muestran ambos, y el staff puede buscar por cualquiera de los dos.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en T-180 parte a (ADR-0132): un código repetido se resuelve con `ON CONFLICT DO NOTHING` y otro sorteo, sin abortar la transacción.
 
 ---
 
@@ -2178,7 +2179,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las reglas del dominio deben impedir duplicados por sí mismas (carrito ya marcado, un pago por orden), porque una llave abandonada puede volver a ejecutarse.
   - T-120 debe dejar el usuario autenticado en `request.user.id` para `userScope`.
   - La limpieza de llaves vencidas queda en el job diario (T-231).
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 deja el usuario autenticado en `request.user.id`.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 deja el usuario autenticado en `request.user.id`. ADR-0132 libera la llave también con los errores de validación que encuentra el dominio.
 
 ---
 
@@ -2612,7 +2613,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
   - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
   - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
-- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender.
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity.
 
 ---
 
@@ -3347,7 +3348,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El orden por SKU cuesta más cuantos más stock items tenga el filtro. Con miles no se nota; con cientos de miles habrá que pasar a una proyección de lectura, la misma salida que prevé ADR-0060.
   - Cada página hace una consulta más a Catalog, en lote.
   - Dos cambios de un mismo stock item se esperan en su fila.
-- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión). La parte b está en ADR-0128. La decisión pendiente de T-161 se registró como P-73 en la Sprint Review del Sprint 3.
+- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión). La parte b está en ADR-0128. La decisión pendiente de T-161 se registró como P-73 en la Sprint Review del Sprint 3, y ADR-0132 la resuelve.
 
 ---
 
@@ -3563,4 +3564,80 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `VariantSnapshot` suma `productSlug`.
   - Nuevo tipo de error `cart-line-limit-reached` (E-36).
   - Cuatro pruebas de concurrencia cubren dos sumas a la misma línea, las dos primeras líneas de un cliente, dos fusiones del mismo carrito, y una fusión junto con una suma.
-- **Estado:** Aceptada (plan de T-170 aprobado el 2026-10-01). En la misma revisión se descartó el atributo de imagen principal, y se documentó la posición 1 como principal.
+- **Estado:** Aceptada (plan de T-170 aprobado el 2026-10-01). En la misma revisión se descartó el atributo de imagen principal, y se documentó la posición 1 como principal. El checkout de T-180 bloquea el carrito así (ADR-0132).
+
+---
+
+## ADR-0132 — Checkout y pedidos: división de T-180, dependencias de Ordering, reintegro sin ciclo y vencimiento del pago
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-180 (UC-ORD-01 a 03 y 06 a 09). ADR-0019 fija el protocolo del checkout; ADR-0049, los identificadores de la orden; ADR-0063 y ADR-0099, la idempotencia; ADR-0128, las reservas, y ADR-0131, el bloqueo del carrito. Quedaban abiertos estos puntos:
+  - el tamaño de la tarea;
+  - P-73: cómo reintegra Inventory el stock de una orden sin formar un ciclo con Ordering;
+  - cómo obtiene Ordering los datos del cliente si Identity debía mostrar `orderCount` (ADR-0111);
+  - dónde guarda la orden el vencimiento de su pago (`paymentDueAt`);
+  - de dónde salen los precios y los snapshots de la orden;
+  - qué hacer con un código público repetido dentro de la transacción.
+- **Decisión:**
+  - **División de T-180:**
+    - **a:** cotizar (UC-ORD-01), colocar la orden (UC-ORD-02) y consultar mis pedidos (UC-ORD-03). Esta decisión.
+    - **b:** la administración de órdenes (UC-ORD-06), cancelar (UC-ORD-07), reintentar el surtido (UC-ORD-08), marcar pagada al recibir `PaymentCaptured` (UC-ORD-09) y quitar `orderCount`. Sus preguntas se deciden al empezarla, y va antes de T-190.
+  - **Dependencias de Ordering:**
+    - usa a Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access y Geo por sus fachadas, con un puerto propio por cada uno (ADR-0005), y ninguno usa a Ordering;
+    - Shopping exporta `ShoppingFacade`: el contenido del carrito sin precios, el mismo bloqueado hasta el fin de la transacción, y marcarlo CHECKED_OUT;
+    - `IdentityAccessFacade` suma el contacto del cliente (email de la cuenta y si está verificado) y una dirección guardada con los nombres del estado y del municipio;
+    - Ordering lee las variantes, su vendibilidad y los precios de Catalog y Pricing, no de la vista del carrito, para que el precio de la orden no salga de una vista de segunda mano.
+  - **Identity nunca usa a Ordering:**
+    - `orderCount` sale de `AdminCustomer` en la parte b; el panel lo obtiene de `meta.totalItems` de `GET /v1/admin/orders?customerId=…`;
+    - la anonimización (T-132) se hará con eventos o se orquestará fuera de Identity; se decide en su plan.
+  - **P-73, reintegro sin ciclo:**
+    - Ordering le pasa a Inventory las líneas de la orden (`orderLineId`, variante y cantidad vendida) y lo que se reintegra de cada una;
+    - Inventory verifica con sus movimientos RESTOCK por `order_line_id` que no se reintegre más de lo vendido, y escribe los movimientos;
+    - el reintegro independiente (UC-INV-09) pasa de `POST /v1/admin/inventory/restocks` a `POST /v1/admin/orders/{orderId}/restocks`, con `inventory.write`, porque Ordering conoce la orden, su estado y sus líneas. Para una devolución, Ordering consulta el estado del envío con la fachada de Shipping;
+    - se implementa en T-161.
+  - **Cotización (UC-ORD-01):**
+    - no cambia nada ni usa la cache: precios vigentes, IVA por línea con `VAT_RATE_BP`, y envío y plazo de `ShippingFacade.quote` (ADR-0122);
+    - una línea no vendible (producto no publicado, variante descontinuada o sin precio) aparece con `sellable: false` y su precio, total e IVA en `null`. La disponibilidad solo se pregunta por las vendibles;
+    - los totales suman solo las líneas vendibles, como el carrito, y `readyToPlace` exige que todas sean vendibles y surtibles;
+    - un carrito sin líneas, o un cliente sin carrito activo, responde 409 `empty-cart`.
+  - **Colocar la orden (UC-ORD-02):** una transacción revisa, en este orden:
+    1. el comprador: un cliente debe seguir activo y tener el email verificado (403 `email-not-verified`);
+    2. el carrito, bloqueado como en ADR-0131 (404, 409 `cart-not-active` o 409 `empty-cart`);
+    3. la dirección: una guardada del cliente (404 si no es suya) o una escrita, validada contra el catálogo del INEGI (400 `validation-error` en `shippingAddress.stateCode` o `shippingAddress.municipalityCode`);
+    4. que todas las líneas sean vendibles (409 `variant-not-sellable` con todas las que no);
+    5. el total contra `expectedTotal` (409 `total-mismatch` con `currentTotal`);
+    6. la reserva, todo o nada (409 `insufficient-stock`).
+
+    Después crea la orden en PENDING_PAYMENT con sus líneas y la primera entrada del historial, y deja el carrito CHECKED_OUT. Además:
+    - la ruta del cliente recibe exactamente uno de `addressId` y `shippingAddress`; si no, 400 `validation-error` con `exactlyOneAddress` en `addressId`;
+    - un cliente con sesión puede usar la ruta de invitado con un carrito de invitado, y la orden queda como de invitado;
+    - `Location: /v1/me/orders/{publicCode}` va solo en la ruta del cliente;
+    - el historial guarda como actor al cliente, y `NULL` para un invitado.
+  - **Código público:**
+    - 8 caracteres aleatorios con `randomInt`;
+    - la orden se escribe con `INSERT … ON CONFLICT (public_code) DO NOTHING`: un código repetido no aborta la transacción ni pierde la reserva, y se sortea otro, hasta 5 veces;
+    - las rutas aceptan el código con o sin guion y en mayúsculas o minúsculas; uno que no puede existir responde 404.
+  - **Vencimiento del pago:** la columna nueva `orders.payment_due_at` (migración `20261001120000_ordering_payment_due_at`) copia el `expires_at` de la reserva, que nunca cambia. `paymentDueAt` se muestra solo en PENDING_PAYMENT.
+  - **Mis pedidos (UC-ORD-03):**
+    - filtros `status`, `placedFrom` y `placedTo` (una fecha sola en `placedTo` incluye todo el día), y orden por `placedAt` (el predeterminado, descendente) o `grandTotal`, con desempate por ID;
+    - `payment` y `shipment` son `null` hasta T-190 y T-195;
+    - un pedido de otro cliente responde 404, y el staff recibe 403 `forbidden`.
+  - **Idempotencia:** un error de validación que encuentra el dominio, como un estado que no existe, libera la llave igual que los del pipe (ADR-0099).
+  - **Staff:** el guard `NoStaffPurchases` pasa a `platform/auth`, y lo usan el carrito y el checkout.
+  - **IVA:** Ordering lee `VAT_RATE_BP` con su propio token, como Shipping.
+  - **Registro:** sin eventos todavía, porque nadie escucharía `OrderPlaced` (T-181 y T-215 los agregarán), y sin auditoría, porque no es una acción del staff.
+- **Alternativas consideradas:**
+  - **Una sola T-180:** un pull request enorme, y la parte b depende de cómo se integre Payments.
+  - **P-73:**
+    - que Inventory guarde su propia copia de las líneas y escuche los cambios de estado de la orden (más datos copiados, que se actualizan con demora);
+    - mantener la ruta en `/v1/admin/inventory` con un controlador de Ordering, que confunde de quién es.
+  - **`orderCount`:** que Identity lleve la cuenta escuchando `OrderPlaced`, con una tabla nueva. Se actualizaría con demora y se descuadraría si un evento se pierde.
+  - **`paymentDueAt`:** preguntarle a Inventory en cada lectura, una llamada más por página.
+  - **Precios:** tomar la vista con precios que calcula Shopping.
+  - **Código repetido:** buscarlo antes de insertar, con una ventana de carrera, o dejar que el error de duplicado aborte la transacción.
+- **Consecuencias:**
+  - Dos cambios de contrato: la ruta del reintegro independiente (T-161) y `orderCount` (parte b).
+  - La migración agrega `payment_due_at` `NOT NULL` sin valor predeterminado, porque `orders` estaba vacía.
+  - Pruebas de concurrencia contra PostgreSQL: dos órdenes del mismo carrito, dos carritos por la última unidad, dos órdenes del mismo cliente y una orden que espera un cambio del carrito en curso.
+  - Hasta T-230, las órdenes sin pago no vencen y mantienen su stock apartado (ADR-0128).
+- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones).

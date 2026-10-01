@@ -16,7 +16,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 |---|---|
 | 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot (el agrupado llega el lunes 5 de octubre); orden de los validadores de `PageQueryDto` y de los demás DTO, con su prueba |
 | 1 | T-170 (carrito) |
-| 2 | T-180 (checkout y órdenes; resuelve P-73 en su plan) |
+| 2 | T-180 (checkout y órdenes, en dos partes; P-73 resuelta en ADR-0132) |
 | 3 | T-190 (pago en tienda y reembolso total al cancelar) |
 | 4 | T-230 (vencimiento de reservas y órdenes; la conciliación de pagos pasa a T-192) |
 | 5 | T-185 (consulta de pedido de invitado) y T-181 (restaurar y copiar el carrito) |
@@ -43,7 +43,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 ## Risks
 
 - **Ruta crítica:** T-170 → T-180 → T-190 → T-230. T-180 es la tarea más grande y define cómo usa Ordering a Shopping, Pricing, Inventory y Shipping; un retraso en ella retrasa el resto del sprint.
-- **Dependencias entre módulos:** Ordering usará a Shopping, Pricing, Inventory y Shipping, y Payments reaccionará a Ordering. Para no formar ciclos, cada módulo que reacciona a otro se suscribe a sus eventos por nombre (ADR-0125, ADR-0127), como Shopping al restaurar el carrito de una orden vencida (T-181). P-73 se resuelve en el plan de T-180.
+- **Dependencias entre módulos:** Ordering usará a Shopping, Pricing, Inventory y Shipping, y Payments reaccionará a Ordering. Para no formar ciclos, cada módulo que reacciona a otro se suscribe a sus eventos por nombre (ADR-0125, ADR-0127), como Shopping al restaurar el carrito de una orden vencida (T-181). P-73 se resolvió en el plan de T-180 (ADR-0132): Ordering le pasa a Inventory las líneas del reintegro, e Identity nunca usa a Ordering.
 - **Reservas sin vencimiento hasta T-230:** entre T-180 y T-230, las órdenes que no se pagan mantienen apartado su stock (ADR-0128). Solo afecta al entorno local.
 - **Consistencia en el checkout:** el checkout nunca usa la cache; vuelve a leer precios y stock, y compara el total con `expectedTotal` (ADR-0019, ADR-0028).
 - **Idempotencia:** colocar la orden e iniciar el pago exigen `Idempotency-Key`, ligado a quien lo envía (ADR-0063), sobre el almacén de idempotencia de T-115.

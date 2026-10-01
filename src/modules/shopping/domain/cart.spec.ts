@@ -213,6 +213,31 @@ describe('Cart (BR-CRT-01 to 05, ADR-0059, ADR-0131)', () => {
     expect(guest.touchedVariants).toEqual([]);
   });
 
+  it('is checked out by an order once, keeping its lines, and no longer changes (UC-ORD-02)', () => {
+    const shirt = variant();
+    const own = restored(
+      'ACTIVE',
+      [{ variantId: shirt, quantity: 2 }],
+      customer,
+    );
+
+    own.checkOut(T1);
+
+    expect([own.status, own.lastActivityAt, own.hasChanges]).toEqual([
+      'CHECKED_OUT',
+      T1,
+      true,
+    ]);
+    expect(own.lines).toEqual([{ variantId: shirt, quantity: 2, addedAt: T0 }]);
+    expect(own.touchedVariants).toEqual([]);
+    expect(() => own.checkOut(T2)).toThrow(
+      new CartNotActiveError('CHECKED_OUT'),
+    );
+    expect(() => restored('MERGED').checkOut(T1)).toThrow(
+      new CartNotActiveError('MERGED'),
+    );
+  });
+
   it('keeps what was saved until something changes', () => {
     const cart = restored('ACTIVE');
 

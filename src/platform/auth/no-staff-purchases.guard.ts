@@ -3,13 +3,13 @@ import {
   type ExecutionContext,
   Injectable,
 } from '@nestjs/common';
-import { authenticatedUserOf } from '../../../platform/auth/authenticated-user.js';
-import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
+import { ProblemException } from '../http/problem-details/problem.exception.js';
+import { authenticatedUserOf } from './authenticated-user.js';
 
 /**
  * Staff accounts never have a cart nor buy (BR-USR-08, BR-CRT-08): with a staff token, the cart routes that
- * create or change a cart answer 403 `staff-cannot-purchase` (E-09, ADR-0131). Without a token, or with a
- * customer's, the request goes on.
+ * create or change a cart, and the checkout routes, answer 403 `staff-cannot-purchase` (E-09, ADR-0131,
+ * ADR-0132). Without a token, or with a customer's, the request goes on.
  */
 @Injectable()
 export class NoStaffPurchases implements CanActivate {

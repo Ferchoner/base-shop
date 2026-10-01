@@ -1,6 +1,10 @@
 // Public API of the Identity & Access context (ADR-0005): other modules import only from this file.
 export { IdentityAccessModule } from './identity-access.module.js';
-export { IdentityAccessFacade } from './application/identity-access.facade.js';
+export {
+  type CustomerAddress,
+  type CustomerContact,
+  IdentityAccessFacade,
+} from './application/identity-access.facade.js';
 export type { UserId, UserType } from './domain/user.js';
 // For the operator script that creates the first superadmin (ADR-0116).
 export { FirstSuperadminCommand } from './infrastructure/first-superadmin.command.js';

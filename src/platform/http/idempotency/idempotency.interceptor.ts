@@ -45,7 +45,8 @@ interface IdempotentResponse {
  * Applies `Idempotency-Key` to the endpoints marked with `@Idempotent` (ADR-0063, ADR-0099):
  * - same key and content: replays the stored response without running the operation again;
  * - same key and other content: 422; original request still running: 409 with `Retry-After`;
- * - keeps successes and business errors; frees the key after validation errors and unexpected errors.
+ * - keeps successes and business errors; frees the key after validation errors, also those the domain finds
+ *   (such as a state that does not exist), and after unexpected errors.
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -116,7 +117,11 @@ export class IdempotencyInterceptor implements NestInterceptor {
       catchError((error: unknown) =>
         from(
           (async () => {
-            if (error instanceof DomainError && isProblemCode(error.code)) {
+            if (
+              error instanceof DomainError &&
+              isProblemCode(error.code) &&
+              error.code !== 'validation-error'
+            ) {
               await this.store.complete(attempt, {
                 kind: 'problem',
                 code: error.code,
