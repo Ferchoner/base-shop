@@ -86,10 +86,10 @@ export interface PageResponse<T> {
 export function toPageResponse<Item, Dto>(
   page: Page<Item>,
   request: PageRequest,
-  toDto: (item: Item) => Dto,
+  toDto: (item: Item, index: number) => Dto,
 ): PageResponse<Dto> {
   return {
-    data: page.items.map(toDto),
+    data: page.items.map((item, index) => toDto(item, index)),
     meta: {
       page: request.page,
       pageSize: request.pageSize,

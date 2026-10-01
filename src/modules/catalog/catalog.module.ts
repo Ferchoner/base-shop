@@ -21,6 +21,8 @@ import { ProductLifecycle } from './application/product-lifecycle.use-case.js';
 import { ProductSearchIndex } from './application/product-search-index.js';
 import { ProductVariants } from './application/product-variants.use-case.js';
 import { ReactivateCategory } from './application/reactivate-category.use-case.js';
+import { Storefront } from './application/storefront.js';
+import { StorefrontQueries } from './application/storefront.queries.js';
 import { UpdateBrand } from './application/update-brand.use-case.js';
 import { UpdateCategory } from './application/update-category.use-case.js';
 import { UpdateProduct } from './application/update-product.use-case.js';
@@ -39,6 +41,7 @@ import { PrismaCategoryRepository } from './infrastructure/prisma-category.repos
 import { PrismaProductGalleryRepository } from './infrastructure/prisma-product-gallery.repository.js';
 import { PrismaProductSearchIndex } from './infrastructure/prisma-product-search-index.js';
 import { PrismaProductRepository } from './infrastructure/prisma-product.repository.js';
+import { PrismaStorefrontQueries } from './infrastructure/prisma-storefront.queries.js';
 import { PublicCatalogCacheInvalidation } from './infrastructure/public-catalog-cache.event-handler.js';
 import { AdminBrandsController } from './presentation/admin-brands.controller.js';
 import { AdminCategoriesController } from './presentation/admin-categories.controller.js';
@@ -105,6 +108,7 @@ export function imageUploads(): DynamicModule {
     ProductLifecycle,
     ProductVariants,
     ProductImages,
+    Storefront,
     { provide: CategoryRepository, useClass: PrismaCategoryRepository },
     { provide: BrandRepository, useClass: PrismaBrandRepository },
     { provide: ProductRepository, useClass: PrismaProductRepository },
@@ -114,6 +118,7 @@ export function imageUploads(): DynamicModule {
       useClass: PrismaProductGalleryRepository,
     },
     { provide: CatalogQueries, useClass: PrismaCatalogQueries },
+    { provide: StorefrontQueries, useClass: PrismaStorefrontQueries },
     ...PRODUCT_IMAGE_PROVIDERS,
   ],
   exports: [CatalogFacade],

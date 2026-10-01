@@ -87,3 +87,20 @@ export class UnusableCategoriesError extends FieldError {
     );
   }
 }
+
+/**
+ * The store listing is filtered by a category that does not exist or is hidden (ADR-0080). The store answers
+ * both the same way, so it never tells what the staff hid (ADR-0129).
+ */
+export class UnknownCategoryFilterError extends FieldError {
+  constructor() {
+    super('category', 'unknownCategory', 'La categoría no existe.');
+  }
+}
+
+/** The store listing is filtered by a brand that does not exist or is inactive (ADR-0080, ADR-0129). */
+export class UnknownBrandsFilterError extends FieldError {
+  constructor() {
+    super('brand', 'unknownBrands', 'Una o más marcas no existen.');
+  }
+}

@@ -38,6 +38,7 @@ import {
   SLUG_PATTERN,
   VARIANT_STATUSES,
 } from '../application/catalog-limits.js';
+import { STORE_VISIBILITIES } from '../application/storefront.queries.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
 // Fields holding other DTOs, lists, dates, enums, objects or null declare their type with @ApiProperty
@@ -140,6 +141,13 @@ export class AdminProductDto {
 
   @ApiProperty({ enum: PRODUCT_STATUSES })
   status: string;
+
+  @ApiProperty({
+    enum: STORE_VISIBILITIES,
+    description:
+      'Si la tienda lo muestra: `HIDDEN_NO_PRICE` es un producto publicado sin variantes vendibles (activas y con precio vigente).',
+  })
+  storeVisibility: string;
 
   @ApiProperty({ type: () => [AdminVariantDto] })
   variants: AdminVariantDto[];

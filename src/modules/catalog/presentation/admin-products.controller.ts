@@ -32,6 +32,7 @@ import { CreateProduct } from '../application/create-product.use-case.js';
 import { ProductImageStorage } from '../application/product-image-storage.js';
 import { ProductLifecycle } from '../application/product-lifecycle.use-case.js';
 import { ProductVariants } from '../application/product-variants.use-case.js';
+import { Storefront } from '../application/storefront.js';
 import { UpdateProduct } from '../application/update-product.use-case.js';
 import {
   AdminProductDto,
@@ -64,7 +65,8 @@ const LIFECYCLE_PROBLEMS = [
 
 /**
  * Products and their variants (UC-CAT-04 to 10 and 14, API_SPEC.md §11.6 and §11.7, ADR-0123). Every change
- * carries the product `version`. `storeVisibility` comes with T-140 part c, together with the store.
+ * carries the product `version`. `storeVisibility` comes from the store's own reads, so the staff sees what the
+ * store shows (ADR-0129).
  */
 @ApiTags('Administración: catálogo')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -77,6 +79,7 @@ export class AdminProductsController {
     private readonly updateProduct: UpdateProduct,
     private readonly lifecycle: ProductLifecycle,
     private readonly variants: ProductVariants,
+    private readonly storefront: Storefront,
   ) {}
 
   @ApiOperation({ summary: 'Listar productos, con borradores y archivados' })
@@ -102,8 +105,11 @@ export class AdminProductsController {
       toSortOrders<ProductSortField>(query.sort, '-updatedAt'),
       query,
     );
-    return toPageResponse(page, query, (view) =>
-      toAdminProductDto(view, (key) => this.images.urlOf(key)),
+    const visibilities = await this.storefront.visibilities(
+      page.items.map(({ id }) => id),
+    );
+    return toPageResponse(page, query, (view, index) =>
+      toAdminProductDto(view, this.urlOf, visibilities[index]),
     );
   }
 
@@ -316,6 +322,9 @@ export class AdminProductsController {
   private async read(id: string): Promise<AdminProductDto> {
     const view = await this.queries.findProduct(product(id));
     if (view === null) throw new NotFoundError('Product', id);
-    return toAdminProductDto(view, (key) => this.images.urlOf(key));
+    const [visibility] = await this.storefront.visibilities([view.id]);
+    return toAdminProductDto(view, this.urlOf, visibility);
   }
+
+  private readonly urlOf = (key: string) => this.images.urlOf(key);
 }
