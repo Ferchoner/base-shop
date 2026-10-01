@@ -170,6 +170,7 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 - 429 con `Retry-After` al exceder un límite.
 - Detrás de un proxy, la IP a considerar se configura al elegir hosting (P-06).
 - Mecanismo (ADR-0102): en el login cuentan solo los intentos fallidos, por correo y por IP; los correos usados como clave se guardan en memoria como huella SHA-256; los webhooks quedan fuera; la autenticación debe ejecutarse antes del guard de rate limiting para que los límites por usuario vean quién llama.
+- El rate limiting por IP no basta para proteger la memoria de la cache, porque cada combinación de filtros del catálogo público es una clave nueva y llegan desde muchas IP. Cada espacio de la cache guarda hasta 1 000 valores y descarta el que se usó hace más tiempo (ADR-0129).
 
 ## Datos personales
 

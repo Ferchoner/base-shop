@@ -46,6 +46,7 @@ Cache (ADR-0028, ADR-0104):
   ```
 
 - Todo valor vence con `CACHE_TTL_SECONDS` (120 por defecto). Si un cambio debe verse de inmediato, se invalida con un handler de eventos que vacía el espacio correspondiente.
+- Cada espacio guarda hasta 1 000 valores; al pasar de ahí descarta el que se usó hace más tiempo (ADR-0129). La clave debe salir de los parámetros ya validados y normalizados, para que dos URL que piden lo mismo compartan entrada.
 - Las respuestas que no guardan nada invalidable pueden usar `CacheInterceptor` de `@nestjs/cache-manager`, que tiene el mismo TTL.
 
 Rate limiting (ADR-0065, ADR-0102):
@@ -254,6 +255,7 @@ Lint (ADR-0073, ADR-0103): `npm run lint` corre oxlint (`npm run lint:code`) y l
 - Si `lint:boundaries` falla, el mensaje dice qué regla se rompió y entre qué archivos. La solución es mover el código a la capa correcta o pasar por la API pública del otro módulo (`index.ts`), no relajar la regla. Cambiar una regla requiere un ADR.
 - Resumen de las reglas: Domain solo usa su domain, el shared kernel y módulos nativos de Node; Application usa su domain y application, el shared kernel y `@nestjs/common`; Infrastructure no usa presentation; Presentation no usa domain ni infrastructure; entre módulos solo por `index.ts`; Prisma solo en `platform` e `infrastructure`; el shared kernel no usa frameworks; `platform` no usa módulos; sin dependencias circulares. Los archivos de test quedan fuera.
 - `test/boundaries/` tiene un proyecto de ejemplo con una violación por regla; su test comprueba que cada regla la detecta y que `src` no tiene violaciones.
+- `test/boundaries/table-ownership.spec.ts` comprueba que cada módulo use solo las tablas y los modelos de Prisma de su contexto (ADR-0129). Lee el dueño de cada uno en `prisma/schema/*.prisma`; un modelo nuevo en `transversal.prisma` necesita su dueño en el test. Escribe las palabras clave de SQL en mayúsculas (`FROM`, `JOIN`, `UPDATE`, `INTO`), porque el test las busca así.
 
 Formato con Prettier (ADR-0084): `npm run format` escribe y `npm run format:check` verifica. Cubre código y configuración; la documentación Markdown queda fuera (`.prettierignore`).
 

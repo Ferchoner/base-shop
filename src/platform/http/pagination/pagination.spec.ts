@@ -123,15 +123,15 @@ describe('toSortOrders', () => {
 });
 
 describe('toPageResponse', () => {
-  it('maps the items and computes the page counts', () => {
+  it('maps the items, with their place in the page, and computes the page counts', () => {
     const response = toPageResponse(
       { items: [{ n: 1 }, { n: 2 }], totalItems: 45 },
       { page: 3, pageSize: 20 },
-      (item) => item.n * 10,
+      (item, index) => item.n * 10 + index,
     );
 
     expect(response).toEqual({
-      data: [10, 20],
+      data: [10, 21],
       meta: { page: 3, pageSize: 20, totalItems: 45, totalPages: 3 },
     });
   });

@@ -207,7 +207,8 @@ Criterios de aceptación:
 - **UC-CAT-10:** el slug sigue reservado; el producto deja de mostrarse en la tienda. Reactivar lo lleva de ARCHIVED a DRAFT, conserva slug y `firstPublishedAt`, y no lo muestra en la tienda hasta que se publique.
 - **UC-CAT-11:** se aceptan JPEG, PNG y WebP validados por contenido, de hasta 5 MB; el nombre en disco lo genera el servidor; borrar una imagen borra registro y archivo.
 - **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
-- **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente.
+- **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente (`storeVisibility`, ADR-0129).
+- **UC-CAT-01 / 02 (implementación, ADR-0129):** filtrar por una categoría o marca que no existe, o que está oculta o inactiva, responde 400 con el mismo código. Las imágenes de variantes que no se venden no se muestran.
 
 ### 5.3 Pricing
 

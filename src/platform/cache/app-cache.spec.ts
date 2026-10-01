@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../config/environment.js';
-import { AppCache } from './app-cache.js';
+import { AppCache, MAX_ENTRIES_PER_NAMESPACE } from './app-cache.js';
 
 function createCache(ttlSeconds: number): AppCache {
   const config = {
@@ -63,6 +63,28 @@ describe('AppCache (ADR-0104)', () => {
     const cache = createCache(120);
 
     expect(cache.namespace('catalog')).toBe(cache.namespace('catalog'));
+  });
+
+  it('keeps at most MAX_ENTRIES_PER_NAMESPACE values in a namespace, dropping the least recently used (ADR-0129)', async () => {
+    const catalog = createCache(120).namespace('catalog');
+    const loads: string[] = [];
+    const get = (key: string) =>
+      catalog.getOrLoad(key, () => {
+        loads.push(key);
+        return Promise.resolve(key);
+      });
+    for (let n = 0; n < MAX_ENTRIES_PER_NAMESPACE; n += 1) {
+      await get(`listing:${n}`);
+    }
+    await get('listing:0');
+    await get('one-more');
+    loads.length = 0;
+
+    await get('listing:0');
+    await get('listing:1');
+
+    expect(MAX_ENTRIES_PER_NAMESPACE).toBe(1_000);
+    expect(loads).toEqual(['listing:1']);
   });
 
   it('deletes a single key', async () => {

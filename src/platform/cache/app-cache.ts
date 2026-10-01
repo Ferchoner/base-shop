@@ -3,6 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { type Cache, createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import type { EnvironmentVariables } from '../config/environment.js';
+import { LruStore } from './lru-store.js';
+
+/**
+ * Values each namespace keeps at most (ADR-0129): past it, the least recently used one goes. Enough for the
+ * pages and filters that people actually browse, and a ceiling on memory for any others.
+ */
+export const MAX_ENTRIES_PER_NAMESPACE = 1_000;
 
 /** One isolated area of the cache: clearing it never touches the others. */
 export class CacheNamespace {
@@ -26,8 +33,9 @@ export class CacheNamespace {
 /**
  * In-memory cache of the process (ADR-0028, ADR-0104), split into namespaces with a store each, so the
  * public catalog can be invalidated without touching other cached data. Every value expires after
- * CACHE_TTL_SECONDS. Only infrastructure and presentation use it; never for data that needs consistency
- * (stock at checkout, prices when placing an order, payments, carts, permissions or tokens).
+ * CACHE_TTL_SECONDS, and each namespace keeps at most MAX_ENTRIES_PER_NAMESPACE values (ADR-0129). Only
+ * infrastructure and presentation use it; never for data that needs consistency (stock at checkout, prices
+ * when placing an order, payments, carts, permissions or tokens).
  */
 @Injectable()
 export class AppCache {
@@ -43,7 +51,12 @@ export class AppCache {
     if (namespace === undefined) {
       namespace = new CacheNamespace(
         createCache({
-          stores: [new Keyv({ namespace: name })],
+          stores: [
+            new Keyv({
+              store: new LruStore(MAX_ENTRIES_PER_NAMESPACE),
+              namespace: name,
+            }),
+          ],
           ttl: this.ttlMs,
         }),
       );

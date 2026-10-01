@@ -146,6 +146,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0126 | Carga masiva de precios: formato, todo o nada y proceso en bloque | Aceptada |
 | ADR-0127 | Inventario: almacén, entradas, ajustes y listado sin copiar datos de Catalog | Aceptada |
 | ADR-0128 | Reservas de stock: fachada, vigencia y TTL configurable | Aceptada |
+| ADR-0129 | Tienda pública: consulta, `storeVisibility`, tablas de cada contexto y cache acotada | Aceptada |
 
 ---
 
@@ -357,7 +358,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Publicar no exige imagen. La API siempre devuelve un arreglo de imágenes, vacío si no hay, nunca `null`.
   - Las imágenes se almacenan detrás de un puerto; el dominio solo guarda la referencia.
 - **Consecuencias:** El listado de administración debe indicar qué productos publicados no son visibles por falta de precio.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. `storeVisibility` lo indica en cada `AdminProduct` (ADR-0129).
 
 ---
 
@@ -560,7 +561,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un listado puede mostrar hasta 120 segundos un precio o una disponibilidad desactualizados. El checkout no usa cache y valida el total con `expectedTotal` (ADR-0019).
   - La cache se pierde al reiniciar la API; solo afecta el rendimiento de las primeras solicitudes.
   - Si la API se escala a varias instancias, se cambia a un almacén compartido (por ejemplo, Redis) sin tocar el código que usa la cache.
-- **Estado:** Aceptada. Implementada en ADR-0104. ADR-0120 cachea el árbol público de categorías, que se actualiza al vencer el TTL.
+- **Estado:** Aceptada. Implementada en ADR-0104. ADR-0120 cachea el árbol público de categorías, que se actualiza al vencer el TTL. ADR-0129 cachea el detalle, los listados sin búsqueda y las marcas, y limita cada espacio a 1 000 valores.
 
 ---
 
@@ -1209,7 +1210,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La extensión `unaccent` y los índices de búsqueda se crean en una migración con SQL.
   - Si el catálogo crece o la consulta se vuelve lenta, se puede migrar a una proyección de lectura sin cambiar el contrato de la API.
   - El filtro "solo disponibles" usa la disponibilidad de ADR-0061.
-- **Estado:** Aceptada. ADR-0123 fija el `search_vector` (pesos y configuración) y deja la consulta pública para T-140 parte c, después de T-145 y T-160. El listado administrativo de stock no extiende esta excepción: completa cada página con la fachada de Catalog (ADR-0127).
+- **Estado:** Aceptada. ADR-0123 fija el `search_vector` (pesos y configuración) y deja la consulta pública para T-140 parte c, después de T-145 y T-160. El listado administrativo de stock no extiende esta excepción: completa cada página con la fachada de Catalog (ADR-0127). La consulta pública se implementó en ADR-0129, que también calcula `storeVisibility` con ella; un test verifica que ningún otro archivo lea tablas de otros contextos.
 
 ---
 
@@ -1222,7 +1223,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un producto está disponible si al menos una de sus variantes vendibles lo está; el filtro "solo disponibles" (ADR-0060) usa esta definición.
   - Las cantidades exactas solo se ven en las rutas administrativas (`inventory.read`).
 - **Consecuencias:** En la vista del carrito y en la cotización del checkout, cada línea indica si la cantidad pedida puede surtirse (sí o no), sin revelar la cantidad disponible; así el cliente sabe qué ajustar antes de colocar la orden.
-- **Estado:** Aceptada. `InventoryFacade.canFulfill` responde solo sí o no por línea, así que las cantidades no salen de Inventory (ADR-0128).
+- **Estado:** Aceptada. `InventoryFacade.canFulfill` responde solo sí o no por línea, así que las cantidades no salen de Inventory (ADR-0128). La tienda calcula la disponibilidad en el almacén activo (ADR-0129).
 
 ---
 
@@ -1451,7 +1452,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Decisiones derivadas P-62 y P-63, resueltas en ADR-0072.
   - `storeVisibility` del catálogo administrativo se calcula con la fachada de Pricing y no se ofrece como filtro.
-- **Estado:** Aceptada (aprobación formal 2026-09-25), incluidos los valores derivados. Los pendientes P-48, P-49, P-56 a P-58 y el formato de carga masiva (T-145) no la bloquean.
+- **Estado:** Aceptada (aprobación formal 2026-09-25), incluidos los valores derivados. Los pendientes P-48, P-49, P-56 a P-58 y el formato de carga masiva (T-145) no la bloquean. `storeVisibility` no sale de la fachada de Pricing, que formaría un ciclo (ADR-0125), sino del servicio de consultas de la tienda (ADR-0129).
 
 ---
 
@@ -1670,7 +1671,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - La aplicación recalcula el `search_vector` de los productos afectados al desactivar o reactivar una categoría.
   - Nueva regla BR-PRD-17.
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). Los 400 de los filtros llevan `unknownCategory` y `unknownBrands`, iguales para lo oculto y lo que no existe (ADR-0129).
 
 ---
 
@@ -2303,7 +2304,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una violación hace fallar `npm run lint` y, desde T-106, la CI. La solución es mover el código, no relajar la regla; cambiar una regla requiere un ADR.
   - T-119 agrega a estas reglas la que impide usar el cache desde Domain y Application.
   - La regla de ADR-0093 (usar `txHost.tx` y no `PrismaService` en los repositories) sigue en el code review: los dos se importan desde `platform/persistence`.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0129 verifica la excepción de ADR-0060 con un test que lee el SQL y las llamadas de Prisma de cada módulo.
 
 ---
 
@@ -2327,7 +2328,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Con despacho en segundo plano (ADR-0098), la invalidación ocurre un instante después del cambio.
   - El cache se pierde al reiniciar y no se comparte entre instancias (ADR-0028).
   - T-140 cachea el árbol de categorías, el detalle de producto y los listados sin `q` en el espacio `catalog`; T-124 puede cachear el catálogo geográfico en su propio espacio.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0129 limita cada espacio a 1 000 valores con un almacén LRU, y cachea en `catalog` el detalle, los listados sin búsqueda y las marcas.
 
 ---
 
@@ -3002,7 +3003,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El orden del árbol no depende del idioma del servidor: usa un `Intl.Collator` en español.
   - Un enlace público a un slug anterior deja de funcionar, como aceptó ADR-0072.
   - T-140 hereda el listado público de marcas y el recálculo del `search_vector`.
-- **Estado:** Aceptada (plan de T-150 aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-150 aprobado el 2026-09-30). `GET /v1/catalog/brands` llegó con T-140 parte c (ADR-0129).
 
 ---
 
@@ -3144,7 +3145,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El orden del sprint queda así: T-140a → T-140b → T-145 y T-160 → T-140c.
   - Desactivar una categoría grande recalcula el `search_vector` de todos sus productos en la misma transacción; en el MVP el costo es aceptable.
   - Para agregar una dimensión de opciones a un producto sin publicar con varias variantes, primero se descontinúan las demás.
-- **Estado:** Aceptada (plan de T-140 aprobado el 2026-09-30). ADR-0125 hace que Pricing use la fachada de Catalog, así que `storeVisibility` no podrá salir de la fachada de Pricing: se decide en la parte c.
+- **Estado:** Aceptada (plan de T-140 aprobado el 2026-09-30). ADR-0125 hace que Pricing use la fachada de Catalog, así que `storeVisibility` no podrá salir de la fachada de Pricing: se decide en la parte c. La parte c está en ADR-0129: `storeVisibility` sale del servicio de consultas de la tienda.
 
 ---
 
@@ -3234,7 +3235,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Si llegan dos precios desde ahora de una misma variante en el mismo milisegundo, el segundo responde 409 `overlap`.
   - `API_SPEC.md` §11.6 decía que `storeVisibility` usa la fachada de Pricing; queda PENDIENTE para T-140 parte c.
   - UC-PRC-05 sigue PENDIENTE (T-145 parte b).
-- **Estado:** Aceptada (plan de T-145 aprobado el 2026-09-30). ADR-0126 cambia una regla: un precio programado idéntico al que ya existe en el mismo instante responde 200 con ese periodo, en lugar de 409.
+- **Estado:** Aceptada (plan de T-145 aprobado el 2026-09-30). ADR-0126 cambia una regla: un precio programado idéntico al que ya existe en el mismo instante responde 200 con ese periodo, en lugar de 409. ADR-0129 calcula `storeVisibility` con el servicio de consultas de la tienda.
 
 ---
 
@@ -3385,3 +3386,87 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-170, T-180 y T-190 usarán la fachada desde un puerto propio.
   - Las pruebas de concurrencia contra PostgreSQL muestran que N reservas simultáneas nunca reservan más de lo disponible, y que dos reservas con líneas en orden contrario no se bloquean entre sí.
 - **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30).
+
+---
+
+## ADR-0129 — Tienda pública: consulta, `storeVisibility`, tablas de cada contexto y cache acotada
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-140 parte c (UC-CAT-01, 02 y 14). ADR-0060 fijó la consulta pública con una excepción de solo lectura a ADR-0005, y ADR-0123 la dejó para después de T-145 y T-160. Quedaban abiertos estos puntos:
+  - cómo calcular `storeVisibility`, si Catalog no puede usar la fachada de Pricing (ADR-0125);
+  - cómo verificar la excepción, que `dependency-cruiser` no ve (ADR-0103);
+  - el tamaño de la cache: Keyv borra un valor vencido solo cuando alguien lo vuelve a leer, y cada combinación de filtros y página del listado es una clave nueva;
+  - qué hacer con las imágenes de variantes que no se venden;
+  - detalles del contrato: los códigos de los 400, cómo se arma la búsqueda y cómo se desempata.
+- **Decisión:**
+  - **Servicio de consultas de la tienda:**
+    - el puerto `StorefrontQueries`, en la aplicación de Catalog, y su adaptador `PrismaStorefrontQueries` son el único código que lee tablas de Pricing (`price_lists`, `variant_prices` y `price_periods`) y de Inventory (`warehouses` y `stock_items`);
+    - las lee solo para consultar y siempre en la misma sentencia que las de Catalog;
+    - el servicio de aplicación `Storefront` valida los filtros y toma la hora del `Clock`.
+  - **Qué vende la tienda:**
+    - una variante es vendible si su producto está publicado, la variante está activa y tiene un periodo vigente en ese instante en la lista predeterminada (BR-PRD-11);
+    - está disponible si le quedan unidades sin reservar (`onHand − reserved > 0`) en el almacén activo; sin fila de stock, está agotada (ADR-0061);
+    - el precio de un producto es el más bajo entre sus variantes vendibles (BR-PRD-15). `compareAtPrice` es el de esa misma variante, y en un empate gana la variante más antigua.
+  - **Búsqueda:**
+    - cada palabra de `q` (letras y dígitos seguidos) se convierte por separado con `to_tsquery('spanish', quote_literal(unaccent(palabra)) || ':*')`, y las partes se unen con `&&`;
+    - así cada palabra cuenta como inicio de palabra, todas son obligatorias y ningún carácter del cliente entra en la sintaxis de la consulta;
+    - PostgreSQL descarta solas las palabras vacías ("de"), así que un `q` sin letras ni dígitos, o hecho solo de esas palabras, no encuentra nada;
+    - la relevancia usa `ts_rank`: el título pesa más que la marca y las categorías (ADR-0123). Después va la publicación más reciente.
+  - **Filtros:**
+    - `category` incluye las subcategorías visibles;
+    - `brand` acepta hasta 20 slugs, y los repetidos se ignoran;
+    - `minPrice` y `maxPrice` incluyen sus extremos;
+    - `available=true` deja solo los disponibles, y `false` no filtra.
+  - **Errores 400 (`validation-error`):**
+    - `unknownCategory` en `category` y `unknownBrands` en `brand`. Una categoría oculta o una marca inactiva dan el mismo error que una que no existe, así la tienda no revela lo que el staff ocultó (ADR-0080);
+    - `relevanceNeedsQ` en `sort` si se pide `relevance` sin `q`;
+    - `priceRange` en `maxPrice` si es menor que `minPrice`;
+    - `sort` acepta un solo valor de los seis del contrato.
+  - **Orden:**
+    - `title` usa la colación ICU `es-x-icu` de PostgreSQL: la ñ va después de la n, y en primer nivel no distingue acentos ni mayúsculas;
+    - el ID desempata en todos los órdenes (ADR-0036);
+    - la consulta elige primero la página y después lee la marca y la imagen, solo de esos productos.
+  - **Detalle:**
+    - responde 404 si el producto no existe, no está publicado o no tiene variantes vendibles. Un slug que ningún producto podría tener ni se busca;
+    - muestra solo las variantes vendibles, de la más antigua a la más nueva, y `optionNames` en orden alfabético;
+    - lista solo las categorías visibles, por nombre en orden español, y la marca aunque esté inactiva.
+  - **Imágenes:** la imagen de una variante que no se vende (descontinuada o sin precio) no aparece en el detalle ni como imagen del resumen, porque su `variantId` apuntaría a una variante que la respuesta no incluye.
+  - **Marcas públicas:** las activas con al menos un producto visible, en orden español.
+  - **`storeVisibility` (UC-CAT-14, ADR-0016):**
+    - sale del mismo servicio de la tienda, con una consulta por página del listado administrativo y otra por detalle, y usa la misma definición de variante vendible;
+    - toma uno de tres valores: `VISIBLE` (publicado con alguna variante vendible), `HIDDEN_NO_PRICE` (publicado sin ninguna: ninguna variante activa tiene precio vigente) y `NOT_PUBLISHED` (borrador o archivado);
+    - lo llevan todas las respuestas `AdminProduct`.
+  - **Tablas de cada contexto:**
+    - `test/boundaries/table-ownership.spec.ts` lee `prisma/schema/*.prisma` para saber a qué contexto pertenece cada modelo y cada tabla. Cada archivo lleva el nombre de su contexto, y los modelos de `transversal.prisma` tienen su dueño en el test;
+    - comprueba que el código de cada módulo solo usa lo suyo, tanto en llamadas de Prisma (`tx.pricePeriod.findMany`) como en tablas escritas después de `FROM`, `JOIN`, `UPDATE` o `INTO`;
+    - la única excepción es el archivo de la tienda, y otro test comprueba que ese archivo todavía la necesita;
+    - el proyecto de ejemplo de `test/boundaries/` agrega una violación de cada tipo.
+  - **Cache acotada:**
+    - cada espacio de `AppCache` guarda hasta 1 000 valores (`MAX_ENTRIES_PER_NAMESPACE`) en un almacén propio, `LruStore`, que descarta el que se usó hace más tiempo;
+    - no agrega dependencias.
+  - **Qué se cachea (espacio `catalog`):**
+    - los listados sin `q`. La clave sale de los parámetros ya validados, con los valores por defecto explícitos y las marcas ordenadas, así que `brand=a,b` y `brand=b,a` comparten entrada;
+    - el detalle por slug y la lista de marcas;
+    - los errores nunca se guardan;
+    - el espacio se vacía con los tres eventos de ADR-0104. Los precios, el stock, las imágenes y los cambios de categorías o marcas se ven cuando vence el TTL (ADR-0028).
+- **Alternativas consideradas:**
+  - **`storeVisibility` desde la fachada de Pricing:** forma el ciclo Catalog ↔ Pricing que descartó ADR-0125.
+  - **`storeVisibility` desde un endpoint de Pricing:** cambia el contrato de `AdminProduct`.
+  - **Revisar la excepción solo en el code review,** como decía ADR-0103.
+  - **Para la cache:**
+    - el paquete `cacheable`: una dependencia nueva para unas 30 líneas;
+    - guardar solo las primeras páginas, lo que no limita los filtros de precio;
+    - dejarla sin límite.
+  - **Mostrar todas las imágenes del producto.**
+  - **Distinguir en la tienda una categoría oculta de una que no existe.**
+  - **`websearch_to_tsquery` o `plainto_tsquery`:** no buscan por inicio de palabra.
+- **Consecuencias:**
+  - **Rendimiento,** medido con 5 000 productos y 15 000 variantes:
+    - cada consulta del listado tarda de 40 a 55 ms, en cualquier página, orden o filtro;
+    - el detalle tarda unos 4 ms, y las marcas menos de 2 ms;
+    - lo que más cuesta es calcular la oferta de todos los productos en cada consulta. Los listados sin `q` salen de la cache, y si el catálogo crece se puede pasar a una proyección de lectura (ADR-0060).
+  - **Búsquedas sin resultados:** una búsqueda hecha solo de palabras vacías, o del inicio de una ("la" de "lámpara"), no encuentra nada.
+  - **Paginación:** `toPageResponse` pasa a cada elemento su posición en la página.
+  - **Excepción de ADR-0060:** deja de ser solo una convención, porque ahora la verifica un test.
+  - **Sprint 3:** con T-140 completa, terminan sus tareas.
+- **Estado:** Aceptada (plan de T-140 parte c aprobado el 2026-09-30).

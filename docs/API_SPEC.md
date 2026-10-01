@@ -1,6 +1,6 @@
 # API SPECIFICATION
 
-**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Implementados: autenticación, cuenta propia y direcciones, administración de Identity & Access y catálogo geográfico (Sprint 2); categorías y marcas (T-150); cada endpoint implementado indica su tarea y su ADR, y Swagger (`/docs/v1`, solo en local) muestra solo los implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
+**Estado:** aprobado (ADR-0071, T-005, 2026-09-25). Implementados: autenticación, cuenta propia y direcciones, administración de Identity & Access y catálogo geográfico (Sprint 2); categorías y marcas (T-150), productos, imágenes y tienda pública (T-140), precios (T-145), inventario (T-160) y método de envío (T-196); cada endpoint implementado indica su tarea y su ADR, y Swagger (`/docs/v1`, solo en local) muestra solo los implementados. Los contratos se derivan de `REQUIREMENTS.md` (casos de uso UC-xxx y errores E-xx), `DATABASE.md` (ADR-0066), `SECURITY.md` y las decisiones de `DECISIONS.md`. Lo no decidido se marca como PENDIENTE DE DECISIÓN con su P-xx.
 
 Índice:
 
@@ -407,6 +407,7 @@ Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `mu
 
 - `fromPrice`: precio más bajo entre variantes vendibles (BR-PRD-15). `compareAtPrice`: el de esa misma variante, o `null`.
 - `available`: alguna variante vendible disponible (ADR-0061). `image`: primera imagen o `null`.
+- Implementado en T-140 parte c (ADR-0129): si dos variantes empatan en el precio más bajo, `compareAtPrice` es el de la más antigua. `image` es la primera imagen que la tienda puede mostrar: nunca la de una variante que no se vende.
 
 ### 8.5 `ProductDetail` (catálogo público)
 
@@ -432,6 +433,8 @@ Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `mu
 ```
 
 Solo variantes vendibles (BR-PRD-11). Nunca incluye cantidades en stock (ADR-0061). `categories` lista solo categorías visibles; `brand` se muestra aunque la marca esté inactiva (ADR-0080).
+
+Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más nueva, `optionNames` en orden alfabético y `categories` por nombre. `images` deja fuera las de variantes que no se venden.
 
 ### 8.6 `Cart`
 
@@ -824,10 +827,21 @@ Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al 
 - **Response 200:** página de `ProductSummary`. Solo productos publicados con al menos una variante vendible (BR-PRD-06).
 - **Errores:** 400 `validation-error` si `category` no existe o está oculta, o si alguna `brand` no existe o está inactiva (ADR-0080). Los productos de categorías ocultas o marcas inactivas siguen apareciendo en los demás listados.
 - **Cache:** solo sin `q` (ADR-0060), TTL de 120 s.
+- **Implementado en T-140 parte c (ADR-0129):**
+  - **Búsqueda:** cada palabra de `q` cuenta como inicio de palabra y todas son obligatorias. Un `q` sin letras ni dígitos, o hecho solo de palabras vacías ("de"), responde una página vacía.
+  - **Errores 400 `validation-error`:**
+    - `unknownCategory` en `category` y `unknownBrands` en `brand`, iguales para lo que no existe y lo oculto o inactivo;
+    - `relevanceNeedsQ` en `sort` sin `q`;
+    - `priceRange` en `maxPrice` menor que `minPrice`.
+  - **`sort`:** acepta un solo valor de los seis.
+  - **Filtros:** `brand` ignora los slugs repetidos, el rango de precio incluye sus extremos y `available=false` no filtra.
+  - **Orden:** `title` ordena como en español (la ñ después de la n). El ID desempata en todos los órdenes.
+  - **Cache:** la clave sale de los parámetros ya validados, así que `brand=a,b` y `brand=b,a` comparten entrada. Los errores no se cachean.
 
 ### 11.3 `GET /v1/catalog/products/{slug}` — Detalle (UC-CAT-02)
 
 - **Response 200:** `ProductDetail`. 404 si no existe, no está publicado o no tiene variantes vendibles. Cache con TTL de 120 s.
+- **Implementado en T-140 parte c (ADR-0129):** un slug con formato inválido responde 404 sin consultarse. Los 404 no se cachean.
 
 ### 11.4 `GET /v1/catalog/categories` — Árbol de categorías (UC-CAT-03)
 
@@ -837,7 +851,7 @@ Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al 
 ### 11.5 `GET /v1/catalog/brands` — Marcas
 
 - **Response 200:** `{ "data": [ { "id", "name", "slug" } ] }`. Marcas activas con al menos un producto visible. Sin paginación. Orden por nombre.
-- Se implementa en T-140, con la consulta pública del catálogo: un producto es visible con precio vigente (ADR-0120).
+- **Implementado en T-140 parte c (ADR-0129):** un producto es visible si está publicado y tiene una variante vendible. El nombre se ordena como en español. Cache con TTL de 120 s, que se vacía con los eventos de Catalog.
 
 ### 11.6 Productos administrativos
 
@@ -857,7 +871,7 @@ Representación `AdminProduct`:
 }
 ```
 
-- `storeVisibility` (ADR-0016, UC-CAT-14): `VISIBLE`, `HIDDEN_NO_PRICE` (publicado sin variantes con precio vigente), `NOT_PUBLISHED`. No se ofrece como filtro, porque filtrar por él requeriría extender la excepción de ADR-0060. Cómo se calcula: PENDIENTE (T-140 parte c). Pricing ya usa la fachada de Catalog, y Catalog no puede usar la de Pricing sin formar un ciclo (ADR-0125).
+- `storeVisibility` (ADR-0016, UC-CAT-14): `VISIBLE`, `HIDDEN_NO_PRICE` (publicado sin variantes vendibles: ninguna activa con precio vigente), `NOT_PUBLISHED` (borrador o archivado). No se ofrece como filtro, porque filtrar por él requeriría extender la excepción de ADR-0060. Se calcula con el servicio de consultas de la tienda y la misma definición de variante vendible, no con la fachada de Pricing, que formaría un ciclo (ADR-0125, ADR-0129).
 - `editableIdentity`: `true` mientras el producto no tiene `firstPublishedAt` (ADR-0068).
 
 | Endpoint | Detalle |
@@ -874,7 +888,7 @@ La generación automática del slug y su bloqueo tras la primera publicación se
 
 Implementado en T-140 parte a (ADR-0123):
 
-- **Sin `storeVisibility`:** `AdminProduct` no lo lleva hasta T-140 parte c, que llega con la tienda después de T-145 y T-160.
+- **`storeVisibility`:** llegó con T-140 parte c (ADR-0129) y lo llevan todas las respuestas `AdminProduct`.
 - **Slug:** sin él, se genera del título y se numera si ya existe (`camisa-lino-2`); un slug enviado y repetido responde 409 `duplicate-value`.
 - **Marca y categorías:** una nueva debe estar activa. Si no, 400 `validation-error` con `unknownBrand` o `inactiveBrand` en `brandId`, o con `unknownCategories` o `inactiveCategories` en `categoryIds`. Una que el producto ya tenía se conserva aunque se haya desactivado. Hasta 10 categorías; `null` en `brandId` quita la marca.
 - **Publicar sin variante activa:** 409 `invalid-state-transition` con `reason: no-active-variant`.
@@ -1390,9 +1404,7 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 ## 20. Pendientes que afectan a los contratos
 
-| ID | Tema | Endpoints afectados |
-|---|---|---|
-| T-140 parte c | Cálculo de `storeVisibility` sin la fachada de Pricing (ADR-0125) | `GET /v1/admin/catalog/products` y su detalle |
+Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 
 ---
 

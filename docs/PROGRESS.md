@@ -122,11 +122,12 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 - [x] T-145 (parte b): carga masiva de precios en CSV (montos en pesos, fechas en hora de México o ISO con zona), todo o nada con los errores por línea, simulación con `dryRun`, archivo repetido sin cambios, hasta 5,000 filas procesadas en bloque en una transacción, y lector CSV compartido en `platform/files` (ADR-0126)
 - [x] T-160 (parte a): almacén creado por migración y editable (nombre y dirección validada con el catálogo del INEGI), entradas y ajustes con motivo en un `UPDATE` atómico y su movimiento, listado de stock completado con la fachada de Catalog (sin copiar SKU ni título) y movimientos con paginación por cursor; las reservas quedan para la parte b (ADR-0127)
 - [x] T-160 (parte b): `InventoryFacade` para el carrito y el checkout: `canFulfill` sin revelar cantidades, reservas todo o nada e idempotentes por orden, confirmación con movimientos SALE y liberación, cada una una sola vez; TTL en `RESERVATION_TTL`; pruebas de concurrencia contra PostgreSQL (ADR-0128)
+- [x] T-140 (parte c) y T-140 terminada: tienda pública (listado con búsqueda en español por inicio de palabra, filtros por categoría, marcas, precio y disponibilidad, seis órdenes y totales exactos; detalle por slug; marcas públicas), calculada en una sola consulta con precios y stock; `storeVisibility` en la administración con la misma definición de vendible; un test que verifica qué tablas usa cada módulo; cache acotada a 1 000 valores por espacio (ADR-0129)
 
 ## In Progress
 
 - [x] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123), cerrado el 2026-09-29
-- [ ] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160); plan en `SPRINT.md`
+- [ ] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160); plan en `SPRINT.md`. Tareas hechas; falta la Sprint Review
 
 ## Next
 

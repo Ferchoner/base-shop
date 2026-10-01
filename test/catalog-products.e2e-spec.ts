@@ -149,6 +149,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       brand: { id: brand.body.id, name: 'Acme' },
       categories: [{ id: category.body.id, name: 'Camisas' }],
       status: 'DRAFT',
+      storeVisibility: 'NOT_PUBLISHED',
       variants: [],
       images: [],
       publishedAt: null,
