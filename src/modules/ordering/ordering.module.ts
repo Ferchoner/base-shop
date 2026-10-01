@@ -1,5 +1,80 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { EnvironmentVariables } from '../../platform/config/environment.js';
+import { CatalogModule } from '../catalog/index.js';
+import { GeoModule } from '../geo/index.js';
+import { IdentityAccessModule } from '../identity-access/index.js';
+import { InventoryModule } from '../inventory/index.js';
+import { PricingModule } from '../pricing/index.js';
+import { ShippingModule } from '../shipping/index.js';
+import { ShoppingModule } from '../shopping/index.js';
+import {
+  CheckoutCarts,
+  CheckoutCatalog,
+  CheckoutCustomers,
+  CheckoutPrices,
+  CheckoutShipping,
+  CheckoutStock,
+  ShippingLocations,
+} from './application/checkout-ports.js';
+import { Checkout } from './application/checkout.use-case.js';
+import { OrderingQueries } from './application/ordering.queries.js';
+import { VAT_RATE_BP } from './application/vat-rate.js';
+import { OrderRepository } from './domain/order.repository.js';
+import {
+  CatalogFacadeCheckoutCatalog,
+  GeoShippingLocations,
+  IdentityFacadeCheckoutCustomers,
+  InventoryFacadeCheckoutStock,
+  PricingFacadeCheckoutPrices,
+  ShippingFacadeCheckoutShipping,
+  ShoppingFacadeCheckoutCarts,
+} from './infrastructure/facade-adapters.js';
+import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
+import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
+import { CheckoutController } from './presentation/checkout.controller.js';
+import { MeCheckoutController } from './presentation/me-checkout.controller.js';
+import { MeOrdersController } from './presentation/me-orders.controller.js';
+import { OrdersController } from './presentation/orders.controller.js';
 
-/** Ordering bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. */
-@Module({})
+/**
+ * Ordering bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. It uses Shopping, Catalog,
+ * Pricing, Inventory, Shipping, Identity & Access and Geo through their facades, and none of them uses Ordering,
+ * so they never form a cycle (ADR-0132).
+ */
+@Module({
+  imports: [
+    ShoppingModule,
+    CatalogModule,
+    PricingModule,
+    InventoryModule,
+    ShippingModule,
+    IdentityAccessModule,
+    GeoModule,
+  ],
+  controllers: [
+    CheckoutController,
+    MeCheckoutController,
+    OrdersController,
+    MeOrdersController,
+  ],
+  providers: [
+    {
+      provide: VAT_RATE_BP,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        config.get('VAT_RATE_BP', { infer: true }),
+    },
+    Checkout,
+    { provide: OrderRepository, useClass: PrismaOrderRepository },
+    { provide: OrderingQueries, useClass: PrismaOrderingQueries },
+    { provide: CheckoutCarts, useClass: ShoppingFacadeCheckoutCarts },
+    { provide: CheckoutCatalog, useClass: CatalogFacadeCheckoutCatalog },
+    { provide: CheckoutPrices, useClass: PricingFacadeCheckoutPrices },
+    { provide: CheckoutStock, useClass: InventoryFacadeCheckoutStock },
+    { provide: CheckoutShipping, useClass: ShippingFacadeCheckoutShipping },
+    { provide: CheckoutCustomers, useClass: IdentityFacadeCheckoutCustomers },
+    { provide: ShippingLocations, useClass: GeoShippingLocations },
+  ],
+})
 export class OrderingModule {}

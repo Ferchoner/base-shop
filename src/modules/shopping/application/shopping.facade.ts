@@ -1,0 +1,104 @@
+import { Injectable } from '@nestjs/common';
+import {
+  Clock,
+  NotFoundError,
+  TransactionManager,
+} from '../../../shared-kernel/index.js';
+import type { Cart, CartId, VariantId } from '../domain/cart.js';
+import { CartNotActiveError } from '../domain/cart-errors.js';
+import { CartRepository } from '../domain/cart.repository.js';
+import type { CartTarget } from './carts.use-case.js';
+
+/** The content of an active cart, as the checkout needs it: no prices, which the order works out itself. */
+export interface CheckoutCart {
+  readonly id: CartId;
+  /** Oldest first, as the cart shows them. */
+  readonly lines: readonly {
+    readonly variantId: VariantId;
+    readonly quantity: number;
+  }[];
+}
+
+/**
+ * Public API of Shopping for the checkout of Ordering (ADR-0005, T-180). Ordering uses Shopping, and Shopping
+ * never uses Ordering, so they never form a cycle. Every operation joins the transaction of its caller, so the
+ * checkout locks the cart, creates the order and marks the cart all at once (ADR-0019).
+ */
+@Injectable()
+export class ShoppingFacade {
+  constructor(
+    private readonly carts: CartRepository,
+    private readonly transactions: TransactionManager,
+    private readonly clock: Clock,
+  ) {}
+
+  /**
+   * The active cart a checkout quotes (UC-ORD-01), without locking it; `null` when the customer has none.
+   *
+   * @throws NotFoundError for a guest cart that does not exist or has an owner; CartNotActiveError for a guest
+   *   cart that was merged or used by an order.
+   */
+  async cartToQuote(target: CartTarget): Promise<CheckoutCart | null> {
+    const cart =
+      'customerId' in target
+        ? await this.carts.findActiveOf(target.customerId)
+        : guestCart(await this.carts.find(target.guestCartId), target);
+    return cart === null ? null : contentOf(cart);
+  }
+
+  /**
+   * The active cart an order is placed from (UC-ORD-02), locked until the transaction of the caller ends, so no
+   * change gets in between the quote and the order (ADR-0131); `null` when the customer has none.
+   *
+   * @throws NotFoundError or CartNotActiveError, as `cartToQuote`.
+   */
+  lockCartToOrder(target: CartTarget): Promise<CheckoutCart | null> {
+    return this.transactions.run(async () => {
+      const cart =
+        'customerId' in target
+          ? await this.carts.lockActiveOf(target.customerId)
+          : guestCart(await this.carts.lock(target.guestCartId), target);
+      return cart === null ? null : contentOf(cart);
+    });
+  }
+
+  /**
+   * Leaves the cart CHECKED_OUT (UC-ORD-02), in the transaction that locked it with `lockCartToOrder`.
+   *
+   * @throws CartNotActiveError.
+   */
+  checkOut(id: CartId): Promise<void> {
+    return this.transactions.run(async () => {
+      const cart = await this.carts.lock(id);
+      if (cart === null) throw new NotFoundError('Cart', id);
+      cart.checkOut(this.clock.now());
+      await this.carts.save(cart);
+    });
+  }
+}
+
+/**
+ * The guest cart of the target, active.
+ *
+ * @throws NotFoundError when it does not exist or has an owner (API_SPEC.md §15.2); CartNotActiveError.
+ */
+function guestCart(
+  cart: Cart | null,
+  target: { readonly guestCartId: CartId },
+): Cart {
+  if (cart === null || cart.ownerId !== null) {
+    throw new NotFoundError('Cart', target.guestCartId);
+  }
+  if (cart.status !== 'ACTIVE') throw new CartNotActiveError(cart.status);
+  return cart;
+}
+
+function contentOf(cart: Cart): CheckoutCart {
+  return {
+    id: cart.id,
+    lines: cart.lines.map(({ variantId, quantity }) => ({
+      variantId,
+      quantity,
+    })),
+  };
+}

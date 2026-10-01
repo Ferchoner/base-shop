@@ -40,6 +40,8 @@ model Order {
   privacyNoticeVersion    String?     @map("privacy_notice_version")
   anonymizedAt            DateTime?   @map("anonymized_at") @db.Timestamptz(3)
   placedAt                DateTime    @map("placed_at") @db.Timestamptz(3)
+  /// When the reservation of the order ends: an unpaid order expires then (ADR-0132).
+  paymentDueAt            DateTime    @map("payment_due_at") @db.Timestamptz(3)
   paidAt                  DateTime?   @map("paid_at") @db.Timestamptz(3)
   shippedAt               DateTime?   @map("shipped_at") @db.Timestamptz(3)
   deliveredAt             DateTime?   @map("delivered_at") @db.Timestamptz(3)
