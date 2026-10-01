@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
+import { AppModule } from '../src/app.module.js';
 import type { AuthenticatedUser } from '../src/platform/auth/authenticated-user.js';
 import { AppCache } from '../src/platform/cache/app-cache.js';
 import { DomainEventDispatcher } from '../src/platform/events/domain-event-dispatcher.js';
+import { configureHttp } from '../src/platform/http/configure-http.js';
 import { PrismaService } from '../src/platform/persistence/prisma.service.js';
 import { newId } from '../src/shared-kernel/index.js';
 import {
@@ -17,25 +19,14 @@ const STORE = '/v1/catalog';
 const ADMIN = '/v1/admin/catalog';
 const DEFAULT_LIST = '01a0f4f2-bb5f-770a-a269-105d21861fe0';
 const MAIN = '01a0f54d-639d-7173-a3ff-f510cd91429d';
-/** Each test sets up its catalog over HTTP, so the whole suite goes past the default 100 per minute. */
-const TEST_ENVIRONMENT = { RATE_LIMIT_DEFAULT: '1000/1m' };
 
 /** The public store over HTTP (T-140 part c, UC-CAT-01 and 02, API_SPEC.md §11.2, §11.3 and §11.5). */
 describe('Storefront (e2e, T-140 part c)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let imageBaseUrl: string;
-  const previous: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
-    for (const [name, value] of Object.entries(TEST_ENVIRONMENT)) {
-      previous[name] = process.env[name];
-      process.env[name] = value;
-    }
-    // AppModule validates the environment when it loads, so import it after setting the variables.
-    const { AppModule } = await import('../src/app.module.js');
-    const { configureHttp } =
-      await import('../src/platform/http/configure-http.js');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -73,10 +64,6 @@ describe('Storefront (e2e, T-140 part c)', () => {
       },
     });
     await app.close();
-    for (const [name, value] of Object.entries(previous)) {
-      if (value === undefined) delete process.env[name];
-      else process.env[name] = value;
-    }
   });
 
   const http = () => request(app.getHttpServer());
@@ -283,6 +270,7 @@ describe('Storefront (e2e, T-140 part c)', () => {
         'arrayMaxSize',
       ],
       [{ color: 'azul' }, 'color', 'whitelistValidation'],
+      [{ pageSize: 'abc' }, 'pageSize', 'isInt'],
       [{ category: 'no-existe' }, 'category', 'unknownCategory'],
       [{ brand: 'no-existe' }, 'brand', 'unknownBrands'],
     ])('answers 400 validation-error for %j', async (query, field, code) => {

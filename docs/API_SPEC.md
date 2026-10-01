@@ -252,7 +252,7 @@ Error de validación:
 }
 ```
 
-`errors[].field` usa notación de ruta para campos anidados (`shippingAddress.phone`, `lines[2].quantity`). `errors[].code` es el nombre de la regla de validación que falló (por ejemplo, `isInt`, `matches` o `whitelistValidation` para un campo no declarado); se informa solo la primera regla que falla en cada campo. `errors[].message` está en español y nunca repite el valor rechazado (ADR-0095).
+`errors[].field` usa notación de ruta para campos anidados (`shippingAddress.phone`, `lines[2].quantity`). `errors[].code` es el nombre de la regla de validación que falló (por ejemplo, `isInt`, `matches` o `whitelistValidation` para un campo no declarado); se informa una sola regla por campo: la de presencia (`isDefined`, `isNotEmpty`) o la de tipo (`isString`, `isInt`…) si fallan, y si no, la primera que falla (ADR-0130). `errors[].message` está en español y nunca repite el valor rechazado (ADR-0095).
 
 ### 6.2 Catálogo de tipos
 

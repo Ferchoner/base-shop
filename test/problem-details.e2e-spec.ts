@@ -340,10 +340,8 @@ describe('Problem Details (e2e, T-113)', () => {
         expect.arrayContaining([
           {
             field: 'quantity',
-            code: expect.any(String),
-            message: expect.stringMatching(
-              /^Debe ser un número entero\.$|^Es menor/,
-            ),
+            code: 'isInt',
+            message: 'Debe ser un número entero.',
           },
           {
             field: 'postalCode',

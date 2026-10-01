@@ -21,5 +21,6 @@
   "globalSetup": "<rootDir>/integration/global-setup.ts",
   "globalTeardown": "<rootDir>/integration/global-teardown.ts",
   "testTimeout": 30000,
+  "setupFiles": ["<rootDir>/e2e-environment.ts"],
   "setupFilesAfterEnv": ["<rootDir>/setup-esm-interop.ts"]
 }
