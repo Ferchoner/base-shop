@@ -34,3 +34,22 @@ export function uniqueViolationIndex(error: unknown): string | undefined {
 export function isForeignKeyViolation(error: unknown): boolean {
   return prismaCode(error) === 'P2003';
 }
+
+/**
+ * An exclusion constraint rejected the row (PostgreSQL 23P01), such as two overlapping price periods
+ * (BR-PRC-01). Prisma has no code of its own for it: the PostgreSQL adapter reports it in
+ * `meta.driverAdapterError.cause.originalCode`.
+ */
+export function isExclusionViolation(error: unknown): boolean {
+  const cause = (
+    error as
+      | {
+          meta?: {
+            driverAdapterError?: { cause?: { originalCode?: unknown } };
+          };
+        }
+      | null
+      | undefined
+  )?.meta?.driverAdapterError?.cause;
+  return cause?.originalCode === '23P01';
+}

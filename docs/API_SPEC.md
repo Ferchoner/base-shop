@@ -279,7 +279,7 @@ Error de validación:
 | `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120, ADR-0123) |
 | `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado | `field` |
 | `resource-in-use` | 409 | E-14 | Borrado de entidad con referencias | — |
-| `price-period-conflict` | 409 | E-15 | Periodo superpuesto o ya iniciado | — |
+| `price-period-conflict` | 409 | E-15 | Periodo superpuesto o ya iniciado | `reason`: `overlap` u `already-started` (ADR-0125) |
 | `idempotency-request-in-progress` | 409 | E-25 | Solicitud original aún en proceso | — |
 | `cart-not-active` | 409 | E-27 | Modificar un carrito CHECKED_OUT o MERGED | `cartStatus` |
 | `address-limit-reached` | 409 | E-28 | Más de 10 direcciones (BR-ADR-04) | `limit` |
@@ -857,7 +857,7 @@ Representación `AdminProduct`:
 }
 ```
 
-- `storeVisibility` (ADR-0016, UC-CAT-14): `VISIBLE`, `HIDDEN_NO_PRICE` (publicado sin variantes con precio vigente), `NOT_PUBLISHED`. Se calcula por página con la fachada de Pricing (ADR-0005); no se ofrece como filtro, porque filtrar por él requeriría extender la excepción de ADR-0060.
+- `storeVisibility` (ADR-0016, UC-CAT-14): `VISIBLE`, `HIDDEN_NO_PRICE` (publicado sin variantes con precio vigente), `NOT_PUBLISHED`. No se ofrece como filtro, porque filtrar por él requeriría extender la excepción de ADR-0060. Cómo se calcula: PENDIENTE (T-140 parte c). Pricing ya usa la fachada de Catalog, y Catalog no puede usar la de Pricing sin formar un ciclo (ADR-0125).
 - `editableIdentity`: `true` mientras el producto no tiene `firstPublishedAt` (ADR-0068).
 
 | Endpoint | Detalle |
@@ -980,23 +980,33 @@ Implementado en T-150 (ADR-0120):
 | DELETE | `/v1/admin/pricing/price-lists/{priceListId}/variants/{variantId}/periods/{periodId}` | `pricing.write` | UC-PRC-04 |
 | POST | `/v1/admin/pricing/price-lists/{priceListId}/imports` | `pricing.write` | UC-PRC-05 |
 
-En el MVP existe solo la lista predeterminada (ADR-0039); no hay endpoints para crear o editar listas.
+En el MVP existe solo la lista predeterminada (ADR-0039); no hay endpoints para crear o editar listas. La crea una migración: código `GENERAL`, "Lista general" y prioridad 0 (ADR-0125).
 
 **`GET …/price-lists`** — 200 `{ "data": [ { "id", "code", "name", "currency", "priority", "isDefault", "taxesIncluded", "status" } ] }`.
 
-**`GET …/variants/{variantId}/periods`** — 200 `{ "data": [PricePeriod], "current": PricePeriod | null }`, con `PricePeriod { id, amount: Money, compareAtAmount: Money | null, effectiveFrom, effectiveTo, state: "PAST" | "CURRENT" | "SCHEDULED", createdBy, createdAt }`. Orden `-effectiveFrom`. Sin paginación. Filtro `state`.
+**`GET …/variants/{variantId}/periods`** — 200 `{ "data": [PricePeriod], "current": PricePeriod | null }`, con `PricePeriod { id, amount: Money, compareAtAmount: Money | null, effectiveFrom, effectiveTo, state: "PAST" | "CURRENT" | "SCHEDULED", createdBy, createdAt }`. Orden `-effectiveFrom`. Sin paginación. Filtro `state`, con uno o más estados separados por comas. `current` es siempre el periodo vigente, aunque el filtro lo deje fuera de `data`.
 
 **`POST …/variants/{variantId}/periods`** — Establece o programa un precio.
 
 - Request: `{ "amount": 59900, "compareAtAmount": 79900, "effectiveFrom": "2026-10-01T06:00:00.000Z" }`.
 - `amount` entero ≥ 0 en centavos; `compareAtAmount` opcional y mayor que `amount`; `effectiveFrom` opcional: ausente o no posterior al momento actual = precio inmediato (cierra el periodo vigente, UC-PRC-02); futuro = programado (UC-PRC-03). `effectiveTo` no se envía: un periodo termina cuando empieza el siguiente.
-- La variante debe existir en Catalog (fachada).
-- Response 201: `PricePeriod`.
-- Errores: 409 `price-period-conflict` (superposición con un periodo programado, BR-PRC-01).
+- `effectiveFrom` lleva fecha, hora y zona horaria (`Z` u `±hh:mm`).
+- **Línea de periodos (ADR-0125):** un periodo nuevo cierra en su inicio el periodo en el que cae, vigente o programado, y termina donde empieza el siguiente. Así se puede programar entre otros precios, por ejemplo una oferta de varios días.
+- La variante debe existir en Catalog (fachada), en cualquier estado.
+- Response 201: `PricePeriod`. Un precio inmediato igual al vigente (mismo monto y mismo precio de comparación) no abre un periodo: responde 200 con el vigente.
+- Errores:
+  - 409 `price-period-conflict` con `reason: overlap` si otro periodo empieza en el mismo instante (BR-PRC-01);
+  - 400 `validation-error` con `compareAtAmount` en `compareAtAmount` si el precio de comparación no es mayor que el monto.
 
-**`DELETE …/periods/{periodId}`** — Cancela un precio programado. 204. Errores: 409 `price-period-conflict` si ya inició (BR-PRC-04).
+**`DELETE …/periods/{periodId}`** — Cancela un precio programado. 204; el periodo anterior vuelve a durar hasta el siguiente (ADR-0125). Errores: 409 `price-period-conflict` con `reason: already-started` si ya inició (BR-PRC-04); 404 si el periodo no es de esa variante en esa lista.
 
-**`POST …/imports`** — Carga masiva. Formato del archivo, validación parcial o total y respuesta: PENDIENTE (T-145).
+**`POST …/imports`** — Carga masiva. Formato del archivo, validación parcial o total y respuesta: PENDIENTE (T-145 parte b).
+
+Implementado en T-145 parte a (ADR-0125), salvo la carga masiva:
+
+- **No encontrado:** una lista, variante o periodo inexistentes responden 404, también si el ID no es un UUID.
+- **Cambios simultáneos:** dos cambios de una variante se aplican uno tras otro.
+- **Auditoría:** `prices.set`, `prices.schedule` y `prices.cancel`.
 
 ---
 
@@ -1333,7 +1343,7 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| T-145 | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |
+| T-145 parte b | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |
 
 ---
 

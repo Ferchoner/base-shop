@@ -1,3 +1,6 @@
 // Public API of the Pricing context (ADR-0005): other modules import only from this file.
-// It exports the Nest module and, once they exist, the facade and its public types.
 export { PricingModule } from './pricing.module.js';
+export {
+  PricingFacade,
+  type PriceQuote,
+} from './application/pricing.facade.js';

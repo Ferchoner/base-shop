@@ -142,6 +142,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0122 | Método de envío, cálculo del costo y tasa de IVA configurable | Aceptada |
 | ADR-0123 | Productos y variantes: división de T-140, slugs, opciones y búsqueda | Aceptada |
 | ADR-0124 | Imágenes de producto: galería, límite y subidas simultáneas | Aceptada |
+| ADR-0125 | Precios: lista predeterminada, línea de periodos y fachadas | Aceptada |
 
 ---
 
@@ -802,7 +803,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Las ofertas simples se cubren con el precio de comparación y los precios programados.
   - Los listados del catálogo son iguales para todos los visitantes, lo que mantiene válida la cache de ADR-0028. Si se agregan listas por cliente, habrá que revisar esa cache.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. La lista predeterminada la crea una migración en T-145 (ADR-0125); el formato de la carga masiva queda para T-145 parte b.
 
 ---
 
@@ -3140,7 +3141,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El orden del sprint queda así: T-140a → T-140b → T-145 y T-160 → T-140c.
   - Desactivar una categoría grande recalcula el `search_vector` de todos sus productos en la misma transacción; en el MVP el costo es aceptable.
   - Para agregar una dimensión de opciones a un producto sin publicar con varias variantes, primero se descontinúan las demás.
-- **Estado:** Aceptada (plan de T-140 aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-140 aprobado el 2026-09-30). ADR-0125 hace que Pricing use la fachada de Catalog, así que `storeVisibility` no podrá salir de la fachada de Pricing: se decide en la parte c.
 
 ---
 
@@ -3182,3 +3183,52 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los archivos huérfanos solo aparecen si falla el borrado del disco después del commit; hoy no hay limpieza automática para ellos.
   - La imagen de un borrador se puede abrir con su URL, que lleva dos UUID difíciles de adivinar.
 - **Estado:** Aceptada (plan de T-140 parte b aprobado el 2026-09-30).
+
+---
+
+## ADR-0125 — Precios: lista predeterminada, línea de periodos y fachadas
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-145 (UC-PRC-01 a 06). Las tablas de Pricing existen desde T-110, pero faltaban la lista predeterminada (ADR-0039) y el módulo. Además quedaban abiertos varios puntos:
+  - El contrato (`API_SPEC.md` §12) no envía `effectiveTo` ("un periodo termina cuando empieza el siguiente"). Pero no dice qué pasa al programar entre otros periodos, ni al cancelar uno.
+  - Tampoco dice si un precio igual al vigente abre un periodo nuevo.
+  - Validar la variante requiere la fachada de Catalog, mientras que `storeVisibility` (T-140 parte c) pensaba usar la de Pricing: los dos módulos se usarían mutuamente.
+  - El formato de la carga masiva sigue sin definir.
+- **Decisión:**
+  - **División de T-145:**
+    - **a:** lista predeterminada, precios y periodos, y las fachadas de Pricing y de Catalog (esta decisión).
+    - **b:** carga masiva (UC-PRC-05). Su formato, la validación parcial o total y la respuesta se deciden al empezarla.
+  - **Lista predeterminada:** la crea la migración `20260930180000_pricing_default_list`, solo si no existe otra predeterminada. Sus datos: código `GENERAL`, "Lista general", MXN, IVA incluido, activa y prioridad 0. El sentido de la prioridad se fija cuando existan más listas (BR-PRC-10).
+  - **Línea de periodos sin huecos** (`VariantPrice`): desde el primer periodo, cada uno termina donde empieza el siguiente, y el último no tiene fin.
+    - **Precio desde ahora** (sin `effectiveFrom`, o con una fecha no posterior al momento actual): empieza en el instante del servidor y cierra ahí el periodo vigente.
+    - **Precio programado:** cierra en su inicio el periodo en el que cae, vigente o programado, y termina donde empieza el siguiente. Uno anterior al primer periodo termina donde empieza este.
+    - **Mismo inicio:** dos periodos no empiezan en el mismo instante. El segundo responde 409 `price-period-conflict` con `reason: overlap`.
+    - **Cancelar un precio programado:** su tiempo vuelve al periodo anterior, que dura otra vez hasta el siguiente. Un periodo que ya empezó responde 409 con `reason: already-started` (BR-PRC-04).
+    - **Periodos que ya empezaron:** solo cambia su fin. Los terminados nunca cambian.
+  - **Precio igual al vigente:** un precio desde ahora con el mismo monto y el mismo precio de comparación que el vigente no abre un periodo. Responde 200 con el vigente, sin guardar ni auditar. Un precio programado igual al vigente sí se programa.
+  - **Validación:**
+    - el precio de comparación debe ser mayor que el monto; si no, 400 con `compareAtAmount` en `compareAtAmount`;
+    - `effectiveFrom` lleva fecha, hora y zona horaria (`Z` u `±hh:mm`);
+    - la variante debe existir en Catalog, en cualquier estado, porque la tienda ya oculta una que no se vende;
+    - una variante o una lista que no existen responden 404.
+  - **Cambios simultáneos:**
+    - Cada cambio bloquea la fila de la variante en `variant_prices` (`SELECT … FOR UPDATE`) y toma la hora después del bloqueo.
+    - La fila se crea con el primer precio (`INSERT … ON CONFLICT DO NOTHING`), así que dos primeros precios a la vez crean una sola.
+    - La restricción de exclusión de la base sigue de respaldo: si rechaza un periodo, se responde 409 con `reason: overlap`.
+    - Cada cambio incrementa la `version` de la fila.
+  - **Auditoría:** `prices.set`, `prices.schedule` y `prices.cancel`, sobre el periodo (`price-period`). Guardan la lista, la variante, los montos en centavos y el inicio.
+  - **Fachadas:**
+    - **`PricingFacade.quote(variantIds, at)`** (UC-PRC-06): el precio vigente en ese instante de varias variantes, en una sola consulta y en la lista predeterminada. Una variante sin precio queda fuera. No usa cache ni jobs: un precio programado rige solo por su fecha.
+    - **`CatalogFacade.variants(ids)`:** el snapshot de cada variante (SKU, opciones, estado, peso, dimensiones y producto). Pricing lo usa con su puerto `CatalogVariants` y un adaptador en su infraestructura (ADR-0005, ADR-0113).
+  - **Dirección entre módulos:** Pricing usa a Catalog; Catalog nunca usa a Pricing, porque la regla `no-circular` rechaza el ciclo. Por eso, en T-140 parte c, `storeVisibility` no puede salir de la fachada de Pricing. Se decide entonces cómo calcularlo, previsiblemente con el servicio de consulta de ADR-0060, que ya lee precios.
+  - **Sin eventos:** `PriceScheduled` y `PriceChanged` todavía no tienen quien los escuche. La tienda ve los precios nuevos al vencer su cache (ADR-0028).
+- **Alternativas consideradas:**
+  - **Rechazar todo periodo que caiga dentro de otro programado:** solo se podría programar un precio a la vez.
+  - **Abrir siempre un periodo nuevo,** aunque el precio sea igual al vigente: ensucia el historial, y repetir la carga masiva lo duplicaría.
+  - **Dejar un hueco al cancelar:** la variante quedaría sin precio y la tienda la ocultaría.
+  - **Que Catalog use a Pricing para `storeVisibility` y Pricing no valide las variantes:** se podrían fijar precios de variantes inexistentes.
+- **Consecuencias:**
+  - Si llegan dos precios desde ahora de una misma variante en el mismo milisegundo, el segundo responde 409 `overlap`.
+  - `API_SPEC.md` §11.6 decía que `storeVisibility` usa la fachada de Pricing; queda PENDIENTE para T-140 parte c.
+  - UC-PRC-05 sigue PENDIENTE (T-145 parte b).
+- **Estado:** Aceptada (plan de T-145 aprobado el 2026-09-30).

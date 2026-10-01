@@ -77,9 +77,10 @@ describe('Database schema (T-110)', () => {
   it('rejects overlapping price periods with the exclusion constraint (BR-PRC-01)', async () => {
     const priceListId = randomUUID();
     const variantPriceId = randomUUID();
+    // Not a default list: the migration of T-145 already created the only one (ADR-0125).
     await client.query(
       `INSERT INTO price_lists (id, code, name, currency, priority, is_default, status, updated_at)
-       VALUES ($1, 'DEFAULT', 'Default', 'MXN', 1, true, 'ACTIVE', now())`,
+       VALUES ($1, 'SECONDARY', 'Secondary', 'MXN', 1, false, 'ACTIVE', now())`,
       [priceListId],
     );
     await client.query(
