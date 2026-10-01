@@ -282,6 +282,7 @@ Error de validación:
 | `price-period-conflict` | 409 | E-15 | Periodo superpuesto o ya iniciado | `reason`: `overlap` u `already-started` (ADR-0125) |
 | `idempotency-request-in-progress` | 409 | E-25 | Solicitud original aún en proceso | — |
 | `cart-not-active` | 409 | E-27 | Modificar un carrito CHECKED_OUT o MERGED | `cartStatus` |
+| `cart-line-limit-reached` | 409 | E-36 | Más de 100 variantes distintas en un carrito (ADR-0131) | `limit` |
 | `address-limit-reached` | 409 | E-28 | Más de 10 direcciones (BR-ADR-04) | `limit` |
 | `image-limit-reached` | 409 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | `limit` |
 | `last-superadmin` | 409 | E-29 | Dejar el sistema sin superadministrador (BR-USR-03) | — |
@@ -296,7 +297,7 @@ Error de validación:
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-35 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-36 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 

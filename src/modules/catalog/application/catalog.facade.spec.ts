@@ -2,6 +2,11 @@ import { newId } from '../../../shared-kernel/index.js';
 import type { VariantId } from '../domain/variant.js';
 import { CatalogFacade } from './catalog.facade.js';
 import { CatalogQueries, type VariantSnapshot } from './catalog.queries.js';
+import type { ProductImageStorage } from './product-image-storage.js';
+
+const images = {
+  urlOf: (key: string) => `https://cdn.example.com/${key}`,
+} as unknown as ProductImageStorage;
 
 /** Remembers which variants it was asked for, by ID or by SKU; only those two queries are used. */
 function queriesAnswering(snapshots: VariantSnapshot[]) {
@@ -23,6 +28,7 @@ describe('CatalogFacade (ADR-0005, ADR-0125)', () => {
   const snapshot: VariantSnapshot = {
     id: newId<'Variant'>(),
     productId: newId<'Product'>(),
+    productSlug: 'camisa-de-lino',
     productTitle: 'Camisa de lino',
     productStatus: 'DRAFT',
     sku: 'CAM-LINO-M',
@@ -39,7 +45,7 @@ describe('CatalogFacade (ADR-0005, ADR-0125)', () => {
     const missing = newId<'Variant'>();
 
     expect(
-      await new CatalogFacade(queries).variants([
+      await new CatalogFacade(queries, images).variants([
         snapshot.id,
         missing,
         snapshot.id,
@@ -51,8 +57,10 @@ describe('CatalogFacade (ADR-0005, ADR-0125)', () => {
   it('asks nothing for no variants', async () => {
     const { queries, asked } = queriesAnswering([snapshot]);
 
-    expect(await new CatalogFacade(queries).variants([])).toEqual([]);
-    expect(await new CatalogFacade(queries).variantsBySku([])).toEqual([]);
+    expect(await new CatalogFacade(queries, images).variants([])).toEqual([]);
+    expect(await new CatalogFacade(queries, images).variantsBySku([])).toEqual(
+      [],
+    );
     expect(asked).toEqual([]);
   });
 
@@ -60,7 +68,7 @@ describe('CatalogFacade (ADR-0005, ADR-0125)', () => {
     const { queries, asked } = queriesAnswering([snapshot]);
 
     expect(
-      await new CatalogFacade(queries).variantsBySku([
+      await new CatalogFacade(queries, images).variantsBySku([
         'cam-lino-m',
         'CAM-LINO-M',
         'gorra',

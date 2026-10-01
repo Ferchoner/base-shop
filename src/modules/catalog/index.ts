@@ -2,7 +2,9 @@
 export { CatalogModule } from './catalog.module.js';
 export {
   CatalogFacade,
+  type VariantImage,
   type VariantSnapshot,
+  type VariantWithImage,
 } from './application/catalog.facade.js';
 export type {
   CatalogEvent,

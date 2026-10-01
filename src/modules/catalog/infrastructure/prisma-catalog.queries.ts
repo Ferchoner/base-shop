@@ -17,6 +17,7 @@ import {
   CatalogQueries,
   type CategoryView,
   type ProductFilter,
+  type ProductImageView,
   type ProductSortField,
   type VariantSnapshot,
 } from '../application/catalog.queries.js';
@@ -210,17 +211,37 @@ export class PrismaCatalogQueries extends CatalogQueries {
     });
   }
 
+  async findImagesOfProducts(
+    ids: readonly ProductId[],
+  ): Promise<(ProductImageView & { productId: ProductId })[]> {
+    const rows = await this.txHost.tx.productImage.findMany({
+      where: { productId: { in: [...ids] } },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      productId: toId<'Product'>(row.productId),
+      storageKey: row.storageKey,
+      altText: row.altText,
+      position: row.position,
+      variantId: row.variantId === null ? null : toId<'Variant'>(row.variantId),
+    }));
+  }
+
   private async variantsWhere(
     where: Prisma.ProductVariantWhereInput,
   ): Promise<VariantSnapshot[]> {
     const rows = await this.txHost.tx.productVariant.findMany({
       where,
-      include: { product: { select: { title: true, status: true } } },
+      include: {
+        product: { select: { slug: true, title: true, status: true } },
+      },
       orderBy: { sku: 'asc' },
     });
     return rows.map((row) => ({
       id: toId<'Variant'>(row.id),
       productId: toId<'Product'>(row.productId),
+      productSlug: row.product.slug,
       productTitle: row.product.title,
       productStatus: row.product.status,
       sku: row.sku,
