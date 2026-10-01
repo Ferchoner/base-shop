@@ -36,6 +36,8 @@ interface IdempotentRequest {
 }
 
 interface IdempotentResponse {
+  /** The status NestJS set from `@HttpCode` before the handler, or the one the handler set itself. */
+  statusCode?: number;
   status(code: number): unknown;
   setHeader(name: string, value: string): unknown;
   getHeader(name: string): unknown;
@@ -107,7 +109,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
           this.store
             .complete(attempt, {
               kind: 'success',
-              status: successStatus(context),
+              status: response.statusCode ?? successStatus(context),
               body: toJson(body),
               location: headerValue(response.getHeader('Location')),
             })

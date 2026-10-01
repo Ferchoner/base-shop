@@ -101,7 +101,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 
 | Operación que lo origina | Evento | Efecto en segundo plano | Dónde se nota |
 |---|---|---|---|
-| Registrar un pago manual (`POST /v1/admin/payments/manual-captures`); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund` (ADR-0133) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
+| Registrar un pago manual (`POST /v1/admin/orders/{orderId}/manual-capture`, ADR-0134); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund` (ADR-0133) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
 | La orden quedó pagada (efecto anterior) | `OrderPaid` | Se crea el envío en PENDING (UC-SHI-03) y se envía el correo "Pago confirmado" (ADR-0074) | Lista de envíos pendientes del staff; correo del cliente |
 | Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED y se envía el correo "Orden enviada" | Estado de la orden; correo del cliente |
 | Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED | Estado de la orden |
@@ -1186,6 +1186,7 @@ Reglas comunes: solo órdenes CANCELLED o REFUNDED (409 `invalid-state-transitio
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
 | POST | `/v1/admin/orders/{orderId}/retry-fulfillment` | `orders.manage` | UC-ORD-08 |
 | POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` | UC-INV-09 (ADR-0132) |
+| POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 
 Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es).
 
@@ -1295,6 +1296,8 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - 201 `{ "movements": [StockMovement] }`.
 - Errores: 409 `restock-not-allowed` (con `lines`); 409 `invalid-state-transition` si la orden no admite reintegro.
 
+**`POST /v1/admin/orders/{orderId}/manual-capture`** — `payments.manage`. Registra el pago en tienda de la orden (UC-PAY-02); ver la sección 16.4 (ADR-0134).
+
 **`POST /v1/admin/orders/{orderId}/retry-fulfillment`** — `orders.manage`.
 
 - Request: `{ "version" }`. Solo en AWAITING_MANUAL_FULFILLMENT: intenta reservar y confirmar el stock; si lo logra, pasa a PAID (ADR-0012). Si se decide no surtir, se usa `/cancel`.
@@ -1323,12 +1326,14 @@ Implementado en T-180 parte b (ADR-0133):
 | POST | `/v1/me/orders/{publicCode}/payments` | Solo cliente + `Idempotency-Key` | UC-PAY-01 |
 | GET | `/v1/admin/payments` | `orders.read` | Consulta |
 | GET | `/v1/admin/payments/{paymentId}` | `orders.read` | Consulta |
-| POST | `/v1/admin/payments/manual-captures` | `payments.manage` | UC-PAY-02 |
+| POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 | POST | `/v1/admin/payments/{paymentId}/refunds/manual` | `payments.manage` (+ `inventory.write` con reintegro) | UC-PAY-06 |
 | POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` (+ `inventory.write` con reintegro) | UC-PAY-07 |
 | POST | `/v1/webhooks/paypal` | Firma de PayPal | UC-PAY-04 |
 
 La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene uno de lectura de pagos y el pago forma parte de la vista de la orden (ADR-0071).
+
+Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas que necesitan la orden (iniciar el pago y registrar el pago manual) las atiende Ordering, que le pasa a Payments el total.
 
 ### 16.2 Iniciar pago (UC-PAY-01)
 
@@ -1354,6 +1359,7 @@ La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene 
 
   `action.type` es extensible: `PAY_IN_STORE` (manual, ADR-0055) y, cuando se habilite PayPal, `REDIRECT` con `url`. Si el pago ya se inició con el mismo proveedor, 200 con la misma acción.
 - **Errores:** 400 `idempotency-key-missing`; 404 (orden inexistente, ajena o `cartId` que no corresponde); 409 `invalid-state-transition` (orden no pendiente o pago ya iniciado con otro proveedor); 422 `idempotency-key-mismatch`.
+- **Implementado en T-190 parte a (ADR-0134):** el proveedor se valida antes que la orden: `MANUAL` con el pago manual deshabilitado, o `PAYPAL`, responde 400 `validation-error` con `isEnabledProvider` en `provider`. Un código público que no puede existir responde 404. El staff recibe 403 `staff-cannot-purchase`. Repetir con la misma llave devuelve el código original (201 o 200).
 
 ### 16.3 Consulta administrativa
 
@@ -1361,15 +1367,16 @@ La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene 
 
 - **`GET /v1/admin/payments`** — Paginado. Filtros: `status`, `provider`, `orderId`, `capturedFrom`, `capturedTo`. Orden: `createdAt` (defecto `-createdAt`), `amount`.
 - **`GET /v1/admin/payments/{paymentId}`** — 200 `AdminPayment`.
+- **Implementado en T-190 parte a (ADR-0134):** `orderCode` con guion; `attempts` del más antiguo al más reciente (iniciar el pago guarda uno PENDING, y registrarlo, uno CAPTURED con el comprobante y el staff); `refunds` vacío hasta la parte b; filtros de varios valores separados por comas.
 
 ### 16.4 Registrar pago manual (UC-PAY-02, ADR-0040, ADR-0055)
 
-- **`POST /v1/admin/payments/manual-captures`** — `payments.manage`.
-- Request: `{ "orderId", "reference": "Ticket 00452", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `note` 0–500.
+- **`POST /v1/admin/orders/{orderId}/manual-capture`** — `payments.manage`. Antes era `POST /v1/admin/payments/manual-captures` con `orderId` en el cuerpo; la atiende Ordering, que conoce la orden (ADR-0134).
+- Request: `{ "reference": "Ticket 00452", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `note` 0–500, que queda como motivo de la auditoría.
 - Registra el cobro por el total de la orden (crea el Payment si no existe) y produce `PaymentCaptured`; la orden sigue el flujo normal o el de pago tardío (ADR-0012), en segundo plano (sección 2.5): la respuesta trae el pago capturado, y la orden puede seguir unos instantes en su estado anterior.
 - Solo órdenes en PENDING_PAYMENT o EXPIRED.
-- 201 `AdminPayment`. Auditado.
-- Errores: 403 `manual-payments-disabled`; 409 `invalid-state-transition` (otro estado de la orden o pago ya capturado).
+- 200 `AdminOrder` con su pago capturado, como las demás acciones sobre la orden (ADR-0134). Auditado como `payments.manual-capture`.
+- Errores: 403 `manual-payments-disabled`, antes que cualquier otro; 404 (orden inexistente); 409 `invalid-state-transition` (otro estado de la orden o pago ya capturado).
 
 ### 16.5 Reembolsos (UC-PAY-06, UC-PAY-07, ADR-0051, ADR-0052)
 
@@ -1473,7 +1480,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-ORD-01 a 04, 06 a 08 | Sección 15 |
 | UC-ORD-05 | Fuera del MVP (ADR-0077) |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
-| UC-PAY-01, 02, 04, 06, 07 | Secciones 16 y 19 |
+| UC-PAY-01, 02, 04, 06, 07 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |
 | UC-PAY-05 | Sin API: job |
 | UC-SHI-02, 04 a 09 | Sección 17 |

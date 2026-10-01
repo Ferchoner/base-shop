@@ -115,6 +115,10 @@ class InMemoryOrders extends OrderRepository {
     );
   }
 
+  lockByPublicCode(): Promise<Order | null> {
+    throw new Error('The life of an order finds it by its ID');
+  }
+
   save(order: Order, now: Date): Promise<void> {
     expect(now).toBe(NOW);
     this.saved.push(order);

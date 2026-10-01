@@ -26,7 +26,11 @@ import {
   ORDER_STATUSES,
   type OrderStatus,
 } from '../application/order-values.js';
-import { OrderLineDto, OrderSummaryDto } from './order.dto.js';
+import {
+  AdminOrderPaymentDto,
+  OrderFieldsDto,
+  OrderLineDto,
+} from './order.dto.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments;
 // fields holding other DTOs, lists, dates, enums, objects or null declare their type with @ApiProperty
@@ -64,8 +68,15 @@ export class StatusHistoryEntryDto {
 }
 
 /** `AdminOrder` in a listing (API_SPEC.md §15.7): without lines nor history. */
-export class AdminOrderSummaryDto extends OrderSummaryDto {
+export class AdminOrderSummaryDto extends OrderFieldsDto {
   id: string;
+
+  @ApiProperty({
+    type: () => AdminOrderPaymentDto,
+    nullable: true,
+    description: '`null` mientras la orden no tenga pago.',
+  })
+  payment: AdminOrderPaymentDto | null;
 
   /** Número interno consecutivo; solo para el staff (ADR-0049). @example 1042 */
   orderNumber: number;

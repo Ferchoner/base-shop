@@ -337,6 +337,10 @@ Criterios de aceptación:
 - **UC-PAY-04:** firma inválida se rechaza; un evento repetido no produce efectos; un evento tardío no revierte un estado posterior.
 - **UC-PAY-03 / 06 / 07:** el reembolso es por el total capturado; al confirmarse (webhook, conciliación o registro manual) la orden pasa a Refunded y el Payment a Refunded; si falla, la orden permanece en Cancelled y el staff puede reintentarlo; el registro manual solo está disponible con el pago manual habilitado y se audita; no existen reembolsos sin cancelación. Al registrar o reintentar el reembolso, el staff con `inventory.write` puede reintegrar el stock completo solo si la orden no tiene ningún reintegro previo (ADR-0052).
 - **UC-PAY-05:** reejecuta la confirmación de pagos capturados cuya orden sigue en PendingPayment con más de 10 minutos.
+- **UC-PAY-01 y 02 (implementación, ADR-0134):**
+  - Ordering atiende el inicio del pago y el registro del pago manual, porque Payments nunca lee órdenes; el pago manual se registra en `POST /v1/admin/orders/{orderId}/manual-capture`;
+  - la variable `MANUAL_PAYMENTS_ENABLED` lo habilita;
+  - UC-PAY-03 y 06 llegan en la parte b de T-190, y UC-PAY-07 pasa a T-192, porque solo un proveedor puede fallar un reembolso.
 
 ### 5.8 Shipping
 

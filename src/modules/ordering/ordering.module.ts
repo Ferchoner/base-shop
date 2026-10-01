@@ -5,6 +5,7 @@ import { CatalogModule } from '../catalog/index.js';
 import { GeoModule } from '../geo/index.js';
 import { IdentityAccessModule } from '../identity-access/index.js';
 import { InventoryModule } from '../inventory/index.js';
+import { PaymentsModule } from '../payments/index.js';
 import { PricingModule } from '../pricing/index.js';
 import { ShippingModule } from '../shipping/index.js';
 import { ShoppingModule } from '../shopping/index.js';
@@ -19,7 +20,10 @@ import {
 } from './application/checkout-ports.js';
 import { Checkout } from './application/checkout.use-case.js';
 import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
+import { OrderPaymentRequests } from './application/order-payment-requests.use-case.js';
+import { OrderReader } from './application/order-reader.js';
 import { OrderingQueries } from './application/ordering.queries.js';
+import { OrderPayments } from './application/payment-ports.js';
 import { VAT_RATE_BP } from './application/vat-rate.js';
 import { OrderRepository } from './domain/order.repository.js';
 import {
@@ -27,6 +31,7 @@ import {
   GeoShippingLocations,
   IdentityFacadeCheckoutCustomers,
   InventoryFacadeOrderStock,
+  PaymentsFacadeOrderPayments,
   PricingFacadeCheckoutPrices,
   ShippingFacadeCheckoutShipping,
   ShoppingFacadeCheckoutCarts,
@@ -42,8 +47,8 @@ import { OrdersController } from './presentation/orders.controller.js';
 
 /**
  * Ordering bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. It uses Shopping, Catalog,
- * Pricing, Inventory, Shipping, Identity & Access and Geo through their facades, and none of them uses Ordering,
- * so they never form a cycle (ADR-0132).
+ * Pricing, Inventory, Shipping, Identity & Access, Geo and Payments through their facades, and none of them uses
+ * Ordering, so they never form a cycle (ADR-0132, ADR-0134).
  */
 @Module({
   imports: [
@@ -54,6 +59,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     ShippingModule,
     IdentityAccessModule,
     GeoModule,
+    PaymentsModule,
   ],
   controllers: [
     CheckoutController,
@@ -71,6 +77,8 @@ import { OrdersController } from './presentation/orders.controller.js';
     },
     Checkout,
     OrderLifecycle,
+    OrderPaymentRequests,
+    OrderReader,
     PaymentCapturedHandler,
     { provide: OrderRepository, useClass: PrismaOrderRepository },
     { provide: OrderingQueries, useClass: PrismaOrderingQueries },
@@ -81,6 +89,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: CheckoutShipping, useClass: ShippingFacadeCheckoutShipping },
     { provide: CheckoutCustomers, useClass: IdentityFacadeCheckoutCustomers },
     { provide: ShippingLocations, useClass: GeoShippingLocations },
+    { provide: OrderPayments, useClass: PaymentsFacadeOrderPayments },
   ],
 })
 export class OrderingModule {}

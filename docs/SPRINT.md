@@ -17,7 +17,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot (el agrupado llega el lunes 5 de octubre); orden de los validadores de `PageQueryDto` y de los demás DTO, con su prueba |
 | 1 | T-170 (carrito) |
 | 2 | T-180 (checkout y órdenes, en dos partes; P-73 resuelta en ADR-0132) |
-| 3 | T-190 (pago en tienda y reembolso total al cancelar) |
+| 3 | T-190 (pago en tienda y reembolso total al cancelar, en dos partes, ADR-0134) |
 | 4 | T-230 (vencimiento de reservas y órdenes; la conciliación de pagos pasa a T-192) |
 | 5 | T-185 (consulta de pedido de invitado) y T-181 (restaurar y copiar el carrito) |
 

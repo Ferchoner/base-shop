@@ -151,6 +151,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0131 | Carrito: bloqueos, límite de líneas, variantes no vendibles e imagen principal | Aceptada |
 | ADR-0132 | Checkout y pedidos: división de T-180, dependencias de Ordering, reintegro sin ciclo y vencimiento del pago | Aceptada |
 | ADR-0133 | Administración de órdenes: cancelación sin pago, pago capturado, pago tardío y reserva todo o nada | Aceptada |
+| ADR-0134 | Pagos: Ordering usa a Payments, pago en tienda y división de T-190 | Aceptada |
 
 ---
 
@@ -831,7 +832,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El pago manual suele registrarse después del TTL de la reserva (20 minutos). En ese caso aplica ADR-0012: se intenta reservar de nuevo y, si no hay stock, la orden pasa a AwaitingManualFulfillment. Para pruebas, el TTL puede ampliarse por configuración.
   - El adaptador de PayPal requiere verificación completa (T-191, P-31) antes de habilitarse.
 - **Revisar cuando:** se tenga la cuenta y el sandbox de PayPal, o se decida integrar Mercado Pago o Stripe.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto.
 
 ---
 
@@ -1108,7 +1109,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Si un cliente paga en tienda una orden ya cancelada, el caso se atiende fuera del sistema.
   - Riesgo aceptado: con el TTL de 20 minutos (se mantiene), un pago en tienda casi siempre llegará después de expirar la orden y seguirá el flujo de pago tardío; como las líneas ya habrán regresado al carrito (ADR-0054), el cliente podría comprar dos veces. Se revisa si el pago en tienda llega a ofrecerse a clientes reales (ADR-0013).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): el pago manual se registra en `POST /v1/admin/orders/{orderId}/manual-capture`.
 
 ---
 
@@ -2180,7 +2181,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las reglas del dominio deben impedir duplicados por sí mismas (carrito ya marcado, un pago por orden), porque una llave abandonada puede volver a ejecutarse.
   - T-120 debe dejar el usuario autenticado en `request.user.id` para `userScope`.
   - La limpieza de llaves vencidas queda en el job diario (T-231).
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 deja el usuario autenticado en `request.user.id`. ADR-0132 libera la llave también con los errores de validación que encuentra el dominio.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 deja el usuario autenticado en `request.user.id`. ADR-0132 libera la llave también con los errores de validación que encuentra el dominio. ADR-0134 guarda el código de respuesta que dejó el controlador.
 
 ---
 
@@ -3697,4 +3698,52 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - un pago tardío con una línea sin stock, que no aparta nada de las demás;
     - una reserva corta dentro de una transacción mayor;
     - pasos deshechos con sus eventos.
-- **Estado:** Aceptada (plan de T-180 parte b aprobado el 2026-10-01, con sus 4 recomendaciones).
+- **Estado:** Aceptada (plan de T-180 parte b aprobado el 2026-10-01, con sus 4 recomendaciones). T-190 parte a publica `PaymentCaptured` con esa forma (ADR-0134).
+
+---
+
+## ADR-0134 — Pagos: Ordering usa a Payments, pago en tienda y división de T-190
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-190 (UC-PAY-01 a 03, 06 y 07). Algunas operaciones de pago necesitan datos de la orden, y algunas de la orden necesitan a Payments:
+  - iniciar el pago necesita saber de quién es la orden y en qué estado está;
+  - registrar el pago manual necesita el total y el estado de la orden;
+  - cancelar una orden pagada inicia el reembolso dentro de la misma operación (`API_SPEC.md` §2.5);
+  - las vistas de la orden muestran su pago.
+
+  Si cada módulo usara al otro habría un ciclo. Quedaban abiertos también el tamaño de la tarea y cómo se habilita el pago manual.
+- **Decisión:**
+  - **División de T-190:**
+    - **a:** pagar: iniciar el pago (UC-PAY-01), registrar el pago manual (UC-PAY-02), la consulta de pagos del staff y el pago en las vistas de la orden. Esta decisión.
+    - **b:** reembolsos: cancelar órdenes PAID y AWAITING_MANUAL_FULFILLMENT iniciando el reembolso (UC-PAY-03), y registrar el reembolso manual (UC-PAY-06), que publica `RefundCompleted` y lleva la orden a REFUNDED.
+    - UC-PAY-07 (reintentar un reembolso fallido) pasa a T-192: con el pago manual un reembolso nunca falla, porque lo registra el staff; solo un proveedor puede fallar.
+  - **Ordering usa a Payments, y Payments nunca usa a Ordering:**
+    - Payments exporta `PaymentsFacade`, que recibe de Ordering el ID, el código público y el total de la orden; Payments solo le avisa a Ordering con eventos (`PaymentCaptured` y, en la parte b, `RefundCompleted`);
+    - las rutas para iniciar el pago (`POST /v1/orders/{publicCode}/payments` y `/v1/me/orders/{publicCode}/payments`) las atiende Ordering, porque son de la orden. No cambian;
+    - Ordering lee los pagos para `Order.payment` (`provider` y `status`) y `AdminOrder.payment` (con montos, fecha de captura y reembolsos); `OrderReader` pide los de una página entera en una sola consulta;
+    - Payments guarda el código público de la orden en `payments.order_code` (migración `20261001200000_payments_order_code`), para mostrar `orderCode` en `AdminPayment` sin leer a Ordering.
+  - **Pago manual:**
+    - pasa de `POST /v1/admin/payments/manual-captures`, con `orderId` en el cuerpo, a `POST /v1/admin/orders/{orderId}/manual-capture` (`payments.manage`), atendido por Ordering;
+    - responde 200 con el `AdminOrder` y su pago capturado, como las demás acciones sobre `/v1/admin/orders`, en lugar de 201 `AdminPayment`, así Ordering no importa la representación de Payments. La orden pasa a PAID en segundo plano (§2.5);
+    - registra el cobro por el total y crea el pago si el cliente nunca lo inició. `reference` queda en el intento junto con el staff, y `note` es el motivo de la auditoría `payments.manual-capture`;
+    - publica `PaymentCaptured { orderId, paymentId, amount }` en la misma transacción, y se despacha después de confirmar.
+  - **Orden de las validaciones:**
+    - al iniciar: el proveedor (400 `validation-error` en `provider` si no está habilitado), la orden y quien paga (404), el estado PENDING_PAYMENT (409) y el pago que ya exista. Con el mismo proveedor y pendiente responde 200 con la misma acción; con otro, o ya no pendiente, 409;
+    - al registrar el pago manual: que esté habilitado (403 `manual-payments-disabled`), la orden (404), el estado PENDING_PAYMENT o EXPIRED (409) y que el pago no esté capturado (409).
+  - **Variable `MANUAL_PAYMENTS_ENABLED`:** `false` por defecto y también en `.env.example`, como pide ADR-0040. Quien prueba en local la pone en `true`, y las e2e la activan.
+  - **Intentos:** iniciar el pago guarda un intento PENDING, y registrarlo, uno CAPTURED con el comprobante y el staff.
+  - **Consulta del staff (§16.3):** `GET /v1/admin/payments` filtra por `status`, `provider`, `orderId` y fechas de captura, y ordena por `createdAt` (descendente por defecto) o `amount`, con desempate por ID. `GET /v1/admin/payments/{paymentId}` incluye los intentos y los reembolsos.
+  - **Idempotencia:** el interceptor guarda el código de respuesta que dejó el controlador, no solo el declarado. Así, repetir el inicio de un pago con la misma llave devuelve 200 si el original fue 200.
+  - **Concurrencia:** Ordering bloquea la orden al iniciar el pago y al registrar el pago manual, así que dos operaciones sobre el pago de una orden se esperan. El índice único de `payments.order_id` queda de respaldo.
+- **Alternativas consideradas:**
+  - **Payments usa a Ordering:** el reembolso al cancelar se iniciaría con un evento en segundo plano, contra §2.5, y las vistas de la orden necesitarían una copia del estado del pago.
+  - **Pago manual con 201 `AdminPayment`:** Ordering tendría que importar la representación de Payments.
+  - **`MANUAL_PAYMENTS_ENABLED=true` en `.env.example`:** el flujo funcionaría en local sin tocar nada, pero ADR-0040 pide desactivado por defecto.
+  - **Una sola T-190.**
+- **Consecuencias:**
+  - Cambio de contrato: la ruta y la respuesta del pago manual.
+  - Una migración agrega `order_code` `NOT NULL` sin valor predeterminado, porque `payments` estaba vacía.
+  - La parte b: cancelar una orden pagada llama a Payments para iniciar el reembolso, y Ordering escucha `RefundCompleted`.
+  - T-192 suma UC-PAY-07. La conciliación (UC-PAY-05) vivirá en Ordering, que es quien puede leer órdenes y pagos.
+  - Pruebas contra PostgreSQL: dos registros del mismo pago a la vez, dos inicios a la vez, y un pago junto con una cancelación.
+- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación.

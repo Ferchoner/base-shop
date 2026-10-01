@@ -32,6 +32,8 @@ model Payment {
   id                String          @id @db.Uuid
   /// Logical reference to Ordering; one payment per order (BR-PAY-01).
   orderId           String          @unique @map("order_id") @db.Uuid
+  /// The public code of the order, without the dash, so payments show it without reading Ordering (ADR-0134).
+  orderCode         String          @map("order_code") @db.Char(8)
   provider          PaymentProvider
   status            PaymentStatus
   amount            Int

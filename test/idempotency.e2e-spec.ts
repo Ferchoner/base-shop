@@ -113,6 +113,18 @@ class IdempotencyTestController {
     return { publicCode, cartId: body.cartId };
   }
 
+  /** Answers 200 instead of 201 when the cart already had an order, as starting a payment again does. */
+  @Post('orders-again')
+  @Idempotent(cartScope)
+  placeAgain(
+    @Body() order: PlaceOrderDto,
+    @Res({ passthrough: true }) response: { status(code: number): unknown },
+  ) {
+    IdempotencyTestController.executions += 1;
+    response.status(200);
+    return { total: order.expectedTotal };
+  }
+
   @Post('me/orders')
   @UseGuards(FakeAuthGuard)
   @Idempotent(userScope)
@@ -170,6 +182,21 @@ describe('Idempotency-Key (e2e, T-115)', () => {
 
     expect(second.body).toEqual(first.body);
     expect(second.headers.location).toBe(first.headers.location);
+    expect(IdempotencyTestController.executions).toBe(1);
+  });
+
+  it('replays the status the handler set, not only the declared one (ADR-0134)', async () => {
+    const key = randomUUID();
+    const body = order();
+    const send = () =>
+      http()
+        .post('/v1/test-idempotency/orders-again')
+        .set('Idempotency-Key', key)
+        .send(body);
+
+    await send().expect(200);
+    await send().expect(200);
+
     expect(IdempotencyTestController.executions).toBe(1);
   });
 

@@ -33,25 +33,31 @@ import {
   type AddressInput,
   Checkout,
 } from '../application/checkout.use-case.js';
+import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
+import { OrderReader } from '../application/order-reader.js';
 import {
   formatPublicCode,
   parsePublicCode,
 } from '../application/order-values.js';
-import {
-  type CustomerOrderSortField,
-  OrderingQueries,
-} from '../application/ordering.queries.js';
+import { type CustomerOrderSortField } from '../application/ordering.queries.js';
 import {
   OrderDto,
   OrderListDto,
   OrderListQueryDto,
   PlaceCustomerOrderDto,
 } from './order.dto.js';
-import { toOrderDto, toOrderSummaryDto } from './ordering.mappers.js';
+import {
+  toOrderDto,
+  toOrderSummaryDto,
+  toPaymentStartDto,
+} from './ordering.mappers.js';
 import {
   PLACE_ORDER_DESCRIPTION,
   PLACE_ORDER_PROBLEMS,
+  START_PAYMENT_DESCRIPTION,
+  START_PAYMENT_PROBLEMS,
 } from './orders.controller.js';
+import { PaymentStartDto, StartCustomerPaymentDto } from './payment.dto.js';
 
 const customer = (user: AuthenticatedUser) => toId<'User'>(user.id);
 
@@ -66,7 +72,8 @@ const customer = (user: AuthenticatedUser) => toId<'User'>(user.id);
 export class MeOrdersController {
   constructor(
     private readonly checkout: Checkout,
-    private readonly queries: OrderingQueries,
+    private readonly reader: OrderReader,
+    private readonly paymentRequests: OrderPaymentRequests,
   ) {}
 
   @ApiOperation({
@@ -95,7 +102,7 @@ export class MeOrdersController {
       shippingAddress: shippingAddressOf(body),
       expectedTotal: body.expectedTotal,
     });
-    const order = await this.queries.findOrder(id);
+    const order = await this.reader.order(id);
     // The transaction that created it already committed.
     if (order === null) throw new Error(`Order ${id} was not saved`);
     response.setHeader(
@@ -103,6 +110,34 @@ export class MeOrdersController {
       `/v1/me/orders/${formatPublicCode(order.publicCode)}`,
     );
     return toOrderDto(order);
+  }
+
+  @ApiOperation({
+    summary: 'Iniciar el pago de mi orden',
+    description: START_PAYMENT_DESCRIPTION,
+  })
+  @ApiCreatedResponse({ type: PaymentStartDto })
+  @ApiOkResponse({ type: PaymentStartDto })
+  @ApiProblemResponses(...START_PAYMENT_PROBLEMS, 'staff-cannot-purchase')
+  @RequireAccount()
+  @UseGuards(NoStaffPurchases)
+  @Idempotent(userScope)
+  @Post(':publicCode/payments')
+  async startPayment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('publicCode') publicCode: string,
+    @Body() body: StartCustomerPaymentDto,
+    @Res({ passthrough: true }) response: { status(code: number): unknown },
+  ): Promise<PaymentStartDto> {
+    const code = parsePublicCode(publicCode);
+    if (code === null) throw new NotFoundError('Order', publicCode);
+    const start = await this.paymentRequests.startPayment({
+      publicCode: code,
+      payer: { customerId: customer(user) },
+      provider: body.provider,
+    });
+    if (!start.started) response.status(200);
+    return toPaymentStartDto(start);
   }
 
   @ApiOperation({
@@ -117,7 +152,7 @@ export class MeOrdersController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: OrderListQueryDto,
   ): Promise<OrderListDto> {
-    const page = await this.queries.listCustomerOrders(
+    const page = await this.reader.customerOrders(
       customer(user),
       {
         status: query.status,
@@ -150,7 +185,7 @@ export class MeOrdersController {
     const order =
       code === null
         ? null
-        : await this.queries.findCustomerOrder(customer(user), code);
+        : await this.reader.customerOrder(customer(user), code);
     if (order === null) throw new NotFoundError('Order', publicCode);
     return toOrderDto(order);
   }
