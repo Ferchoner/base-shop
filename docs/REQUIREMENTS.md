@@ -246,7 +246,8 @@ Criterios de aceptación:
 
 - **UC-INV-03:** un ajuste que deje `onHand` por debajo de `reserved` o de cero se rechaza; todo ajuste registra movimiento y motivo, y se audita. El motivo se elige del catálogo de ADR-0069 y su dirección se valida (por ejemplo, Dañado solo resta); con "Otro", la nota es obligatoria.
 - **UC-INV-05:** todo o nada; con N solicitudes concurrentes sobre el mismo stock nunca se reserva más que lo disponible (prueba de concurrencia contra PostgreSQL real); a lo sumo una reserva activa por orden.
-- **UC-INV-06:** `onHand` y `reserved` disminuyen en la cantidad reservada; la reserva pasa a Committed.
+- **UC-INV-06:** `onHand` y `reserved` disminuyen en la cantidad reservada; la reserva pasa a Committed. Confirmar dos veces no repite nada, y una reserva activa se confirma aunque haya pasado su `expiresAt`, mientras el job no la venza (ADR-0128).
+- **UC-INV-07:** `reserved` vuelve a disminuir y la reserva pasa a Released, una sola vez (ADR-0128).
 - **UC-INV-08:** las reservas vencidas se liberan en el minuto siguiente a su vencimiento, por lotes e idempotente.
 - **UC-INV-09:** solo para órdenes canceladas cuyo stock se había confirmado o con envío en Returned; admite cantidades parciales; la suma reintegrada por línea no supera lo vendido; genera movimiento con motivo y referencia a la orden; se audita. El motivo es Orden cancelada o Envío devuelto, según el caso.
 

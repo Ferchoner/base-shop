@@ -1097,6 +1097,8 @@ Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161):
 
 UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 
+Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva todo o nada (`reserve`), confirma (`commit`) y libera (`release`) por orden, y responde por línea si una cantidad puede surtirse (`canFulfill`), sin revelar existencias. Una reserva dura `RESERVATION_TTL` (20 minutos por defecto). Se puede confirmar mientras esté activa, hasta que el job de T-230 la venza.
+
 ---
 
 ## 14. Endpoints — Shopping

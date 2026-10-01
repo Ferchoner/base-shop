@@ -276,6 +276,7 @@ Ramas y commits (ADR-0084), en inglés:
 - El proyecto corre solo en local por ahora (ADR-0031).
 - Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110).
 - La tasa de IVA es `VAT_RATE_BP` (1600, el 16%, por defecto); cambiarla exige reiniciar la API y no altera órdenes colocadas (ADR-0027, ADR-0122).
+- Una reserva de stock dura `RESERVATION_TTL` (`20m` por defecto, de 5m a 2h, BR-INV-07, ADR-0128).
 - Las imágenes de producto se guardan en `IMAGE_STORAGE_DIR` (`./storage/images` por defecto, fuera de Git) y la API las sirve en `http://localhost:3000/media` (ADR-0121). `IMAGE_BASE_URL` es obligatoria en producción.
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
 

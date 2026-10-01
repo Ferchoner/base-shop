@@ -121,6 +121,7 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 - [x] T-145 (parte a): lista predeterminada creada por migración, precios desde ahora y programados en una línea de periodos sin huecos (consultar, fijar, programar y cancelar), bloqueo de la fila de la variante para cambios simultáneos, `PricingFacade.quote` para la tienda, el carrito y el checkout, y `CatalogFacade.variants`; la carga masiva queda para la parte b (ADR-0125)
 - [x] T-145 (parte b): carga masiva de precios en CSV (montos en pesos, fechas en hora de México o ISO con zona), todo o nada con los errores por línea, simulación con `dryRun`, archivo repetido sin cambios, hasta 5,000 filas procesadas en bloque en una transacción, y lector CSV compartido en `platform/files` (ADR-0126)
 - [x] T-160 (parte a): almacén creado por migración y editable (nombre y dirección validada con el catálogo del INEGI), entradas y ajustes con motivo en un `UPDATE` atómico y su movimiento, listado de stock completado con la fachada de Catalog (sin copiar SKU ni título) y movimientos con paginación por cursor; las reservas quedan para la parte b (ADR-0127)
+- [x] T-160 (parte b): `InventoryFacade` para el carrito y el checkout: `canFulfill` sin revelar cantidades, reservas todo o nada e idempotentes por orden, confirmación con movimientos SALE y liberación, cada una una sola vez; TTL en `RESERVATION_TTL`; pruebas de concurrencia contra PostgreSQL (ADR-0128)
 
 ## In Progress
 
