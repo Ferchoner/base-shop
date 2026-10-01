@@ -5,6 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import { OrderExpiry } from '../src/modules/ordering/application/order-expiry.use-case.js';
 import type { PaymentCaptured } from '../src/modules/ordering/infrastructure/payment-captured.event-handler.js';
 import type { AuthenticatedUser } from '../src/platform/auth/authenticated-user.js';
 import { DomainEventDispatcher } from '../src/platform/events/domain-event-dispatcher.js';
@@ -231,20 +232,16 @@ describe('Order administration (e2e, T-180)', () => {
     await app.get(DomainEventDispatcher).whenIdle();
   }
 
-  /** What the expiration job of T-230 will do: the order and its reservation expire, and the stock is freed. */
-  async function expire(orderId: string, variantId: string): Promise<void> {
+  /** The order runs out of time, and the expiration job ends it with its reservation (UC-ORD-10, ADR-0136). */
+  async function expire(orderId: string): Promise<void> {
     await prisma.order.update({
       where: { id: orderId },
-      data: { status: 'EXPIRED', expiredAt: new Date() },
+      data: { paymentDueAt: new Date(Date.now() - 1_000) },
     });
-    await prisma.reservation.updateMany({
-      where: { orderId },
-      data: { status: 'EXPIRED' },
-    });
-    await prisma.stockItem.updateMany({
-      where: { variantId },
-      data: { reserved: 0 },
-    });
+    await app.get(ClsService).run(() => app.get(OrderExpiry).expireDue());
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status,
+    ).toBe('EXPIRED');
   }
 
   const stockOf = (variantId: string) =>
@@ -531,8 +528,8 @@ describe('Order administration (e2e, T-180)', () => {
       const shirt = await variant(2);
       const stocked = await guestOrder(shirt);
       const short = await guestOrder(shirt);
-      await expire(stocked.id, shirt);
-      await expire(short.id, shirt);
+      await expire(stocked.id);
+      await expire(short.id);
       // Someone else bought one unit meanwhile.
       await prisma.stockItem.updateMany({
         where: { variantId: shirt },
@@ -614,7 +611,7 @@ describe('Order administration (e2e, T-180)', () => {
     async function waitingOrder(): Promise<{ id: string; shirt: string }> {
       const shirt = await variant(1);
       const { id } = await guestOrder(shirt);
-      await expire(id, shirt);
+      await expire(id);
       await prisma.stockItem.updateMany({
         where: { variantId: shirt },
         data: { onHand: 0 },
@@ -632,18 +629,18 @@ describe('Order administration (e2e, T-180)', () => {
     it('answers 409 insufficient-stock while there is no stock, and pays the order once there is', async () => {
       const { id, shirt } = await waitingOrder();
 
-      const short = await retry(id, 2).expect(409);
+      const short = await retry(id, 3).expect(409);
       await prisma.stockItem.updateMany({
         where: { variantId: shirt },
         data: { onHand: 3 },
       });
-      const { body } = await retry(id, 2).expect(200);
+      const { body } = await retry(id, 3).expect(200);
 
       expect(short.body).toMatchObject({
         type: '/problems/insufficient-stock',
         lines: [{ variantId: shirt, canFulfill: false }],
       });
-      expect(body).toMatchObject({ status: 'PAID', version: 3 });
+      expect(body).toMatchObject({ status: 'PAID', version: 4 });
       expect(body.statusHistory.at(-1)).toMatchObject({
         fromStatus: 'AWAITING_MANUAL_FULFILLMENT',
         toStatus: 'PAID',

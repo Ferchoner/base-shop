@@ -21,6 +21,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
+import { OrderExpiry } from '../application/order-expiry.use-case.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { Order, type OrderId, type VariantId } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
@@ -206,17 +207,13 @@ describe('Ordering: life of an order (T-180)', () => {
     );
   }
 
-  /** What the expiration job of T-230 will do: the order and its reservation expire, and the stock is freed. */
+  /** The order runs out of time, and the expiration job ends it with its reservation (UC-ORD-10, ADR-0136). */
   async function expire(orderId: OrderId): Promise<void> {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: 'EXPIRED', expiredAt: new Date(START) },
-    });
-    await prisma.reservation.updateMany({
-      where: { orderId },
-      data: { status: 'EXPIRED' },
-    });
-    await prisma.stockItem.updateMany({ data: { reserved: 0 } });
+    current += 21 * 60_000;
+    await run(() => moduleRef.get(OrderExpiry).expireDue());
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status,
+    ).toBe('EXPIRED');
   }
 
   const pay = (orderId: OrderId, amount: number) =>
