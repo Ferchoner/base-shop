@@ -49,32 +49,57 @@ const MESSAGES: Readonly<Record<string, string>> = {
 
 const FALLBACK_MESSAGE = 'El valor no es válido.';
 
-/** Flattens class-validator errors into the `errors` extension, one entry per failed constraint. */
+/**
+ * Constraints reported before the others when several fail on one field (ADR-0130): whether the field is present,
+ * then whether its value has the right type. A value of the wrong type also fails the length and range
+ * constraints, and their messages would mislead, such as "Es mayor que el máximo permitido." for `abc`. An
+ * undeclared field fails only `whitelistValidation`.
+ */
+const BASIC_CONSTRAINTS = [
+  'isDefined',
+  'isNotEmpty',
+  'isString',
+  'isInt',
+  'isNumber',
+  'isBoolean',
+  'isArray',
+  'isObject',
+];
+
+/**
+ * The one constraint reported for a field: the first basic one that failed, or else the first that failed, in
+ * the order class-validator ran them.
+ */
+function reportedConstraint(failed: readonly string[]): string | undefined {
+  return BASIC_CONSTRAINTS.find((code) => failed.includes(code)) ?? failed[0];
+}
+
+/** Flattens class-validator errors into the `errors` extension, one entry per field. */
 export function toFieldErrors(
   errors: readonly ValidationError[],
   parentPath = '',
 ): FieldError[] {
   return errors.flatMap((error) => {
     const field = joinPath(parentPath, error.property);
-    const own = Object.keys(error.constraints ?? {}).map((code) => ({
-      field,
-      code,
-      message: messageFor(error, code),
-    }));
+    const code = reportedConstraint(Object.keys(error.constraints ?? {}));
+    const own =
+      code === undefined
+        ? []
+        : [{ field, code, message: messageFor(error, code) }];
     return [...own, ...toFieldErrors(error.children ?? [], field)];
   });
 }
 
 /**
  * Input validation for every endpoint (ADR-0087, ADR-0095). Undeclared fields and query parameters are
- * rejected (`API_SPEC.md` §5.3), and only the first failed constraint of each field is reported.
+ * rejected (`API_SPEC.md` §5.3). Every constraint of a field runs, whatever the order of its decorators, and one
+ * is reported per field: presence and type first (ADR-0130). Custom constraints must accept a value of any type.
  */
 export function createValidationPipe(): ValidationPipe {
   return new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
-    stopAtFirstError: true,
     // Rejected values stay out of the error objects, so they cannot reach a response or a log.
     validationError: { target: false, value: false },
     exceptionFactory: (errors) =>
