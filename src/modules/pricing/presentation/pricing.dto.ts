@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -155,4 +157,30 @@ export class SetPriceDto {
     context: { message: 'Debe ser fecha y hora con zona horaria.' },
   })
   effectiveFrom?: string | null;
+}
+
+/** Query of `POST …/price-lists/{priceListId}/imports` (UC-PRC-05). */
+export class PriceImportQueryDto {
+  /** Valida el archivo y responde el resumen sin guardar nada. */
+  @ApiPropertyOptional({ type: Boolean, default: false })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  dryRun?: boolean;
+}
+
+/** What a bulk import did, or would do with `dryRun` (ADR-0126). */
+export class PriceImportSummaryDto {
+  /** Filas del archivo, sin el encabezado. */
+  rows: number;
+
+  /** Periodos abiertos o programados. */
+  created: number;
+
+  /** Filas iguales al precio vigente, o a uno ya programado en el mismo instante. */
+  unchanged: number;
+
+  dryRun: boolean;
 }

@@ -193,9 +193,19 @@ export class PrismaCatalogQueries extends CatalogQueries {
     return row === null ? null : toProductView(row);
   }
 
-  async findVariants(ids: readonly VariantId[]): Promise<VariantSnapshot[]> {
+  findVariants(ids: readonly VariantId[]): Promise<VariantSnapshot[]> {
+    return this.variantsWhere({ id: { in: [...ids] } });
+  }
+
+  findVariantsBySku(skus: readonly string[]): Promise<VariantSnapshot[]> {
+    return this.variantsWhere({ sku: { in: [...skus] } });
+  }
+
+  private async variantsWhere(
+    where: Prisma.ProductVariantWhereInput,
+  ): Promise<VariantSnapshot[]> {
     const rows = await this.txHost.tx.productVariant.findMany({
-      where: { id: { in: [...ids] } },
+      where,
       include: { product: { select: { title: true, status: true } } },
       orderBy: { sku: 'asc' },
     });

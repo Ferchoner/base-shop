@@ -143,6 +143,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0123 | Productos y variantes: división de T-140, slugs, opciones y búsqueda | Aceptada |
 | ADR-0124 | Imágenes de producto: galería, límite y subidas simultáneas | Aceptada |
 | ADR-0125 | Precios: lista predeterminada, línea de periodos y fachadas | Aceptada |
+| ADR-0126 | Carga masiva de precios: formato, todo o nada y proceso en bloque | Aceptada |
 
 ---
 
@@ -803,7 +804,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Las ofertas simples se cubren con el precio de comparación y los precios programados.
   - Los listados del catálogo son iguales para todos los visitantes, lo que mantiene válida la cache de ADR-0028. Si se agregan listas por cliente, habrá que revisar esa cache.
-- **Estado:** Aceptada. La lista predeterminada la crea una migración en T-145 (ADR-0125); el formato de la carga masiva queda para T-145 parte b.
+- **Estado:** Aceptada. La lista predeterminada la crea una migración en T-145 (ADR-0125), y ADR-0126 define el formato de la carga masiva.
 
 ---
 
@@ -2513,7 +2514,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La base local se carga una vez con `npm run geo:import -- data/inegi/municipios-2026-06.csv`. Actualizar el catálogo es reemplazar el archivo versionado e importarlo (`data/inegi/README.md`).
   - T-131 (primer superadministrador) usa el mismo mecanismo de scripts.
   - Para ejecutar el script en producción, la imagen necesitará el archivo del catálogo, igual que `prisma/` para las migraciones (P-05).
-- **Estado:** Aceptada (plan de T-124 aprobado el 2026-09-28). ADR-0112 amplía la convención de OpenAPI a listas, fechas y campos nulos.
+- **Estado:** Aceptada (plan de T-124 aprobado el 2026-09-28). ADR-0112 amplía la convención de OpenAPI a listas, fechas y campos nulos. El lector CSV pasa a `src/platform/files/csv.ts` para compartirlo con la carga masiva de precios (ADR-0126).
 
 ---
 
@@ -3231,4 +3232,61 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Si llegan dos precios desde ahora de una misma variante en el mismo milisegundo, el segundo responde 409 `overlap`.
   - `API_SPEC.md` §11.6 decía que `storeVisibility` usa la fachada de Pricing; queda PENDIENTE para T-140 parte c.
   - UC-PRC-05 sigue PENDIENTE (T-145 parte b).
-- **Estado:** Aceptada (plan de T-145 aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-145 aprobado el 2026-09-30). ADR-0126 cambia una regla: un precio programado idéntico al que ya existe en el mismo instante responde 200 con ese periodo, en lugar de 409.
+
+---
+
+## ADR-0126 — Carga masiva de precios: formato, todo o nada y proceso en bloque
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-145 parte b (UC-PRC-05). ADR-0039 dejó el formato de la carga masiva para T-145, y ADR-0125 lo pasó a esta parte. Faltaban por decidir:
+  - el formato del archivo, de los montos y de las fechas;
+  - si la validación es parcial o total, y la respuesta;
+  - los límites.
+
+  Además, una carga de miles de filas no cabe en una transacción de 5 s si cada fila hace sus propias consultas.
+- **Decisión:**
+  - **Endpoint:** `POST /v1/admin/pricing/price-lists/{priceListId}/imports`, con `pricing.write`. Recibe `multipart/form-data` con el archivo en `file`, y acepta `?dryRun=true`.
+  - **Archivo:**
+    - CSV (RFC 4180) en UTF-8, con o sin BOM, separado por comas y con encabezado; las líneas vacías se ignoran.
+    - Columnas `sku`, `amount`, `compareAtAmount` y `effectiveFrom`, cada una una vez, en cualquier orden y sin distinguir mayúsculas.
+    - Hasta 5,000 filas y 1 MB.
+  - **Valores:**
+    - `sku`: el de una variante en cualquier estado, sin distinguir mayúsculas, como en `POST …/periods`.
+    - `amount` y `compareAtAmount` (opcional): pesos con punto decimal y hasta 2 decimales (`599`, `599.5`, `599.00`), sin `$` ni separador de miles.
+    - `effectiveFrom`: vacía significa "desde ahora". Una fecha y hora sin zona (`2026-11-14 00:00`) se lee en hora de México (America/Mexico_City), como los jobs (ADR-0101). También se acepta ISO 8601 con zona.
+  - **Cada fila es un `POST …/periods`** (ADR-0125), con estas reglas propias:
+    - Todas las filas "desde ahora" empiezan en el mismo instante: el de la carga.
+    - Un SKU puede repetirse con inicios distintos, por ejemplo una oferta y su regreso al precio normal. El mismo SKU con el mismo inicio es un error de la fila, y una fecha pasada cuenta como "desde ahora".
+    - El resultado no depende del orden de las filas.
+  - **Todo o nada:**
+    - Se revisan todas las filas antes de guardar. Con cualquier error no se importa nada, y la respuesta es 400 `validation-error` con los primeros 100 errores, ordenados por línea.
+    - Cada error señala `rows[<línea>].<columna>`, donde el encabezado es la línea 1.
+    - Los errores del archivo completo van en `file`: falta el archivo, no está en UTF-8, tiene otras columnas, no tiene filas o pasa de 5,000.
+    - Un archivo de más de 1 MB responde 413 con `maxBytes`.
+  - **Repetir el archivo no cambia nada:**
+    - Una fila "desde ahora" igual al precio vigente cuenta como sin cambio.
+    - Una fila programada idéntica a la que ya existe en ese instante, también.
+    - La segunda regla también aplica a `POST …/periods`, que en ese caso ahora responde 200 con el periodo existente en lugar de 409 (cambia ADR-0125). Con otro precio en el mismo instante sigue el 409 `overlap`.
+  - **Respuesta:** 200 `{ rows, created, unchanged, dryRun }`. Con `dryRun`, las mismas revisiones corren dentro de una transacción que se deshace.
+  - **Proceso en bloque:**
+    - Una sola transacción bloquea todas las variantes del archivo en una consulta, en orden de variante. Así dos cambios de varias variantes nunca se esperan en círculo.
+    - Lee sus periodos de una vez y escribe con unas pocas sentencias que reciben arreglos. `POST …/periods` usa la misma vía con una sola variante.
+    - Medido en local: 5,000 filas en unos 1.4 s, dentro del límite de 5 s de las transacciones.
+  - **Auditoría:**
+    - Una sola entrada `prices.import` sobre la lista, con `rows`, `created` y `unchanged`.
+    - Una carga que no crea periodos no guarda ni audita nada.
+    - Cada periodo conserva `created_by` y `created_at`.
+  - **Lector CSV compartido:** el lector RFC 4180 de la importación del catálogo geográfico (ADR-0109) pasa a `src/platform/files/csv.ts`, y ahora da la línea de cada registro.
+  - **SKU en Catalog:** `CatalogFacade.variantsBySku` busca las variantes por SKU, sin distinguir mayúsculas.
+- **Alternativas consideradas:**
+  - **Cuerpo JSON:** es más fácil de validar, pero no se puede preparar en una hoja de cálculo.
+  - **Montos en centavos,** como el resto de la API: es fácil equivocarse por un factor de 100.
+  - **Solo fechas ISO con zona:** son poco prácticas de escribir en una hoja de cálculo.
+  - **Aplicar las filas válidas y reportar las demás:** el archivo queda aplicado a medias, y cuesta corregirlo y volver a subirlo.
+  - **Una entrada de auditoría por periodo:** 5,000 inserciones no caben en la transacción.
+- **Consecuencias:**
+  - La auditoría de una carga no dice qué precios cambió. El historial de cada variante (`price_periods`, con quién y cuándo) sí lo dice.
+  - Si hacen falta más de 5,000 filas o de 1 MB, habrá que procesar la carga en segundo plano.
+  - T-145 queda completa.
+- **Estado:** Aceptada (plan de T-145 parte b aprobado el 2026-09-30).

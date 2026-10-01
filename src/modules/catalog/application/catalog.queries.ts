@@ -153,4 +153,9 @@ export abstract class CatalogQueries {
 
   /** The variants with these IDs, in any status, ordered by SKU; an ID that does not exist is left out. */
   abstract findVariants(ids: readonly VariantId[]): Promise<VariantSnapshot[]>;
+
+  /** The variants with these SKUs, as stored (uppercase), ordered by SKU; a SKU that does not exist is left out. */
+  abstract findVariantsBySku(
+    skus: readonly string[],
+  ): Promise<VariantSnapshot[]>;
 }

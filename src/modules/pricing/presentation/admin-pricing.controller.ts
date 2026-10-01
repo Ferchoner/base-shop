@@ -8,8 +8,10 @@ import {
   Post,
   Query,
   Res,
+  UploadedFile,
 } from '@nestjs/common';
 import {
+  ApiBody,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
@@ -22,12 +24,20 @@ import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
+import { ImportPrices } from '../application/import-prices.use-case.js';
 import {
   type PricePeriodStateView,
   PricingQueries,
 } from '../application/pricing.queries.js';
 import { VariantPrices } from '../application/variant-prices.use-case.js';
 import {
+  PriceFileUpload,
+  readPriceFile,
+  type UploadedPriceFile,
+} from './price-file.js';
+import {
+  PriceImportQueryDto,
+  PriceImportSummaryDto,
   PriceListListDto,
   PricePeriodDto,
   PricePeriodListDto,
@@ -40,9 +50,9 @@ const variant = (id: string) => pathId<'Variant'>(id, 'Variant');
 const period = (id: string) => pathId<'PricePeriod'>(id, 'PricePeriod');
 
 /**
- * Price lists and the prices of each variant (UC-PRC-01 to 04, API_SPEC.md §12, ADR-0039, ADR-0125). The MVP
- * has only the default list, so there are no endpoints to create or edit lists. The store sees new prices
- * when its cache expires (ADR-0028).
+ * Price lists and the prices of each variant (UC-PRC-01 to 05, API_SPEC.md §12, ADR-0039, ADR-0125,
+ * ADR-0126). The MVP has only the default list, so there are no endpoints to create or edit lists. The store
+ * sees new prices when its cache expires (ADR-0028).
  */
 @ApiTags('Administración: precios')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -51,6 +61,7 @@ export class AdminPricingController {
   constructor(
     private readonly queries: PricingQueries,
     private readonly prices: VariantPrices,
+    private readonly importPrices: ImportPrices,
   ) {}
 
   @ApiOperation({ summary: 'Listar las listas de precios' })
@@ -143,6 +154,38 @@ export class AdminPricingController {
       priceList(priceListId),
       variant(variantId),
       period(periodId),
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Cargar precios desde un archivo CSV',
+    description:
+      'CSV en UTF-8 con las columnas sku, amount, compareAtAmount y effectiveFrom, en cualquier orden. Montos en pesos con punto decimal (599.00); fechas en hora de México (2026-11-14 00:00) o ISO 8601 con zona horaria; vacía, desde ahora. Todo o nada: con un error en cualquier fila no se carga ninguna. Hasta 5,000 filas y 1 MB.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOkResponse({ type: PriceImportSummaryDto })
+  @ApiProblemResponses('not-found', 'payload-too-large')
+  @RequirePermissions('pricing.write')
+  @HttpCode(200)
+  @PriceFileUpload()
+  @Post(':priceListId/imports')
+  import(
+    @Param('priceListId') priceListId: string,
+    @UploadedFile() file: UploadedPriceFile | undefined,
+    @Query() query: PriceImportQueryDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<PriceImportSummaryDto> {
+    return this.importPrices.execute(
+      priceList(priceListId),
+      readPriceFile(file),
+      { dryRun: query.dryRun ?? false },
+      actor.id,
     );
   }
 }

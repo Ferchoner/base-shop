@@ -192,6 +192,19 @@ describe('VariantPrice (UC-PRC-02 to 04, ADR-0125)', () => {
       });
     });
 
+    it('changes nothing for the same price scheduled again at the same instant (ADR-0126)', () => {
+      const sale = stored(49_900, NOV_14, null, 59_900);
+      const prices = pricesOf([stored(59_900, OCT_1, NOV_14), sale]);
+
+      const again = prices.set(price(49_900, NOV_14, 59_900), NOW);
+
+      expect(again).toEqual({ period: sale, change: 'unchanged' });
+      expect(prices.changes()).toEqual({ removed: [], ended: [], added: [] });
+      expect(() => prices.set(price(49_900, NOV_14), NOW)).toThrow(
+        PricePeriodConflictError,
+      );
+    });
+
     it('rejects a price from now on when the current period began at this very instant', () => {
       const prices = pricesOf([stored(59_900, NOW, null)]);
 

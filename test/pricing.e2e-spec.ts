@@ -181,7 +181,7 @@ describe('Pricing (e2e, T-145 part a)', () => {
     });
   });
 
-  it('cancels a scheduled price, and answers 409 with reason for a period that began or one at the same instant', async () => {
+  it('cancels a scheduled price, answers 200 for the same one again, and 409 with reason for a period that began or another one at the same instant', async () => {
     const variantId = await createVariant();
     const nextWeek = new Date(Date.now() + 7 * DAY).toISOString();
     const first = await setPrice(variantId, { amount: 59_900 }).expect(201);
@@ -194,6 +194,11 @@ describe('Pricing (e2e, T-145 part a)', () => {
       amount: 44_900,
       effectiveFrom: nextWeek,
     }).expect(409);
+    // The same price at the same instant changes nothing (ADR-0126).
+    const sameSale = await setPrice(variantId, {
+      amount: 49_900,
+      effectiveFrom: nextWeek,
+    }).expect(200);
     const started = await http()
       .delete(`${periodsOf(variantId)}/${first.body.id}`)
       .set(writer())
@@ -207,6 +212,7 @@ describe('Pricing (e2e, T-145 part a)', () => {
       .set(writer())
       .expect(404);
 
+    expect(sameSale.body).toEqual(sale.body);
     expect(sameInstant.body).toMatchObject({
       type: '/problems/price-period-conflict',
       reason: 'overlap',

@@ -3,13 +3,17 @@ import type { VariantId } from '../domain/variant.js';
 import { CatalogFacade } from './catalog.facade.js';
 import { CatalogQueries, type VariantSnapshot } from './catalog.queries.js';
 
-/** Remembers which variants it was asked for; only `findVariants` is used. */
+/** Remembers which variants it was asked for, by ID or by SKU; only those two queries are used. */
 function queriesAnswering(snapshots: VariantSnapshot[]) {
-  const asked: VariantId[][] = [];
+  const asked: string[][] = [];
   const queries = {
     findVariants: (ids: readonly VariantId[]) => {
       asked.push([...ids]);
       return Promise.resolve(snapshots.filter(({ id }) => ids.includes(id)));
+    },
+    findVariantsBySku: (skus: readonly string[]) => {
+      asked.push([...skus]);
+      return Promise.resolve(snapshots.filter(({ sku }) => skus.includes(sku)));
     },
   } as unknown as CatalogQueries;
   return { queries, asked };
@@ -48,6 +52,20 @@ describe('CatalogFacade (ADR-0005, ADR-0125)', () => {
     const { queries, asked } = queriesAnswering([snapshot]);
 
     expect(await new CatalogFacade(queries).variants([])).toEqual([]);
+    expect(await new CatalogFacade(queries).variantsBySku([])).toEqual([]);
     expect(asked).toEqual([]);
+  });
+
+  it('finds variants by SKU whatever their case, asking each SKU once in uppercase (ADR-0126)', async () => {
+    const { queries, asked } = queriesAnswering([snapshot]);
+
+    expect(
+      await new CatalogFacade(queries).variantsBySku([
+        'cam-lino-m',
+        'CAM-LINO-M',
+        'gorra',
+      ]),
+    ).toEqual([snapshot]);
+    expect(asked).toEqual([['CAM-LINO-M', 'GORRA']]);
   });
 });

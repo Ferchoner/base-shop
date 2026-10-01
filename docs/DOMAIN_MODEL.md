@@ -56,7 +56,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Domain services | `PriceResolver`; en el MVP, `PricingFacade.quote` resuelve con la lista predeterminada (ADR-0125) |
 | Eventos | `PriceScheduled`, `PriceChanged` (solo si tienen consumidor; ninguno todavía, ADR-0125) |
 | Repositories | `PriceListRepository`, `VariantPriceRepository` |
-| Casos de uso | CreatePriceList (fuera del MVP), SetPrice, SchedulePrice, CancelScheduledPrice (`VariantPrices`), BulkImportPrices (T-145 parte b), QuotePrices (API pública) |
+| Casos de uso | CreatePriceList (fuera del MVP), SetPrice, SchedulePrice, CancelScheduledPrice (`VariantPrices`), BulkImportPrices (`ImportPrices`, ADR-0126), QuotePrices (API pública) |
 | Exporta | Precio resuelto por variante e instante (`PricingFacade.quote`, ADR-0125) |
 
 ## Inventory

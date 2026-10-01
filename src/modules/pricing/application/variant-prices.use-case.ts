@@ -107,7 +107,7 @@ export class VariantPrices {
         : Money.of(input.compareAtAmount, 'MXN');
     await this.requireListAndVariant(priceListId, variantId);
     return this.transactions.run(async () => {
-      const prices = await this.prices.lock(priceListId, variantId);
+      const [prices] = await this.prices.lock(priceListId, [variantId]);
       // Read after the lock, so a change that waited for another one starts after it.
       const now = this.clock.now();
       const { period, change } = prices.set(
@@ -121,7 +121,7 @@ export class VariantPrices {
         now,
       );
       if (change !== 'unchanged') {
-        await this.prices.save(prices);
+        await this.prices.save([prices]);
         await this.audit.record({
           action: change === 'set' ? 'prices.set' : 'prices.schedule',
           resource: { type: 'price-period', id: period.id },
@@ -143,9 +143,9 @@ export class VariantPrices {
   ): Promise<void> {
     await this.requireListAndVariant(priceListId, variantId);
     await this.transactions.run(async () => {
-      const prices = await this.prices.lock(priceListId, variantId);
+      const [prices] = await this.prices.lock(priceListId, [variantId]);
       const period = prices.cancel(periodId, this.clock.now());
-      await this.prices.save(prices);
+      await this.prices.save([prices]);
       await this.audit.record({
         action: 'prices.cancel',
         resource: { type: 'price-period', id: periodId },

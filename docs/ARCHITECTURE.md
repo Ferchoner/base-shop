@@ -38,6 +38,7 @@ src/
 │   ├── cache/                 AppCache con espacios de nombres sobre @nestjs/cache-manager (T-119, ADR-0104)
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno y el formato de sus valores, como las duraciones (T-100, ADR-0114)
+│   ├── files/                 lector CSV (RFC 4180) con la línea de cada registro, para la importación del catálogo geográfico y la carga masiva de precios (T-124, T-145; ADR-0109, ADR-0126)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados, IDs de la URL, `MoneyDto` e imágenes servidas en `/media` (T-100, T-113, T-114, T-115, T-126, T-130, T-141, T-150, T-196)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)

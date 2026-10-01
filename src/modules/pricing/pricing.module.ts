@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/index.js';
 import { CatalogVariants } from './application/catalog-variants.js';
+import { ImportPrices } from './application/import-prices.use-case.js';
 import { PricingFacade } from './application/pricing.facade.js';
 import { PricingQueries } from './application/pricing.queries.js';
 import { VariantPrices } from './application/variant-prices.use-case.js';
@@ -22,6 +23,7 @@ import { AdminPricingController } from './presentation/admin-pricing.controller.
   providers: [
     PricingFacade,
     VariantPrices,
+    ImportPrices,
     { provide: PriceListRepository, useClass: PrismaPriceListRepository },
     { provide: VariantPriceRepository, useClass: PrismaVariantPriceRepository },
     { provide: PricingQueries, useClass: PrismaPricingQueries },

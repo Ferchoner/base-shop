@@ -299,7 +299,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `UNIQUE (price_list_id, variant_id)`.
 - **Índices:** `(variant_id)`.
-- **Uso:** la fila se crea con el primer precio de la variante en la lista. Cada cambio de precios la bloquea (`FOR UPDATE`) e incrementa `version` (ADR-0125).
+- **Uso:** la fila se crea con el primer precio de la variante en la lista. Cada cambio de precios la bloquea (`FOR UPDATE`) e incrementa `version` (ADR-0125). Una carga masiva bloquea las filas de todas sus variantes en una sola consulta, en orden de variante (ADR-0126).
 
 ### 5.3 `price_periods`
 
