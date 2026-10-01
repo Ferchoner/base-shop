@@ -390,6 +390,8 @@ Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `mu
 
 `url` absoluta, construida al responder (ADR-0024): `IMAGE_BASE_URL` más la clave, como `http://localhost:3000/media/products/<productId>/<imageId>.webp` en local (ADR-0121).
 
+La imagen en posición 1 es la principal del producto, y la primera de una variante es la suya; el staff las elige reordenando la galería (ADR-0124, ADR-0131).
+
 ### 8.4 `ProductSummary` (catálogo público)
 
 ```json
@@ -1145,6 +1147,16 @@ Las rutas `/v1/carts/{cartId}` solo operan sobre carritos de invitado (sin dueñ
 | `POST /v1/me/cart/merge` | Request `{ "guestCartId" }`. Fusiona sumando con tope de 30 sin aviso; si el cliente no tiene carrito, el de invitado pasa a su cuenta; idempotente (ADR-0059). 200 `Cart` resultante. Errores: 404 si el carrito no existe o tiene dueño; 409 `cart-not-active` si ya se fusionó en otra cuenta o se usó en una orden |
 
 Una cuenta de staff en `/v1/me/cart` → 403 `staff-cannot-purchase` (E-09). Las variantes no vendibles se conservan con `sellable: false` (ADR-0059); no se pueden agregar nuevas.
+
+Implementado en T-170 (ADR-0131):
+
+- **Staff:** un token de staff también responde 403 `staff-cannot-purchase` al crear un carrito de invitado o cambiar sus líneas; leerlo sí se puede.
+- **Variante no vendible:** 409 `variant-not-sellable` con `variantIds`, igual para una que no existe, una sin publicar o archivada, una descontinuada o una sin precio. Cambiar la cantidad de una línea que dejó de ser vendible también responde 409; quitarla siempre se puede.
+- **Cantidades:** si una suma deja la línea con más de 30 unidades, responde 400 `validation-error` con `lineQuantity` en `quantity`. Un carrito tiene como máximo 100 variantes distintas; la siguiente responde 409 `cart-line-limit-reached` con `limit`.
+- **Quitar:** quitar una línea que no está no cambia nada y responde el carrito.
+- **Línea:** lleva la primera imagen de su variante o, si no tiene, la primera imagen general del producto. Las líneas van de la más antigua a la más nueva; `itemCount` cuenta las unidades de todas, y `subtotal`, solo las vendibles.
+- **Carrito sin activo:** `GET /v1/me/cart` sin carrito activo responde `status: ACTIVE` y `lastActivityAt: null`. Solo los cambios actualizan `lastActivityAt`.
+- **Fusión:** si el carrito ya se fusionó o se adoptó en la misma cuenta, responde 200 con el carrito actual sin volver a sumar.
 
 ### 14.3 Recompra de órdenes canceladas (UC-CRT-09, ADR-0055)
 

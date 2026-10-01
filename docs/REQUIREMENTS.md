@@ -271,6 +271,7 @@ Criterios de aceptación:
 - **UC-CRT-01:** el carrito de invitado se identifica con un `cartId` opaco, aleatorio y no adivinable devuelto por la API, sin cookies; un cliente registrado tiene a lo sumo un carrito activo; una cuenta de staff no puede tener carrito (BR-USR-08).
 - **UC-CRT-02 / 03:** cantidad entre 1 y 30; agregar una variante existente suma a su línea; se rechaza una variante inexistente o no vendible.
 - **UC-CRT-05:** precios calculados al leer desde Pricing; nunca se toman del carrito. Cada línea indica si la cantidad pedida puede surtirse, sin revelar la cantidad disponible (ADR-0061).
+- **UC-CRT-01 a 05 (implementación, ADR-0131):** cada cambio bloquea el carrito, así que dos cambios simultáneos nunca dejan una línea con más de 30 unidades. Un carrito tiene como máximo 100 variantes distintas. Cada línea muestra la imagen principal de su variante o, si no tiene, la del producto.
 - **UC-CRT-06:** endpoint explícito que recibe el `cartId` del invitado; suma cantidades y limita cada línea a 30 sin aviso; si el cliente no tiene carrito activo, el carrito de invitado pasa a su cuenta; el carrito fusionado queda en Merged y ya no se puede modificar; repetir la fusión no vuelve a sumar; se rechaza un carrito con dueño o una cuenta de staff.
 - **UC-CRT-08:** las líneas de la orden expirada se suman al carrito activo del cliente registrado o reactivan el carrito original (invitados, o registrados sin carrito activo); tope de 30 por línea sin aviso; idempotente ante eventos duplicados.
 - **UC-CRT-09:** solo para órdenes Cancelled o Refunded; la orden no cambia; las líneas se suman al carrito con tope de 30; precios y disponibilidad son los actuales; variantes no vendibles se omiten; cuando lo hace el staff, las líneas van al carrito del cliente y la acción se audita; si la orden es de un invitado y su carrito original ya no existe, la recompra del staff se rechaza sin crear otro carrito (ADR-0082).
@@ -444,6 +445,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | 409 (ADR-0071) | UC-ORD-01, 02 |
 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe | 409 (ADR-0082) | UC-CRT-09 |
 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | 409 | UC-CAT-11 |
+| E-36 | Más de 100 variantes distintas en un carrito (ADR-0131) | 409 | UC-CRT-02 |
 
 ---
 

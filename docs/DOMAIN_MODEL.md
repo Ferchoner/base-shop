@@ -80,6 +80,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Repositories | `CartRepository` |
 | Casos de uso | CreateCart, AddItem, ChangeQuantity, RemoveItem, MergeGuestCart, GetCartView, RestoreCartFromExpiredOrder (ADR-0054), CopyCancelledOrderToCart (ADR-0055) |
 | Exporta | Líneas del carrito (variantId, cantidad) |
+| Implementado | T-170 (ADR-0131): `Cart` con sus reglas (una línea por variante, de 1 a 30 unidades, hasta 100 variantes, solo el carrito activo cambia, fusión y adopción); puertos `CartCatalog`, `CartPrices` y `CartStock` hacia las fachadas de Catalog, Pricing e Inventory |
 
 ## Ordering
 
