@@ -150,6 +150,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0130 | Validación: una regla por campo, primero la presencia y el tipo | Aceptada |
 | ADR-0131 | Carrito: bloqueos, límite de líneas, variantes no vendibles e imagen principal | Aceptada |
 | ADR-0132 | Checkout y pedidos: división de T-180, dependencias de Ordering, reintegro sin ciclo y vencimiento del pago | Aceptada |
+| ADR-0133 | Administración de órdenes: cancelación sin pago, pago capturado, pago tardío y reserva todo o nada | Aceptada |
 
 ---
 
@@ -307,7 +308,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:** Si llega un pago capturado para una orden expirada, se intenta reservar stock y procesar la orden. Si no hay stock, la orden pasa a AwaitingManualFulfillment para resolución manual por el staff (conseguir stock y pasar a Paid, o cancelar con reembolso).
 - **Alternativas consideradas:** Reembolso automático; reembolso siempre.
 - **Consecuencias:** Requiere una vista administrativa de órdenes en AwaitingManualFulfillment. Con captura inmediata (ADR-0013), una cancelación en este estado implica reembolso.
-- **Estado:** Aceptada. Ordering reserva y confirma en la misma transacción con la fachada de Inventory, que permite abrir una reserva nueva para la orden (ADR-0128).
+- **Estado:** Aceptada. Ordering reserva y confirma en la misma transacción con la fachada de Inventory, que permite abrir una reserva nueva para la orden (ADR-0128). Implementada en T-180 parte b (ADR-0133): sin stock, la orden pasa a AWAITING_MANUAL_FULFILLMENT sin apartar nada.
 
 ---
 
@@ -1998,7 +1999,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-116 (despacho de eventos después del commit) amplía este mecanismo. Hecho en ADR-0098: la transacción más externa ejecuta acciones después de confirmar.
   - La imagen de producción pesa unos 880 MB e incluye el CLI de Prisma y sus dependencias; `npm audit` sigue sin vulnerabilidades gracias a los `overrides` de ADR-0091.
 - **Revisar si:** el adaptador deja de exigir el CLI (la imagen podría volver a 510 MB), un caso necesita savepoints o el límite de 5 s resulta corto.
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0116: una ejecución anidada corre en la transacción de afuera sin volver a pedirla a `nestjs-cls`.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0116: una ejecución anidada corre en la transacción de afuera sin volver a pedirla a `nestjs-cls`. ADR-0133 agrega `runNested`, un paso que deshace solo lo suyo con un `SAVEPOINT`.
 
 ---
 
@@ -2152,7 +2153,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tests de integración esperan a los handlers con `DomainEventDispatcher.whenIdle()`.
   - Corregido `DOMAIN_MODEL.md`: Shopping no reacciona a `OrderPlaced`; el checkout marca el carrito dentro de su transacción (ADR-0019).
 - **Revisar si:** los logs muestran fallos frecuentes de handlers, un efecto en segundo plano necesita garantía de entrega, o se ejecuta más de una instancia.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0133: el publicador registra un callback por publicación, así que un paso deshecho con `runNested` descarta sus eventos.
 
 ---
 
@@ -3388,7 +3389,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Hay una variable nueva en `.env.example`.
   - T-170, T-180 y T-190 usarán la fachada desde un puerto propio.
   - Las pruebas de concurrencia contra PostgreSQL muestran que N reservas simultáneas nunca reservan más de lo disponible, y que dos reservas con líneas en orden contrario no se bloquean entre sí.
-- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30). ADR-0133 hace que `reserve` sea todo o nada por sí misma, también dentro de la transacción de quien llama.
 
 ---
 
@@ -3640,4 +3641,60 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La migración agrega `payment_due_at` `NOT NULL` sin valor predeterminado, porque `orders` estaba vacía.
   - Pruebas de concurrencia contra PostgreSQL: dos órdenes del mismo carrito, dos carritos por la última unidad, dos órdenes del mismo cliente y una orden que espera un cambio del carrito en curso.
   - Hasta T-230, las órdenes sin pago no vencen y mantienen su stock apartado (ADR-0128).
-- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones).
+- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`.
+
+---
+
+## ADR-0133 — Administración de órdenes: cancelación sin pago, pago capturado, pago tardío y reserva todo o nada
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-180 parte b (UC-ORD-06 a 09). ADR-0132 dejó sus preguntas para esta parte. Quedaban abiertos estos puntos:
+  - cómo cancelar una orden pagada si iniciar su reembolso necesita a Payments, que llega con T-190;
+  - la forma de `PaymentCaptured`, y qué hacer con un monto distinto del total o con el pago de una orden ya cancelada;
+  - que `InventoryFacade.reserve` dejaba apartadas las líneas que sí alcanzaron y confiaba en que quien llama revirtiera todo, mientras que un pago tardío sin stock tiene que guardar AWAITING_MANUAL_FULFILLMENT en esa misma transacción;
+  - qué busca `q` y cómo se sabe `hasPendingRefund` sin Payments;
+  - qué pasa si el staff cancela mientras llega el pago.
+- **Decisión:**
+  - **Consulta del staff (UC-ORD-06):**
+    - `GET /v1/admin/orders`, paginado, con `q`, `status`, `customerId`, `guest` (`true` o `false`), `placedFrom`, `placedTo` y `hasPendingRefund`, y orden por `placedAt` (el predeterminado, descendente), `orderNumber` o `grandTotal`, con desempate por ID;
+    - `q` busca el número interno y el código público exactos (con o sin guion y sin distinguir mayúsculas) o una parte del email de contacto, sin distinguir mayúsculas, como la búsqueda de clientes. Un número fuera del rango de `bigint` solo puede coincidir por el email;
+    - `hasPendingRefund` es CANCELLED con `paid_at`: la orden no necesita a Payments para saberlo;
+    - el listado lleva cada orden sin líneas ni historial, pero con la dirección, y `GET /v1/admin/orders/{orderId}` agrega las líneas y el historial de estados, del más antiguo al más reciente;
+    - `payment` y `shipment` son `null` hasta T-190 y T-195.
+  - **Cancelar (UC-ORD-07):**
+    - en esta parte solo se cancela desde PENDING_PAYMENT: la orden pasa a CANCELLED y libera su reserva. El historial guarda al staff y el motivo, y se audita `orders.cancel` con el motivo;
+    - cancelar una orden PAID o AWAITING_MANUAL_FULFILLMENT responde 409 `invalid-state-transition` hasta que T-190 agregue el reembolso. No es un hueco real, porque antes de T-190 ninguna orden llega a PAID;
+    - `restock: true` sin `inventory.write` responde 403; en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Reintegrar al cancelar llega con T-161.
+  - **Reintentar el surtido (UC-ORD-08):** solo desde AWAITING_MANUAL_FULFILLMENT, revisado antes de reservar. Abre una reserva nueva, la confirma, y la orden pasa a PAID con esa reserva; sin stock responde 409 `insufficient-stock` y no cambia nada. Se audita `orders.retry-fulfillment`.
+  - **Pago capturado (UC-ORD-09):**
+    - Payments publicará `PaymentCaptured { orderId, paymentId, amount }` desde T-190. Ordering declara su propio tipo y se suscribe por el nombre, y el manejador corre en segundo plano (ADR-0098);
+    - una orden en PENDING_PAYMENT confirma su reserva y pasa a PAID. Si la reserva ya no está activa, sigue el flujo de pago tardío;
+    - una orden EXPIRED abre otra reserva y la confirma, y pasa a PAID con ella; si no hay stock, pasa a AWAITING_MANUAL_FULFILLMENT (BR-ORD-09, ADR-0012);
+    - una orden ya en PAID o en un estado posterior no cambia, así que un evento repetido no repite nada;
+    - si el monto no es el total (BR-ORD-08), la orden no cambia y el log registra un error con los IDs;
+    - una orden CANCELLED sigue cancelada, pero guarda `paid_at` una sola vez, así que aparece en `hasPendingRefund`; el log lo advierte;
+    - `paid_at` es el momento de la captura que trae el evento, también cuando la orden queda en AWAITING_MANUAL_FULFILLMENT o cancelada.
+  - **Cambios simultáneos:** cada cambio lee la orden con `SELECT … FOR UPDATE`. Las acciones del staff comparan la `version` enviada (409 `version-conflict` con `currentVersion`), y al guardar se compara otra vez. Una cancelación y un pago que llegan juntos se aplican uno después del otro.
+  - **Reserva todo o nada por sí misma:**
+    - el puerto `TransactionManager` suma `runNested(work)`: se une a la transacción de quien llama, pero si `work` falla deshace solo lo suyo con un `SAVEPOINT` y la transacción sigue, aun después de una sentencia fallida. Fuera de una transacción es `run`;
+    - `InventoryFacade.reserve` corre así: si alguna línea no alcanza, deshace lo que apartó y la reserva que abrió antes de lanzar el error (ajusta ADR-0128);
+    - el publicador de eventos registra un callback por publicación, así que un paso deshecho descarta sus eventos; los demás se despachan en un solo lote y en orden, como antes.
+  - **Puertos:** `CheckoutStock` pasa a llamarse `OrderStock` y suma `reserveIfAvailable`, `commit` y `release`.
+  - **`orderCount`:** sale de `AdminCustomer`, como decidió ADR-0132.
+  - **Registro:** sin `OrderPaid` ni `OrderCancelled` todavía, porque nadie los escucharía; los agregarán T-195 y T-215.
+- **Alternativas consideradas:**
+  - **Cancelación de órdenes pagadas:** dejar ahora un puerto de reembolso sin adaptador, que sería código imposible de ejecutar.
+  - **Monto distinto del total:** pasar la orden a AWAITING_MANUAL_FULFILLMENT, que mezcla un error de cobro con uno de stock.
+  - **Pago de una orden cancelada:** ignorarlo, y que el dinero quede sin un reembolso pendiente visible.
+  - **Reserva parcial:** preguntar `canFulfill` antes de reservar, con una carrera entre las dos llamadas; o guardar AWAITING_MANUAL_FULFILLMENT en otra transacción, que ya no es atómica.
+  - **`q`:** exigir el email exacto, más restrictivo con los datos personales.
+- **Consecuencias:**
+  - T-190 debe publicar `PaymentCaptured` con esa forma y agregar la cancelación de órdenes pagadas con su reembolso; T-161, el reintegro al cancelar; T-195 y T-215, los eventos de la orden.
+  - `runNested` queda disponible para otras operaciones que deban ser todo o nada dentro de una transacción mayor.
+  - Pruebas contra PostgreSQL:
+    - un pago que llega dos veces a la vez;
+    - una cancelación y un pago a la vez;
+    - un pago tardío con una línea sin stock, que no aparta nada de las demás;
+    - una reserva corta dentro de una transacción mayor;
+    - pasos deshechos con sus eventos.
+- **Estado:** Aceptada (plan de T-180 parte b aprobado el 2026-10-01, con sus 4 recomendaciones).

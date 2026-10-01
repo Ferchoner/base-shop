@@ -126,6 +126,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-15. Colocar orden e iniciar pago exigen `Idempotency-Key`, ligada a quien la envía y al endpoint; un reintento con la misma llave y el mismo contenido no repite la operación (ADR-0063).
 - BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal y en el costo de envío (precios y envío con IVA incluido, ADR-0008, ADR-0079). La base de datos verifica esta igualdad (ADR-0066).
 - BR-ORD-17. Un cliente con sesión puede colocar una orden de invitado con un carrito de invitado: la orden queda como de invitado, con el email de contacto que indique y la versión del aviso de privacidad (ADR-0132).
+- BR-ORD-18. Un pago capturado de una orden cancelada no la reactiva: la orden sigue cancelada, con el pago registrado, a la espera de su reembolso (ADR-0051, ADR-0133).
 
 ## Pagos
 

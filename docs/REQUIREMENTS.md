@@ -312,6 +312,11 @@ Criterios de aceptación:
   - colocar la orden bloquea el carrito y revisa, en este orden, al comprador, el carrito, la dirección, que todo sea vendible, el total y el stock;
   - la orden guarda el vencimiento de su reserva (`paymentDueAt`);
   - un cliente con sesión puede colocar una orden de invitado con un carrito de invitado.
+- **UC-ORD-06 a 09 (implementación, ADR-0133):**
+  - la cancelación con reembolso de órdenes pagadas llega con T-190, y el reintegro al cancelar con T-161: por ahora solo se cancelan órdenes en PendingPayment;
+  - un pago tardío sin stock deja la orden en AwaitingManualFulfillment sin apartar nada;
+  - un pago de una orden cancelada la deja cancelada, a la espera de su reembolso;
+  - un monto distinto del total no cambia la orden.
 
 ### 5.7 Payments
 

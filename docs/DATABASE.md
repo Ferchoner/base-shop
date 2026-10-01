@@ -468,6 +468,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
   - `payment_due_at` llegó con la migración `20261001120000_ordering_payment_due_at`, `NOT NULL` y sin valor predeterminado, porque la tabla estaba vacía;
   - las fechas las pone la aplicación;
   - la primera entrada de `order_status_history` lleva como actor al cliente, o `NULL` para un invitado.
+- **Implementado en T-180 parte b (ADR-0133):** cada cambio lee la orden con `SELECT … FOR UPDATE` y guarda con `UPDATE … WHERE version = …`, más una entrada de `order_status_history` por cambio de estado, con el staff y el motivo, o `NULL` cuando es el sistema. Un pago tardío cambia `reservation_id` a la reserva nueva.
 
 ### 8.2 `order_lines` (order_items)
 

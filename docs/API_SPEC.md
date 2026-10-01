@@ -101,7 +101,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 
 | Operación que lo origina | Evento | Efecto en segundo plano | Dónde se nota |
 |---|---|---|---|
-| Registrar un pago manual (`POST /v1/admin/payments/manual-captures`); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
+| Registrar un pago manual (`POST /v1/admin/payments/manual-captures`); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund` (ADR-0133) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
 | La orden quedó pagada (efecto anterior) | `OrderPaid` | Se crea el envío en PENDING (UC-SHI-03) y se envía el correo "Pago confirmado" (ADR-0074) | Lista de envíos pendientes del staff; correo del cliente |
 | Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED y se envía el correo "Orden enviada" | Estado de la orden; correo del cliente |
 | Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED | Estado de la orden |
@@ -756,7 +756,7 @@ La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitació
 
 `reason` sigue las mismas reglas que en §9.17. En `createdTo`, una fecha sola (`2026-09-30`) incluye todo el día. La anonimización llega con T-132 (ADR-0111).
 
-Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "status", "emailVerified", "addresses": [Address], "orderCount", "createdAt", "lastLoginAt", "anonymizedAt", "version" }` (`addresses` y `orderCount` solo en el detalle). `orderCount` se quita en T-180 parte b (ADR-0132): Ordering usa a Identity, así que Identity no puede contar órdenes, y el panel lo obtiene de `meta.totalItems` de `GET /v1/admin/orders?customerId=…`.
+Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "status", "emailVerified", "addresses": [Address], "createdAt", "lastLoginAt", "anonymizedAt", "version" }` (`addresses` solo en el detalle). Sus pedidos están en `GET /v1/admin/orders?customerId=…`, y `meta.totalItems` dice cuántos son: `orderCount` se quitó en T-180 parte b, porque Ordering usa a Identity y Identity no puede contar órdenes (ADR-0132, ADR-0133).
 
 | Endpoint | Detalle |
 |---|---|
@@ -1251,7 +1251,7 @@ Implementado en T-180 parte a (ADR-0132):
 - **Invitado con sesión:** un cliente con sesión puede usar `/v1/orders` con un carrito de invitado, y la orden queda como de invitado.
 - **Respuesta:** `Order` sin `id` ni `orderNumber`, con `contactEmail` en minúsculas, `paymentDueAt` igual al vencimiento de la reserva, y `payment` y `shipment` en `null` hasta T-190 y T-195.
 - **Mis pedidos:** el staff recibe 403 `forbidden`. El orden predeterminado es `-placedAt`, con desempate por ID. Un código que no puede existir responde 404.
-- **Pendiente:** la administración (§15.7) y UC-ORD-09 son de la parte b.
+- **Parte b:** la administración (§15.7) y UC-ORD-09 se implementaron en ADR-0133.
 
 ### 15.5 Consulta de pedido de invitado (UC-ORD-04, ADR-0020)
 
@@ -1301,6 +1301,15 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - 200 `AdminOrder`. Errores: 409 `insufficient-stock` (con `lines`); 409 `invalid-state-transition`.
 
 UC-ORD-09 y UC-ORD-10 no tienen API: los ejecutan eventos y jobs.
+
+Implementado en T-180 parte b (ADR-0133):
+
+- **Listado:** `q` busca el número interno o el código público exactos (con o sin guion, sin distinguir mayúsculas) o una parte del email de contacto; `guest=false` deja solo las órdenes de clientes; `hasPendingRefund=true` son las CANCELLED con `paidAt`. Cada orden va sin líneas ni historial, pero con la dirección.
+- **Detalle:** `AdminOrder` con `statusHistory` del más antiguo al más reciente. `payment` y `shipment` son `null` hasta T-190 y T-195.
+- **Cancelar:** por ahora solo desde PENDING_PAYMENT; PAID y AWAITING_MANUAL_FULFILLMENT responden 409 `invalid-state-transition` hasta que T-190 agregue el reembolso. `restock: true` sin `inventory.write` responde 403, y en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Se audita `orders.cancel` con el motivo.
+- **Reintentar el surtido:** el estado se revisa antes de reservar; se audita `orders.retry-fulfillment`.
+- **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED. `paidAt` es el momento de la captura.
+- **Concurrencia:** cada cambio bloquea la orden; una `version` desactualizada responde 409 `version-conflict` con `currentVersion`.
 
 ---
 
