@@ -363,9 +363,6 @@ export class AdminCustomerDto {
     description: 'Solo en el detalle.',
   })
   addresses?: AddressDto[];
-
-  /** Solo en el detalle. 0 hasta que existan los pedidos (T-180). */
-  orderCount?: number;
 }
 
 export class CustomerListDto {

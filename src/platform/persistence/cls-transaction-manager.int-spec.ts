@@ -184,6 +184,78 @@ describe('ClsTransactionManager (T-111)', () => {
   }, 15_000);
 
   /** Names committed so far, read through a separate connection outside any transaction. */
+  describe('runNested, a step that undoes only itself (ADR-0133)', () => {
+    it('undoes only its own writes when it fails, and the outer transaction goes on', async () => {
+      await transactions.run(async () => {
+        await brands.insert('before');
+        await expect(
+          transactions.runNested(async () => {
+            await brands.insert('nested');
+            throw new Error('a line is short');
+          }),
+        ).rejects.toThrow('a line is short');
+        await brands.insert('after');
+      });
+
+      expect(await committedNames()).toEqual(['after', 'before']);
+    });
+
+    it('leaves the transaction usable after a statement of the step fails', async () => {
+      await transactions.run(async () => {
+        await brands.insert('a');
+        await expect(
+          transactions.runNested(() => brands.insert('a')),
+        ).rejects.toThrow(/Unique constraint/);
+        await brands.insert('b');
+      });
+
+      expect(await committedNames()).toEqual(['a', 'b']);
+    });
+
+    it('keeps the writes of a step that succeeds, which still roll back with the outer transaction', async () => {
+      await expect(
+        transactions.run(async () => {
+          await transactions.runNested(() => brands.insert('rolled-back'));
+          throw new Error('outer work failed');
+        }),
+      ).rejects.toThrow('outer work failed');
+      await transactions.run(async () => {
+        await transactions.runNested(() => brands.insert('first'));
+        await transactions.runNested(() => brands.insert('second'));
+      });
+
+      expect(await committedNames()).toEqual(['first', 'second']);
+    });
+
+    it('undoes an inner step without undoing the step around it', async () => {
+      await transactions.run(() =>
+        transactions.runNested(async () => {
+          await brands.insert('outer-step');
+          await expect(
+            transactions.runNested(async () => {
+              await brands.insert('inner-step');
+              throw new Error('inner step failed');
+            }),
+          ).rejects.toThrow('inner step failed');
+        }),
+      );
+
+      expect(await committedNames()).toEqual(['outer-step']);
+    });
+
+    it('is a transaction of its own outside one', async () => {
+      await expect(
+        transactions.runNested(async () => {
+          await brands.insert('a');
+          throw new Error('work failed');
+        }),
+      ).rejects.toThrow('work failed');
+      await transactions.runNested(() => brands.insert('b'));
+
+      expect(await committedNames()).toEqual(['b']);
+    });
+  });
+
   async function committedNames(): Promise<string[]> {
     const rows = await prisma.brand.findMany({
       where: { name: { startsWith: NAME_PREFIX } },

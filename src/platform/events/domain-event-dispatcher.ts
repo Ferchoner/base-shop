@@ -62,7 +62,8 @@ export class DomainEventDispatcher
 
   /**
    * Runs the handlers of `events` in the background, within the current async context, so their logs keep
-   * the correlation id of the request that published them.
+   * the correlation id of the request that published them. It reads `events` on the next turn of the event
+   * loop, so a batch can still grow until then (ClsDomainEventPublisher).
    */
   dispatchInBackground(events: readonly DomainEvent[]): void {
     if (events.length === 0) return;

@@ -67,6 +67,47 @@ export interface CustomerOrderFilter {
 
 export type CustomerOrderSortField = 'placedAt' | 'grandTotal';
 
+/** An entry of the status history of an order. */
+export interface StatusHistoryView {
+  /** `null` when the order was placed. */
+  readonly fromStatus: OrderStatus | null;
+  readonly toStatus: OrderStatus;
+  /** The staff member or customer; `null` for the system. */
+  readonly actorId: string | null;
+  readonly reason: string | null;
+  readonly occurredAt: Date;
+}
+
+/** An order as the staff lists it (UC-ORD-06): with its internal number, without lines nor history. */
+export interface AdminOrderSummaryView extends OrderSummaryView {
+  readonly orderNumber: number;
+  readonly version: number;
+  readonly anonymizedAt: Date | null;
+  readonly shippingAddress: ShippingAddress;
+}
+
+/** An order as the staff sees it (UC-ORD-06), with its lines and its status history, oldest first. */
+export interface AdminOrderView extends AdminOrderSummaryView {
+  readonly lines: readonly OrderLineView[];
+  readonly statusHistory: readonly StatusHistoryView[];
+}
+
+export interface OrderFilter {
+  /** The internal number or the public code, exact, or part of the contact email (ADR-0133). */
+  readonly q?: string;
+  /** Any of these. */
+  readonly status?: readonly OrderStatus[];
+  readonly customerId?: CustomerId;
+  /** `true` for guest orders only, `false` for customers' only. */
+  readonly guest?: boolean;
+  readonly placedFrom?: Date;
+  readonly placedTo?: Date;
+  /** `true` for the cancelled orders with a captured payment, which wait for their refund (ADR-0051). */
+  readonly hasPendingRefund?: boolean;
+}
+
+export type OrderSortField = 'placedAt' | 'orderNumber' | 'grandTotal';
+
 /**
  * Read models of Ordering, straight from its tables. An abstract class rather than an interface, so it can be
  * the dependency injection token without depending on NestJS.
@@ -79,6 +120,16 @@ export abstract class OrderingQueries {
     customerId: CustomerId,
     publicCode: PublicCode,
   ): Promise<OrderView | null>;
+
+  /** An order for the staff (UC-ORD-06); `null` if it does not exist. */
+  abstract findAdminOrder(id: OrderId): Promise<AdminOrderView | null>;
+
+  /** Every order, for the staff (UC-ORD-06); ties are broken by ID. */
+  abstract listOrders(
+    filter: OrderFilter,
+    sort: readonly SortOrder<OrderSortField>[],
+    page: PageRequest,
+  ): Promise<Page<AdminOrderSummaryView>>;
 
   /** The customer's orders (UC-ORD-03); ties are broken by ID. */
   abstract listCustomerOrders(

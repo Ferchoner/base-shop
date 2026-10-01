@@ -1,4 +1,5 @@
 import {
+  InvalidStateTransitionError,
   InvalidValueError,
   Money,
   newId,
@@ -7,6 +8,7 @@ import {
   type Buyer,
   Order,
   type OrderShipping,
+  type OrderStatus,
   orderTotals,
   priceLine,
   type ShippingAddress,
@@ -134,6 +136,10 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       paymentDueAt: DUE,
       sourceCartId,
       placedAt: NOW,
+      paidAt: null,
+      cancelledAt: null,
+      expiredAt: null,
+      version: 1,
     });
   });
 
@@ -162,5 +168,150 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
     expect(() =>
       place({ buyer: { ...guest, privacyNoticeVersion: ' ' } }),
     ).toThrow(InvalidValueError);
+  });
+});
+
+describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
+  const LATER = new Date('2026-10-01T13:00:00.000Z');
+  const CAPTURED = new Date('2026-10-01T12:30:00.000Z');
+  const staff = newId<'User'>();
+
+  /** A saved order in `status`, at version 4. */
+  const saved = (status: OrderStatus, paidAt: Date | null = null) =>
+    Order.restore({ ...place().snapshot, status, paidAt, version: 4 });
+
+  it('keeps what was saved until something changes', () => {
+    const order = saved('PENDING_PAYMENT');
+
+    expect([order.hasChanges, order.statusChanges, order.version]).toEqual([
+      false,
+      [],
+      4,
+    ]);
+    expect(order.grandTotal).toEqual(mxn(129_700));
+  });
+
+  it('cancels an unpaid order, with who and why (UC-ORD-07)', () => {
+    const order = saved('PENDING_PAYMENT');
+
+    order.cancel(staff, 'Duplicado', LATER);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'CANCELLED',
+      cancelledAt: LATER,
+      version: 4,
+    });
+    expect(order.statusChanges).toEqual([
+      {
+        from: 'PENDING_PAYMENT',
+        to: 'CANCELLED',
+        actorId: staff,
+        reason: 'Duplicado',
+        at: LATER,
+      },
+    ]);
+    expect(order.hasChanges).toBe(true);
+  });
+
+  it('cancels nothing but an unpaid order until T-190 adds the refund', () => {
+    for (const status of [
+      'PAID',
+      'AWAITING_MANUAL_FULFILLMENT',
+      'SHIPPED',
+      'DELIVERED',
+      'CANCELLED',
+      'EXPIRED',
+      'REFUNDED',
+    ] as const) {
+      expect(() => saved(status).cancel(staff, 'Duplicado', LATER)).toThrow(
+        new InvalidStateTransitionError(status, 'cancel'),
+      );
+    }
+  });
+
+  it('is paid when the payment was captured, from PENDING_PAYMENT or EXPIRED (UC-ORD-09)', () => {
+    const pending = saved('PENDING_PAYMENT');
+    const expired = saved('EXPIRED');
+    const reservation = newId<'Reservation'>();
+    const first = pending.snapshot.reservationId;
+
+    pending.markPaid(CAPTURED, LATER);
+    expired.markPaid(CAPTURED, LATER, reservation);
+
+    expect(pending.snapshot).toMatchObject({
+      status: 'PAID',
+      paidAt: CAPTURED,
+      reservationId: first,
+    });
+    expect(expired.snapshot).toMatchObject({
+      status: 'PAID',
+      reservationId: reservation,
+    });
+    expect(expired.statusChanges).toEqual([
+      { from: 'EXPIRED', to: 'PAID', actorId: null, reason: null, at: LATER },
+    ]);
+    expect(() => saved('CANCELLED').markPaid(CAPTURED, LATER)).toThrow(
+      new InvalidStateTransitionError('CANCELLED', 'mark paid'),
+    );
+  });
+
+  it('waits for stock after a late payment, already paid (BR-ORD-09)', () => {
+    const order = saved('EXPIRED');
+
+    order.awaitManualFulfillment(CAPTURED, LATER);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'AWAITING_MANUAL_FULFILLMENT',
+      paidAt: CAPTURED,
+    });
+    expect(order.statusChanges[0]).toMatchObject({
+      from: 'EXPIRED',
+      to: 'AWAITING_MANUAL_FULFILLMENT',
+      actorId: null,
+    });
+    expect(() => saved('PAID').awaitManualFulfillment(CAPTURED, LATER)).toThrow(
+      InvalidStateTransitionError,
+    );
+  });
+
+  it('is paid once the staff gets the stock, keeping when it was paid (UC-ORD-08)', () => {
+    const order = saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
+    const reservation = newId<'Reservation'>();
+
+    order.fulfillManually(staff, reservation, LATER);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'PAID',
+      paidAt: CAPTURED,
+      reservationId: reservation,
+    });
+    expect(order.statusChanges[0]).toMatchObject({
+      from: 'AWAITING_MANUAL_FULFILLMENT',
+      to: 'PAID',
+      actorId: staff,
+    });
+    expect(() =>
+      saved('EXPIRED').fulfillManually(staff, reservation, LATER),
+    ).toThrow(new InvalidStateTransitionError('EXPIRED', 'retry fulfillment'));
+  });
+
+  it('keeps a cancelled order cancelled when a payment arrives, once (ADR-0133)', () => {
+    const order = saved('CANCELLED');
+
+    expect(order.recordPaymentAfterCancellation(CAPTURED)).toBe(true);
+    expect(order.recordPaymentAfterCancellation(LATER)).toBe(false);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'CANCELLED',
+      paidAt: CAPTURED,
+    });
+    expect(order.statusChanges).toEqual([]);
+    expect(order.hasChanges).toBe(true);
+    expect(
+      saved('CANCELLED', CAPTURED).recordPaymentAfterCancellation(LATER),
+    ).toBe(false);
+    expect(() =>
+      saved('PAID').recordPaymentAfterCancellation(CAPTURED),
+    ).toThrow(InvalidStateTransitionError);
   });
 });

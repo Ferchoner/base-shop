@@ -393,9 +393,11 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .get(`/v1/admin/identity/customers/${customer}`)
         .set(staffWith('customers.read'))
         .expect(200)
-        .expect((res) =>
-          expect(res.body).toMatchObject({ addresses: [], orderCount: 0 }),
-        );
+        .expect((res) => {
+          expect(res.body).toMatchObject({ addresses: [] });
+          // Its orders are in GET /v1/admin/orders?customerId=… (ADR-0133).
+          expect(res.body).not.toHaveProperty('orderCount');
+        });
     });
 
     it('answers a staff member as a missing customer', async () => {

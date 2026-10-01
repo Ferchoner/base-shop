@@ -28,10 +28,10 @@ import {
   type CheckoutCustomers,
   type CheckoutPrices,
   type CheckoutShipping,
-  type CheckoutStock,
   type CheckoutTarget,
   type CheckoutVariant,
   type LocationNames,
+  type OrderStock,
   type ShippingCharge,
   type ShippingLocations,
   type StockLine,
@@ -103,6 +103,14 @@ class InMemoryOrders extends OrderRepository {
     }
     this.saved.push(order);
     return Promise.resolve(true);
+  }
+
+  lock(): Promise<Order | null> {
+    throw new Error('The checkout never locks a saved order');
+  }
+
+  save(): Promise<void> {
+    throw new Error('The checkout never saves a placed order again');
   }
 }
 
@@ -178,7 +186,7 @@ function setUp(
       );
     },
   };
-  const stock: CheckoutStock = {
+  const stock: OrderStock = {
     canFulfill: (lines) => {
       asked.stock.push(lines.map((line) => ({ ...line })));
       return Promise.resolve(
@@ -198,6 +206,15 @@ function setUp(
       }
       reserved.push({ orderId, lines: lines.map((line) => ({ ...line })) });
       return Promise.resolve({ id: newId<'Reservation'>(), expiresAt: DUE });
+    },
+    reserveIfAvailable: () => {
+      throw new Error('The checkout reserves all or fails');
+    },
+    commit: () => {
+      throw new Error('The checkout never commits a reservation');
+    },
+    release: () => {
+      throw new Error('The checkout never releases a reservation');
     },
   };
   const shipping: CheckoutShipping = {

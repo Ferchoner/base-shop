@@ -83,8 +83,6 @@ export interface AccountView {
 export interface CustomerDetailView extends CustomerView {
   /** The default address first, then the newest (API_SPEC.md §9.14). */
   readonly addresses: readonly AddressView[];
-  /** 0 until T-180 connects Ordering (ADR-0111). */
-  readonly orderCount: number;
 }
 
 export type RoleSortField = 'name' | 'createdAt';

@@ -1,5 +1,6 @@
 import {
   type Id,
+  InvalidStateTransitionError,
   InvalidValueError,
   Money,
 } from '../../../shared-kernel/index.js';
@@ -142,13 +143,27 @@ export type Buyer =
       readonly privacyNoticeVersion: string;
     };
 
+/** A staff member of Identity, known here only by its ID (ADR-0005). */
+export type StaffId = Id<'User'>;
+
+/** An entry of the status history (`order_status_history`): who moved the order, and why. */
+export interface StatusChange {
+  /** `null` when the order is created. */
+  readonly from: OrderStatus | null;
+  readonly to: OrderStatus;
+  /** The staff member or customer; `null` for the system. */
+  readonly actorId: Id<'User'> | null;
+  readonly reason: string | null;
+  readonly at: Date;
+}
+
 export interface OrderSnapshot {
   readonly id: OrderId;
   readonly publicCode: PublicCode;
   /** `null` for a guest order. */
   readonly customerId: CustomerId | null;
-  /** In lowercase. */
-  readonly contactEmail: string;
+  /** In lowercase; `null` only once anonymized (ADR-0067). */
+  readonly contactEmail: string | null;
   readonly privacyNoticeVersion: string | null;
   readonly status: OrderStatus;
   readonly lines: readonly OrderLine[];
@@ -157,20 +172,30 @@ export interface OrderSnapshot {
   readonly deliveryMinBusinessDays: number;
   readonly deliveryMaxBusinessDays: number;
   readonly shippingAddress: ShippingAddress;
-  readonly reservationId: ReservationId;
-  /** When the reservation ends: the order expires then if it is not paid (BR-ORD-07). */
+  /** The reservation that holds or held its stock; a late payment opens another (ADR-0012). */
+  readonly reservationId: ReservationId | null;
+  /** When the first reservation ends: the order expires then if it is not paid (BR-ORD-07). */
   readonly paymentDueAt: Date;
   readonly sourceCartId: CartId;
   readonly placedAt: Date;
+  /** When the payment was captured, also when the order could not be fulfilled or was cancelled first. */
+  readonly paidAt: Date | null;
+  readonly cancelledAt: Date | null;
+  readonly expiredAt: Date | null;
+  readonly version: number;
 }
 
 /**
  * An order (DOMAIN_MODEL.md, Ordering). It is born PENDING_PAYMENT with the stock reserved, and keeps as a
  * snapshot what it sold and at what price, so later changes of the catalog, the prices or the shipping never
- * alter it (BR-ORD-03, BR-ORD-13). The totals come only from its lines and shipping (BR-ORD-02).
+ * alter it (BR-ORD-03, BR-ORD-13). The totals come only from its lines and shipping (BR-ORD-02). Only the
+ * transitions of REQUIREMENTS.md §3.1 happen, each one kept in its history (BR-ORD-05).
  */
 export class Order {
-  private constructor(private readonly state: OrderSnapshot) {}
+  private readonly changes: StatusChange[] = [];
+  private changed = false;
+
+  private constructor(private state: OrderSnapshot) {}
 
   /**
    * A new order in PENDING_PAYMENT (UC-ORD-02), with its lines numbered in the order given.
@@ -223,7 +248,16 @@ export class Order {
       paymentDueAt: input.reservation.expiresAt,
       sourceCartId: input.sourceCartId,
       placedAt: input.now,
+      paidAt: null,
+      cancelledAt: null,
+      expiredAt: null,
+      version: 1,
     });
+  }
+
+  /** An order as it was saved. */
+  static restore(snapshot: OrderSnapshot): Order {
+    return new Order(snapshot);
   }
 
   get id(): OrderId {
@@ -238,7 +272,120 @@ export class Order {
     return this.state.status;
   }
 
+  get version(): number {
+    return this.state.version;
+  }
+
+  get grandTotal(): Money {
+    return this.state.totals.grandTotal;
+  }
+
   get snapshot(): OrderSnapshot {
     return this.state;
+  }
+
+  /** The status changes since the order was read, oldest first, for its history. */
+  get statusChanges(): readonly StatusChange[] {
+    return this.changes;
+  }
+
+  /** Whether anything changed since it was read, so there is something to save. */
+  get hasChanges(): boolean {
+    return this.changed;
+  }
+
+  /**
+   * Cancels an unpaid order (UC-ORD-07, ADR-0021, ADR-0051): CANCELLED is final for it, and its reservation
+   * must be released. A paid order is cancelled with its refund from T-190 on (ADR-0133).
+   *
+   * @throws InvalidStateTransitionError from any other status.
+   */
+  cancel(actorId: StaffId, reason: string, now: Date): void {
+    this.assertStatus(['PENDING_PAYMENT'], 'cancel');
+    this.move('CANCELLED', actorId, reason, now);
+    this.state = { ...this.state, cancelledAt: now };
+  }
+
+  /**
+   * The payment was captured and the stock is the order's (UC-ORD-09, BR-ORD-08 and 09): PAID, paid when the
+   * payment was captured. A late payment brings the reservation it opened.
+   *
+   * @throws InvalidStateTransitionError unless the order is PENDING_PAYMENT or EXPIRED.
+   */
+  markPaid(
+    capturedAt: Date,
+    now: Date,
+    reservationId: ReservationId | null = null,
+  ): void {
+    this.assertStatus(['PENDING_PAYMENT', 'EXPIRED'], 'mark paid');
+    this.move('PAID', null, null, now);
+    this.state = {
+      ...this.state,
+      paidAt: capturedAt,
+      reservationId: reservationId ?? this.state.reservationId,
+    };
+  }
+
+  /**
+   * A payment arrived when there was no stock to reserve for it (BR-ORD-09, ADR-0012): the staff gets more
+   * stock and retries, or cancels with a refund.
+   *
+   * @throws InvalidStateTransitionError unless the order is PENDING_PAYMENT or EXPIRED.
+   */
+  awaitManualFulfillment(capturedAt: Date, now: Date): void {
+    this.assertStatus(
+      ['PENDING_PAYMENT', 'EXPIRED'],
+      'await manual fulfillment',
+    );
+    this.move('AWAITING_MANUAL_FULFILLMENT', null, null, now);
+    this.state = { ...this.state, paidAt: capturedAt };
+  }
+
+  /**
+   * The staff got the stock of an order that waited for it (UC-ORD-08, ADR-0012): PAID, still paid when its
+   * payment was captured.
+   *
+   * @throws InvalidStateTransitionError unless the order is AWAITING_MANUAL_FULFILLMENT.
+   */
+  fulfillManually(
+    actorId: StaffId,
+    reservationId: ReservationId,
+    now: Date,
+  ): void {
+    this.assertStatus(['AWAITING_MANUAL_FULFILLMENT'], 'retry fulfillment');
+    this.move('PAID', actorId, null, now);
+    this.state = { ...this.state, reservationId };
+  }
+
+  /**
+   * A payment captured after the order was cancelled (ADR-0133): it stays CANCELLED, now with a captured
+   * payment, so it waits for its refund (ADR-0051).
+   *
+   * @returns false, changing nothing, when the order already had a payment.
+   * @throws InvalidStateTransitionError unless the order is CANCELLED.
+   */
+  recordPaymentAfterCancellation(capturedAt: Date): boolean {
+    this.assertStatus(['CANCELLED'], 'record a payment');
+    if (this.state.paidAt !== null) return false;
+    this.state = { ...this.state, paidAt: capturedAt };
+    this.changed = true;
+    return true;
+  }
+
+  private assertStatus(allowed: readonly OrderStatus[], action: string): void {
+    if (!allowed.includes(this.state.status)) {
+      throw new InvalidStateTransitionError(this.state.status, action);
+    }
+  }
+
+  private move(
+    to: OrderStatus,
+    actorId: Id<'User'> | null,
+    reason: string | null,
+    at: Date,
+  ): void {
+    this.changes.push({ from: this.state.status, to, actorId, reason, at });
+    this.state = { ...this.state, status: to };
+    this.changed = true;
   }
 }

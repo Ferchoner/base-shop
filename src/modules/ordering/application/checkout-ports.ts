@@ -77,8 +77,14 @@ export abstract class CheckoutPrices {
   ): Promise<ReadonlyMap<VariantId, Money>>;
 }
 
-/** The stock of Inventory. */
-export abstract class CheckoutStock {
+/** A reservation of the stock of an order, and when it ends. */
+export interface StockReservation {
+  readonly id: ReservationId;
+  readonly expiresAt: Date;
+}
+
+/** The stock of Inventory, for the checkout and the life of an order. */
+export abstract class OrderStock {
   /** Whether each variant can be fulfilled now, without revealing quantities (ADR-0061). */
   abstract canFulfill(
     lines: readonly StockLine[],
@@ -92,7 +98,27 @@ export abstract class CheckoutStock {
   abstract reserve(
     orderId: OrderId,
     lines: readonly StockLine[],
-  ): Promise<{ readonly id: ReservationId; readonly expiresAt: Date }>;
+  ): Promise<StockReservation>;
+
+  /**
+   * Like `reserve`, but `null` when some line is short, having reserved nothing, so the transaction of the
+   * caller goes on (ADR-0133).
+   */
+  abstract reserveIfAvailable(
+    orderId: OrderId,
+    lines: readonly StockLine[],
+  ): Promise<StockReservation | null>;
+
+  /**
+   * Confirms the reservation of a paid order: its units leave the stock (UC-INV-06). `not-active` when it has
+   * no active reservation, such as an expired one.
+   */
+  abstract commit(
+    orderId: OrderId,
+  ): Promise<'committed' | 'already-committed' | 'not-active'>;
+
+  /** Frees the reservation of an order (UC-INV-07); false when it has no active one. */
+  abstract release(orderId: OrderId): Promise<boolean>;
 }
 
 /** The shipping of an order, and the amount from which it is free. */

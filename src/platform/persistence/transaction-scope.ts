@@ -14,6 +14,16 @@ export class TransactionScope {
     this.callbacks.push(callback);
   }
 
+  /** How many callbacks are registered now, to discard later the ones a nested step adds. */
+  mark(): number {
+    return this.callbacks.length;
+  }
+
+  /** Forgets the callbacks registered since `mark`, because the nested step that added them was undone. */
+  discardSince(mark: number): void {
+    this.callbacks.length = Math.min(mark, this.callbacks.length);
+  }
+
   /** Called by the transaction manager once the commit succeeded. */
   runAfterCommitCallbacks(): void {
     for (const callback of this.callbacks) callback();

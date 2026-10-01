@@ -48,6 +48,21 @@ export class TotalMismatchError extends DomainError {
   }
 }
 
+/**
+ * Restocking when cancelling applies only to a PAID order (ADR-0052, E-30): an unpaid one only releases its
+ * reservation. Answered 409 `restock-not-allowed` with `currentStatus` (ADR-0133).
+ */
+export class RestockNotAllowedError extends DomainError {
+  readonly code = 'restock-not-allowed';
+  readonly category = 'conflict';
+
+  constructor(currentStatus: string) {
+    super(`Cannot restock an order in status ${currentStatus}`, {
+      currentStatus,
+    });
+  }
+}
+
 /** What can be wrong with the state and municipality of an address (BR-ADR-02, BR-ADR-03). */
 export type LocationProblem =
   'unknown-state' | 'municipality-not-in-state' | 'inactive-municipality';

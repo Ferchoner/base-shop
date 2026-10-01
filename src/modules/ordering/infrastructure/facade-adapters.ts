@@ -3,6 +3,7 @@ import type { Money } from '../../../shared-kernel/index.js';
 import { CatalogFacade } from '../../catalog/index.js';
 import { GeoCatalog } from '../../geo/index.js';
 import { IdentityAccessFacade } from '../../identity-access/index.js';
+import { DomainError } from '../../../shared-kernel/index.js';
 import { InventoryFacade } from '../../inventory/index.js';
 import { PricingFacade } from '../../pricing/index.js';
 import { ShippingFacade } from '../../shipping/index.js';
@@ -14,19 +15,19 @@ import {
   CheckoutCustomers,
   CheckoutPrices,
   CheckoutShipping,
-  CheckoutStock,
   type CheckoutTarget,
   type CheckoutVariant,
   type LocationNames,
+  OrderStock,
   type ShippingCharge,
   ShippingLocations,
   type StockLine,
+  type StockReservation,
 } from '../application/checkout-ports.js';
 import type {
   CartId,
   CustomerId,
   OrderId,
-  ReservationId,
   ShippingAddress,
   VariantId,
 } from '../domain/order.js';
@@ -99,7 +100,7 @@ export class PricingFacadeCheckoutPrices extends CheckoutPrices {
 }
 
 @Injectable()
-export class InventoryFacadeCheckoutStock extends CheckoutStock {
+export class InventoryFacadeOrderStock extends OrderStock {
   constructor(private readonly inventory: InventoryFacade) {
     super();
   }
@@ -113,9 +114,34 @@ export class InventoryFacadeCheckoutStock extends CheckoutStock {
   async reserve(
     orderId: OrderId,
     lines: readonly StockLine[],
-  ): Promise<{ id: ReservationId; expiresAt: Date }> {
+  ): Promise<StockReservation> {
     const receipt = await this.inventory.reserve(orderId, lines);
     return { id: receipt.reservationId, expiresAt: receipt.expiresAt };
+  }
+
+  async reserveIfAvailable(
+    orderId: OrderId,
+    lines: readonly StockLine[],
+  ): Promise<StockReservation | null> {
+    try {
+      return await this.reserve(orderId, lines);
+    } catch (error) {
+      // InventoryFacade.reserve undid what it reserved before failing (ADR-0133).
+      if (error instanceof DomainError && error.code === 'insufficient-stock') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  commit(
+    orderId: OrderId,
+  ): Promise<'committed' | 'already-committed' | 'not-active'> {
+    return this.inventory.commit(orderId);
+  }
+
+  release(orderId: OrderId): Promise<boolean> {
+    return this.inventory.release(orderId);
   }
 }
 
