@@ -18,11 +18,12 @@ import {
   type CategoryView,
   type ProductFilter,
   type ProductSortField,
+  type VariantSnapshot,
 } from '../application/catalog.queries.js';
 import type { BrandId } from '../domain/brand.js';
 import type { CategoryId } from '../domain/category.js';
 import type { ProductId } from '../domain/product-id.js';
-import type { VariantOptions } from '../domain/variant.js';
+import type { VariantId, VariantOptions } from '../domain/variant.js';
 
 const CATEGORY_FIELDS = {
   id: true,
@@ -190,6 +191,27 @@ export class PrismaCatalogQueries extends CatalogQueries {
       where: { id },
     });
     return row === null ? null : toProductView(row);
+  }
+
+  async findVariants(ids: readonly VariantId[]): Promise<VariantSnapshot[]> {
+    const rows = await this.txHost.tx.productVariant.findMany({
+      where: { id: { in: [...ids] } },
+      include: { product: { select: { title: true, status: true } } },
+      orderBy: { sku: 'asc' },
+    });
+    return rows.map((row) => ({
+      id: toId<'Variant'>(row.id),
+      productId: toId<'Product'>(row.productId),
+      productTitle: row.product.title,
+      productStatus: row.product.status,
+      sku: row.sku,
+      options: row.options as VariantOptions,
+      status: row.status,
+      weightGrams: row.weightGrams,
+      lengthCm: row.lengthCm?.toNumber() ?? null,
+      widthCm: row.widthCm?.toNumber() ?? null,
+      heightCm: row.heightCm?.toNumber() ?? null,
+    }));
   }
 }
 

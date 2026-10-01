@@ -2,6 +2,7 @@ import { type DynamicModule, Module, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import type { EnvironmentVariables } from '../../platform/config/environment.js';
+import { CatalogFacade } from './application/catalog.facade.js';
 import { CatalogQueries } from './application/catalog.queries.js';
 import { ChangeBrandStatus } from './application/change-brand-status.use-case.js';
 import { CreateBrand } from './application/create-brand.use-case.js';
@@ -88,6 +89,7 @@ export function imageUploads(): DynamicModule {
     AdminProductImagesController,
   ],
   providers: [
+    CatalogFacade,
     PublicCatalogCacheInvalidation,
     CreateCategory,
     UpdateCategory,
@@ -114,5 +116,6 @@ export function imageUploads(): DynamicModule {
     { provide: CatalogQueries, useClass: PrismaCatalogQueries },
     ...PRODUCT_IMAGE_PROVIDERS,
   ],
+  exports: [CatalogFacade],
 })
 export class CatalogModule {}

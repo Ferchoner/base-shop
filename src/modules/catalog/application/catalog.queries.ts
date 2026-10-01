@@ -95,6 +95,24 @@ export interface AdminProductView {
   readonly updatedAt: Date;
 }
 
+/**
+ * A variant as the other contexts see it (ADR-0005, DOMAIN_MODEL.md: "snapshot de variante"), with what they
+ * need of its product. Read when asked, never kept in sync.
+ */
+export interface VariantSnapshot {
+  readonly id: VariantId;
+  readonly productId: ProductId;
+  readonly productTitle: string;
+  readonly productStatus: ProductStatus;
+  readonly sku: string;
+  readonly options: VariantOptions;
+  readonly status: VariantStatus;
+  readonly weightGrams: number | null;
+  readonly lengthCm: number | null;
+  readonly widthCm: number | null;
+  readonly heightCm: number | null;
+}
+
 export interface ProductFilter {
   /** Part of the title, or of a SKU, whatever its case. */
   readonly q?: string;
@@ -132,4 +150,7 @@ export abstract class CatalogQueries {
   ): Promise<Page<AdminProductView>>;
 
   abstract findProduct(id: ProductId): Promise<AdminProductView | null>;
+
+  /** The variants with these IDs, in any status, ordered by SKU; an ID that does not exist is left out. */
+  abstract findVariants(ids: readonly VariantId[]): Promise<VariantSnapshot[]>;
 }
