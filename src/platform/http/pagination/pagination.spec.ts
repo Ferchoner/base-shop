@@ -5,6 +5,7 @@ import { PageQueryDto } from './page-query.dto.js';
 import {
   CommaSeparated,
   IsSortOf,
+  rangeEnd,
   toPageResponse,
   toSortOrders,
 } from './pagination.js';
@@ -143,5 +144,17 @@ describe('toPageResponse', () => {
         String,
       ).meta.totalPages,
     ).toBe(0);
+  });
+});
+
+describe('rangeEnd', () => {
+  it('takes a date alone as the end of that whole day, and anything else as it is', () => {
+    expect(rangeEnd('2026-10-31')).toEqual(
+      new Date('2026-10-31T23:59:59.999Z'),
+    );
+    expect(rangeEnd('2026-10-31T12:00:00Z')).toEqual(
+      new Date('2026-10-31T12:00:00.000Z'),
+    );
+    expect(rangeEnd(undefined)).toBeUndefined();
   });
 });
