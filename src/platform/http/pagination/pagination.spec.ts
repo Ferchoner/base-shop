@@ -37,7 +37,7 @@ async function parse(query: Record<string, string>): Promise<SampleListQuery> {
 
 async function errorsOf(
   query: Record<string, string>,
-): Promise<{ field: string; message: string }[]> {
+): Promise<{ field: string; code: string; message: string }[]> {
   try {
     await parse(query);
   } catch (error) {
@@ -66,6 +66,18 @@ describe('Listing query (ADR-0036)', () => {
   ])('rejects %o', async (query, field) => {
     expect((await errorsOf(query)).map((e) => e.field)).toEqual([field]);
   });
+
+  it.each([
+    [{ pageSize: 'abc' }, 'pageSize'],
+    [{ page: 'abc' }, 'page'],
+  ])(
+    'answers %o as not a number, not as out of range (ADR-0130)',
+    async (query, field) => {
+      expect(await errorsOf(query)).toEqual([
+        { field, code: 'isInt', message: 'Debe ser un número entero.' },
+      ]);
+    },
+  );
 
   it.each(['-createdAt', 'name', '-createdAt,name'])(
     'accepts the declared sort %p (API_SPEC.md §5.3)',

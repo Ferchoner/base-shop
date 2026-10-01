@@ -233,6 +233,8 @@ describe('Pricing (e2e, T-145 part a)', () => {
   it.each([
     [{ amount: -1 }, 'amount', 'min'],
     [{ amount: 599.5 }, 'amount', 'isInt'],
+    // A number sent as text is answered as such, not as out of range (ADR-0130).
+    [{ amount: '59900' }, 'amount', 'isInt'],
     [
       { amount: 59_900, compareAtAmount: 59_900 },
       'compareAtAmount',
