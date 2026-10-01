@@ -45,7 +45,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Eventos | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` |
 | Repositories | `ProductRepository`, `CategoryRepository`, `BrandRepository`; `CatalogQueryService` (lectura) |
 | Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, ReactivateVariant, PublishProduct, ArchiveProduct, ReactivateProduct (ADR-0076), AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug |
-| Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado |
+| Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado; fachada `CatalogFacade.variants` (ADR-0125) |
 
 ## Pricing
 
@@ -53,11 +53,11 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 |---|---|
 | Aggregates | `PriceList` (código, moneda, prioridad, status, alcance, indicador de impuesto incluido); `VariantPrice` (por lista y variante, con periodos `PricePeriod`) |
 | Value Objects | `Money`, `EffectivePeriod` |
-| Domain services | `PriceResolver` |
-| Eventos | `PriceScheduled`, `PriceChanged` (solo si tienen consumidor) |
+| Domain services | `PriceResolver`; en el MVP, `PricingFacade.quote` resuelve con la lista predeterminada (ADR-0125) |
+| Eventos | `PriceScheduled`, `PriceChanged` (solo si tienen consumidor; ninguno todavía, ADR-0125) |
 | Repositories | `PriceListRepository`, `VariantPriceRepository` |
-| Casos de uso | CreatePriceList, SetPrice, SchedulePrice, CancelScheduledPrice, BulkImportPrices, QuotePrices (API pública) |
-| Exporta | Precio resuelto por variante e instante |
+| Casos de uso | CreatePriceList (fuera del MVP), SetPrice, SchedulePrice, CancelScheduledPrice (`VariantPrices`), BulkImportPrices (T-145 parte b), QuotePrices (API pública) |
+| Exporta | Precio resuelto por variante e instante (`PricingFacade.quote`, ADR-0125) |
 
 ## Inventory
 

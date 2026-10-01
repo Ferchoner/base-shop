@@ -283,6 +283,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** único parcial `(is_default) WHERE is_default` (una sola predeterminada); único parcial `(priority) WHERE status = 'ACTIVE'` (BR-PRC-08); `CHECK (NOT is_default OR status = 'ACTIVE')` (la predeterminada no se desactiva, BR-PRC-06).
+- **Lista inicial:** la migración `20260930180000_pricing_default_list` (T-145, ADR-0125) inserta la "Lista general" (`GENERAL`, MXN, IVA incluido, activa y prioridad 0) solo si no existe una predeterminada.
 
 ### 5.2 `variant_prices`
 
@@ -298,6 +299,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `UNIQUE (price_list_id, variant_id)`.
 - **Índices:** `(variant_id)`.
+- **Uso:** la fila se crea con el primer precio de la variante en la lista. Cada cambio de precios la bloquea (`FOR UPDATE`) e incrementa `version` (ADR-0125).
 
 ### 5.3 `price_periods`
 
@@ -314,7 +316,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `EXCLUDE USING gist (variant_price_id WITH =, tstzrange(effective_from, effective_to, '[)') WITH &&)`: la base de datos impide periodos superpuestos (BR-PRC-01) aunque falle la validación de la aplicación.
 - **Índices:** `(variant_price_id, effective_from)`.
-- **Integridad:** los periodos iniciados son inmutables (BR-PRC-04): solo se permite cerrar el vigente fijando `effective_to`; los futuros no iniciados se pueden borrar.
+- **Integridad:** los periodos iniciados son inmutables salvo su fin (BR-PRC-04). Un precio nuevo cierra el vigente fijando `effective_to`, y cancelar uno programado devuelve su tiempo al anterior (ADR-0125). Los terminados nunca cambian, y los futuros no iniciados se pueden borrar.
 
 ---
 
