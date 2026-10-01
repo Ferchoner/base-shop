@@ -143,8 +143,21 @@ export class PrismaReservationRepository extends ReservationRepository {
     return 'committed';
   }
 
-  async release(orderId: OrderId, at: Date): Promise<boolean> {
-    const lines = await this.leave(orderId, 'RELEASED', at);
+  release(orderId: OrderId, at: Date): Promise<boolean> {
+    return this.free(orderId, 'RELEASED', at);
+  }
+
+  expire(orderId: OrderId, at: Date): Promise<boolean> {
+    return this.free(orderId, 'EXPIRED', at);
+  }
+
+  /** Ends the active reservation of the order with `status` and gives back the units it held. */
+  private async free(
+    orderId: OrderId,
+    status: 'RELEASED' | 'EXPIRED',
+    at: Date,
+  ): Promise<boolean> {
+    const lines = await this.leave(orderId, status, at);
     if (lines === null) return false;
     for (const { stock_item_id, quantity } of lines) {
       await this.txHost.tx.$executeRaw`
@@ -161,7 +174,7 @@ export class PrismaReservationRepository extends ReservationRepository {
    */
   private async leave(
     orderId: OrderId,
-    status: 'COMMITTED' | 'RELEASED',
+    status: 'COMMITTED' | 'RELEASED' | 'EXPIRED',
     at: Date,
   ): Promise<LineRow[] | null> {
     const tx = this.txHost.tx;

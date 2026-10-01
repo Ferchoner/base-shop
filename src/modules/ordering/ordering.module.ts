@@ -19,6 +19,7 @@ import {
   ShippingLocations,
 } from './application/checkout-ports.js';
 import { Checkout } from './application/checkout.use-case.js';
+import { OrderExpiry } from './application/order-expiry.use-case.js';
 import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from './application/order-payment-requests.use-case.js';
 import { OrderReader } from './application/order-reader.js';
@@ -36,6 +37,7 @@ import {
   ShippingFacadeCheckoutShipping,
   ShoppingFacadeCheckoutCarts,
 } from './infrastructure/facade-adapters.js';
+import { OrderExpiryJob } from './infrastructure/order-expiry.job.js';
 import { PaymentCapturedHandler } from './infrastructure/payment-captured.event-handler.js';
 import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
 import { RefundCompletedHandler } from './infrastructure/refund-completed.event-handler.js';
@@ -78,6 +80,8 @@ import { OrdersController } from './presentation/orders.controller.js';
     },
     Checkout,
     OrderLifecycle,
+    OrderExpiry,
+    OrderExpiryJob,
     OrderPaymentRequests,
     OrderReader,
     PaymentCapturedHandler,

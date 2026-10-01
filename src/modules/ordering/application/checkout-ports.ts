@@ -119,6 +119,9 @@ export abstract class OrderStock {
 
   /** Frees the reservation of an order (UC-INV-07); false when it has no active one. */
   abstract release(orderId: OrderId): Promise<boolean>;
+
+  /** Ends the reservation of an order that was not paid in time (UC-INV-08); false when it has no active one. */
+  abstract expire(orderId: OrderId): Promise<boolean>;
 }
 
 /** The shipping of an order, and the amount from which it is free. */

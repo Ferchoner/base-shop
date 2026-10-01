@@ -103,6 +103,10 @@ class InMemoryOrders extends OrderRepository {
     return Promise.resolve(code === CODE ? this.order : null);
   }
 
+  dueForExpiry(): Promise<OrderId[]> {
+    throw new Error('Paying never looks for due orders');
+  }
+
   save(): Promise<void> {
     throw new Error('Paying never changes the order itself');
   }

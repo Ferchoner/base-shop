@@ -120,6 +120,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The life of an order finds it by its ID');
   }
 
+  dueForExpiry(): Promise<OrderId[]> {
+    throw new Error('The life of an order never looks for due orders');
+  }
+
   save(order: Order, now: Date): Promise<void> {
     expect(now).toBe(NOW);
     this.saved.push(order);
@@ -168,6 +172,9 @@ function fakeStock(
     release: () => {
       calls.push('release');
       return Promise.resolve(true);
+    },
+    expire: () => {
+      throw new Error('The life of an order never expires a reservation');
     },
   };
   return { stock, calls, reservation };

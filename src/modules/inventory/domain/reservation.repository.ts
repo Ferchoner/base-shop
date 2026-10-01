@@ -47,4 +47,10 @@ export abstract class ReservationRepository {
 
   /** Frees the active reservation of the order (UC-INV-07); `false` when it has none. */
   abstract release(orderId: OrderId, at: Date): Promise<boolean>;
+
+  /**
+   * Ends the active reservation of an order that was not paid in time, freeing its units like `release`
+   * (UC-INV-08); `false` when it has none.
+   */
+  abstract expire(orderId: OrderId, at: Date): Promise<boolean>;
 }

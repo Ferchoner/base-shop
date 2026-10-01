@@ -98,6 +98,16 @@ export class PrismaOrderRepository extends OrderRepository {
     return Order.restore(toSnapshot(row));
   }
 
+  async dueForExpiry(at: Date, limit: number): Promise<OrderId[]> {
+    const rows = await this.txHost.tx.order.findMany({
+      select: { id: true },
+      where: { status: 'PENDING_PAYMENT', paymentDueAt: { lte: at } },
+      orderBy: [{ paymentDueAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map(({ id }) => toId<'Order'>(id));
+  }
+
   async lockByPublicCode(code: PublicCode): Promise<Order | null> {
     const [locked] = await this.txHost.tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM orders WHERE public_code = ${code} FOR UPDATE`;

@@ -105,6 +105,10 @@ class FakeReservations extends ReservationRepository {
   release(): Promise<boolean> {
     return Promise.resolve(true);
   }
+
+  expire(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
 }
 
 /** Available units by variant; it remembers what it was asked. */
