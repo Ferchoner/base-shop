@@ -119,6 +119,7 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 - [x] T-140 (parte a): productos y variantes para el staff (crear, editar, publicar, archivar, reactivar; agregar, editar, descontinuar y reactivar variantes) con bloqueo optimista, `field-locked` tras la primera publicación, slugs numerados, nombres de opción en minúsculas, `search_vector` recalculado en la misma transacción (también desde categorías y marcas) y eventos que vacían la cache pública; las partes b (imágenes) y c (tienda) siguen (ADR-0123)
 - [x] T-140 (parte b): imágenes de producto (subir, editar, reordenar y borrar) sobre la base de T-141, en una galería propia sin `version`, con hasta 20 imágenes, posiciones consecutivas, bloqueo de la fila del producto para subidas simultáneas, archivo y fila siempre juntos, y 413 con `maxBytes` (ADR-0124)
 - [x] T-145 (parte a): lista predeterminada creada por migración, precios desde ahora y programados en una línea de periodos sin huecos (consultar, fijar, programar y cancelar), bloqueo de la fila de la variante para cambios simultáneos, `PricingFacade.quote` para la tienda, el carrito y el checkout, y `CatalogFacade.variants`; la carga masiva queda para la parte b (ADR-0125)
+- [x] T-145 (parte b): carga masiva de precios en CSV (montos en pesos, fechas en hora de México o ISO con zona), todo o nada con los errores por línea, simulación con `dryRun`, archivo repetido sin cambios, hasta 5,000 filas procesadas en bloque en una transacción, y lector CSV compartido en `platform/files` (ADR-0126)
 
 ## In Progress
 

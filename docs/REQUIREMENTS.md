@@ -217,7 +217,7 @@ Criterios de aceptación:
 | UC-PRC-02 | Establecer precio inmediato | Staff (`pricing.write`) | BR-PRC-01 a BR-PRC-05 |
 | UC-PRC-03 | Programar precio futuro | Staff (`pricing.write`) | BR-PRC-01, BR-PRC-05 |
 | UC-PRC-04 | Cancelar precio programado no iniciado | Staff (`pricing.write`) | BR-PRC-04, ADR-0038 |
-| UC-PRC-05 | Carga masiva de precios | Staff (`pricing.write`) | Formato PENDIENTE (T-145 parte b) |
+| UC-PRC-05 | Carga masiva de precios | Staff (`pricing.write`) | BR-PRC-01 a BR-PRC-05, ADR-0126 |
 | UC-PRC-06 | Resolver precio vigente | Sistema (API pública del módulo) | ADR-0039 |
 
 Criterios de aceptación:
@@ -225,6 +225,7 @@ Criterios de aceptación:
 - **UC-PRC-02:** cierra el periodo vigente y abre uno nuevo; el monto es ≥ 0; el precio de comparación, si existe, es mayor que el monto; todo en MXN.
 - **UC-PRC-03:** se rechaza un periodo que empieza en el mismo instante que otro de la misma variante. Uno que cae dentro de otro lo cierra en su inicio y termina donde empieza el siguiente (ADR-0125).
 - **UC-PRC-04:** un periodo ya iniciado no se puede cancelar. Al cancelar uno programado, el periodo anterior vuelve a durar hasta el siguiente (ADR-0125).
+- **UC-PRC-05:** un CSV de hasta 5,000 filas; cada fila se aplica como UC-PRC-02 o UC-PRC-03, todo o nada, con los errores por línea; repetir el archivo no cambia nada (ADR-0126).
 - **UC-PRC-06:** devuelve el precio de la lista predeterminada vigente en el instante indicado.
 
 ### 5.4 Inventory

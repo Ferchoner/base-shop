@@ -993,16 +993,42 @@ En el MVP existe solo la lista predeterminada (ADR-0039); no hay endpoints para 
 - `effectiveFrom` lleva fecha, hora y zona horaria (`Z` u `±hh:mm`).
 - **Línea de periodos (ADR-0125):** un periodo nuevo cierra en su inicio el periodo en el que cae, vigente o programado, y termina donde empieza el siguiente. Así se puede programar entre otros precios, por ejemplo una oferta de varios días.
 - La variante debe existir en Catalog (fachada), en cualquier estado.
-- Response 201: `PricePeriod`. Un precio inmediato igual al vigente (mismo monto y mismo precio de comparación) no abre un periodo: responde 200 con el vigente.
+- Response 201: `PricePeriod`. No abren un periodo, y responden 200 con el existente:
+  - un precio inmediato igual al vigente (mismo monto y mismo precio de comparación);
+  - un precio programado idéntico al que ya existe en el mismo instante (ADR-0126).
 - Errores:
-  - 409 `price-period-conflict` con `reason: overlap` si otro periodo empieza en el mismo instante (BR-PRC-01);
+  - 409 `price-period-conflict` con `reason: overlap` si otro periodo, con otro precio, empieza en el mismo instante (BR-PRC-01);
   - 400 `validation-error` con `compareAtAmount` en `compareAtAmount` si el precio de comparación no es mayor que el monto.
 
 **`DELETE …/periods/{periodId}`** — Cancela un precio programado. 204; el periodo anterior vuelve a durar hasta el siguiente (ADR-0125). Errores: 409 `price-period-conflict` con `reason: already-started` si ya inició (BR-PRC-04); 404 si el periodo no es de esa variante en esa lista.
 
-**`POST …/imports`** — Carga masiva. Formato del archivo, validación parcial o total y respuesta: PENDIENTE (T-145 parte b).
+**`POST …/imports`** — Carga masiva (UC-PRC-05, ADR-0126). Recibe `multipart/form-data` con el archivo en `file`. Con `?dryRun=true` revisa todo y responde sin guardar nada.
 
-Implementado en T-145 parte a (ADR-0125), salvo la carga masiva:
+- **Archivo:** CSV en UTF-8 (con o sin BOM), separado por comas y con encabezado; hasta 5,000 filas y 1 MB. Columnas `sku`, `amount`, `compareAtAmount` y `effectiveFrom`, cada una una vez, en cualquier orden y sin distinguir mayúsculas.
+
+  ```
+  sku,amount,compareAtAmount,effectiveFrom
+  CAM-LINO-M,599.00,799.00,
+  CAM-LINO-M,499.00,799.00,2026-11-14 00:00
+  GORRA-AZUL,199,,
+  ```
+
+- **Valores:**
+  - `sku`: de una variante existente, sin distinguir mayúsculas;
+  - `amount` y `compareAtAmount` (opcional): pesos con punto decimal y hasta 2 decimales, sin `$` ni separador de miles;
+  - `effectiveFrom`: vacía (desde ahora), fecha y hora en hora de México (`2026-11-14 00:00`) o ISO 8601 con zona.
+- **Reglas:**
+  - cada fila es un `POST …/periods`, y las filas "desde ahora" empiezan en el instante de la carga;
+  - un SKU puede repetirse con inicios distintos, pero el mismo SKU con el mismo inicio es error de la fila;
+  - una fila igual al precio vigente, o a uno ya programado en el mismo instante, cuenta como sin cambio.
+- **Todo o nada:** con cualquier error no se importa nada. Responde 400 `validation-error` con los primeros 100 errores ordenados por línea, en `rows[<línea>].<columna>`; el encabezado es la línea 1, y `rows[<línea>]` sola indica que faltan o sobran valores.
+  - Códigos de fila: `isNotEmpty`, `unknownSku`, `pesos`, `compareAtAmount`, `dateTime`, `repeatedStart`, `overlap` y `columnCount`.
+  - Errores del archivo, en `file`: `isDefined`, `utf8`, `csv`, `columns`, `emptyFile` y `tooManyRows`.
+- **Response 200:** `{ "rows": 3, "created": 3, "unchanged": 0, "dryRun": false }`.
+- **Errores:** 413 `payload-too-large` con `maxBytes` para un archivo de más de 1 MB; 404 si la lista no existe.
+- **Auditoría:** una entrada `prices.import` con los conteos. Una carga que no crea periodos no se audita.
+
+Implementado en T-145 (ADR-0125, ADR-0126):
 
 - **No encontrado:** una lista, variante o periodo inexistentes responden 404, también si el ID no es un UUID.
 - **Cambios simultáneos:** dos cambios de una variante se aplican uno tras otro.
@@ -1343,7 +1369,7 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es u
 
 | ID | Tema | Endpoints afectados |
 |---|---|---|
-| T-145 parte b | Formato de la carga masiva de precios | `POST …/price-lists/{id}/imports` |
+| T-140 parte c | Cálculo de `storeVisibility` sin la fachada de Pricing (ADR-0125) | `GET /v1/admin/catalog/products` y su detalle |
 
 ---
 
