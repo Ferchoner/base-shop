@@ -73,7 +73,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-185 | Ordering: consulta de pedido de invitado (email + código público, con rate limiting); UC-ORD-04 | TODO | T-180 |
 | T-186 | Ordering: enlace de acceso al pedido por correo; UC-ORD-05 | DEFERRED | ADR-0077 |
 | T-190 | Payments: modelo, pago manual en tienda para pruebas (ADR-0055) y reembolso total al cancelar (ADR-0051); UC-PAY-01 a 03, 06, 07 | TODO | T-180 |
-| T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04 | TODO | T-190 |
+| T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04. Incluye, desde la Sprint Review del Sprint 3, la conciliación de pagos cada 5 minutos (UC-PAY-05), que solo sirve con un proveedor | TODO | T-190, T-117 |
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | BLOCKED | T-192, P-31, cuenta y sandbox de PayPal |
 | T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09 | TODO | T-180 |
@@ -82,7 +82,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-210 | Admin | Reemplazada: los endpoints administrativos se implementan en cada contexto (ADR-0004) | — |
 | T-215 | Notificaciones (ADR-0074); UC-NTF-01 | TODO | T-116, T-122, T-180, T-190, T-195 |
 | T-220 | Auditoría técnica (UC-AUD-02, 03): consulta con `audit.read`, exportación a archivos comprimidos de registros con más de 3 meses (sin borrar si la exportación falla) y borrado de archivos a 2 años. El registro (UC-AUD-01) está en T-127 | TODO | T-127, T-117 |
-| T-230 | Jobs: expiración de reservas y órdenes (cada minuto), conciliación de pagos (cada 5 min); UC-INV-08, UC-ORD-10, UC-PAY-05. Agrega a `InventoryFacade` la transición a EXPIRED (ADR-0128) | TODO | T-117, T-180, T-190 |
+| T-230 | Jobs: expiración de reservas y órdenes (cada minuto); UC-INV-08, UC-ORD-10. Agrega a `InventoryFacade` la transición a EXPIRED (ADR-0128). La conciliación de pagos (UC-PAY-05) pasó a T-192 en la Sprint Review del Sprint 3 | TODO | T-117, T-180, T-190 |
 | T-231 | Job de limpieza diaria (refresh tokens, tokens de verificación y recuperación, idempotencia, webhooks, carritos de invitado); UC-SYS-01, UC-CRT-07 | TODO | T-117, T-115, T-120, T-121, T-123, T-170 |
 | T-232 | Ciclo de conservación de datos personales en órdenes: permiso de consulta de datos bloqueados, ocultamiento en la API y job de transición (ADR-0070) | DEFERRED | P-61 (validación legal) |
 

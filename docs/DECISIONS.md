@@ -2227,7 +2227,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Correr siempre el scheduler: un job de cada minuto podría tocar los datos de los tests end-to-end.
   - Una utilidad genérica de procesamiento por lotes: se agrega si varios jobs repiten el mismo patrón.
 - **Consecuencias:**
-  - Los jobs concretos (expiración de reservas y órdenes y conciliación de pagos en T-230, limpieza diaria en T-231, archivo de auditoría en T-220) usan `@ScheduledJob`.
+  - Los jobs concretos (expiración de reservas y órdenes y conciliación de pagos en T-230, limpieza diaria en T-231, archivo de auditoría en T-220) usan `@ScheduledJob`. La conciliación pasó a T-192, con PayPal, en la Sprint Review del Sprint 3.
   - El registro de ejecuciones en curso es del proceso completo, coherente con una sola instancia (ADR-0029); con varias instancias harán falta bloqueos en PostgreSQL.
   - Un test de un job llama a su método directamente, porque el scheduler está apagado.
 - **Estado:** Aceptada (aprobación formal 2026-09-27).
