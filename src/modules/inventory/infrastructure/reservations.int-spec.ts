@@ -127,6 +127,7 @@ describe('Inventory: reservations (T-160 part b)', () => {
   const commit = (orderId: OrderId) => cls.run(() => inventory.commit(orderId));
   const release = (orderId: OrderId) =>
     cls.run(() => inventory.release(orderId));
+  const expire = (orderId: OrderId) => cls.run(() => inventory.expire(orderId));
 
   const stockOf = (variantId: VariantId) =>
     prisma.stockItem.findUniqueOrThrow({
@@ -332,6 +333,37 @@ describe('Inventory: reservations (T-160 part b)', () => {
       expect(
         await prisma.stockMovement.count({ where: { type: 'SALE' } }),
       ).toBe(0);
+    });
+
+    it('expires once: the units are available again and it can no longer be confirmed (UC-INV-08, ADR-0136)', async () => {
+      const [shirt] = await stocked(10);
+      const orderId = newId<'Order'>();
+      const { reservationId } = await reserve(orderId, [
+        { variantId: shirt, quantity: 4 },
+      ]);
+      current += 21 * MINUTE;
+      const expiredAt = current + 1;
+
+      expect(await expire(orderId)).toBe(true);
+      expect(await expire(orderId)).toBe(false);
+      expect(await release(orderId)).toBe(false);
+      expect(await commit(orderId)).toBe('not-active');
+
+      expect(await stockOf(shirt)).toMatchObject({ onHand: 10, reserved: 0 });
+      expect(
+        await prisma.reservation.findUniqueOrThrow({
+          where: { id: reservationId },
+        }),
+      ).toMatchObject({
+        status: 'EXPIRED',
+        version: 2,
+        updatedAt: new Date(expiredAt),
+      });
+      expect(
+        await prisma.stockItem.findFirstOrThrow({
+          where: { variantId: shirt },
+        }),
+      ).toMatchObject({ updatedAt: new Date(expiredAt) });
     });
 
     it('opens a new reservation for an order whose reservation ended, as a late payment does (ADR-0012)', async () => {

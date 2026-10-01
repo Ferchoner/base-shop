@@ -385,7 +385,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** único parcial `(order_id) WHERE status = 'ACTIVE'` (BR-INV-04). La reserva se abre con `INSERT … ON CONFLICT (order_id) WHERE status = 'ACTIVE' DO NOTHING`, así que dos reservas de una orden a la vez abren una sola (ADR-0128).
-- **Índices:** `(expires_at) WHERE status = 'ACTIVE'` (job de expiración).
+- **Índices:** `(expires_at) WHERE status = 'ACTIVE'` (job de expiración). Sin uso desde T-230: el job busca las órdenes por `orders.payment_due_at` y vence la reserva de cada una (ADR-0136).
 
 ### 6.5 `reservation_lines`
 
@@ -469,6 +469,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
   - las fechas las pone la aplicación;
   - la primera entrada de `order_status_history` lleva como actor al cliente, o `NULL` para un invitado.
 - **Implementado en T-180 parte b (ADR-0133):** cada cambio lee la orden con `SELECT … FOR UPDATE` y guarda con `UPDATE … WHERE version = …`, más una entrada de `order_status_history` por cambio de estado, con el staff y el motivo, o `NULL` cuando es el sistema. Un pago tardío cambia `reservation_id` a la reserva nueva.
+- **Implementado en T-230 (ADR-0136):** el job lee hasta 100 órdenes con `status = 'PENDING_PAYMENT' AND payment_due_at <= ahora`, por `payment_due_at` y luego `id`, con el índice `(status, placed_at)`; cada una se vence después con `SELECT … FOR UPDATE`.
 
 ### 8.2 `order_lines` (order_items)
 

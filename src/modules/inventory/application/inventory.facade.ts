@@ -125,6 +125,17 @@ export class InventoryFacade {
     );
   }
 
+  /**
+   * Ends the reservation of an order that was not paid in time (UC-INV-08, ADR-0136): EXPIRED, and its units
+   * are available again. Ordering decides when, because the order expires with it. `false` when it has no
+   * active one, so repeating it changes nothing.
+   */
+  expire(orderId: OrderId): Promise<boolean> {
+    return this.transactions.run(() =>
+      this.reservations.expire(orderId, this.clock.now()),
+    );
+  }
+
   private async activeWarehouse(): Promise<Warehouse> {
     const warehouse = await this.warehouses.findActive();
     // A migration creates it (ADR-0127), and nothing deactivates it in the MVP (ADR-0081).

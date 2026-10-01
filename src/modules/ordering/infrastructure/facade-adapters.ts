@@ -155,6 +155,10 @@ export class InventoryFacadeOrderStock extends OrderStock {
   release(orderId: OrderId): Promise<boolean> {
     return this.inventory.release(orderId);
   }
+
+  expire(orderId: OrderId): Promise<boolean> {
+    return this.inventory.expire(orderId);
+  }
 }
 
 @Injectable()

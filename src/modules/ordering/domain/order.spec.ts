@@ -358,4 +358,47 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
       );
     }
   });
+
+  it('expires an unpaid order once its payment is due, and only once (UC-ORD-10, BR-ORD-07)', () => {
+    const early = saved('PENDING_PAYMENT');
+    const due = saved('PENDING_PAYMENT');
+    const late = saved('PENDING_PAYMENT');
+
+    expect(early.expireIfDue(new Date(DUE.getTime() - 1))).toBe(false);
+    expect(due.expireIfDue(DUE)).toBe(true);
+    expect(late.expireIfDue(LATER)).toBe(true);
+    expect(late.expireIfDue(LATER)).toBe(false);
+
+    expect([early.status, early.hasChanges]).toEqual([
+      'PENDING_PAYMENT',
+      false,
+    ]);
+    expect(due.snapshot).toMatchObject({ status: 'EXPIRED', expiredAt: DUE });
+    expect(late.statusChanges).toEqual([
+      {
+        from: 'PENDING_PAYMENT',
+        to: 'EXPIRED',
+        actorId: null,
+        reason: null,
+        at: LATER,
+      },
+    ]);
+  });
+
+  it('expires nothing but an unpaid order', () => {
+    for (const status of [
+      'PAID',
+      'AWAITING_MANUAL_FULFILLMENT',
+      'SHIPPED',
+      'DELIVERED',
+      'CANCELLED',
+      'EXPIRED',
+      'REFUNDED',
+    ] as const) {
+      const order = saved(status);
+
+      expect(order.expireIfDue(LATER)).toBe(false);
+      expect([order.status, order.hasChanges]).toEqual([status, false]);
+    }
+  });
 });

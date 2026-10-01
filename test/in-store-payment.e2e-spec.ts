@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ClsService } from 'nestjs-cls';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
+import { OrderExpiry } from '../src/modules/ordering/application/order-expiry.use-case.js';
 import type { AuthenticatedUser } from '../src/platform/auth/authenticated-user.js';
 import { DomainEventDispatcher } from '../src/platform/events/domain-event-dispatcher.js';
 import { configureHttp } from '../src/platform/http/configure-http.js';
@@ -447,18 +449,12 @@ describe('In-store payment (e2e, T-190)', () => {
     it('creates the payment when the customer never started it, and pays an expired order as a late payment', async () => {
       const shirt = await variant(5);
       const { id } = await guestOrder(shirt);
+      // Its payment is due, and the expiration job ends it with its reservation (ADR-0136).
       await prisma.order.update({
         where: { id },
-        data: { status: 'EXPIRED', expiredAt: new Date() },
+        data: { paymentDueAt: new Date(Date.now() - 1_000) },
       });
-      await prisma.reservation.updateMany({
-        where: { orderId: id },
-        data: { status: 'EXPIRED' },
-      });
-      await prisma.stockItem.updateMany({
-        where: { variantId: shirt },
-        data: { reserved: 0 },
-      });
+      await app.get(ClsService).run(() => app.get(OrderExpiry).expireDue());
 
       const { body } = await capture(id, cashier, { note: ' ' }).expect(200);
       await idle();

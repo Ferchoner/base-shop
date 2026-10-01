@@ -113,6 +113,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The checkout never locks a saved order');
   }
 
+  dueForExpiry(): Promise<OrderId[]> {
+    throw new Error('The checkout never expires orders');
+  }
+
   save(): Promise<void> {
     throw new Error('The checkout never saves a placed order again');
   }
@@ -219,6 +223,9 @@ function setUp(
     },
     release: () => {
       throw new Error('The checkout never releases a reservation');
+    },
+    expire: () => {
+      throw new Error('The checkout never expires a reservation');
     },
   };
   const shipping: CheckoutShipping = {

@@ -25,6 +25,12 @@ export abstract class OrderRepository {
   abstract lockByPublicCode(code: PublicCode): Promise<Order | null>;
 
   /**
+   * Up to `limit` PENDING_PAYMENT orders whose payment was due at `at`, the oldest due first (UC-ORD-10). They
+   * are not locked: whoever expires one locks it and looks again.
+   */
+  abstract dueForExpiry(at: Date, limit: number): Promise<OrderId[]>;
+
+  /**
    * Writes what changed in a locked order and one history entry per status change, and counts one more
    * version.
    *

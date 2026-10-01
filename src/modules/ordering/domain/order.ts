@@ -380,6 +380,24 @@ export class Order {
   }
 
   /**
+   * The order was not paid in time (UC-ORD-10, BR-ORD-07): once its payment is due, a PENDING_PAYMENT order
+   * becomes EXPIRED, and its reservation must expire with it. A late payment can still pay it (ADR-0012).
+   *
+   * @returns false, changing nothing, unless it is PENDING_PAYMENT with its payment due.
+   */
+  expireIfDue(now: Date): boolean {
+    if (
+      this.state.status !== 'PENDING_PAYMENT' ||
+      this.state.paymentDueAt > now
+    ) {
+      return false;
+    }
+    this.move('EXPIRED', null, null, now);
+    this.state = { ...this.state, expiredAt: now };
+    return true;
+  }
+
+  /**
    * The refund of a cancelled order completed (ADR-0051): REFUNDED, when the money went back.
    *
    * @throws InvalidStateTransitionError unless the order is CANCELLED with a captured payment.

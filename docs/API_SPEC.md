@@ -108,7 +108,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED, con `refundedAt` igual a la fecha del reembolso, y deja de tener `hasPendingRefund` (ADR-0051, ADR-0135); el correo "Reembolso completado" llega con T-215 | Estado de la orden; correo del cliente |
 | Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida" | Correo del cliente |
 | Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada" | Correo del cliente |
-| Expirar una orden impaga (job cada minuto) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054) | Carrito del cliente o del invitado |
+| Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054), desde T-181 | Carrito del cliente o del invitado |
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
 - Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva y el inicio del reembolso.
@@ -1304,6 +1304,8 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - 200 `AdminOrder`. Errores: 409 `insufficient-stock` (con `lines`); 409 `invalid-state-transition`.
 
 UC-ORD-09 y UC-ORD-10 no tienen API: los ejecutan eventos y jobs.
+
+Implementado en T-230 (ADR-0136): cada minuto vencen, por lotes de 100, las órdenes PENDING_PAYMENT con `paymentDueAt` vencido, junto con su reserva. La orden muestra EXPIRED con `expiredAt` y `paymentDueAt` en `null`; su historial suma el cambio sin actor. El pago iniciado sigue PENDING: el comprador ya no puede iniciarlo (409), pero el staff todavía puede registrar su pago en tienda (pago tardío, ADR-0012). Una orden vencida no se cancela (409).
 
 Implementado en T-180 parte b (ADR-0133):
 
