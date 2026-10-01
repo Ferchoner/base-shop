@@ -115,6 +115,17 @@ export class PrismaOrderingQueries extends OrderingQueries {
     return row === null ? null : toOrderView(row);
   }
 
+  async findGuestOrder(
+    publicCode: PublicCode,
+    contactEmail: string,
+  ): Promise<OrderView | null> {
+    const row = await this.txHost.tx.order.findFirst({
+      select: ORDER_FIELDS,
+      where: { publicCode, contactEmail, customerId: null },
+    });
+    return row === null ? null : toOrderView(row);
+  }
+
   async findAdminOrder(id: OrderId): Promise<AdminOrderView | null> {
     const row = await this.txHost.tx.order.findUnique({
       select: ADMIN_ORDER_FIELDS,

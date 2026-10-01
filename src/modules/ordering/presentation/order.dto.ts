@@ -87,6 +87,30 @@ export class PlaceGuestOrderDto {
 }
 
 /**
+ * Request of `POST /v1/orders/lookup` (UC-ORD-04, API_SPEC.md §15.5): in the body, so the email and the code stay
+ * out of logs and histories (ADR-0071). A code that cannot exist is answered as a missing order (ADR-0138).
+ */
+export class GuestOrderLookupDto {
+  /**
+   * Email de contacto de la orden, sin distinguir mayúsculas y minúsculas.
+   * @example 'cliente@example.com'
+   */
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail: string;
+
+  /**
+   * Código público de la orden, con o sin guion y sin distinguir mayúsculas y minúsculas.
+   * @example 'K7M4-Q9XA'
+   */
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  publicCode: string;
+}
+
+/**
  * Request of `POST /v1/me/orders` (UC-ORD-02, API_SPEC.md §15.3): exactly one of `addressId` and
  * `shippingAddress`, which the controller checks.
  */
