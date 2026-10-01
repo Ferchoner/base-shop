@@ -155,6 +155,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0135 | Reembolsos: cancelar órdenes pagadas, reembolso manual y reintegro hasta T-161 | Aceptada |
 | ADR-0136 | Vencimiento de órdenes impagas: un job en Ordering con su reserva | Aceptada |
 | ADR-0137 | Carrito de una orden vencida: división de T-181 e idempotencia por el carrito de origen | Aceptada |
+| ADR-0138 | Consulta de pedido de invitado: una sola consulta, 404 único y staff permitido | Aceptada |
 
 ---
 
@@ -417,7 +418,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El identificador que usa el invitado no es adivinable (código aleatorio, ADR-0049); junto con el email y el rate limiting, impide la enumeración.
   - La respuesta de error no debe revelar si existe una orden con ese número o ese email.
   - El enlace por correo depende del proveedor de correo (P-24).
-- **Estado:** Aceptada. El enlace por correo queda fuera del MVP (ADR-0077).
+- **Estado:** Aceptada. El enlace por correo queda fuera del MVP (ADR-0077). Implementada en T-185 (ADR-0138).
 
 ---
 
@@ -3860,3 +3861,27 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Prueba contra PostgreSQL: la restauración junto con una línea nueva del mismo cliente deja un solo carrito activo con todo.
   - T-181 parte b agrega la recompra.
 - **Estado:** Aceptada (plan de T-181 aprobado el 2026-10-01, con sus 3 recomendaciones). La comparación con la fecha del vencimiento se agregó durante la implementación.
+
+---
+
+## ADR-0138 — Consulta de pedido de invitado: una sola consulta, 404 único y staff permitido
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-185 (UC-ORD-04). `POST /v1/orders/lookup` recibe en el cuerpo el email de contacto y el código público (ADR-0071), responde solo órdenes de invitado y el mismo 404 si la orden no existe, el email no coincide o la orden es de una cuenta (BR-ORD-11), con 10 consultas por IP en 15 minutos (ADR-0065, `guest-order`). Quedaban abiertas tres cosas:
+  - cómo comparar el email y el código sin que el tiempo de respuesta delate cuál falló;
+  - qué responder a un código mal formado;
+  - si una cuenta de staff puede consultar.
+- **Decisión:**
+  - **Una sola consulta:** busca por código público, `customer_id IS NULL` y email de contacto. El email se normaliza con `trim` y minúsculas, la misma regla con que la orden lo guarda (ahora una función del dominio para ambos usos). Los tres casos de 404 siguen el mismo camino, y una orden anonimizada, sin email, nunca coincide.
+  - **El mismo 404 para todo fallo:** también para un código que no puede existir, como ya hace el pago de invitado (ADR-0134). El error no lleva el email ni el código, tampoco en el log. Solo responden 400 `validation-error` los campos faltantes, un email mal formado o un código vacío, de otro tipo o de más de 100 caracteres, que no revelan nada de las órdenes.
+  - **El staff puede consultar:** es una lectura, como leer un carrito de invitado (ADR-0131), y el staff ya ve cualquier orden en `/v1/admin/orders`. El bloqueo de compras de staff pasa del controlador a sus dos rutas de compra, colocar la orden e iniciar el pago, que siguen respondiendo 403 `staff-cannot-purchase`.
+  - **Respuesta:** el `Order` que ve el cliente, con su pago, igual que `/v1/me/orders/{publicCode}`.
+  - **Sin auditoría, sin idempotencia** (es una lectura) **y sin migración.** La recompra pública de T-181 parte b usará la misma búsqueda y el mismo límite.
+- **Alternativas consideradas:**
+  - **Leer por código y comparar en la aplicación:** más simple, pero el caso "existe con otro email" tarda distinto.
+  - **400 para un código mal formado:** más útil para un formulario, pero el cliente puede validar el formato por su cuenta.
+  - **403 al staff, como el resto del controlador:** no protege nada.
+- **Consecuencias:**
+  - Las e2e suben `RATE_LIMIT_GUEST_ORDER` a 1000 en 15 minutos, como ya hacían con el límite general; una suite propia lo baja a 2 para comprobar el 429 en la ruta real.
+  - T-181 parte b reutiliza la búsqueda para `POST /v1/orders/reorder`.
+- **Estado:** Aceptada (plan de T-185 aprobado el 2026-10-01, con sus 3 recomendaciones).

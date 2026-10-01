@@ -1260,6 +1260,12 @@ Implementado en T-180 parte a (ADR-0132):
 - Response 200: `Order`. Solo órdenes de invitado; una orden de cliente registrado se consulta en `/v1/me/orders`.
 - Errores: 404 `not-found` idéntico si la orden no existe, el email no coincide o la orden pertenece a una cuenta (BR-ORD-11).
 - Rate limit obligatorio: 10 por IP en 15 minutos.
+- **Implementado en T-185 (ADR-0138):**
+  - el email no distingue mayúsculas, minúsculas ni espacios alrededor, y el código acepta minúsculas y la falta de guion;
+  - un código que no puede existir también responde el mismo 404, que no lleva el email ni el código;
+  - 400 `validation-error` solo por campos faltantes, un email mal formado o un código vacío, de otro tipo o de más de 100 caracteres;
+  - una cuenta de staff puede consultar, pero no colocar ni pagar una orden de invitado;
+  - cada consulta gasta el límite, encuentre o no la orden.
 
 ### 15.6 Enlace de acceso por correo (UC-ORD-05) — fuera del MVP
 
