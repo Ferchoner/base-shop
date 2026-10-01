@@ -103,7 +103,7 @@ RBAC (ADR-0017):
 - Los webhooks verifican la firma de cada proveedor y se deduplican.
 - El monto a cobrar se obtiene de la orden, nunca del cliente.
 - Los cambios que afectan pagos requieren revisión humana (`TEAM_GUIDE.md`).
-- El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible si la variable de entorno que habilita el pago manual está activa (ADR-0040, ADR-0051).
+- El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible si la variable de entorno que habilita el pago manual está activa (ADR-0040, ADR-0051). La variable es `MANUAL_PAYMENTS_ENABLED`, `false` por defecto (ADR-0134).
 
 ## Subida de archivos
 

@@ -513,6 +513,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 |---|---|---|---|
 | id | uuid | No | PK |
 | order_id | uuid | No | Referencia lógica a Ordering; `UNIQUE` (BR-PAY-01) |
+| order_code | char(8) | No | Código público de la orden, sin guion, para mostrarlo sin leer a Ordering (ADR-0134) |
 | provider | enum `payment_provider` (MANUAL, PAYPAL) | No | ADR-0040 |
 | status | enum `payment_status` (PENDING, REQUIRES_ACTION, AUTHORIZED, CAPTURED, FAILED, CANCELLED, PARTIALLY_REFUNDED, REFUNDED) | No | ADR-0013 |
 | amount | integer | No | Total de la orden; `CHECK (amount > 0)` |
@@ -526,6 +527,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `CHECK (captured_amount BETWEEN 0 AND amount)`; `CHECK (refunded_amount BETWEEN 0 AND captured_amount)` (BR-PAY-04); único parcial `(provider, provider_payment_id) WHERE provider_payment_id IS NOT NULL`.
 - **Índices:** `(status, updated_at)` (conciliación, ADR-0029).
+- **Implementado en T-190 parte a (ADR-0134):** `order_code` llegó con la migración `20261001200000_payments_order_code`, `NOT NULL` sin valor predeterminado, porque la tabla estaba vacía. Cada cambio compara `version`; las fechas las pone la aplicación. Ordering bloquea la orden antes de tocar su pago.
 
 ### 9.2 `payment_attempts`
 
