@@ -148,6 +148,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0128 | Reservas de stock: fachada, vigencia y TTL configurable | Aceptada |
 | ADR-0129 | Tienda pública: consulta, `storeVisibility`, tablas de cada contexto y cache acotada | Aceptada |
 | ADR-0130 | Validación: una regla por campo, primero la presencia y el tipo | Aceptada |
+| ADR-0131 | Carrito: bloqueos, límite de líneas, variantes no vendibles e imagen principal | Aceptada |
 
 ---
 
@@ -1192,7 +1193,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El `cartId` de todo carrito de invitado es aleatorio y no adivinable, porque es la única credencial de ese carrito.
 - **Alternativas consideradas:** Fusionar dentro del login; fusionar de forma implícita mediante un encabezado.
 - **Consecuencias:** Si el frontend no llama a la fusión, el carrito de invitado queda sin dueño y se elimina a los 30 días de inactividad (ADR-0029).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en T-170 (ADR-0131): la fusión bloquea primero el carrito de invitado y después el del cliente.
 
 ---
 
@@ -3187,7 +3188,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una subida bloquea la fila del producto mientras guarda la fila de la imagen; el archivo ya está escrito, así que el bloqueo dura poco.
   - Los archivos huérfanos solo aparecen si falla el borrado del disco después del commit; hoy no hay limpieza automática para ellos.
   - La imagen de un borrador se puede abrir con su URL, que lleva dos UUID difíciles de adivinar.
-- **Estado:** Aceptada (plan de T-140 parte b aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-140 parte b aprobado el 2026-09-30). La imagen en posición 1 es la principal del producto, y la primera de cada variante es la suya: el carrito las usa (ADR-0131).
 
 ---
 
@@ -3501,3 +3502,65 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Ningún test existente dependía de los mensajes engañosos.
   - Un campo obligatorio que falta y no tiene `@IsDefined` ni `@IsNotEmpty` responde con su regla de tipo ("Debe ser texto."), no con "Es obligatorio.".
 - **Estado:** Aceptada (plan del paso 0 del Sprint 4 aprobado el 2026-10-01).
+
+---
+
+## ADR-0131 — Carrito: bloqueos, límite de líneas, variantes no vendibles e imagen principal
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-170 (UC-CRT-01 a 06). `API_SPEC.md` §14 fija los contratos, y ADR-0059, la fusión y el identificador aleatorio. Quedaban abiertos estos puntos:
+  - cómo evitar que dos cambios simultáneos dejen una línea con más de 30 unidades, si el contrato no envía `version`;
+  - qué se responde para una variante que no existe;
+  - si una cuenta de staff puede usar las rutas de invitado;
+  - qué cuenta como actividad para la limpieza de 30 días (BR-CRT-06);
+  - cuántas líneas puede tener un carrito;
+  - qué imagen muestra cada línea.
+- **Decisión:**
+  - **Módulo Shopping:**
+    - el aggregate `Cart` guarda solo variantes y cantidades, nunca precios (BR-CRT-04);
+    - la aplicación declara los puertos `CartCatalog`, `CartPrices` y `CartStock`, que su infraestructura responde con las fachadas de Catalog, Pricing e Inventory (ADR-0005);
+    - Shopping usa a esos tres módulos y ninguno usa a Shopping, así que no hay ciclos.
+  - **Vista del carrito, calculada al leer:**
+    - cada línea toma el precio vigente de Pricing;
+    - es vendible si su producto está publicado, la variante está activa y tiene precio vigente (BR-PRD-11);
+    - Inventory responde `canFulfill` solo para las líneas vendibles, sin cantidades (ADR-0061);
+    - las líneas van de la más antigua a la más nueva;
+    - `itemCount` cuenta las unidades de todas las líneas, y `subtotal` suma solo las vendibles.
+  - **Cambios simultáneos:**
+    - cada cambio bloquea la fila del carrito (`SELECT … FOR UPDATE`) y revisa que siga activo, así que dos cambios a la vez esperan en vez de fallar;
+    - al carrito de un cliente se llega con un bloqueo advisory del cliente (clase `CART` más `hashtext` del ID) y después el `FOR UPDATE`. Así, crear su carrito y adoptar uno de invitado nunca chocan, y el índice único parcial de un carrito activo por cliente queda de respaldo;
+    - la fusión bloquea primero el carrito de invitado y después el del cliente. Ninguna otra operación bloquea dos carritos, así que dos solicitudes nunca se esperan en ciclo.
+  - **Variante que no se puede agregar:**
+    - 409 `variant-not-sellable` con `variantIds`, igual para una que no existe, una de un producto sin publicar o archivado, una descontinuada o una sin precio. La tienda no revela si existe un borrador;
+    - cambiar la cantidad de una línea que dejó de ser vendible también responde 409; quitarla siempre se puede.
+  - **Cantidad:**
+    - si una suma deja la línea con más de 30 unidades, se responde 400 `validation-error` con `lineQuantity` en `quantity`;
+    - quitar una línea que no está no cambia nada y responde el carrito.
+  - **Staff:** 403 `staff-cannot-purchase` en `/v1/me/cart` y, con un token de staff, al crear un carrito de invitado o cambiar sus líneas. Leer un carrito de invitado sí se puede.
+  - **Actividad:** solo los cambios actualizan `last_activity_at` (crear, agregar, cambiar, quitar y fusionar); leer nunca escribe.
+  - **Límite de líneas:**
+    - un carrito tiene como máximo 100 variantes distintas, y la siguiente responde 409 `cart-line-limit-reached` con `limit` (E-36);
+    - sumar unidades a una línea existente sigue permitido;
+    - una fusión puede pasar el límite, porque nunca descarta lo que eligió el cliente.
+  - **Imagen de una línea:**
+    - la primera imagen de su variante y, si no tiene, la primera imagen general del producto, es decir, sin variante;
+    - la imagen en posición 1 es la principal, y el staff la elige reordenando la galería (ADR-0124);
+    - no hay atributo "principal", porque duplicaría la posición;
+    - `CatalogFacade.variantsWithImage` aplica la regla en un solo lugar.
+  - **Identificadores y fechas:** todo carrito lleva un UUIDv4 (ADR-0059), y las fechas las pone la aplicación.
+  - **Registro:** sin auditoría ni eventos; T-181 reaccionará a `OrderExpired`.
+- **Alternativas consideradas:**
+  - **`version` en cada cambio:** el contrato no la envía.
+  - **404 para una variante que no existe.**
+  - **Rutas de invitado que ignoren el token de staff.**
+  - **Contar las lecturas como actividad:** una escritura por cada lectura.
+  - **Carrito sin límite de líneas.**
+  - **Un atributo "principal" en las imágenes:** daría más flexibilidad, pero duplica lo que ya hace la posición y crea dos fuentes de verdad.
+  - **Usar siempre la primera imagen del producto.**
+- **Consecuencias:**
+  - El checkout de T-180 bloqueará la fila del carrito igual que estos cambios, así que ningún cambio se cuela entre la cotización y la orden.
+  - Un carrito fusionado puede tener más de 100 líneas; mientras tanto, no acepta variantes nuevas.
+  - `VariantSnapshot` suma `productSlug`.
+  - Nuevo tipo de error `cart-line-limit-reached` (E-36).
+  - Cuatro pruebas de concurrencia cubren dos sumas a la misma línea, las dos primeras líneas de un cliente, dos fusiones del mismo carrito, y una fusión junto con una suma.
+- **Estado:** Aceptada (plan de T-170 aprobado el 2026-10-01). En la misma revisión se descartó el atributo de imagen principal, y se documentó la posición 1 como principal.

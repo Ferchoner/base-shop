@@ -424,6 +424,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at, updated_at | timestamptz(3) | — |
 
 - No guarda precios (BR-CRT-04).
+- **Implementado en T-170 (ADR-0131):** cada cambio bloquea la fila de `carts` (`SELECT … FOR UPDATE`). Al carrito de un cliente se llega antes con `pg_advisory_xact_lock` de la clase `CART` (`0x43415254`) y el `hashtext` del cliente. `created_at` y `updated_at` de las líneas los pone la aplicación, y la vista ordena por `created_at`.
 
 ---
 

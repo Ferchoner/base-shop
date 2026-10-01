@@ -102,6 +102,7 @@ export interface AdminProductView {
 export interface VariantSnapshot {
   readonly id: VariantId;
   readonly productId: ProductId;
+  readonly productSlug: string;
   readonly productTitle: string;
   readonly productStatus: ProductStatus;
   readonly sku: string;
@@ -164,4 +165,9 @@ export abstract class CatalogQueries {
    * search as the product listing's `q`).
    */
   abstract searchVariants(text: string): Promise<VariantSnapshot[]>;
+
+  /** The images of these products, by position; the cart takes the main image of each variant from them. */
+  abstract findImagesOfProducts(
+    ids: readonly ProductId[],
+  ): Promise<(ProductImageView & { readonly productId: ProductId })[]>;
 }

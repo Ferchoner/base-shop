@@ -135,6 +135,11 @@ export const PROBLEM_TYPES = {
     title: 'Carrito no activo',
     detail: 'El carrito ya no se puede modificar.',
   },
+  'cart-line-limit-reached': {
+    status: 409,
+    title: 'Límite del carrito',
+    detail: 'El carrito ya tiene el máximo de productos distintos.',
+  },
   'image-limit-reached': {
     status: 409,
     title: 'Límite de imágenes',
