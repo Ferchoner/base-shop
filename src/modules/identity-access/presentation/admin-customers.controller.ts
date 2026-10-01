@@ -70,7 +70,8 @@ export class AdminCustomersController {
 
   @ApiOperation({
     summary: 'Consultar un cliente, con sus direcciones',
-    description: '`orderCount` es 0 hasta que existan los pedidos (T-180).',
+    description:
+      'Sus pedidos están en `GET /v1/admin/orders?customerId=…`, y `meta.totalItems` dice cuántos son (ADR-0133).',
   })
   @ApiOkResponse({ type: AdminCustomerDto })
   @ApiProblemResponses('not-found')

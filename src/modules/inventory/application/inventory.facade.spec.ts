@@ -123,6 +123,7 @@ function availability(units: ReadonlyMap<VariantId, number>) {
 
 const inline = {
   run: <T>(work: () => Promise<T>) => work(),
+  runNested: <T>(work: () => Promise<T>) => work(),
 } as unknown as TransactionManager;
 
 const facade = (

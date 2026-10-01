@@ -1,4 +1,4 @@
-import type { Order } from './order.js';
+import type { Order, OrderId } from './order.js';
 
 /**
  * Persistence of orders (DATABASE.md §8). An abstract class rather than an interface, so it can be the
@@ -13,4 +13,18 @@ export abstract class OrderRepository {
    *   draws another one. The transaction stays usable.
    */
   abstract insert(order: Order): Promise<boolean>;
+
+  /**
+   * The order with this ID, its row locked until the transaction ends, so a staff action and a payment never
+   * change it at the same time (ADR-0133); `null` if it does not exist.
+   */
+  abstract lock(id: OrderId): Promise<Order | null>;
+
+  /**
+   * Writes what changed in a locked order and one history entry per status change, and counts one more
+   * version.
+   *
+   * @throws VersionConflictError when the saved version is not the one read.
+   */
+  abstract save(order: Order, now: Date): Promise<void>;
 }

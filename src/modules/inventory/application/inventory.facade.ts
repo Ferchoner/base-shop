@@ -72,7 +72,9 @@ export class InventoryFacade {
 
   /**
    * Reserves the units of an order until the TTL passes (UC-INV-05): all or nothing (BR-INV-02), and at most
-   * one active reservation per order (BR-INV-04), so asking again answers the one it has.
+   * one active reservation per order (BR-INV-04), so asking again answers the one it has. It is all or nothing
+   * on its own, also inside the transaction of its caller: when a line is short, it undoes what it reserved
+   * and the caller's transaction goes on (ADR-0132).
    *
    * @throws InsufficientStockError with every variant that cannot be fulfilled.
    * @throws InvalidValueError for no requests, or a quantity that is not a whole number above zero.
@@ -85,7 +87,7 @@ export class InventoryFacade {
     if (merged.length === 0) {
       throw new InvalidValueError('A reservation needs at least one line');
     }
-    return this.transactions.run(async () => {
+    return this.transactions.runNested(async () => {
       const warehouse = await this.activeWarehouse();
       const at = this.clock.now();
       const { opened, receipt } = await this.reservations.open({

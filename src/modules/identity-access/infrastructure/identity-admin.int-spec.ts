@@ -596,7 +596,7 @@ describe('Identity & Access administration (T-130)', () => {
         stateName: 'Michoacán de Ocampo',
         municipalityName: 'Morelia',
       });
-      expect(detail?.orderCount).toBe(0);
+      expect(detail).not.toHaveProperty('orderCount');
     });
   });
 

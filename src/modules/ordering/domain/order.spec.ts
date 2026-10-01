@@ -134,6 +134,10 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       paymentDueAt: DUE,
       sourceCartId,
       placedAt: NOW,
+      paidAt: null,
+      cancelledAt: null,
+      expiredAt: null,
+      version: 1,
     });
   });
 

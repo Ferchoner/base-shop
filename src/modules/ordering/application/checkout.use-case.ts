@@ -36,9 +36,9 @@ import {
   CheckoutCustomers,
   CheckoutPrices,
   CheckoutShipping,
-  CheckoutStock,
   type CheckoutTarget,
   type CheckoutVariant,
+  OrderStock,
   ShippingLocations,
 } from './checkout-ports.js';
 import { VAT_RATE_BP } from './vat-rate.js';
@@ -117,7 +117,7 @@ export class Checkout {
     private readonly carts: CheckoutCarts,
     private readonly catalog: CheckoutCatalog,
     private readonly prices: CheckoutPrices,
-    private readonly stock: CheckoutStock,
+    private readonly stock: OrderStock,
     private readonly shipping: CheckoutShipping,
     private readonly customers: CheckoutCustomers,
     private readonly locations: ShippingLocations,

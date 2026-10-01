@@ -280,7 +280,6 @@ export class PrismaIdentityQueries extends IdentityQueries {
     return {
       ...toCustomerView(row),
       addresses: row.addresses.map(toAddressView),
-      orderCount: 0,
     };
   }
 

@@ -97,7 +97,7 @@ export class PrismaReservationRepository extends ReservationRepository {
         reserved.push({ stock_item_id: item.id, quantity });
       }
     }
-    // Nothing to keep when some line is short: the caller rolls back.
+    // Nothing to keep when some line is short: InventoryFacade.reserve undoes the whole step (ADR-0132).
     if (short.size === 0) {
       await tx.reservationLine.createMany({
         data: reserved.map(({ stock_item_id, quantity }) => ({

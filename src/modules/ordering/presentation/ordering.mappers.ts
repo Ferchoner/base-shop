@@ -2,9 +2,12 @@ import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
 import { formatPublicCode } from '../application/order-values.js';
 import type {
+  AdminOrderSummaryView,
+  AdminOrderView,
   OrderSummaryView,
   OrderView,
 } from '../application/ordering.queries.js';
+import type { AdminOrderDto, AdminOrderSummaryDto } from './admin-order.dto.js';
 import type { CheckoutQuoteDto } from './checkout.dto.js';
 import type { OrderDto, OrderSummaryDto } from './order.dto.js';
 
@@ -91,5 +94,29 @@ export function toOrderDto(view: OrderView): OrderDto {
       lineTotal: toMoneyDto(line.lineTotal),
     })),
     shippingAddress: { ...view.shippingAddress },
+  };
+}
+
+/** `AdminOrder` in a listing (API_SPEC.md §15.7): both identifiers, without lines nor history. */
+export function toAdminOrderSummaryDto(
+  view: AdminOrderSummaryView,
+): AdminOrderSummaryDto {
+  return {
+    ...toOrderSummaryDto(view),
+    id: view.id,
+    orderNumber: view.orderNumber,
+    customerId: view.customerId,
+    version: view.version,
+    anonymizedAt: view.anonymizedAt,
+    shippingAddress: { ...view.shippingAddress },
+  };
+}
+
+/** `AdminOrder` of API_SPEC.md §8.9. */
+export function toAdminOrderDto(view: AdminOrderView): AdminOrderDto {
+  return {
+    ...toAdminOrderSummaryDto(view),
+    lines: toOrderDto(view).lines,
+    statusHistory: view.statusHistory.map((entry) => ({ ...entry })),
   };
 }

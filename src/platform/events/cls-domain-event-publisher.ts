@@ -10,12 +10,13 @@ import {
 import { DomainEventDispatcher } from './domain-event-dispatcher.js';
 
 /**
- * DomainEventPublisher of the application (ADR-0098). Events published inside a transaction wait in one
- * queue per transaction, dispatched in publish order after the commit; a rollback drops them.
+ * DomainEventPublisher of the application (ADR-0098). Events published inside a transaction wait until the
+ * commit and are dispatched as one batch, in publish order; a rollback drops them, and so does undoing a nested
+ * step (`TransactionManager.runNested`, ADR-0132) for the events published in it.
  */
 @Injectable()
 export class ClsDomainEventPublisher extends DomainEventPublisher {
-  private readonly queues = new WeakMap<TransactionScope, DomainEvent[]>();
+  private readonly batches = new WeakMap<TransactionScope, DomainEvent[]>();
 
   constructor(private readonly dispatcher: DomainEventDispatcher) {
     super();
@@ -27,13 +28,18 @@ export class ClsDomainEventPublisher extends DomainEventPublisher {
       this.dispatcher.dispatchInBackground(events);
       return;
     }
-    let queue = this.queues.get(scope);
-    if (queue === undefined) {
-      const newQueue: DomainEvent[] = [];
-      this.queues.set(scope, newQueue);
-      scope.afterCommit(() => this.dispatcher.dispatchInBackground(newQueue));
-      queue = newQueue;
-    }
-    queue.push(...events);
+    // One callback per publish, so an undone nested step discards exactly its events. The callbacks run one
+    // after the other at the commit: the first starts the batch, and the dispatcher reads it on the next turn
+    // of the event loop, when the rest have added theirs.
+    scope.afterCommit(() => {
+      const batch = this.batches.get(scope);
+      if (batch !== undefined) {
+        batch.push(...events);
+        return;
+      }
+      const first = [...events];
+      this.batches.set(scope, first);
+      this.dispatcher.dispatchInBackground(first);
+    });
   }
 }

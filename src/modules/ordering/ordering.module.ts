@@ -14,10 +14,11 @@ import {
   CheckoutCustomers,
   CheckoutPrices,
   CheckoutShipping,
-  CheckoutStock,
+  OrderStock,
   ShippingLocations,
 } from './application/checkout-ports.js';
 import { Checkout } from './application/checkout.use-case.js';
+import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
 import { OrderingQueries } from './application/ordering.queries.js';
 import { VAT_RATE_BP } from './application/vat-rate.js';
 import { OrderRepository } from './domain/order.repository.js';
@@ -25,13 +26,15 @@ import {
   CatalogFacadeCheckoutCatalog,
   GeoShippingLocations,
   IdentityFacadeCheckoutCustomers,
-  InventoryFacadeCheckoutStock,
+  InventoryFacadeOrderStock,
   PricingFacadeCheckoutPrices,
   ShippingFacadeCheckoutShipping,
   ShoppingFacadeCheckoutCarts,
 } from './infrastructure/facade-adapters.js';
+import { PaymentCapturedHandler } from './infrastructure/payment-captured.event-handler.js';
 import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
 import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
+import { AdminOrdersController } from './presentation/admin-orders.controller.js';
 import { CheckoutController } from './presentation/checkout.controller.js';
 import { MeCheckoutController } from './presentation/me-checkout.controller.js';
 import { MeOrdersController } from './presentation/me-orders.controller.js';
@@ -57,6 +60,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     MeCheckoutController,
     OrdersController,
     MeOrdersController,
+    AdminOrdersController,
   ],
   providers: [
     {
@@ -66,12 +70,14 @@ import { OrdersController } from './presentation/orders.controller.js';
         config.get('VAT_RATE_BP', { infer: true }),
     },
     Checkout,
+    OrderLifecycle,
+    PaymentCapturedHandler,
     { provide: OrderRepository, useClass: PrismaOrderRepository },
     { provide: OrderingQueries, useClass: PrismaOrderingQueries },
     { provide: CheckoutCarts, useClass: ShoppingFacadeCheckoutCarts },
     { provide: CheckoutCatalog, useClass: CatalogFacadeCheckoutCatalog },
     { provide: CheckoutPrices, useClass: PricingFacadeCheckoutPrices },
-    { provide: CheckoutStock, useClass: InventoryFacadeCheckoutStock },
+    { provide: OrderStock, useClass: InventoryFacadeOrderStock },
     { provide: CheckoutShipping, useClass: ShippingFacadeCheckoutShipping },
     { provide: CheckoutCustomers, useClass: IdentityFacadeCheckoutCustomers },
     { provide: ShippingLocations, useClass: GeoShippingLocations },
