@@ -41,6 +41,10 @@ class InMemoryPayments extends PaymentRepository {
     );
   }
 
+  lock(): Promise<Payment | null> {
+    return this.findByOrder();
+  }
+
   insert(payment: Payment, now: Date): Promise<void> {
     expect(now).toBe(NOW);
     this.inserted.push(payment);

@@ -19,6 +19,7 @@ import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import type { PublicCode } from '../domain/public-code.js';
 import type { OrderStock, StockLine } from './checkout-ports.js';
+import type { OrderPayments } from './payment-ports.js';
 import { OrderLifecycle } from './order-lifecycle.use-case.js';
 
 // Test doubles of the unit tests of the life of an order.
@@ -185,7 +186,17 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
   const inline = {
     run: <T>(work: () => Promise<T>) => work(),
   } as unknown as TransactionManager;
-  const lifecycle = new OrderLifecycle(orders, stock, inline, audit, {
+  const payments = {
+    startRefund: () => {
+      calls.push('startRefund');
+      return Promise.resolve();
+    },
+    cancelPending: () => {
+      calls.push('cancelPending');
+      return Promise.resolve();
+    },
+  } as unknown as OrderPayments;
+  const lifecycle = new OrderLifecycle(orders, stock, payments, inline, audit, {
     now: () => NOW,
   });
   return { lifecycle, orders, calls, audited, reservation };
@@ -224,7 +235,7 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
       actorId: staff,
       reason: 'Duplicado',
     });
-    expect(calls).toEqual(['release']);
+    expect(calls).toEqual(['release', 'cancelPending']);
     expect(audited).toEqual([
       {
         action: 'orders.cancel',
@@ -237,19 +248,19 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
 
   it('rejects an outdated version, a restock of an unpaid order and an order that cannot be cancelled, changing nothing', async () => {
     const pending = saved('PENDING_PAYMENT');
-    const paid = saved('PAID', CAPTURED);
+    const shipped = saved('SHIPPED', CAPTURED);
     const first = setUp(pending);
     const second = setUp(pending);
-    const third = setUp(paid);
+    const third = setUp(shipped);
 
     await expect(
       cancel(first.lifecycle, pending, { version: 2 }),
     ).rejects.toThrow(new VersionConflictError(3));
     await expect(
       cancel(second.lifecycle, pending, { restock: true }),
-    ).rejects.toThrow(new RestockNotAllowedError('PENDING_PAYMENT'));
-    await expect(cancel(third.lifecycle, paid)).rejects.toThrow(
-      new InvalidStateTransitionError('PAID', 'cancel'),
+    ).rejects.toThrow(RestockNotAllowedError.notPaid('PENDING_PAYMENT'));
+    await expect(cancel(third.lifecycle, shipped)).rejects.toThrow(
+      new InvalidStateTransitionError('SHIPPED', 'cancel'),
     );
     for (const { orders, calls, audited } of [first, second, third]) {
       expect([orders.saved, calls, audited]).toEqual([[], [], []]);
@@ -410,7 +421,7 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
       status: 'CANCELLED',
       paidAt: CAPTURED,
     });
-    expect(first.calls).toEqual([]);
+    expect(first.calls).toEqual(['startRefund']);
   });
 
   it('changes nothing for an order past payment, a repeated event or another amount (BR-ORD-08)', async () => {

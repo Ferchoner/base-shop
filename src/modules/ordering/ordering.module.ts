@@ -38,6 +38,7 @@ import {
 } from './infrastructure/facade-adapters.js';
 import { PaymentCapturedHandler } from './infrastructure/payment-captured.event-handler.js';
 import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
+import { RefundCompletedHandler } from './infrastructure/refund-completed.event-handler.js';
 import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
 import { AdminOrdersController } from './presentation/admin-orders.controller.js';
 import { CheckoutController } from './presentation/checkout.controller.js';
@@ -80,6 +81,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderPaymentRequests,
     OrderReader,
     PaymentCapturedHandler,
+    RefundCompletedHandler,
     { provide: OrderRepository, useClass: PrismaOrderRepository },
     { provide: OrderingQueries, useClass: PrismaOrderingQueries },
     { provide: CheckoutCarts, useClass: ShoppingFacadeCheckoutCarts },

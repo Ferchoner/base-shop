@@ -249,6 +249,14 @@ export class PaymentsFacadeOrderPayments extends OrderPayments {
     return this.payments.captureManually(requestOf(order), input);
   }
 
+  startRefund(orderId: OrderId): Promise<void> {
+    return this.payments.startRefund(orderId);
+  }
+
+  cancelPending(orderId: OrderId): Promise<void> {
+    return this.payments.cancelPending(orderId);
+  }
+
   async paymentsOf(
     orderIds: readonly OrderId[],
   ): Promise<ReadonlyMap<OrderId, OrderPayment>> {

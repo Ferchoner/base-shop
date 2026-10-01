@@ -116,6 +116,7 @@ export class PrismaOrderRepository extends OrderRepository {
         paidAt: o.paidAt,
         cancelledAt: o.cancelledAt,
         expiredAt: o.expiredAt,
+        refundedAt: o.refundedAt,
         version: { increment: 1 },
         updatedAt: now,
       },
@@ -187,6 +188,7 @@ function toSnapshot(row: OrderRow) {
     paidAt: row.paidAt,
     cancelledAt: row.cancelledAt,
     expiredAt: row.expiredAt,
+    refundedAt: row.refundedAt,
     version: row.version,
   };
 }

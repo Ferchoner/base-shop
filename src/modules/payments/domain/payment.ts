@@ -7,6 +7,8 @@ import {
 
 export type PaymentId = Id<'Payment'>;
 
+export type RefundId = Id<'Refund'>;
+
 /** An order of Ordering, known here only by its ID (ADR-0005). */
 export type OrderId = Id<'Order'>;
 
@@ -43,6 +45,22 @@ export interface PaymentAttempt {
   readonly createdAt: Date;
 }
 
+/** ADR-0051: a refund is started when a paid order is cancelled, and completed when the money goes back. */
+export type RefundStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+
+/** A full refund of a payment (BR-PAY-04, BR-PAY-11, `refunds`). */
+export interface Refund {
+  readonly id: RefundId;
+  readonly amount: Money;
+  readonly status: RefundStatus;
+  /** The receipt of the refund made outside the system, for a manual payment. */
+  readonly providerRefundId: string | null;
+  /** The staff member who registered a manual refund. */
+  readonly registeredBy: StaffId | null;
+  readonly createdAt: Date;
+  readonly completedAt: Date | null;
+}
+
 export interface PaymentSnapshot {
   readonly id: PaymentId;
   readonly orderId: OrderId;
@@ -57,15 +75,20 @@ export interface PaymentSnapshot {
   readonly providerPaymentId: string | null;
   readonly capturedAt: Date | null;
   readonly attempts: readonly PaymentAttempt[];
+  /** Oldest first; at most one PENDING or COMPLETED (BR-PAY-14). */
+  readonly refunds: readonly Refund[];
   readonly version: number;
 }
 
 /**
  * The payment of an order (DOMAIN_MODEL.md, Payments): one per order (BR-PAY-01), for its total (BR-PAY-02),
- * captured at once (BR-PAY-03, ADR-0013). Its attempts are a history that only grows.
+ * captured at once (BR-PAY-03, ADR-0013). Its attempts are a history that only grows, and its refunds give back
+ * the whole captured amount, only when its order is cancelled (BR-PAY-11, ADR-0051).
  */
 export class Payment {
   private readonly added: PaymentAttempt[] = [];
+  private readonly touched = new Set<RefundId>();
+  private changed = false;
 
   private constructor(private state: PaymentSnapshot) {}
 
@@ -98,6 +121,7 @@ export class Payment {
       providerPaymentId: null,
       capturedAt: null,
       attempts: [],
+      refunds: [],
       version: 1,
     });
     payment.attempt({
@@ -139,9 +163,23 @@ export class Payment {
     return this.state;
   }
 
+  get version(): number {
+    return this.state.version;
+  }
+
   /** The attempts made since the payment was read, for the repository to add. */
   get newAttempts(): readonly PaymentAttempt[] {
     return this.added;
+  }
+
+  /** The refunds started or changed since the payment was read, for the repository to write. */
+  get touchedRefunds(): readonly Refund[] {
+    return this.state.refunds.filter(({ id }) => this.touched.has(id));
+  }
+
+  /** Whether anything changed since it was read, so there is something to save. */
+  get hasChanges(): boolean {
+    return this.changed;
   }
 
   /**
@@ -176,7 +214,96 @@ export class Payment {
     });
   }
 
+  /**
+   * The order was cancelled before the payment was collected (ADR-0135): a pending payment can no longer be
+   * captured.
+   *
+   * @returns false, changing nothing, unless the payment was pending.
+   */
+  cancelIfPending(): boolean {
+    if (this.state.status !== 'PENDING') return false;
+    this.state = { ...this.state, status: 'CANCELLED' };
+    this.changed = true;
+    return true;
+  }
+
+  /**
+   * Starts the full refund of a captured payment, because its order was cancelled (UC-PAY-03, ADR-0051).
+   *
+   * @returns false, changing nothing, when a refund is already pending or completed (BR-PAY-14).
+   * @throws InvalidStateTransitionError unless the payment was captured.
+   */
+  startRefund(id: RefundId, now: Date): boolean {
+    if (this.activeRefund() !== undefined) return false;
+    if (this.state.status !== 'CAPTURED') {
+      throw new InvalidStateTransitionError(
+        this.state.status,
+        'start a refund',
+      );
+    }
+    this.putRefund({
+      id,
+      amount: this.state.capturedAmount,
+      status: 'PENDING',
+      providerRefundId: null,
+      registeredBy: null,
+      createdAt: now,
+      completedAt: null,
+    });
+    return true;
+  }
+
+  /**
+   * The staff registers the refund of a manual payment, made outside the system (UC-PAY-06, BR-PAY-11): the
+   * pending refund is completed, and the whole captured amount is refunded.
+   *
+   * @returns the completed refund.
+   * @throws InvalidStateTransitionError unless it is a manual payment with a pending refund.
+   */
+  completeManualRefund(input: {
+    reference: string;
+    registeredBy: StaffId;
+    now: Date;
+  }): Refund {
+    const pending = this.activeRefund();
+    if (this.state.provider !== 'MANUAL' || pending?.status !== 'PENDING') {
+      throw new InvalidStateTransitionError(
+        this.state.status,
+        `register the refund of a ${this.state.provider} payment by hand`,
+      );
+    }
+    const completed: Refund = {
+      ...pending,
+      status: 'COMPLETED',
+      providerRefundId: input.reference,
+      registeredBy: input.registeredBy,
+      completedAt: input.now,
+    };
+    this.putRefund(completed);
+    this.state = {
+      ...this.state,
+      status: 'REFUNDED',
+      refundedAmount: pending.amount,
+    };
+    return completed;
+  }
+
+  /** The refund in progress or completed, if any (BR-PAY-14). */
+  private activeRefund(): Refund | undefined {
+    return this.state.refunds.find(
+      ({ status }) => status === 'PENDING' || status === 'COMPLETED',
+    );
+  }
+
+  private putRefund(refund: Refund): void {
+    const others = this.state.refunds.filter(({ id }) => id !== refund.id);
+    this.state = { ...this.state, refunds: [...others, refund] };
+    this.touched.add(refund.id);
+    this.changed = true;
+  }
+
   private attempt(attempt: PaymentAttempt): void {
+    this.changed = true;
     this.added.push(attempt);
     this.state = {
       ...this.state,

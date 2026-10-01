@@ -139,6 +139,7 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       paidAt: null,
       cancelledAt: null,
       expiredAt: null,
+      refundedAt: null,
       version: 1,
     });
   });
@@ -213,10 +214,8 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
     expect(order.hasChanges).toBe(true);
   });
 
-  it('cancels nothing but an unpaid order until T-190 adds the refund', () => {
+  it('cancels nothing shipped, cancelled or expired (BR-CAN-01)', () => {
     for (const status of [
-      'PAID',
-      'AWAITING_MANUAL_FULFILLMENT',
       'SHIPPED',
       'DELIVERED',
       'CANCELLED',

@@ -49,16 +49,33 @@ export class TotalMismatchError extends DomainError {
 }
 
 /**
- * Restocking when cancelling applies only to a PAID order (ADR-0052, E-30): an unpaid one only releases its
- * reservation. Answered 409 `restock-not-allowed` with `currentStatus` (ADR-0133).
+ * Restocking when cancelling (ADR-0052, E-30) applies only to a PAID order: an unpaid one only releases its
+ * reservation (ADR-0133). For a PAID order it comes with T-161, which decides how the lines reach Inventory
+ * (ADR-0135). Answered 409 `restock-not-allowed`, with `currentStatus` or `reason: unavailable`.
  */
 export class RestockNotAllowedError extends DomainError {
   readonly code = 'restock-not-allowed';
   readonly category = 'conflict';
 
-  constructor(currentStatus: string) {
-    super(`Cannot restock an order in status ${currentStatus}`, {
-      currentStatus,
+  private constructor(
+    message: string,
+    details: Readonly<Record<string, unknown>>,
+  ) {
+    super(message, details);
+  }
+
+  /** The order is not PAID, so there is no sold stock to restock. */
+  static notPaid(currentStatus: string): RestockNotAllowedError {
+    return new RestockNotAllowedError(
+      `Cannot restock an order in status ${currentStatus}`,
+      { currentStatus },
+    );
+  }
+
+  /** Restocking comes with T-161: the staff must never believe the stock came back. */
+  static unavailable(): RestockNotAllowedError {
+    return new RestockNotAllowedError('Restocking is not available yet', {
+      reason: 'unavailable',
     });
   }
 }

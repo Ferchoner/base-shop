@@ -7,5 +7,6 @@ export {
   PaymentsFacade,
   type PaymentStart,
   type PaymentView,
+  type RefundCompleted,
   type RefundView,
 } from './application/payments.facade.js';

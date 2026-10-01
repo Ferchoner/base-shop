@@ -13,6 +13,7 @@ import type { Order, OrderId, StaffId } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import { OrderStock, type StockLine } from './checkout-ports.js';
+import { OrderPayments } from './payment-ports.js';
 
 /** What a captured payment did to its order (UC-ORD-09). */
 export type PaymentOutcome =
@@ -27,6 +28,15 @@ export type PaymentOutcome =
   /** The captured amount is not the total of the order: nothing changed (BR-ORD-08). */
   | 'amount-mismatch';
 
+/** What a completed refund did to its order (ADR-0051). */
+export type RefundOutcome =
+  /** The order is REFUNDED. */
+  | 'refunded'
+  /** A repeated event: the order was already REFUNDED. */
+  | 'already-processed'
+  /** The order is not a cancelled one with a payment: nothing changed. */
+  | 'unexpected';
+
 /**
  * The life of an order after it is placed (UC-ORD-07 to 09, ADR-0133): the staff cancels it or retries its
  * fulfillment, and a captured payment marks it paid. Each change locks the order, so a staff action and a
@@ -37,17 +47,19 @@ export class OrderLifecycle {
   constructor(
     private readonly orders: OrderRepository,
     private readonly stock: OrderStock,
+    private readonly payments: OrderPayments,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
     private readonly clock: Clock,
   ) {}
 
   /**
-   * Cancels an unpaid order and releases its reservation (UC-ORD-07, ADR-0051). Paid orders are cancelled with
-   * their refund from T-190 on, and the restock option comes with T-161 (ADR-0133).
+   * Cancels an order that was not shipped (UC-ORD-07, ADR-0051): an unpaid one releases its reservation and
+   * its pending payment, and a paid one, PAID or waiting for stock, starts its full refund in the same
+   * transaction (UC-PAY-03). The restock option comes with T-161 (ADR-0135).
    *
-   * @throws NotFoundError; VersionConflictError; RestockNotAllowedError when the restock is asked for an order
-   *   that is not PAID; InvalidStateTransitionError from any status but PENDING_PAYMENT.
+   * @throws NotFoundError; VersionConflictError; RestockNotAllowedError whenever the restock is asked, until
+   *   T-161; InvalidStateTransitionError from SHIPPED on, or for an order already cancelled or expired.
    */
   cancel(input: {
     orderId: OrderId;
@@ -59,13 +71,21 @@ export class OrderLifecycle {
     return this.transactions.run(async () => {
       const order = await this.found(input.orderId);
       assertVersion(order.version, input.version);
-      if (input.restock && order.status !== 'PAID') {
-        throw new RestockNotAllowedError(order.status);
+      if (input.restock) {
+        throw order.status === 'PAID'
+          ? RestockNotAllowedError.unavailable()
+          : RestockNotAllowedError.notPaid(order.status);
       }
       const before = order.status;
       const now = this.clock.now();
       order.cancel(input.actorId, input.reason, now);
-      await this.stock.release(order.id);
+      if (before === 'PENDING_PAYMENT') {
+        await this.stock.release(order.id);
+        await this.payments.cancelPending(order.id);
+      } else {
+        // Paid: the full refund starts in the same operation (UC-PAY-03, ADR-0051).
+        await this.payments.startRefund(order.id);
+      }
       await this.orders.save(order, now);
       await this.audit.record({
         action: 'orders.cancel',
@@ -144,6 +164,8 @@ export class OrderLifecycle {
           if (!order.recordPaymentAfterCancellation(payment.capturedAt)) {
             return 'already-processed';
           }
+          // So the staff can register its refund like any other (ADR-0135).
+          await this.payments.startRefund(order.id);
           outcome = 'recorded-on-cancelled';
           break;
         default:
@@ -151,6 +173,29 @@ export class OrderLifecycle {
       }
       await this.orders.save(order, now);
       return outcome;
+    });
+  }
+
+  /**
+   * Marks a cancelled order refunded when its refund completes (ADR-0051, ADR-0135). Repeating it changes
+   * nothing, so a duplicated event is harmless.
+   *
+   * @throws NotFoundError for an order that does not exist.
+   */
+  recordRefund(refund: {
+    orderId: OrderId;
+    completedAt: Date;
+  }): Promise<RefundOutcome> {
+    return this.transactions.run(async () => {
+      const order = await this.found(refund.orderId);
+      if (order.status === 'REFUNDED') return 'already-processed';
+      if (order.status !== 'CANCELLED' || order.snapshot.paidAt === null) {
+        return 'unexpected';
+      }
+      const now = this.clock.now();
+      order.markRefunded(refund.completedAt, now);
+      await this.orders.save(order, now);
+      return 'refunded';
     });
   }
 
