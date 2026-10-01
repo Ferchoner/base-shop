@@ -4,7 +4,7 @@ API REST de comercio electrónico: catálogo, precios, inventario, carrito, chec
 
 ## Estado
 
-Sprint 2 (Identity & Access) cerrado: registro de clientes, verificación de email, sesiones, recuperación de contraseña, alta del staff, roles, permisos y direcciones, sobre las fundaciones técnicas del Sprint 1. En curso: Sprint 3 (catálogo, precios e inventario). Ver `docs/SPRINT.md`, `docs/PROGRESS.md` y `docs/TASKS.md`.
+Sprint 2 (Identity & Access) cerrado: registro de clientes, verificación de email, sesiones, recuperación de contraseña, alta del staff, roles, permisos y direcciones, sobre las fundaciones técnicas del Sprint 1. Sprint 3 (catálogo vendible) cerrado: tienda pública con búsqueda y filtros, precios, stock con reservas y costo de envío. Ver `docs/SPRINT.md`, `docs/PROGRESS.md` y `docs/TASKS.md`.
 
 ## Requisitos
 

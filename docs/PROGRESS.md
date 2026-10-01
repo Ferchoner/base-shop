@@ -127,7 +127,7 @@ Sprint 3 — Catálogo vendible: Catalog, Pricing e Inventory (desde el 2026-09-
 ## In Progress
 
 - [x] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123), cerrado el 2026-09-29
-- [ ] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160); plan en `SPRINT.md`. Tareas hechas; falta la Sprint Review
+- [x] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160), cerrado el 2026-10-01
 
 ## Next
 
@@ -166,6 +166,7 @@ Ninguna pendiente.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-14 | Objetivos no funcionales cuantitativos | — |
+| P-73 | Cómo obtiene Inventory las cantidades vendidas para el reintegro de stock sin formar un ciclo con Ordering, que usa a Inventory para reservar (ADR-0127). Se resuelve al planear T-180. Recomendación preliminar: Ordering pasa las líneas y las cantidades al pedir el reintegro | T-161 |
 | P-61 | Validación legal con especialista: valores de los plazos de fase operativa y bloqueo, y las preguntas de ADR-0070 (incluidas retención de auditoría y cuentas inactivas); además, la presentación del plazo de entrega estimado (ADR-0083) | T-232 |
 
 ### Contradicciones y ambigüedades de la especificación
