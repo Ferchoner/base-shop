@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import type { Money } from '../../../shared-kernel/index.js';
+import { DomainError, type Money, toId } from '../../../shared-kernel/index.js';
 import { CatalogFacade } from '../../catalog/index.js';
 import { GeoCatalog } from '../../geo/index.js';
 import { IdentityAccessFacade } from '../../identity-access/index.js';
-import { DomainError } from '../../../shared-kernel/index.js';
 import { InventoryFacade } from '../../inventory/index.js';
+import {
+  type PaymentRequest,
+  PaymentsFacade,
+  type PaymentView,
+} from '../../payments/index.js';
 import { PricingFacade } from '../../pricing/index.js';
 import { ShippingFacade } from '../../shipping/index.js';
 import { ShoppingFacade } from '../../shopping/index.js';
@@ -27,11 +31,19 @@ import {
 import type {
   CartId,
   CustomerId,
+  Order,
   OrderId,
   ShippingAddress,
+  StaffId,
   VariantId,
 } from '../domain/order.js';
 import type { LocationProblem } from '../domain/ordering-errors.js';
+import {
+  type OrderPayment,
+  OrderPayments,
+  type PaymentProvider,
+  type PaymentStart,
+} from '../application/payment-ports.js';
 
 // Ordering's ports answered with the facades of the modules that own the data (ADR-0005, ADR-0132). Ordering uses
 // them, and none of them uses Ordering, so they never form a cycle.
@@ -208,4 +220,74 @@ export class GeoShippingLocations extends ShippingLocations {
     if (!municipality.isActive) return 'inactive-municipality';
     return { stateName: state.name, municipalityName: municipality.name };
   }
+}
+
+/** Ordering uses Payments, and Payments never uses Ordering (ADR-0134). */
+@Injectable()
+export class PaymentsFacadeOrderPayments extends OrderPayments {
+  constructor(private readonly payments: PaymentsFacade) {
+    super();
+  }
+
+  assertManualCaptureEnabled(): void {
+    this.payments.assertManualPaymentsEnabled();
+  }
+
+  assertProviderEnabled(provider: PaymentProvider): void {
+    this.payments.assertProviderEnabled(provider);
+  }
+
+  async start(order: Order, provider: PaymentProvider): Promise<PaymentStart> {
+    const start = await this.payments.start(requestOf(order), provider);
+    return { ...start, payment: toOrderPayment(start.payment) };
+  }
+
+  captureManually(
+    order: Order,
+    input: { reference: string; note: string | null; registeredBy: StaffId },
+  ): Promise<void> {
+    return this.payments.captureManually(requestOf(order), input);
+  }
+
+  async paymentsOf(
+    orderIds: readonly OrderId[],
+  ): Promise<ReadonlyMap<OrderId, OrderPayment>> {
+    const payments = await this.payments.paymentsOf(orderIds);
+    return new Map(
+      [...payments].map(([orderId, payment]) => [
+        toId<'Order'>(orderId),
+        toOrderPayment(payment),
+      ]),
+    );
+  }
+}
+
+/** The order as Payments needs it: its total is the amount to collect (BR-PAY-02). */
+function requestOf(order: Order): PaymentRequest {
+  return {
+    orderId: order.id,
+    orderCode: order.publicCode,
+    amount: order.grandTotal,
+  };
+}
+
+function toOrderPayment(payment: PaymentView): OrderPayment {
+  return {
+    id: payment.id,
+    provider: payment.provider,
+    status: payment.status,
+    amount: payment.amount,
+    capturedAmount: payment.capturedAmount,
+    refundedAmount: payment.refundedAmount,
+    capturedAt: payment.capturedAt,
+    refunds: payment.refunds.map(
+      ({ id, amount, status, createdAt, completedAt }) => ({
+        id,
+        amount,
+        status,
+        createdAt,
+        completedAt,
+      }),
+    ),
+  };
 }

@@ -98,6 +98,12 @@ export class PrismaOrderRepository extends OrderRepository {
     return Order.restore(toSnapshot(row));
   }
 
+  async lockByPublicCode(code: PublicCode): Promise<Order | null> {
+    const [locked] = await this.txHost.tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM orders WHERE public_code = ${code} FOR UPDATE`;
+    return locked === undefined ? null : this.lock(toId<'Order'>(locked.id));
+  }
+
   async save(order: Order, now: Date): Promise<void> {
     if (!order.hasChanges) return;
     const o = order.snapshot;

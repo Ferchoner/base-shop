@@ -1,4 +1,5 @@
 import type { Order, OrderId } from './order.js';
+import type { PublicCode } from './public-code.js';
 
 /**
  * Persistence of orders (DATABASE.md §8). An abstract class rather than an interface, so it can be the
@@ -19,6 +20,9 @@ export abstract class OrderRepository {
    * change it at the same time (ADR-0133); `null` if it does not exist.
    */
   abstract lock(id: OrderId): Promise<Order | null>;
+
+  /** The order with this public code, locked like `lock`; `null` if no order has it. */
+  abstract lockByPublicCode(code: PublicCode): Promise<Order | null>;
 
   /**
    * Writes what changed in a locked order and one history entry per status change, and counts one more

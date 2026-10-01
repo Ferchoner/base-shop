@@ -109,6 +109,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The checkout never locks a saved order');
   }
 
+  lockByPublicCode(): Promise<Order | null> {
+    throw new Error('The checkout never locks a saved order');
+  }
+
   save(): Promise<void> {
     throw new Error('The checkout never saves a placed order again');
   }

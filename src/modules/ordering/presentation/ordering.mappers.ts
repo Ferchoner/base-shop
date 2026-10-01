@@ -1,15 +1,30 @@
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
-import { formatPublicCode } from '../application/order-values.js';
+import type { WithPayment } from '../application/order-reader.js';
+import {
+  formatPublicCode,
+  type PublicCode,
+} from '../application/order-values.js';
 import type {
   AdminOrderSummaryView,
   AdminOrderView,
   OrderSummaryView,
   OrderView,
 } from '../application/ordering.queries.js';
+import type {
+  OrderPayment,
+  PaymentStart,
+} from '../application/payment-ports.js';
 import type { AdminOrderDto, AdminOrderSummaryDto } from './admin-order.dto.js';
 import type { CheckoutQuoteDto } from './checkout.dto.js';
-import type { OrderDto, OrderSummaryDto } from './order.dto.js';
+import type {
+  AdminOrderPaymentDto,
+  OrderDto,
+  OrderFieldsDto,
+  OrderLineDto,
+  OrderSummaryDto,
+} from './order.dto.js';
+import type { PaymentStartDto } from './payment.dto.js';
 
 /** `CheckoutQuote` of API_SPEC.md §8.7. */
 export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
@@ -46,8 +61,8 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
   };
 }
 
-/** An order in a listing: `Order` without its lines nor its address (API_SPEC.md §15.4). */
-export function toOrderSummaryDto(view: OrderSummaryView): OrderSummaryDto {
+/** What every view of an order shares; each adds its own `payment`. */
+function toOrderFields(view: OrderSummaryView): OrderFieldsDto {
   const { totals } = view;
   return {
     publicCode: formatPublicCode(view.publicCode),
@@ -64,8 +79,7 @@ export function toOrderSummaryDto(view: OrderSummaryView): OrderSummaryDto {
       minBusinessDays: view.deliveryMinBusinessDays,
       maxBusinessDays: view.deliveryMaxBusinessDays,
     },
-    // Payments (T-190) and Shipping (T-195) do not exist yet.
-    payment: null,
+    // Shipping (T-195) does not exist yet.
     shipment: null,
     placedAt: view.placedAt,
     paymentDueAt: view.paymentDueAt,
@@ -78,31 +92,36 @@ export function toOrderSummaryDto(view: OrderSummaryView): OrderSummaryDto {
   };
 }
 
+/** An order in a listing: `Order` without its lines nor its address (API_SPEC.md §15.4). */
+export function toOrderSummaryDto(
+  view: WithPayment<OrderSummaryView>,
+): OrderSummaryDto {
+  return {
+    ...toOrderFields(view),
+    payment:
+      view.payment === null
+        ? null
+        : { provider: view.payment.provider, status: view.payment.status },
+  };
+}
+
 /** `Order` of API_SPEC.md §8.8: never the internal number nor the ID (ADR-0049). */
-export function toOrderDto(view: OrderView): OrderDto {
+export function toOrderDto(view: WithPayment<OrderView>): OrderDto {
   return {
     ...toOrderSummaryDto(view),
-    lines: view.lines.map((line) => ({
-      lineNumber: line.lineNumber,
-      sku: line.sku,
-      productName: line.productName,
-      variantOptions: { ...line.variantOptions },
-      unitPrice: toMoneyDto(line.unitPrice),
-      quantity: line.quantity,
-      taxRateBp: line.taxRateBp,
-      taxAmount: toMoneyDto(line.taxAmount),
-      lineTotal: toMoneyDto(line.lineTotal),
-    })),
+    lines: toLineDtos(view),
     shippingAddress: { ...view.shippingAddress },
   };
 }
 
 /** `AdminOrder` in a listing (API_SPEC.md §15.7): both identifiers, without lines nor history. */
 export function toAdminOrderSummaryDto(
-  view: AdminOrderSummaryView,
+  view: WithPayment<AdminOrderSummaryView>,
 ): AdminOrderSummaryDto {
   return {
-    ...toOrderSummaryDto(view),
+    ...toOrderFields(view),
+    payment:
+      view.payment === null ? null : toAdminOrderPaymentDto(view.payment),
     id: view.id,
     orderNumber: view.orderNumber,
     customerId: view.customerId,
@@ -113,10 +132,58 @@ export function toAdminOrderSummaryDto(
 }
 
 /** `AdminOrder` of API_SPEC.md §8.9. */
-export function toAdminOrderDto(view: AdminOrderView): AdminOrderDto {
+export function toAdminOrderDto(
+  view: WithPayment<AdminOrderView>,
+): AdminOrderDto {
   return {
     ...toAdminOrderSummaryDto(view),
-    lines: toOrderDto(view).lines,
+    lines: toLineDtos(view),
     statusHistory: view.statusHistory.map((entry) => ({ ...entry })),
   };
+}
+
+/** The response of starting a payment (API_SPEC.md §16.2), with the public code as people see it. */
+export function toPaymentStartDto(start: PaymentStart): PaymentStartDto {
+  return {
+    paymentId: start.payment.id,
+    provider: start.payment.provider,
+    status: start.payment.status,
+    amount: toMoneyDto(start.payment.amount),
+    action: {
+      type: start.action.type,
+      orderCode: formatPublicCode(start.action.orderCode as PublicCode),
+      amount: toMoneyDto(start.action.amount),
+      instructions: start.action.instructions,
+    },
+  };
+}
+
+function toAdminOrderPaymentDto(payment: OrderPayment): AdminOrderPaymentDto {
+  return {
+    id: payment.id,
+    provider: payment.provider,
+    status: payment.status,
+    amount: toMoneyDto(payment.amount),
+    capturedAmount: toMoneyDto(payment.capturedAmount),
+    refundedAmount: toMoneyDto(payment.refundedAmount),
+    capturedAt: payment.capturedAt,
+    refunds: payment.refunds.map((refund) => ({
+      ...refund,
+      amount: toMoneyDto(refund.amount),
+    })),
+  };
+}
+
+function toLineDtos(view: OrderView): OrderLineDto[] {
+  return view.lines.map((line) => ({
+    lineNumber: line.lineNumber,
+    sku: line.sku,
+    productName: line.productName,
+    variantOptions: { ...line.variantOptions },
+    unitPrice: toMoneyDto(line.unitPrice),
+    quantity: line.quantity,
+    taxRateBp: line.taxRateBp,
+    taxAmount: toMoneyDto(line.taxAmount),
+    lineTotal: toMoneyDto(line.lineTotal),
+  }));
 }

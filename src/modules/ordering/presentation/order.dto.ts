@@ -175,6 +175,43 @@ export class OrderPaymentDto {
   status: string;
 }
 
+/** A refund of the payment of an order (ADR-0051). */
+export class OrderRefundDto {
+  id: string;
+
+  @ApiProperty({ type: () => MoneyDto })
+  amount: MoneyDto;
+
+  @ApiProperty({ enum: ['PENDING', 'COMPLETED', 'FAILED'] })
+  status: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt: Date;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  completedAt: Date | null;
+}
+
+/** The payment of an order, as the staff sees it (API_SPEC.md §8.9). */
+export class AdminOrderPaymentDto extends OrderPaymentDto {
+  id: string;
+
+  @ApiProperty({ type: () => MoneyDto, description: 'El total de la orden.' })
+  amount: MoneyDto;
+
+  @ApiProperty({ type: () => MoneyDto })
+  capturedAmount: MoneyDto;
+
+  @ApiProperty({ type: () => MoneyDto })
+  refundedAmount: MoneyDto;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  capturedAt: Date | null;
+
+  @ApiProperty({ type: () => [OrderRefundDto] })
+  refunds: OrderRefundDto[];
+}
+
 /** The shipment of an order, as the customer sees it (T-195). */
 export class OrderShipmentDto {
   @ApiProperty({
@@ -197,8 +234,11 @@ export class OrderShipmentDto {
   deliveredAt: Date | null;
 }
 
-/** What `Order` and its summary share (API_SPEC.md §8.8). Never the internal number nor the ID (ADR-0049). */
-export class OrderSummaryDto {
+/**
+ * What every view of an order shares (API_SPEC.md §8.8): each adds its own `payment`. Never the internal number
+ * nor the ID for a customer (ADR-0049).
+ */
+export class OrderFieldsDto {
   /** @example 'K7M4-Q9XA' */
   publicCode: string;
 
@@ -238,13 +278,6 @@ export class OrderSummaryDto {
   estimatedDelivery: EstimatedDeliveryDto;
 
   @ApiProperty({
-    type: () => OrderPaymentDto,
-    nullable: true,
-    description: '`null` mientras la orden no tenga pago.',
-  })
-  payment: OrderPaymentDto | null;
-
-  @ApiProperty({
     type: () => OrderShipmentDto,
     nullable: true,
     description: '`null` mientras la orden no tenga envío.',
@@ -280,6 +313,16 @@ export class OrderSummaryDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   refundedAt: Date | null;
+}
+
+/** What `Order` and its summary share: the customer sees the method and status of the payment. */
+export class OrderSummaryDto extends OrderFieldsDto {
+  @ApiProperty({
+    type: () => OrderPaymentDto,
+    nullable: true,
+    description: '`null` mientras la orden no tenga pago.',
+  })
+  payment: OrderPaymentDto | null;
 }
 
 /** `Order` of API_SPEC.md §8.8: the customer's view. */

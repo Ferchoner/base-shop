@@ -21,10 +21,9 @@ import { ApiProblemResponses } from '../../../platform/http/problem-details/api-
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
-import {
-  OrderingQueries,
-  type OrderSortField,
-} from '../application/ordering.queries.js';
+import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
+import { OrderReader } from '../application/order-reader.js';
+import { type OrderSortField } from '../application/ordering.queries.js';
 import {
   AdminOrderDto,
   AdminOrderListDto,
@@ -32,6 +31,7 @@ import {
   CancelOrderDto,
   RetryFulfillmentDto,
 } from './admin-order.dto.js';
+import { ManualCaptureDto } from './payment.dto.js';
 import { toAdminOrderDto, toAdminOrderSummaryDto } from './ordering.mappers.js';
 
 const orderIdOf = (id: string) => pathId<'Order'>(id, 'Order');
@@ -45,8 +45,9 @@ const orderIdOf = (id: string) => pathId<'Order'>(id, 'Order');
 @Controller('admin/orders')
 export class AdminOrdersController {
   constructor(
-    private readonly queries: OrderingQueries,
+    private readonly reader: OrderReader,
     private readonly lifecycle: OrderLifecycle,
+    private readonly paymentRequests: OrderPaymentRequests,
   ) {}
 
   @ApiOperation({
@@ -60,7 +61,7 @@ export class AdminOrdersController {
   async list(
     @Query() query: AdminOrderListQueryDto,
   ): Promise<AdminOrderListDto> {
-    const page = await this.queries.listOrders(
+    const page = await this.reader.orders(
       {
         q: query.q,
         status: query.status,
@@ -155,8 +156,38 @@ export class AdminOrdersController {
     return this.read(id);
   }
 
+  @ApiOperation({
+    summary: 'Registrar el pago en tienda de un pedido',
+    description:
+      'Solo con el pago manual habilitado y desde `PENDING_PAYMENT` o `EXPIRED` (ADR-0055). Registra el cobro por el total del pedido y responde el pedido con su pago capturado; el pedido pasa a `PAID`, o sigue el flujo de pago tardío, en segundo plano (API_SPEC.md §2.5).',
+  })
+  @ApiOkResponse({ type: AdminOrderDto })
+  @ApiProblemResponses(
+    'manual-payments-disabled',
+    'not-found',
+    'invalid-state-transition',
+  )
+  @RequirePermissions('payments.manage')
+  @HttpCode(200)
+  @Post(':orderId/manual-capture')
+  async captureManually(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('orderId') orderId: string,
+    @Body() body: ManualCaptureDto,
+  ): Promise<AdminOrderDto> {
+    const id = orderIdOf(orderId);
+    const note = body.note?.trim() ?? '';
+    await this.paymentRequests.captureManually({
+      orderId: id,
+      staffId: toId<'User'>(actor.id),
+      reference: body.reference.trim(),
+      note: note === '' ? null : note,
+    });
+    return this.read(id);
+  }
+
   private async read(id: ReturnType<typeof orderIdOf>): Promise<AdminOrderDto> {
-    const order = await this.queries.findAdminOrder(id);
+    const order = await this.reader.adminOrder(id);
     if (order === null) throw new NotFoundError('Order', id);
     return toAdminOrderDto(order);
   }

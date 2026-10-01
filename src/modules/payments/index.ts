@@ -1,3 +1,11 @@
 // Public API of the Payments context (ADR-0005): other modules import only from this file.
-// It exports the Nest module and, once they exist, the facade and its public types.
 export { PaymentsModule } from './payments.module.js';
+export {
+  type PaymentAction,
+  type PaymentCaptured,
+  type PaymentRequest,
+  PaymentsFacade,
+  type PaymentStart,
+  type PaymentView,
+  type RefundView,
+} from './application/payments.facade.js';
