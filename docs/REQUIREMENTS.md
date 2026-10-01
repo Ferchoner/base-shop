@@ -341,6 +341,11 @@ Criterios de aceptación:
   - Ordering atiende el inicio del pago y el registro del pago manual, porque Payments nunca lee órdenes; el pago manual se registra en `POST /v1/admin/orders/{orderId}/manual-capture`;
   - la variable `MANUAL_PAYMENTS_ENABLED` lo habilita;
   - UC-PAY-03 y 06 llegan en la parte b de T-190, y UC-PAY-07 pasa a T-192, porque solo un proveedor puede fallar un reembolso.
+- **UC-PAY-03 y 06, UC-ORD-07 (implementación, ADR-0135):**
+  - cancelar una orden pagada inicia su reembolso en la misma transacción, y cancelar una sin pagar cancela su pago pendiente;
+  - el pago que llega después de cancelar también inicia el reembolso;
+  - el reembolso manual se registra en Payments y lleva la orden a REFUNDED en segundo plano con `RefundCompleted`;
+  - las opciones de reintegro responden 409 `restock-not-allowed` con `reason: "unavailable"` hasta T-161.
 
 ### 5.8 Shipping
 

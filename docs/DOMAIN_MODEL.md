@@ -105,7 +105,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Puertos | `PaymentGateway`: adaptador manual (pruebas) y PayPal semiimplementado (ADR-0040) |
 | Casos de uso | InitiatePayment, RegisterManualPayment (staff, solo pruebas), HandleProviderWebhook, RefundPayment (total, al cancelar), RegisterManualRefund (staff, solo pruebas), RetryRefund, ReconcilePayments (job) |
 | Exporta | Estado del pago por orderId |
-| Implementado | T-190 parte a (ADR-0134): `Payment` con sus intentos (iniciar y capturar a mano); `PaymentsFacade` para Ordering (iniciar, registrar el pago manual, pagos por orden) y `PaymentCaptured` |
+| Implementado | T-190 parte a (ADR-0134): `Payment` con sus intentos (iniciar y capturar a mano); `PaymentsFacade` para Ordering (iniciar, registrar el pago manual, pagos por orden) y `PaymentCaptured`. Parte b (ADR-0135): `Refund` (iniciar al cancelar, completar a mano), cancelar el pago pendiente y `RefundCompleted` |
 
 ## Shipping
 
@@ -134,7 +134,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Ordering → Inventory | Reservar, confirmar, liberar; reintegrar con las líneas y lo vendido (P-73) | Comando síncrono en checkout; comandos por eventos (ADR-0132) |
 | Identity → Ordering | Contacto del cliente y direcciones guardadas | Fachada síncrona; Identity nunca usa a Ordering (ADR-0132) |
 | Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; el checkout marca el carrito en su transacción (ADR-0019); Shopping reacciona a `OrderExpired` |
-| Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134) |
+| Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134). Ordering escucha `RefundCompleted` desde T-190 parte b (ADR-0135) |
 | Ordering → Shipping | Orden pagada | Evento `OrderPaid` |
 | Shipping → Ordering | Progreso del envío | Eventos `ShipmentDispatched`, `ShipmentDelivered` |
 | Ordering, Payments, Shipping → Notificaciones | Datos para los correos al cliente | Eventos `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `RefundCompleted`, `ShipmentDispatched`; email de contacto y datos de la orden por la fachada de Ordering (ADR-0074) |

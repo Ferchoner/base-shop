@@ -101,11 +101,11 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 
 | Operación que lo origina | Evento | Efecto en segundo plano | Dónde se nota |
 |---|---|---|---|
-| Registrar un pago manual (`POST /v1/admin/orders/{orderId}/manual-capture`, ADR-0134); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund` (ADR-0133) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
+| Registrar un pago manual (`POST /v1/admin/orders/{orderId}/manual-capture`, ADR-0134); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund`, y se inicia su reembolso (ADR-0133, ADR-0135) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
 | La orden quedó pagada (efecto anterior) | `OrderPaid` | Se crea el envío en PENDING (UC-SHI-03) y se envía el correo "Pago confirmado" (ADR-0074) | Lista de envíos pendientes del staff; correo del cliente |
 | Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED y se envía el correo "Orden enviada" | Estado de la orden; correo del cliente |
 | Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED | Estado de la orden |
-| Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED y deja de tener `hasPendingRefund`; se envía el correo "Reembolso completado" (ADR-0051) | Estado de la orden; correo del cliente |
+| Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED, con `refundedAt` igual a la fecha del reembolso, y deja de tener `hasPendingRefund` (ADR-0051, ADR-0135); el correo "Reembolso completado" llega con T-215 | Estado de la orden; correo del cliente |
 | Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida" | Correo del cliente |
 | Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada" | Correo del cliente |
 | Expirar una orden impaga (job cada minuto) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054) | Carrito del cliente o del invitado |
@@ -1309,9 +1309,12 @@ Implementado en T-180 parte b (ADR-0133):
 
 - **Listado:** `q` busca el número interno o el código público exactos (con o sin guion, sin distinguir mayúsculas) o una parte del email de contacto; `guest=false` deja solo las órdenes de clientes; `hasPendingRefund=true` son las CANCELLED con `paidAt`. Cada orden va sin líneas ni historial, pero con la dirección.
 - **Detalle:** `AdminOrder` con `statusHistory` del más antiguo al más reciente. `payment` y `shipment` son `null` hasta T-190 y T-195.
-- **Cancelar:** por ahora solo desde PENDING_PAYMENT; PAID y AWAITING_MANUAL_FULFILLMENT responden 409 `invalid-state-transition` hasta que T-190 agregue el reembolso. `restock: true` sin `inventory.write` responde 403, y en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Se audita `orders.cancel` con el motivo.
+- **Cancelar:** `restock: true` sin `inventory.write` responde 403, y en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Se audita `orders.cancel` con el motivo. Desde T-190 parte b (ADR-0135):
+  - desde PAID o AWAITING_MANUAL_FULFILLMENT, inicia en la misma operación el reembolso total, que aparece PENDING en `payment.refunds`; el pago sigue CAPTURED y el stock no cambia;
+  - desde PENDING_PAYMENT, además de liberar la reserva, cancela el pago iniciado: `payment.status` pasa a CANCELLED;
+  - `restock: true` en una orden PAID responde 409 `restock-not-allowed` con `reason: "unavailable"` hasta T-161, sin cambiar nada.
 - **Reintentar el surtido:** el estado se revisa antes de reservar; se audita `orders.retry-fulfillment`.
-- **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED. `paidAt` es el momento de la captura.
+- **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED; desde T-190 parte b se inicia además su reembolso (ADR-0135). `paidAt` es el momento de la captura.
 - **Concurrencia:** cada cambio bloquea la orden; una `version` desactualizada responde 409 `version-conflict` con `currentVersion`.
 
 ---
@@ -1384,6 +1387,13 @@ Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas qu
 - **`POST /v1/admin/payments/{paymentId}/refunds/retry`** — Reintentar un reembolso fallido con el proveedor. Request `{ "restock": false, "version" }`. 200 `AdminPayment`. Errores: 409 `invalid-state-transition` (no hay reembolso fallido); 409 `restock-not-allowed`.
 
 UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/orders/{orderId}/cancel`. UC-PAY-05 (conciliación) es un job.
+
+Implementado en T-190 parte b (ADR-0135):
+
+- **Reembolso manual:** `reference` 1–100 caracteres sin quedar en blanco, que queda como `providerRefundId`; `note` 0–500, motivo de la auditoría `payments.manual-refund`; `version` entero ≥ 1. Solo un reembolso PENDING de un pago MANUAL: uno manual nunca falla, y los fallidos llegan con un proveedor (T-192). Responde el pago REFUNDED, con `refundedAmount` igual a lo capturado y el reembolso COMPLETED con `registeredBy` y `completedAt`.
+- **Orden de las validaciones:** 403 `forbidden` (`restock` sin `inventory.write`), 403 `manual-payments-disabled`, 409 `restock-not-allowed` con `reason: "unavailable"` (todo `restock: true` hasta T-161), 404, 409 `version-conflict` y 409 `invalid-state-transition`.
+- **La orden:** pasa a REFUNDED en segundo plano (sección 2.5).
+- **Reintentar:** UC-PAY-07 pasa a T-192 (ADR-0134).
 
 ---
 

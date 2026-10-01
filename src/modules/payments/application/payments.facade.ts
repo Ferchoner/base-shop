@@ -6,9 +6,11 @@ import {
   type DomainEvent,
   DomainEventPublisher,
   eventMetadata,
+  assertVersion,
   InvalidStateTransitionError,
   type Money,
   newId,
+  NotFoundError,
   toId,
   TransactionManager,
 } from '../../../shared-kernel/index.js';
@@ -17,11 +19,13 @@ import {
   Payment,
   type PaymentId,
   type PaymentProvider,
+  type RefundId,
   type StaffId,
 } from '../domain/payment.js';
 import {
   ManualPaymentsDisabledError,
   ProviderNotEnabledError,
+  RestockUnavailableError,
 } from '../domain/payment-errors.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
 import { MANUAL_PAYMENTS_ENABLED } from './manual-payments.js';
@@ -51,6 +55,14 @@ export interface PaymentStart {
   readonly action: PaymentAction;
   /** False when the payment was already started with the same provider. */
   readonly started: boolean;
+}
+
+/** Published when the refund of a payment completes; Ordering marks its order refunded (ADR-0051, ADR-0135). */
+export interface RefundCompleted extends DomainEvent<'RefundCompleted'> {
+  readonly refundId: RefundId;
+  readonly paymentId: PaymentId;
+  readonly orderId: OrderId;
+  readonly amount: Money;
 }
 
 /** Published when a payment is captured; Ordering marks its order paid (UC-ORD-09, ADR-0133). */
@@ -187,6 +199,85 @@ export class PaymentsFacade {
         amount: payment.amount,
       };
       this.events.publish(captured);
+    });
+  }
+
+  /**
+   * Starts the full refund of the payment of a cancelled order (UC-PAY-03, ADR-0051), in the transaction of the
+   * cancellation. Starting it again changes nothing.
+   *
+   * @throws InvalidStateTransitionError when the payment was not captured.
+   */
+  startRefund(orderId: string): Promise<void> {
+    return this.transactions.run(async () => {
+      const payment = await this.payments.findByOrder(toId<'Order'>(orderId));
+      // Ordering only refunds orders whose payment it was told was captured.
+      if (payment === null) {
+        throw new Error(`Order ${orderId} has no payment to refund`);
+      }
+      const now = this.clock.now();
+      if (payment.startRefund(newId<'Refund'>(), now)) {
+        await this.payments.save(payment, now);
+      }
+    });
+  }
+
+  /** Cancels the pending payment of an order cancelled before it was paid (ADR-0135); nothing else changes. */
+  cancelPending(orderId: string): Promise<void> {
+    return this.transactions.run(async () => {
+      const payment = await this.payments.findByOrder(toId<'Order'>(orderId));
+      if (payment?.cancelIfPending()) {
+        await this.payments.save(payment, this.clock.now());
+      }
+    });
+  }
+
+  /**
+   * Registers the refund of a manual payment, made outside the system (UC-PAY-06, ADR-0051): it completes the
+   * pending refund, audits it with the note as its reason, and publishes `RefundCompleted`, so the order
+   * becomes REFUNDED in the background.
+   *
+   * @throws ManualPaymentsDisabledError; RestockUnavailableError until T-161; NotFoundError;
+   *   VersionConflictError; InvalidStateTransitionError unless it is a manual payment with a pending refund.
+   */
+  async registerManualRefund(
+    paymentId: PaymentId,
+    input: {
+      reference: string;
+      note: string | null;
+      restock: boolean;
+      version: number;
+      registeredBy: StaffId;
+    },
+  ): Promise<void> {
+    this.assertManualPaymentsEnabled();
+    if (input.restock) throw new RestockUnavailableError();
+    return this.transactions.run(async () => {
+      const payment = await this.payments.lock(paymentId);
+      if (payment === null) throw new NotFoundError('Payment', paymentId);
+      assertVersion(payment.version, input.version);
+      const before = payment.status;
+      const now = this.clock.now();
+      const refund = payment.completeManualRefund({
+        reference: input.reference,
+        registeredBy: input.registeredBy,
+        now,
+      });
+      await this.payments.save(payment, now);
+      await this.audit.record({
+        action: 'payments.manual-refund',
+        resource: { type: 'payment', id: payment.id },
+        changes: changesBetween({ status: before }, { status: payment.status }),
+        ...(input.note === null ? {} : { reason: input.note }),
+      });
+      const completed: RefundCompleted = {
+        ...eventMetadata('RefundCompleted', now),
+        refundId: refund.id,
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        amount: refund.amount,
+      };
+      this.events.publish(completed);
     });
   }
 

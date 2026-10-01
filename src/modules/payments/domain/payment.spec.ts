@@ -124,3 +124,132 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(saved.newAttempts.map(({ status }) => status)).toEqual(['CAPTURED']);
   });
 });
+
+describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
+  const REFUNDED = new Date('2026-10-01T14:00:00.000Z');
+
+  /** A captured manual payment, as saved. */
+  function captured(provider: PaymentProvider = 'MANUAL'): Payment {
+    const payment = start(provider);
+    if (provider === 'MANUAL') {
+      payment.captureManually({
+        reference: 'Ticket 00452',
+        registeredBy: staff,
+        now: PAID,
+      });
+      return Payment.restore(payment.snapshot);
+    }
+    return Payment.restore({
+      ...payment.snapshot,
+      status: 'CAPTURED',
+      capturedAmount: payment.amount,
+    });
+  }
+
+  it('cancels a pending payment once, and nothing else', () => {
+    const pending = Payment.restore(start().snapshot);
+    const paid = captured();
+
+    expect(pending.cancelIfPending()).toBe(true);
+    expect(pending.cancelIfPending()).toBe(false);
+    expect(paid.cancelIfPending()).toBe(false);
+
+    expect([pending.status, pending.hasChanges]).toEqual(['CANCELLED', true]);
+    expect([paid.status, paid.hasChanges]).toEqual(['CAPTURED', false]);
+  });
+
+  it('starts the refund of the whole captured amount once (BR-PAY-14)', () => {
+    const payment = captured();
+    const id = newId<'Refund'>();
+
+    expect(payment.startRefund(id, REFUNDED)).toBe(true);
+    expect(payment.startRefund(newId<'Refund'>(), REFUNDED)).toBe(false);
+
+    const refund = {
+      id,
+      amount: Money.of(19_900, 'MXN'),
+      status: 'PENDING',
+      providerRefundId: null,
+      registeredBy: null,
+      createdAt: REFUNDED,
+      completedAt: null,
+    };
+    expect(payment.snapshot.refunds).toEqual([refund]);
+    expect(payment.touchedRefunds).toEqual([refund]);
+    expect([payment.status, payment.hasChanges]).toEqual(['CAPTURED', true]);
+  });
+
+  it('starts a refund only of a captured payment', () => {
+    expect(() =>
+      Payment.restore(start().snapshot).startRefund(
+        newId<'Refund'>(),
+        REFUNDED,
+      ),
+    ).toThrow(new InvalidStateTransitionError('PENDING', 'start a refund'));
+  });
+
+  it('completes the pending refund of a manual payment, which is refunded whole', () => {
+    const payment = captured();
+    const id = newId<'Refund'>();
+    payment.startRefund(id, PAID);
+    const saved = Payment.restore(payment.snapshot);
+
+    const completed = saved.completeManualRefund({
+      reference: 'Devolución 00087',
+      registeredBy: staff,
+      now: REFUNDED,
+    });
+
+    expect(completed).toEqual({
+      id,
+      amount: Money.of(19_900, 'MXN'),
+      status: 'COMPLETED',
+      providerRefundId: 'Devolución 00087',
+      registeredBy: staff,
+      createdAt: PAID,
+      completedAt: REFUNDED,
+    });
+    expect(saved.snapshot).toMatchObject({
+      status: 'REFUNDED',
+      refundedAmount: Money.of(19_900, 'MXN'),
+      refunds: [completed],
+    });
+    expect(saved.touchedRefunds).toEqual([completed]);
+    expect(saved.startRefund(newId<'Refund'>(), REFUNDED)).toBe(false);
+    expect(saved.snapshot.refunds).toEqual([completed]);
+  });
+
+  it('registers by hand only the pending refund of a manual payment', () => {
+    const withoutRefund = captured();
+    const paypal = captured('PAYPAL');
+    paypal.startRefund(newId<'Refund'>(), PAID);
+    const done = captured();
+    done.startRefund(newId<'Refund'>(), PAID);
+    done.completeManualRefund({
+      reference: 'Devolución 1',
+      registeredBy: staff,
+      now: REFUNDED,
+    });
+    const input = {
+      reference: 'Devolución 2',
+      registeredBy: staff,
+      now: REFUNDED,
+    };
+
+    expect(() => withoutRefund.completeManualRefund(input)).toThrow(
+      new InvalidStateTransitionError(
+        'CAPTURED',
+        'register the refund of a MANUAL payment by hand',
+      ),
+    );
+    expect(() => paypal.completeManualRefund(input)).toThrow(
+      InvalidStateTransitionError,
+    );
+    expect(() => done.completeManualRefund(input)).toThrow(
+      new InvalidStateTransitionError(
+        'REFUNDED',
+        'register the refund of a MANUAL payment by hand',
+      ),
+    );
+  });
+});

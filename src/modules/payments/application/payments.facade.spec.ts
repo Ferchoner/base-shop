@@ -6,7 +6,9 @@ import {
   InvalidStateTransitionError,
   Money,
   newId,
+  NotFoundError,
   type TransactionManager,
+  VersionConflictError,
 } from '../../../shared-kernel/index.js';
 import {
   type OrderId,
@@ -16,6 +18,7 @@ import {
 import {
   ManualPaymentsDisabledError,
   ProviderNotEnabledError,
+  RestockUnavailableError,
 } from '../domain/payment-errors.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
 import { type PaymentRequest, PaymentsFacade } from './payments.facade.js';
@@ -39,6 +42,12 @@ class InMemoryPayments extends PaymentRepository {
     return Promise.resolve(
       this.existing === null ? null : Payment.restore(this.existing.snapshot),
     );
+  }
+
+  lock(id: string): Promise<Payment | null> {
+    return id === this.existing?.id
+      ? this.findByOrder()
+      : Promise.resolve(null);
   }
 
   insert(payment: Payment, now: Date): Promise<void> {
@@ -268,6 +277,140 @@ describe('PaymentsFacade: a payment made in the store (UC-PAY-02)', () => {
         [],
         [],
       ]);
+    }
+  });
+});
+
+describe('PaymentsFacade: refunds (UC-PAY-03 and 06, ADR-0135)', () => {
+  /** A captured manual payment with a refund pending, at version 2. */
+  function refunding(): Payment {
+    const payment = existing('MANUAL', true);
+    payment.startRefund(newId<'Refund'>(), NOW);
+    return Payment.restore({ ...payment.snapshot, version: 2 });
+  }
+
+  it('starts the refund of a captured payment, and saves nothing when it was already started', async () => {
+    const first = setUp({ existing: existing('MANUAL', true) });
+    const again = setUp({ existing: refunding() });
+
+    await first.facade.startRefund(order.orderId);
+    await again.facade.startRefund(order.orderId);
+
+    expect(first.payments.saved[0].touchedRefunds).toEqual([
+      expect.objectContaining({ status: 'PENDING', amount: order.amount }),
+    ]);
+    expect(again.payments.saved).toEqual([]);
+  });
+
+  it('fails loudly for an order without a payment to refund', async () => {
+    await expect(setUp().facade.startRefund(order.orderId)).rejects.toThrow(
+      `Order ${order.orderId} has no payment to refund`,
+    );
+  });
+
+  it('cancels a pending payment, and leaves any other one as it is', async () => {
+    const pending = setUp({ existing: existing('MANUAL') });
+    const captured = setUp({ existing: existing('MANUAL', true) });
+    const none = setUp();
+
+    for (const { facade } of [pending, captured, none]) {
+      await facade.cancelPending(order.orderId);
+    }
+
+    expect(pending.payments.saved.map(({ status }) => status)).toEqual([
+      'CANCELLED',
+    ]);
+    expect([captured.payments.saved, none.payments.saved]).toEqual([[], []]);
+  });
+
+  const register = (
+    facade: PaymentsFacade,
+    paymentId: string,
+    changes: { restock?: boolean; version?: number; note?: string | null } = {},
+  ) =>
+    facade.registerManualRefund(paymentId as never, {
+      reference: 'Devolución 00087',
+      note: changes.note === undefined ? 'Efectivo' : changes.note,
+      restock: changes.restock ?? false,
+      version: changes.version ?? 2,
+      registeredBy: staff,
+    });
+
+  it('completes the pending refund, audits it and publishes RefundCompleted', async () => {
+    const payment = refunding();
+    const { facade, payments, published, audited } = setUp({
+      existing: payment,
+    });
+
+    await register(facade, payment.id);
+
+    const [saved] = payments.saved;
+    const [refund] = saved.snapshot.refunds;
+    expect(saved.status).toBe('REFUNDED');
+    expect(audited).toEqual([
+      {
+        action: 'payments.manual-refund',
+        resource: { type: 'payment', id: payment.id },
+        changes: { status: { from: 'CAPTURED', to: 'REFUNDED' } },
+        reason: 'Efectivo',
+      },
+    ]);
+    expect(published).toEqual([
+      {
+        eventId: expect.any(String),
+        eventType: 'RefundCompleted',
+        occurredAt: NOW,
+        refundId: refund.id,
+        paymentId: payment.id,
+        orderId: order.orderId,
+        amount: order.amount,
+      },
+    ]);
+  });
+
+  it('audits without a note when there is none', async () => {
+    const payment = refunding();
+    const { facade, audited } = setUp({ existing: payment });
+
+    await register(facade, payment.id, { note: null });
+
+    expect(audited[0]).not.toHaveProperty('reason');
+  });
+
+  it('checks that manual payments are on, then the restock, the payment, its version and its refund', async () => {
+    const payment = refunding();
+    const off = setUp({ existing: payment, manual: false });
+    const restock = setUp({ existing: payment });
+    const missing = setUp({ existing: payment });
+    const outdated = setUp({ existing: payment });
+    const noRefund = setUp({ existing: existing('MANUAL', true) });
+
+    await expect(register(off.facade, payment.id)).rejects.toThrow(
+      ManualPaymentsDisabledError,
+    );
+    await expect(
+      register(restock.facade, payment.id, { restock: true }),
+    ).rejects.toThrow(RestockUnavailableError);
+    await expect(register(missing.facade, newId())).rejects.toThrow(
+      NotFoundError,
+    );
+    await expect(
+      register(outdated.facade, payment.id, { version: 1 }),
+    ).rejects.toThrow(new VersionConflictError(2));
+    const captured = noRefund.payments;
+    await expect(
+      register(noRefund.facade, (await captured.findByOrder())!.id, {
+        version: 1,
+      }),
+    ).rejects.toThrow(InvalidStateTransitionError);
+    for (const { payments, published, audited } of [
+      off,
+      restock,
+      missing,
+      outdated,
+      noRefund,
+    ]) {
+      expect([payments.saved, published, audited]).toEqual([[], [], []]);
     }
   });
 });

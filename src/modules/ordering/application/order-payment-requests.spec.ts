@@ -131,6 +131,12 @@ function setUp(order: Order, options: { enabled?: boolean } = {}) {
       );
       return Promise.resolve();
     },
+    startRefund: () => {
+      throw new Error('Not used to pay');
+    },
+    cancelPending: () => {
+      throw new Error('Not used to pay');
+    },
     paymentsOf: () => {
       throw new Error('Not used to pay');
     },

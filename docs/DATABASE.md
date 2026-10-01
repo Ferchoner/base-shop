@@ -555,6 +555,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | completed_at | timestamptz(3) | Sí | — |
 
 - **Restricciones:** único parcial `(payment_id) WHERE status IN ('PENDING','COMPLETED')` (un solo reembolso total en curso o completado; los fallidos quedan como historial de reintentos, ADR-0051).
+- **Implementado en T-190 parte b (ADR-0135):** un reembolso se crea al iniciarse y se actualiza al completarse, siempre con el pago que lo contiene, que compara su `version`. Registrar el reembolso manual bloquea antes la fila del pago. Se leen del más antiguo al más reciente.
 
 ### 9.4 `processed_webhook_events`
 

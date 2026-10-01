@@ -152,6 +152,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0132 | Checkout y pedidos: división de T-180, dependencias de Ordering, reintegro sin ciclo y vencimiento del pago | Aceptada |
 | ADR-0133 | Administración de órdenes: cancelación sin pago, pago capturado, pago tardío y reserva todo o nada | Aceptada |
 | ADR-0134 | Pagos: Ordering usa a Payments, pago en tienda y división de T-190 | Aceptada |
+| ADR-0135 | Reembolsos: cancelar órdenes pagadas, reembolso manual y reintegro hasta T-161 | Aceptada |
 
 ---
 
@@ -1040,7 +1041,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cancelled es terminal solo cuando no hubo pago capturado.
   - Las órdenes en Cancelled con pago capturado son la lista de reembolsos pendientes del staff.
   - El reintegro de stock se define en ADR-0052.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en T-190 parte b (ADR-0135) con el pago manual; los reembolsos que fallan llegan con un proveedor (T-192).
 
 ---
 
@@ -1059,7 +1060,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada reintegro genera un movimiento de stock con motivo y referencia a la orden, y se audita.
 - **Alternativas consideradas:** Reintegro automático siempre; nunca reintegrar desde el sistema.
 - **Consecuencias:** Una orden cancelada puede quedar sin reintegro; el inventario refleja solo lo que el staff confirma que regresó.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Hasta T-161, las opciones de reintegro responden 409 `restock-not-allowed` con `reason: "unavailable"` (ADR-0135).
 
 ---
 
@@ -3698,7 +3699,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - un pago tardío con una línea sin stock, que no aparta nada de las demás;
     - una reserva corta dentro de una transacción mayor;
     - pasos deshechos con sus eventos.
-- **Estado:** Aceptada (plan de T-180 parte b aprobado el 2026-10-01, con sus 4 recomendaciones). T-190 parte a publica `PaymentCaptured` con esa forma (ADR-0134).
+- **Estado:** Aceptada (plan de T-180 parte b aprobado el 2026-10-01, con sus 4 recomendaciones). T-190 parte a publica `PaymentCaptured` con esa forma (ADR-0134). ADR-0135 cancela también órdenes pagadas, e inicia el reembolso del pago que llega después de cancelar.
 
 ---
 
@@ -3746,4 +3747,44 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b: cancelar una orden pagada llama a Payments para iniciar el reembolso, y Ordering escucha `RefundCompleted`.
   - T-192 suma UC-PAY-07. La conciliación (UC-PAY-05) vivirá en Ordering, que es quien puede leer órdenes y pagos.
   - Pruebas contra PostgreSQL: dos registros del mismo pago a la vez, dos inicios a la vez, y un pago junto con una cancelación.
-- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación.
+- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135.
+
+---
+
+## ADR-0135 — Reembolsos: cancelar órdenes pagadas, reembolso manual y reintegro hasta T-161
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-190 parte b (UC-PAY-03 y 06, UC-ORD-07). Cancelar una orden pagada inicia su reembolso total, y registrar el reembolso manual lleva la orden a REFUNDED (ADR-0051). Quedaban abiertas tres cosas:
+  - la opción `restock`, que necesita a Inventory y llega con T-161;
+  - el pago que llega después de cancelar, que ADR-0133 dejó a la espera de su reembolso sin iniciarlo;
+  - el pago iniciado de una orden que se cancela sin pagar.
+- **Decisión:**
+  - **Cancelar (UC-ORD-07, UC-PAY-03):**
+    - desde PAID o AWAITING_MANUAL_FULFILLMENT, la orden pasa a CANCELLED y Ordering llama a `PaymentsFacade.startRefund` en la misma transacción. Payments crea un reembolso PENDING por todo lo capturado; el pago sigue CAPTURED. El stock no se toca: el de PAID ya salió y el de AWAITING_MANUAL_FULFILLMENT nunca se confirmó;
+    - desde PENDING_PAYMENT, además de liberar la reserva, Ordering llama a `PaymentsFacade.cancelPending`: un pago PENDING pasa a CANCELLED y nadie puede capturarlo. Un pago en otro estado, o ninguno, no cambia;
+    - una orden pagada sin pago en Payments es un error interno, porque Ordering solo marca pagadas las órdenes de las que Payments le avisó.
+  - **Pago después de cancelar:** el manejador de `PaymentCaptured` también inicia el reembolso cuando la orden ya estaba CANCELLED, una sola vez aunque el evento se repita. Así el staff registra su devolución como la de cualquier otra orden.
+  - **Registrar el reembolso manual (UC-PAY-06):**
+    - lo atiende Payments en `POST /v1/admin/payments/{paymentId}/refunds/manual` (`payments.manage`), porque solo necesita el pago. Responde 200 `AdminPayment`;
+    - bloquea la fila del pago (`FOR UPDATE`), compara su `version`, completa el reembolso PENDING con `reference` en `provider_refund_id` y el staff en `registered_by`, y deja el pago REFUNDED con `refunded_amount` igual a lo capturado;
+    - se audita como `payments.manual-refund`, con el cambio de estado del pago y `note` como motivo, y publica `RefundCompleted { refundId, paymentId, orderId, amount }` en la misma transacción;
+    - solo un reembolso PENDING de un pago MANUAL. El contrato dice "pendiente o fallido", pero un reembolso manual nunca falla porque lo registra el staff; uno fallido solo puede venir de un proveedor (T-192);
+    - orden de las validaciones: el permiso `inventory.write` si se pide `restock` (403 `forbidden`), el pago manual habilitado (403 `manual-payments-disabled`), `restock` (409, abajo), el pago (404), su `version` (409 `version-conflict`) y el reembolso pendiente (409 `invalid-state-transition`).
+  - **`RefundCompleted` en Ordering:** en segundo plano, la orden CANCELLED con `paidAt` pasa a REFUNDED, sin actor, con `refundedAt` igual a la fecha en que se completó el reembolso; el historial guarda cuándo se registró el cambio, como con `paidAt`. Un evento repetido no cambia nada, y el de una orden que no está cancelada con pago queda en el log como error, solo con los IDs.
+  - **Reintegro hasta T-161:** `restock: true` al cancelar una orden PAID o al registrar el reembolso responde 409 `restock-not-allowed` con `reason: "unavailable"`, después de revisar `inventory.write`, sin cambiar nada. El staff nunca debe creer que el stock volvió. En un estado que no es PAID, la cancelación sigue respondiendo `restock-not-allowed` con `currentStatus` (ADR-0133).
+  - **Concurrencia:**
+    - iniciar el reembolso ocurre siempre con la orden bloqueada (al cancelar y al recibir el pago), así que dos inicios se esperan; el índice único parcial de `refunds` queda de respaldo (BR-PAY-14);
+    - dos registros del mismo reembolso a la vez: uno lo completa y el otro responde 409 `version-conflict`; la orden pasa a REFUNDED una sola vez.
+  - **Sin migración:** `refunds` y `orders.refunded_at` ya existían.
+- **Alternativas consideradas:**
+  - **Reintegrar al cancelar con `InventoryFacade`:** adelantaría T-161 sin resolver cómo se reintegra por línea y cuánto ya se reintegró (ADR-0052).
+  - **Ignorar `restock` hasta T-161:** el staff creería que el stock volvió.
+  - **Iniciar el reembolso del pago tardío solo con la conciliación (T-192):** el pago en tienda nunca tendría reembolso que registrar.
+  - **Dejar PENDING el pago de una orden cancelada sin pagar:** seguiría pareciendo cobrable.
+  - **Registrar el reembolso desde Ordering, como el pago manual:** solo necesita el pago, y Ordering ya se entera por `RefundCompleted`.
+- **Consecuencias:**
+  - Las órdenes CANCELLED con `paidAt` (`hasPendingRefund=true`) son la lista de reembolsos pendientes, y salen de ella al pasar a REFUNDED.
+  - T-161 cambia la respuesta de `restock` por el reintegro real, en la cancelación y en el registro del reembolso.
+  - T-192 agrega los reembolsos con proveedor, que pueden fallar, y su reintento (UC-PAY-07). T-215 envía el correo "Reembolso completado".
+  - Pruebas contra PostgreSQL: dos registros del mismo reembolso a la vez, y una cancelación junto con el registro del pago de una orden con su pago iniciado.
+- **Estado:** Aceptada (plan de T-190 parte b aprobado el 2026-10-01, con sus 3 recomendaciones).

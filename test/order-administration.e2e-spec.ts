@@ -78,6 +78,9 @@ describe('Order administration (e2e, T-180)', () => {
     await prisma.order.deleteMany();
     await prisma.reservation.deleteMany();
     await prisma.stockMovement.deleteMany();
+    await prisma.refund.deleteMany();
+    await prisma.paymentAttempt.deleteMany();
+    await prisma.payment.deleteMany();
     await prisma.idempotencyKey.deleteMany();
     await prisma.cartLine.deleteMany();
     await prisma.cart.deleteMany();
@@ -558,6 +561,19 @@ describe('Order administration (e2e, T-180)', () => {
     it('keeps a cancelled order cancelled, waiting for its refund (ADR-0133)', async () => {
       const shirt = await variant();
       const { id } = await guestOrder(shirt);
+      await prisma.payment.create({
+        data: {
+          id: newId(),
+          orderId: id,
+          orderCode: 'K7M4Q9XA',
+          provider: 'MANUAL',
+          status: 'CAPTURED',
+          amount: 19_900,
+          capturedAmount: 19_900,
+          currency: 'MXN',
+          capturedAt: new Date(),
+        },
+      });
       await http()
         .post(`/v1/admin/orders/${id}/cancel`)
         .set(signedInAs(manager))
@@ -573,6 +589,12 @@ describe('Order administration (e2e, T-180)', () => {
         paidAt: capturedAt.toISOString(),
         version: 3,
       });
+      // Its refund started once, with the first event (ADR-0135).
+      expect(
+        await prisma.refund.findMany({
+          select: { status: true, amount: true },
+        }),
+      ).toEqual([{ status: 'PENDING', amount: 19_900 }]);
       const notPending = await http()
         .get('/v1/admin/orders?hasPendingRefund=false')
         .set(signedInAs(reader))

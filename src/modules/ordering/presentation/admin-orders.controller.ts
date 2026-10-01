@@ -95,7 +95,7 @@ export class AdminOrdersController {
   @ApiOperation({
     summary: 'Cancelar un pedido',
     description:
-      'Desde `PENDING_PAYMENT`: pasa a `CANCELLED` y libera su reserva. Las órdenes pagadas se cancelan, con su reembolso, desde T-190 (ADR-0133). `restock` necesita además `inventory.write` y solo aplica a `PAID`.',
+      'Desde `PENDING_PAYMENT`: pasa a `CANCELLED`, libera su reserva y cancela su pago pendiente. Desde `PAID` o `AWAITING_MANUAL_FULFILLMENT`: pasa a `CANCELLED` e inicia el reembolso total en la misma operación; pasa a `REFUNDED` cuando el reembolso se completa (ADR-0051, ADR-0135). `restock` necesita además `inventory.write`, y hasta T-161 responde 409 `restock-not-allowed`.',
   })
   @ApiOkResponse({ type: AdminOrderDto })
   @ApiProblemResponses(

@@ -37,20 +37,29 @@ describe('Manual payments turned off (e2e, T-190)', () => {
   });
 
   const http = () => request(app.getHttpServer());
+  const cashier = signedInAs({
+    id: newId(),
+    type: 'STAFF',
+    permissions: ['orders.read', 'payments.manage'],
+    mustChangePassword: false,
+    sessionId: newId(),
+  });
 
   it('answers 403 manual-payments-disabled to the staff, before looking at the order', async () => {
     const response = await http()
       .post(`/v1/admin/orders/${newId()}/manual-capture`)
-      .set(
-        signedInAs({
-          id: newId(),
-          type: 'STAFF',
-          permissions: ['orders.read', 'payments.manage'],
-          mustChangePassword: false,
-          sessionId: newId(),
-        }),
-      )
+      .set(cashier)
       .send({ reference: 'Ticket 00452' })
+      .expect(403);
+
+    expect(response.body.type).toBe('/problems/manual-payments-disabled');
+  });
+
+  it('answers 403 manual-payments-disabled to a refund registered by hand, before looking at the payment (ADR-0135)', async () => {
+    const response = await http()
+      .post(`/v1/admin/payments/${newId()}/refunds/manual`)
+      .set(cashier)
+      .send({ reference: 'Devolución 00087', version: 1 })
       .expect(403);
 
     expect(response.body.type).toBe('/problems/manual-payments-disabled');

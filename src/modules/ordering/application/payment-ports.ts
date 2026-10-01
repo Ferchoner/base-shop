@@ -76,6 +76,15 @@ export abstract class OrderPayments {
     input: { reference: string; note: string | null; registeredBy: StaffId },
   ): Promise<void>;
 
+  /**
+   * Starts the full refund of the captured payment of a cancelled order (UC-PAY-03); starting it again
+   * changes nothing.
+   */
+  abstract startRefund(orderId: OrderId): Promise<void>;
+
+  /** Cancels the pending payment of an order cancelled before it was paid; nothing else changes. */
+  abstract cancelPending(orderId: OrderId): Promise<void>;
+
   /** The payments of these orders, by order; an order without one is left out. */
   abstract paymentsOf(
     orderIds: readonly OrderId[],

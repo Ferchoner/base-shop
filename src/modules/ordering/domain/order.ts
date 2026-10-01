@@ -182,6 +182,8 @@ export interface OrderSnapshot {
   readonly paidAt: Date | null;
   readonly cancelledAt: Date | null;
   readonly expiredAt: Date | null;
+  /** When its refund completed: the money went back (ADR-0051). */
+  readonly refundedAt: Date | null;
   readonly version: number;
 }
 
@@ -251,6 +253,7 @@ export class Order {
       paidAt: null,
       cancelledAt: null,
       expiredAt: null,
+      refundedAt: null,
       version: 1,
     });
   }
@@ -295,13 +298,17 @@ export class Order {
   }
 
   /**
-   * Cancels an unpaid order (UC-ORD-07, ADR-0021, ADR-0051): CANCELLED is final for it, and its reservation
-   * must be released. A paid order is cancelled with its refund from T-190 on (ADR-0133).
+   * Cancels an order that was not shipped (UC-ORD-07, ADR-0021, BR-CAN-01): an unpaid one is final and its
+   * reservation must be released; a paid one, PAID or waiting for stock, must get its full refund, and becomes
+   * REFUNDED when it completes (ADR-0051, ADR-0135).
    *
-   * @throws InvalidStateTransitionError from any other status.
+   * @throws InvalidStateTransitionError from SHIPPED on, or when it was already cancelled or expired.
    */
   cancel(actorId: StaffId, reason: string, now: Date): void {
-    this.assertStatus(['PENDING_PAYMENT'], 'cancel');
+    this.assertStatus(
+      ['PENDING_PAYMENT', 'PAID', 'AWAITING_MANUAL_FULFILLMENT'],
+      'cancel',
+    );
     this.move('CANCELLED', actorId, reason, now);
     this.state = { ...this.state, cancelledAt: now };
   }
@@ -370,6 +377,19 @@ export class Order {
     this.state = { ...this.state, paidAt: capturedAt };
     this.changed = true;
     return true;
+  }
+
+  /**
+   * The refund of a cancelled order completed (ADR-0051): REFUNDED, when the money went back.
+   *
+   * @throws InvalidStateTransitionError unless the order is CANCELLED with a captured payment.
+   */
+  markRefunded(completedAt: Date, now: Date): void {
+    if (this.state.status !== 'CANCELLED' || this.state.paidAt === null) {
+      throw new InvalidStateTransitionError(this.state.status, 'mark refunded');
+    }
+    this.move('REFUNDED', null, null, now);
+    this.state = { ...this.state, refundedAt: completedAt };
   }
 
   private assertStatus(allowed: readonly OrderStatus[], action: string): void {

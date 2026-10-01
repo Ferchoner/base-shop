@@ -70,7 +70,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-INV-07. La reserva tiene un TTL fijo configurable; valor inicial de 20 minutos.
 - BR-INV-08. En el MVP existe exactamente un almacén, creado por el seed; es el predeterminado y el único que usan reservas, entradas, ajustes y envíos. La API no crea ni desactiva almacenes, y la base impide más de un almacén activo (ADR-0011, ADR-0081).
 - BR-INV-09. Cancelar una orden en PendingPayment libera su reserva (DOMAIN_MODEL, flujo Ordering → Inventory).
-- BR-INV-10. El reintegro de stock de una orden cancelada o con envío devuelto es independiente: una entrada con motivo y referencia a la orden, total o parcial. Además, como opción, el staff con `inventory.write` puede reintegrar todas las líneas completas al cancelar una orden en Paid, o al registrar o reintentar su reembolso si la orden no tiene ningún reintegro previo. La suma reintegrada por línea no supera lo vendido (ADR-0052).
+- BR-INV-10. El reintegro de stock de una orden cancelada o con envío devuelto es independiente: una entrada con motivo y referencia a la orden, total o parcial. Además, como opción, el staff con `inventory.write` puede reintegrar todas las líneas completas al cancelar una orden en Paid, o al registrar o reintentar su reembolso si la orden no tiene ningún reintegro previo. La suma reintegrada por línea no supera lo vendido (ADR-0052). Hasta T-161, estas opciones responden que el reintegro no está disponible y no cambian nada (ADR-0135).
 - BR-INV-11. Ajustes y reintegros llevan un motivo obligatorio de una lista cerrada y una nota opcional (obligatoria con "Otro"); las entradas solo llevan nota opcional. Los motivos Dañado, Pérdida o robo y Uso interno solo restan stock; los reintegros solo suman (ADR-0069).
 - BR-INV-12. El público solo ve si una variante está disponible o agotada, nunca cantidades; el carrito indica por línea si la cantidad pedida puede surtirse (ADR-0061).
 - BR-INV-13. Los movimientos de stock son append-only: nunca se modifican ni se borran. Todo cambio de `onHand` escribe su movimiento en la misma transacción, y la suma de movimientos de un stock item debe igualar su `onHand` (ADR-0011, ADR-0066).
@@ -143,11 +143,11 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PAY-11. En el MVP solo hay reembolsos totales al cancelar una orden pagada; no hay reembolsos independientes ni parciales. El reembolso de un pago manual se hace fuera del sistema y lo registra un administrador con `payments.manage` (ADR-0018, ADR-0051).
 - BR-PAY-12. El pago manual se hace físicamente en la tienda; la API indica pago en tienda con el código público y el total. Solo se registra sobre órdenes en PendingPayment o Expired (ADR-0055).
 - BR-PAY-13. El adaptador de PayPal no se habilita hasta verificarse en sandbox (ADR-0040).
-- BR-PAY-14. Un pago tiene como máximo un reembolso activo (pendiente o completado); lo garantiza un índice único parcial (ADR-0051, ADR-0066).
+- BR-PAY-14. Un pago tiene como máximo un reembolso activo (pendiente o completado); lo garantiza un índice único parcial (ADR-0051, ADR-0066). El reembolso se inicia con la orden bloqueada, así que dos inicios a la vez se esperan (ADR-0135).
 
 ## Cancelaciones y devoluciones
 
-- BR-CAN-01. No se cancela una orden en Shipped o posterior. Se puede cancelar en PendingPayment, Paid y AwaitingManualFulfillment.
+- BR-CAN-01. No se cancela una orden en Shipped o posterior. Se puede cancelar en PendingPayment, Paid y AwaitingManualFulfillment. Cancelar una orden sin pagar cancela también su pago pendiente (ADR-0135).
 - BR-CAN-02. Cancelar una orden pagada (Paid o AwaitingManualFulfillment) la lleva a Cancelled e inicia el reembolso total; al confirmarse el reembolso pasa a Refunded. Si el reembolso falla, permanece en Cancelled y se puede reintentar (ADR-0051).
 - BR-CAN-03. Solo el personal con permiso `orders.manage` (Administrador y Superadministrador, ADR-0043) puede cancelar. El cliente no cancela desde la API (ADR-0021).
 - BR-CAN-04. Devoluciones: fuera del MVP (ADR-0018).

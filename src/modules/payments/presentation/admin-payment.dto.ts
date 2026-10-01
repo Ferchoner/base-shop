@@ -1,5 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsISO8601, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { MoneyDto } from '../../../platform/http/money.dto.js';
 import {
   PageMetaDto,
@@ -171,4 +183,37 @@ export class AdminPaymentListQueryDto extends PageQueryDto {
   @IsOptional()
   @IsSortOf(['createdAt', 'amount'])
   sort?: string;
+}
+
+const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
+
+/** Request of `POST /v1/admin/payments/{paymentId}/refunds/manual` (UC-PAY-06, API_SPEC.md §16.5). */
+export class ManualRefundDto {
+  /**
+   * Comprobante del reembolso hecho fuera del sistema, de 1 a 100 caracteres.
+   * @example 'Devolución 00087'
+   */
+  @IsString()
+  @Length(1, 100)
+  @Matches(/\S/, NOT_BLANK)
+  reference: string;
+
+  /**
+   * Nota de hasta 500 caracteres; queda en la auditoría: no escribas datos personales.
+   * @example 'Devuelto en efectivo en la tienda'
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
+  /** Reintegrar todo el stock; requiere `inventory.write` y llega con T-161 (ADR-0135). */
+  @IsOptional()
+  @IsBoolean()
+  restock?: boolean;
+
+  /** Versión leída del pago (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
 }
