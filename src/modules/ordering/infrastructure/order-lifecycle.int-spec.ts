@@ -1,0 +1,413 @@
+import { ConfigModule } from '@nestjs/config';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { ClsModule, ClsService } from 'nestjs-cls';
+import pg from 'pg';
+import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
+import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
+import { ClockModule } from '../../../platform/clock/clock.module.js';
+import { validateEnvironment } from '../../../platform/config/environment.js';
+import { EventsModule } from '../../../platform/events/events.module.js';
+import { IdempotencyModule } from '../../../platform/http/idempotency/idempotency.module.js';
+import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
+import { MailModule } from '../../../platform/mail/mail.module.js';
+import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
+import { PrismaService } from '../../../platform/persistence/prisma.service.js';
+import {
+  Clock,
+  Money,
+  newId,
+  TransactionManager,
+  VersionConflictError,
+} from '../../../shared-kernel/index.js';
+import { AuditModule } from '../../audit/index.js';
+import { Checkout } from '../application/checkout.use-case.js';
+import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
+import { Order, type OrderId, type VariantId } from '../domain/order.js';
+import { OrderRepository } from '../domain/order.repository.js';
+import { OrderingModule } from '../ordering.module.js';
+
+/** The list and the warehouse their migrations create (ADR-0125, ADR-0127). */
+const DEFAULT_LIST = '01a0f4f2-bb5f-770a-a269-105d21861fe0';
+const MAIN = '01a0f54d-639d-7173-a3ff-f510cd91429d';
+const START = Date.parse('2026-10-01T12:00:00.000Z');
+const CAPTURED = new Date('2026-10-01T12:30:00.000Z');
+
+const ADDRESS = {
+  recipientName: 'María López Hernández',
+  phone: '4431234567',
+  street: 'Av. Madero Poniente',
+  exteriorNumber: '123',
+  interiorNumber: null,
+  neighborhood: 'Centro',
+  postalCode: '58000',
+  stateCode: '16',
+  municipalityCode: '16053',
+  city: null,
+  references: null,
+};
+
+/** The life of an order against PostgreSQL 18, after it is placed (T-180 part b, ADR-0133). */
+describe('Ordering: life of an order (T-180)', () => {
+  let moduleRef: TestingModule;
+  let prisma: PrismaService;
+  let cls: ClsService;
+  let lifecycle: OrderLifecycle;
+  // A clock that moves forward a second on each reading.
+  let current = START;
+  const clock = {
+    now: () => {
+      current += 1_000;
+      return new Date(current);
+    },
+  };
+
+  beforeAll(async () => {
+    moduleRef = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          ignoreEnvFile: true,
+          validate: validateEnvironment,
+        }),
+        ClsModule.forRoot({ global: true }),
+        PersistenceModule,
+        ClockModule,
+        EventsModule,
+        AppCacheModule,
+        RateLimitingModule,
+        IdempotencyModule,
+        MailModule,
+        AuditModule,
+        OrderingModule,
+      ],
+    })
+      .overrideProvider(Clock)
+      .useValue(clock)
+      .compile();
+    await moduleRef.init();
+    prisma = moduleRef.get(PrismaService);
+    cls = moduleRef.get(ClsService);
+    lifecycle = moduleRef.get(OrderLifecycle);
+    await prisma.geoState.upsert({
+      where: { code: '16' },
+      create: { code: '16', name: 'Michoacán de Ocampo' },
+      update: {},
+    });
+    await prisma.geoMunicipality.upsert({
+      where: { code: '16053' },
+      create: {
+        code: '16053',
+        stateCode: '16',
+        name: 'Morelia',
+        isActive: true,
+      },
+      update: {},
+    });
+  });
+
+  afterAll(async () => {
+    await moduleRef.close();
+  });
+
+  beforeEach(() => {
+    current = START;
+  });
+
+  afterEach(async () => {
+    await prisma.auditLog.deleteMany({
+      where: { action: { startsWith: 'orders.' } },
+    });
+    await prisma.orderStatusHistory.deleteMany();
+    await prisma.orderLine.deleteMany();
+    await prisma.order.deleteMany();
+    await prisma.reservation.deleteMany();
+    await prisma.stockMovement.deleteMany();
+    await prisma.cartLine.deleteMany();
+    await prisma.cart.deleteMany();
+    await prisma.pricePeriod.deleteMany();
+    await prisma.variantPrice.deleteMany();
+    await prisma.stockItem.deleteMany();
+    await prisma.productVariant.deleteMany();
+    await prisma.product.deleteMany();
+  });
+
+  const run = <T>(work: () => Promise<T>) => cls.run(work);
+
+  /** A published variant priced at $100.00, with `stock` units. */
+  async function variant(stock = 5): Promise<VariantId> {
+    const productId = newId();
+    const id = newId<'Variant'>();
+    await prisma.product.create({
+      data: {
+        id: productId,
+        title: 'Camisa de lino',
+        slug: `camisa-${productId.slice(-12)}`,
+        status: 'PUBLISHED',
+        variants: {
+          create: {
+            id,
+            sku: `SKU-${id.slice(-12)}`.toUpperCase(),
+            options: { talla: 'M' },
+            status: 'ACTIVE',
+          },
+        },
+      },
+    });
+    await prisma.variantPrice.create({
+      data: {
+        id: newId(),
+        priceListId: DEFAULT_LIST,
+        variantId: id,
+        periods: {
+          create: {
+            id: newId(),
+            amount: 10_000,
+            effectiveFrom: new Date(START - 86_400_000),
+            createdBy: newId(),
+          },
+        },
+      },
+    });
+    await prisma.stockItem.create({
+      data: { id: newId(), variantId: id, warehouseId: MAIN, onHand: stock },
+    });
+    return id;
+  }
+
+  /** A guest order of one unit of each variant: $100.00 a unit plus $99.00 of shipping. */
+  async function placed(...variants: VariantId[]): Promise<OrderId> {
+    const cartId = newId<'Cart'>();
+    await prisma.cart.create({
+      data: {
+        id: cartId,
+        status: 'ACTIVE',
+        lastActivityAt: new Date(START),
+        lines: {
+          create: variants.map((variantId, index) => ({
+            variantId,
+            quantity: 1,
+            createdAt: new Date(START + index),
+            updatedAt: new Date(START + index),
+          })),
+        },
+      },
+    });
+    return run(() =>
+      moduleRef.get(Checkout).placeOrder({
+        guestCartId: cartId,
+        contactEmail: 'cliente@example.com',
+        shippingAddress: ADDRESS,
+        privacyNoticeVersion: '2026-09',
+        expectedTotal: variants.length * 10_000 + 9_900,
+      }),
+    );
+  }
+
+  /** What the expiration job of T-230 will do: the order and its reservation expire, and the stock is freed. */
+  async function expire(orderId: OrderId): Promise<void> {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'EXPIRED', expiredAt: new Date(START) },
+    });
+    await prisma.reservation.updateMany({
+      where: { orderId },
+      data: { status: 'EXPIRED' },
+    });
+    await prisma.stockItem.updateMany({ data: { reserved: 0 } });
+  }
+
+  const pay = (orderId: OrderId, amount: number) =>
+    run(() =>
+      lifecycle.recordPayment({
+        orderId,
+        amount: Money.of(amount, 'MXN'),
+        capturedAt: CAPTURED,
+      }),
+    );
+
+  const stockOf = (variantId: VariantId) =>
+    prisma.stockItem.findFirstOrThrow({
+      where: { variantId },
+      select: { onHand: true, reserved: true },
+    });
+
+  async function holder(): Promise<pg.Client> {
+    const client = new pg.Client({
+      connectionString: process.env.DATABASE_URL,
+    });
+    await client.connect();
+    await client.query('BEGIN');
+    return client;
+  }
+
+  /** How each operation ended: its result, or the name of the error it threw. */
+  const outcomes = (results: PromiseSettledResult<unknown>[]) =>
+    results
+      .map((result) =>
+        result.status === 'fulfilled'
+          ? String(result.value)
+          : (result.reason as Error).constructor.name,
+      )
+      .sort();
+
+  describe('persistence', () => {
+    it('saves a change with one more version and a history entry per status change', async () => {
+      const shirt = await variant();
+      const id = await placed(shirt);
+
+      expect(await pay(id, 19_900)).toBe('paid');
+
+      const row = await prisma.order.findUniqueOrThrow({
+        where: { id },
+        include: { statusHistory: { orderBy: { occurredAt: 'asc' } } },
+      });
+      expect(row).toMatchObject({
+        status: 'PAID',
+        paidAt: CAPTURED,
+        version: 2,
+      });
+      expect(row.updatedAt.getTime()).toBeGreaterThan(row.placedAt.getTime());
+      expect(
+        row.statusHistory.map(({ fromStatus, toStatus, actorId }) => [
+          fromStatus,
+          toStatus,
+          actorId,
+        ]),
+      ).toEqual([
+        [null, 'PENDING_PAYMENT', null],
+        ['PENDING_PAYMENT', 'PAID', null],
+      ]);
+    });
+
+    it('saves nothing for an order without changes', async () => {
+      const shirt = await variant();
+      const id = await placed(shirt);
+      const orders = moduleRef.get(OrderRepository);
+      const transactions = moduleRef.get(TransactionManager);
+
+      await run(() =>
+        transactions.run(async () => {
+          await orders.save((await orders.lock(id))!, new Date(START));
+        }),
+      );
+
+      expect(
+        (await prisma.order.findUniqueOrThrow({ where: { id } })).version,
+      ).toBe(1);
+    });
+
+    it('rejects saving an order read at another version', async () => {
+      const shirt = await variant();
+      const id = await placed(shirt);
+      const orders = moduleRef.get(OrderRepository);
+      const transactions = moduleRef.get(TransactionManager);
+
+      await expect(
+        run(() =>
+          transactions.run(async () => {
+            const order = (await orders.lock(id))!;
+            const stale = Order.restore({ ...order.snapshot, version: 7 });
+            stale.cancel(newId<'User'>(), 'Duplicado', new Date(START));
+            await orders.save(stale, new Date(START));
+          }),
+        ),
+      ).rejects.toThrow(new VersionConflictError(1));
+      expect(
+        (await prisma.order.findUniqueOrThrow({ where: { id } })).status,
+      ).toBe('PENDING_PAYMENT');
+    });
+  });
+
+  it('leaves a late payment waiting for stock, reserving nothing of the lines that had it (ADR-0012)', async () => {
+    const shirt = await variant(5);
+    const cap = await variant(1);
+    const id = await placed(shirt, cap);
+    await expire(id);
+    await prisma.stockItem.updateMany({
+      where: { variantId: cap },
+      data: { onHand: 0 },
+    });
+
+    expect(await pay(id, 29_900)).toBe('awaiting-manual-fulfillment');
+
+    expect(await stockOf(shirt)).toEqual({ onHand: 5, reserved: 0 });
+    expect(
+      await prisma.reservation.count({
+        where: { orderId: id, status: { not: 'EXPIRED' } },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.order.findUniqueOrThrow({ where: { id } }),
+    ).toMatchObject({
+      status: 'AWAITING_MANUAL_FULFILLMENT',
+      paidAt: CAPTURED,
+    });
+  });
+
+  describe('at the same time', () => {
+    it('applies a payment that arrives twice at once only once', async () => {
+      const shirt = await variant(5);
+      const id = await placed(shirt);
+      const client = await holder();
+      try {
+        await client.query('SELECT 1 FROM orders WHERE id = $1 FOR UPDATE', [
+          id,
+        ]);
+        const payments = [pay(id, 19_900), pay(id, 19_900)];
+        await waitForLockWaiters(2);
+        await client.query('COMMIT');
+
+        expect(outcomes(await Promise.allSettled(payments))).toEqual([
+          'already-processed',
+          'paid',
+        ]);
+      } finally {
+        await client.end();
+      }
+      expect(await stockOf(shirt)).toEqual({ onHand: 4, reserved: 0 });
+    });
+
+    it('lets a cancellation and a payment of the same order through one after the other', async () => {
+      const shirt = await variant(5);
+      const id = await placed(shirt);
+      const client = await holder();
+      let settled: PromiseSettledResult<unknown>[];
+      try {
+        await client.query('SELECT 1 FROM orders WHERE id = $1 FOR UPDATE', [
+          id,
+        ]);
+        const operations = [
+          run(() =>
+            lifecycle.cancel({
+              orderId: id,
+              actorId: newId<'User'>(),
+              reason: 'Duplicado',
+              restock: false,
+              version: 1,
+            }),
+          ),
+          pay(id, 19_900),
+        ];
+        await waitForLockWaiters(2);
+        await client.query('COMMIT');
+        settled = await Promise.allSettled(operations);
+      } finally {
+        await client.end();
+      }
+      const order = await prisma.order.findUniqueOrThrow({ where: { id } });
+      // Whichever went first, the order and the stock agree.
+      if (order.status === 'CANCELLED') {
+        expect(settled[1]).toEqual({
+          status: 'fulfilled',
+          value: 'recorded-on-cancelled',
+        });
+        expect(order.paidAt).toEqual(CAPTURED);
+        expect(await stockOf(shirt)).toEqual({ onHand: 5, reserved: 0 });
+      } else {
+        expect(order.status).toBe('PAID');
+        expect(settled[0].status).toBe('rejected');
+        expect(await stockOf(shirt)).toEqual({ onHand: 4, reserved: 0 });
+      }
+    });
+  });
+});

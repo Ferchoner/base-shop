@@ -226,6 +226,28 @@ describe('Domain events (T-116)', () => {
     expect(handlers.received).toHaveLength(0);
   });
 
+  it('drops the events of an undone nested step, and keeps the others in publish order (ADR-0133)', async () => {
+    await transactions.run(async () => {
+      publisher.publish(brandCreated('before'));
+      await expect(
+        transactions.runNested(async () => {
+          publisher.publish(brandCreated('undone'));
+          throw new Error('step failed');
+        }),
+      ).rejects.toThrow('step failed');
+      await transactions.runNested(async () => {
+        publisher.publish(brandCreated('kept'));
+      });
+      publisher.publish(brandCreated('after'));
+    });
+
+    await dispatcher.whenIdle();
+    const names = handlers.received
+      .filter((entry) => entry.handler === 'first')
+      .map((entry) => (entry.event as BrandCreated).name);
+    expect(names).toEqual(['before', 'kept', 'after']);
+  });
+
   it('dispatches right away, in the background, outside a transaction', async () => {
     publisher.publish(brandCreated('outside'));
 

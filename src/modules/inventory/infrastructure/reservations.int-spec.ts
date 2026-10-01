@@ -9,7 +9,11 @@ import { validateEnvironment } from '../../../platform/config/environment.js';
 import { EventsModule } from '../../../platform/events/events.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
-import { Clock, newId } from '../../../shared-kernel/index.js';
+import {
+  Clock,
+  newId,
+  TransactionManager,
+} from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { InventoryFacade } from '../application/inventory.facade.js';
 import { StockEntries } from '../application/stock-entries.use-case.js';
@@ -204,6 +208,34 @@ describe('Inventory: reservations (T-160 part b)', () => {
       expect((await stockOf(shirt)).reserved).toBe(0);
       expect((await stockOf(cap)).reserved).toBe(0);
       expect(await prisma.reservation.count()).toBe(0);
+    });
+
+    it('reserves nothing when a line falls short inside a larger transaction, which goes on (ADR-0133)', async () => {
+      const [shirt, cap] = await stocked(10, 1);
+      const [later] = await stocked(3);
+      const orderId = newId<'Order'>();
+      const transactions = moduleRef.get(TransactionManager);
+
+      await cls.run(() =>
+        transactions.run(async () => {
+          await expect(
+            inventory.reserve(orderId, [
+              { variantId: shirt, quantity: 5 },
+              { variantId: cap, quantity: 2 },
+            ]),
+          ).rejects.toThrow(new InsufficientStockError([cap]));
+          // The caller goes on in the same transaction, as a late payment without stock does.
+          await inventory.reserve(newId<'Order'>(), [
+            { variantId: later, quantity: 1 },
+          ]);
+        }),
+      );
+
+      expect((await stockOf(shirt)).reserved).toBe(0);
+      expect((await stockOf(cap)).reserved).toBe(0);
+      expect((await stockOf(later)).reserved).toBe(1);
+      expect(await prisma.reservation.count({ where: { orderId } })).toBe(0);
+      expect(await prisma.reservation.count()).toBe(1);
     });
 
     it('tells whether each line can be fulfilled with what is not reserved', async () => {
