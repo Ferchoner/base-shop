@@ -248,3 +248,128 @@ describe('Cart (BR-CRT-01 to 05, ADR-0059, ADR-0131)', () => {
     ]);
   });
 });
+
+describe('Cart of an expired order (UC-CRT-08, ADR-0054, ADR-0137)', () => {
+  it('is active again with the lines it was checked out with, once', () => {
+    const shirt = variant();
+    const cart = restored(
+      'CHECKED_OUT',
+      [{ variantId: shirt, quantity: 2 }],
+      customer,
+    );
+
+    expect(cart.reactivate(T1)).toBe(true);
+    expect(cart.reactivate(T2)).toBe(false);
+
+    expect([cart.status, cart.lastActivityAt, cart.hasChanges]).toEqual([
+      'ACTIVE',
+      T1,
+      true,
+    ]);
+    expect(cart.lines).toEqual([
+      { variantId: shirt, quantity: 2, addedAt: T0 },
+    ]);
+    expect(cart.touchedVariants).toEqual([]);
+  });
+
+  it('reactivates nothing but a checked out cart', () => {
+    for (const status of ['ACTIVE', 'MERGED'] as const) {
+      const cart = restored(status);
+
+      expect(cart.reactivate(T1)).toBe(false);
+      expect([cart.status, cart.hasChanges]).toEqual([status, false]);
+    }
+  });
+
+  it('takes the lines of the order up to 30 units without notice, and the cart of the order is MERGED into it', () => {
+    const [shirt, cap, hat] = [variant(), variant(), variant()];
+    const own = restored(
+      'ACTIVE',
+      [
+        { variantId: shirt, quantity: 20 },
+        { variantId: cap, quantity: 30 },
+      ],
+      customer,
+    );
+    const source = restored('CHECKED_OUT', [], customer);
+
+    expect(
+      own.absorbOrder(
+        source,
+        [
+          { variantId: shirt, quantity: 15 },
+          { variantId: cap, quantity: 1 },
+          { variantId: hat, quantity: 2 },
+        ],
+        T1,
+      ),
+    ).toBe(true);
+
+    expect(
+      own.lines.map(({ variantId, quantity }) => [variantId, quantity]),
+    ).toEqual(
+      expect.arrayContaining([
+        [shirt, 30],
+        [cap, 30],
+        [hat, 2],
+      ]),
+    );
+    expect(own.touchedVariants.sort()).toEqual([shirt, hat].sort());
+    expect([source.status, source.mergedIntoCartId]).toEqual([
+      'MERGED',
+      own.id,
+    ]);
+    expect([own.lastActivityAt, source.lastActivityAt]).toEqual([T1, T1]);
+    expect([own.hasChanges, source.hasChanges]).toEqual([true, true]);
+  });
+
+  it('takes nothing from a cart that is no longer checked out, and gives nothing to an inactive cart', () => {
+    for (const status of ['ACTIVE', 'MERGED'] as const) {
+      const own = restored('ACTIVE', [], customer);
+      const source = restored(status, [], customer);
+
+      expect(
+        own.absorbOrder(source, [{ variantId: variant(), quantity: 1 }], T1),
+      ).toBe(false);
+      expect([own.lines, own.hasChanges, source.status]).toEqual([
+        [],
+        false,
+        status,
+      ]);
+    }
+    expect(() =>
+      restored('CHECKED_OUT').absorbOrder(restored('CHECKED_OUT'), [], T1),
+    ).toThrow(new CartNotActiveError('CHECKED_OUT'));
+  });
+
+  it('counts as a change of the active cart even when every line of the order was already at 30, as a merge does', () => {
+    const shirt = variant();
+    const own = restored(
+      'ACTIVE',
+      [{ variantId: shirt, quantity: 30 }],
+      customer,
+    );
+
+    own.absorbOrder(
+      restored('CHECKED_OUT', [], customer),
+      [{ variantId: shirt, quantity: 2 }],
+      T1,
+    );
+
+    expect([own.lastActivityAt, own.hasChanges, own.touchedVariants]).toEqual([
+      T1,
+      true,
+      [],
+    ]);
+  });
+
+  it('never drops a line of the order, even past MAX_CART_LINES', () => {
+    const many = () =>
+      Array.from({ length: 60 }, () => ({ variantId: variant(), quantity: 1 }));
+    const own = restored('ACTIVE', many(), customer);
+
+    own.absorbOrder(restored('CHECKED_OUT', [], customer), many(), T1);
+
+    expect(own.lines).toHaveLength(120);
+  });
+});
