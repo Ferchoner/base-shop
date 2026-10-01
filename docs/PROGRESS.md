@@ -124,6 +124,7 @@ Sprint 4 — Compra con pago en tienda: Shopping, Ordering y Payments (desde el 
 - [x] T-160 (parte b): `InventoryFacade` para el carrito y el checkout: `canFulfill` sin revelar cantidades, reservas todo o nada e idempotentes por orden, confirmación con movimientos SALE y liberación, cada una una sola vez; TTL en `RESERVATION_TTL`; pruebas de concurrencia contra PostgreSQL (ADR-0128)
 - [x] T-140 (parte c) y T-140 terminada: tienda pública (listado con búsqueda en español por inicio de palabra, filtros por categoría, marcas, precio y disponibilidad, seis órdenes y totales exactos; detalle por slug; marcas públicas), calculada en una sola consulta con precios y stock; `storeVisibility` en la administración con la misma definición de vendible; un test que verifica qué tablas usa cada módulo; cache acotada a 1 000 valores por espacio (ADR-0129)
 - [x] T-170: carrito de invitado (`cartId` aleatorio) y del cliente, con precios, vendibilidad y disponibilidad calculados al leer; cada cambio bloquea el carrito, el del cliente se crea o se adopta bajo un bloqueo advisory, y la fusión suma con tope de 30 y es idempotente; hasta 100 variantes por carrito; pruebas de concurrencia (ADR-0131)
+- [x] T-180 (parte a): cotización y colocación de la orden de invitados y clientes (bloqueo del carrito, reserva todo o nada, snapshots, código público aleatorio y `Idempotency-Key`), y consulta de mis pedidos; Ordering usa siete fachadas sin ciclos, y P-73 queda resuelta; la parte b (administración, cancelación y pago) sigue (ADR-0132)
 - [x] Paso 0 del Sprint 4: revisión contra los ADR sin contradicciones; el pipe de validación reporta primero la presencia y el tipo de cada campo, sin importar el orden de los decoradores (ADR-0130); límite general de 1000 por minuto en las e2e; prácticas de la review del Sprint 3 en las guías
 
 ## In Progress
@@ -169,7 +170,6 @@ Ninguna pendiente.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-14 | Objetivos no funcionales cuantitativos | — |
-| P-73 | Cómo obtiene Inventory las cantidades vendidas para el reintegro de stock sin formar un ciclo con Ordering, que usa a Inventory para reservar (ADR-0127). Se resuelve al planear T-180. Recomendación preliminar: Ordering pasa las líneas y las cantidades al pedir el reintegro | T-161 |
 | P-61 | Validación legal con especialista: valores de los plazos de fase operativa y bloqueo, y las preguntas de ADR-0070 (incluidas retención de auditoría y cuentas inactivas); además, la presentación del plazo de entrega estimado (ADR-0083) | T-232 |
 
 ### Contradicciones y ambigüedades de la especificación
@@ -237,6 +237,7 @@ Ninguna pendiente.
 | P-67 | Un solo almacén en el MVP | ADR-0081 |
 | P-68 | Recompra del staff sin carrito original | ADR-0082 |
 | P-72 | Valores iniciales del método de envío | ADR-0092 |
+| P-73 | Reintegro de stock sin ciclo entre Inventory y Ordering | ADR-0132 |
 
 ## Notas
 
