@@ -53,7 +53,7 @@ Rate limiting (ADR-0065, ADR-0102):
 
 - Todo endpoint tiene el límite general por IP. Uno con un límite de `API_SPEC.md` (sección 7) lo declara con `@RateLimit('register')` (o varios: `@RateLimit('password-reset-email', 'password-reset-ip')`), que reemplaza al general.
 - El login usa `FailedAttemptLimiter`: `assertAllowed('login-email', email)` y `assertAllowed('login-ip', ip)` antes de validar las credenciales, y `recordFailure(...)` cuando no son válidas.
-- Los tests pueden bajar los límites con las variables `RATE_LIMIT_*` antes de importar `AppModule`.
+- Las pruebas end-to-end corren con `RATE_LIMIT_DEFAULT` en 1000 por minuto (`test/e2e-environment.ts`), porque arman sus datos por HTTP. Las que prueban límites fijan los suyos con las variables `RATE_LIMIT_*` antes de importar `AppModule`.
 - `@nestjs/throttler` es CommonJS y requiere los módulos ESM de NestJS; en Jest, `test/setup-esm-interop.ts` los carga antes de cada archivo de test para evitar un ciclo de carga. No hace falta nada en el código de la aplicación.
 
 Jobs programados (ADR-0029, ADR-0101):
@@ -161,6 +161,7 @@ Errores HTTP y validación (ADR-0095):
 - Un tipo de error nuevo se agrega a la vez al catálogo de `problem-types.ts` (estado y textos en español) y a `API_SPEC.md` (sección 6.2); un test falla si no coinciden.
 - Los errores que no son de dominio (autenticación, idempotencia, rate limiting) se lanzan con `ProblemException(code, extensiones, encabezados)`.
 - Los DTOs se validan con class-validator. Los mensajes en español salen de una tabla por regla; si un campo necesita un texto propio, se indica en el decorador: `@Matches(/^\d{5}$/, { context: { message: 'Debe tener 5 dígitos.' } })`.
+- El pipe corre todas las reglas de un campo y reporta una: la de presencia o la de tipo si fallan; si no, la primera que falla (ADR-0130). Por eso el orden de los decoradores no cambia la regla reportada. Una regla propia (`ValidateBy`) debe aceptar un valor de cualquier tipo, porque corre aunque el tipo falle.
 
 Transacciones (ADR-0093):
 
@@ -193,6 +194,7 @@ Tests (Jest):
 - Cada test deja la base como la encontró, por ejemplo trabajando dentro de una transacción que se revierte al terminar.
 - Pruebas de concurrencia obligatorias para reservas de inventario y checkout. El patrón: un cliente `pg` aparte bloquea la fila, se lanzan las operaciones, `waitForLockWaiters(n)` (`test/support/lock-waiters.ts`) espera a que queden bloqueadas y se libera la fila. Esa espera consulta `pg_stat_activity` fuera de toda transacción: dentro de una, PostgreSQL responde con una foto tomada en la primera lectura.
   - Lo que se bloquea en el test es lo que las operaciones van a escribir, no el candado que las protege. Así, sin ese candado las operaciones llegan juntas al punto crítico y el test falla (ADR-0120). Si el test retiene el propio candado, las operaciones solo esperan en fila, y el test pasa también sin él.
+- Una consulta que recorre muchas filas (listados, búsquedas, reportes) se mide con datos grandes desde el primer borrador. Un test de integración temporal, que no se versiona, inserta miles de filas con `generate_series` y toma el tiempo de cada variante: así apareció en T-140c una página que tardaba 666 ms (ADR-0129).
 - El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:int`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
 Entorno (ADR-0025):
@@ -322,7 +324,7 @@ Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `
   3. Agregar el SQL manual que corresponda y revisar el SQL completo.
   4. `npm run db:migrate:dev` la aplica; después, `npm run db:diff` debe responder "No difference detected".
 - **SQL manual:** lo que el esquema de Prisma no expresa se escribe en la migración: extensiones, restricciones `CHECK` (nombre `<tabla>_<descripcion>_check`), restricciones de exclusión, índices de expresión y triggers. Prisma no los genera ni los borra, así que cambiarlos o quitarlos también requiere SQL manual en una migración nueva. Los índices parciales sí van en el esquema (`where: raw("...")`, función en vista previa `partialIndexes`).
-- **Datos iniciales:** los que el sistema necesita para funcionar van en migraciones de datos que no sobrescriben lo que ya exista, como los roles iniciales (ADR-0111) y el método de envío (ADR-0122).
+- **Datos iniciales:** los que el sistema necesita para funcionar van en migraciones de datos que no sobrescriben lo que ya exista, como los roles iniciales (ADR-0111) y el método de envío (ADR-0122). Al agregar una, conviene buscar las pruebas que crean la misma clase de filas, porque pueden chocar con ella; por ejemplo, con una segunda lista predeterminada o un segundo almacén activo.
 - Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
 - Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.

@@ -28,6 +28,11 @@ Si una tarea revela una nueva decisión importante:
 4. obtener aprobación humana;
 5. continuar.
 
+## Edición y commits
+
+- Los cambios de varias líneas se hacen con edición directa o con scripts guardados en archivo. Un heredoc de shell sin comillas cambia secuencias como `\n` y `\d`; si hace falta uno, va entre comillas (`<<'EOF'`).
+- Antes de cada commit se comprueba el código de salida de `npm run secrets:scan`, que necesita Docker en marcha. No se pone detrás de una tubería que esconda su error.
+
 ## Contexto
 
 No sobrecargar una sesión con documentación irrelevante. Leer primero archivos directamente relacionados con la tarea.

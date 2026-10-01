@@ -147,6 +147,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0127 | Inventario: almacén, entradas, ajustes y listado sin copiar datos de Catalog | Aceptada |
 | ADR-0128 | Reservas de stock: fachada, vigencia y TTL configurable | Aceptada |
 | ADR-0129 | Tienda pública: consulta, `storeVisibility`, tablas de cada contexto y cache acotada | Aceptada |
+| ADR-0130 | Validación: una regla por campo, primero la presencia y el tipo | Aceptada |
 
 ---
 
@@ -2069,7 +2070,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un tipo de error nuevo se agrega a la vez al catálogo y a `API_SPEC.md`.
   - El identificador de correlación y el rechazo por tipo de contenido se montan en `configureHttp`; una aplicación de test que no lo llame no los tiene, y el filtro genera un identificador para la respuesta de error.
   - `API_SPEC.md` actualiza el ejemplo de `errors[].code`, `instance` sin la cadena de consulta y el origen de `X-Correlation-Id`.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0130 cambia cuál se reporta cuando fallan varias reglas de un campo: primero la presencia y el tipo, sin importar el orden de los decoradores.
 
 ---
 
@@ -3470,3 +3471,33 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Excepción de ADR-0060:** deja de ser solo una convención, porque ahora la verifica un test.
   - **Sprint 3:** con T-140 completa, terminan sus tareas.
 - **Estado:** Aceptada (plan de T-140 parte c aprobado el 2026-09-30).
+
+---
+
+## ADR-0130 — Validación: una regla por campo, primero la presencia y el tipo
+
+- **Fecha:** 2026-10-01
+- **Contexto:** Paso 0 del Sprint 4.
+  - ADR-0095 reporta solo la primera regla que falla en cada campo (`stopAtFirstError`), y class-validator corre los decoradores de abajo hacia arriba.
+  - En 102 propiedades de 14 archivos, la regla de tipo estaba arriba de las demás, así que corría al final.
+  - Un valor del tipo equivocado también falla las reglas de longitud o de rango, y la primera en fallar daba un mensaje engañoso:
+    - `pageSize=abc` respondía "Es mayor que el máximo permitido.";
+    - `amount: "59900"` en JSON respondía lo mismo;
+    - un número donde va texto respondía "No tiene una longitud permitida.".
+- **Decisión:**
+  - **Todas las reglas, un solo error por campo:** el pipe de validación corre todas las reglas de cada campo (sin `stopAtFirstError`) y reporta una sola, en este orden:
+    1. la presencia: `isDefined` y después `isNotEmpty`;
+    2. el tipo: `isString`, `isInt`, `isNumber`, `isBoolean`, `isArray` o `isObject`;
+    3. si no falló ninguna de esas, la primera que falló en el orden en que corrieron, como antes. Por ejemplo, `matches` sigue antes que `isIso8601`.
+  - **Orden de los decoradores:** ya no cambia la regla reportada.
+  - **Reglas propias:** deben aceptar un valor de cualquier tipo, porque corren aunque el tipo falle. Las tres que pasan por el pipe (`IsSortOf`, `RelevanceNeedsSearch` y `NotBelowMinPrice`) ya lo hacen.
+  - **Configuración:** su validación al arrancar no cambia y sigue listando todas las reglas que fallan.
+- **Alternativas consideradas:**
+  - **Reordenar los decoradores** de las 102 propiedades y agregar una prueba que vigile la convención: son más cambios, y la regla depende de recordarla en cada DTO nuevo.
+  - **Mantener `stopAtFirstError`** y ordenar bien solo los DTO nuevos.
+- **Consecuencias:**
+  - Todos los endpoints responden el error de tipo correcto sin tocar sus DTO.
+  - Una solicitud inválida corre todas las reglas de sus campos; el costo es despreciable.
+  - Ningún test existente dependía de los mensajes engañosos.
+  - Un campo obligatorio que falta y no tiene `@IsDefined` ni `@IsNotEmpty` responde con su regla de tipo ("Debe ser texto."), no con "Es obligatorio.".
+- **Estado:** Aceptada (plan del paso 0 del Sprint 4 aprobado el 2026-10-01).

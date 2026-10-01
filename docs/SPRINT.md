@@ -25,6 +25,21 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 - **Pospuesto al Sprint 5 o después:** T-195 (envíos), T-161 (reintegro), T-215 (notificaciones), T-192 (PayPal y conciliación), T-231 (limpieza diaria), T-132 (anonimización), T-220 (consulta de auditoría) y reducir la imagen de producción.
 - **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha.
 
+### Resultado del paso 0
+
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso, y siguen abiertas las mismas 10 decisiones (P-73 incluida);
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - cada contexto tiene sus cuatro capas, y `audit` solo infraestructura, como dice `ARCHITECTURE.md`;
+  - las dependencias coinciden con el stack;
+  - los `overrides` de ADR-0091 siguen siendo necesarios, porque Prisma 7.10.0 todavía fija `mysql2` 3.15.3 y `deepmerge-ts` 7.1.5;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Validación (ADR-0130):** el pipe reporta primero la presencia y el tipo de cada campo, sin importar el orden de los decoradores. Corrige las 102 propiedades de 14 archivos que tenían la regla de tipo arriba, sin tocarlas: por ejemplo, `pageSize=abc` ahora responde "Debe ser un número entero.".
+- **Rate limit en las e2e:** `test/e2e-environment.ts` sube el límite general a 1000 por minuto en todas las suites; las que prueban límites fijan los suyos.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma medir con datos grandes y revisar las pruebas al crear datos por migración, y `AI_WORKFLOW.md`, cómo editar con scripts y comprobar el escaneo de secretos antes de cada commit.
+
 ## Risks
 
 - **Ruta crítica:** T-170 → T-180 → T-190 → T-230. T-180 es la tarea más grande y define cómo usa Ordering a Shopping, Pricing, Inventory y Shipping; un retraso en ella retrasa el resto del sprint.
