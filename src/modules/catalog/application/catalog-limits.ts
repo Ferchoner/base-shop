@@ -6,6 +6,10 @@ export {
 } from '../domain/catalog-values.js';
 export { MAX_POSITION } from '../domain/category.js';
 export {
+  MAX_ALT_TEXT_LENGTH,
+  MAX_IMAGES_PER_PRODUCT,
+} from '../domain/product-gallery.js';
+export {
   MAX_CATEGORIES_PER_PRODUCT,
   MAX_DESCRIPTION_LENGTH,
   MAX_TITLE_LENGTH,

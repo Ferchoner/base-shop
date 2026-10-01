@@ -145,7 +145,10 @@ describe('Product images (e2e, T-141)', () => {
 
       const response = await upload(content).expect(413);
 
-      expect(response.body.type).toBe('/problems/payload-too-large');
+      expect(response.body).toMatchObject({
+        type: '/problems/payload-too-large',
+        maxBytes: MAX_BYTES,
+      });
     });
 
     it('accepts an image of exactly the limit', async () => {

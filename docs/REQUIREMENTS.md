@@ -440,6 +440,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-32 | Editar SKU, opciones o slug después de la primera publicación (ADR-0068) | 409 (ADR-0071) | UC-CAT-05, 07 |
 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | 409 (ADR-0071) | UC-ORD-01, 02 |
 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe | 409 (ADR-0082) | UC-CRT-09 |
+| E-35 | Más de 20 imágenes en un producto (ADR-0124) | 409 | UC-CAT-11 |
 
 ---
 

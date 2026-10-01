@@ -283,6 +283,7 @@ Error de validación:
 | `idempotency-request-in-progress` | 409 | E-25 | Solicitud original aún en proceso | — |
 | `cart-not-active` | 409 | E-27 | Modificar un carrito CHECKED_OUT o MERGED | `cartStatus` |
 | `address-limit-reached` | 409 | E-28 | Más de 10 direcciones (BR-ADR-04) | `limit` |
+| `image-limit-reached` | 409 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | `limit` |
 | `last-superadmin` | 409 | E-29 | Dejar el sistema sin superadministrador (BR-USR-03) | — |
 | `restock-not-allowed` | 409 | E-30 | Reintegro que supera lo vendido o con reintegro previo (ADR-0052) | `lines` |
 | `active-orders-exist` | 409 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067) | — |
@@ -295,7 +296,7 @@ Error de validación:
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-34 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-35 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -920,6 +921,19 @@ Base implementada en T-141 (ADR-0121); los endpoints llegan con T-140:
 - **Campos:** un solo archivo, en el campo `file`. Sin él, 400 `validation-error` con `isDefined` en `file`; con dos archivos o en otro campo, 400.
 - **Nombre en disco:** lo elige el servidor: `products/<productId>/<imageId>.<jpg|png|webp>`.
 - **Servidas en `/media/<clave>`:** fuera de `/v1`, públicas y con `Cache-Control: public, max-age=31536000, immutable`, porque una clave nunca cambia de contenido. Una clave inexistente responde 404 `not-found`.
+
+Implementado en T-140 parte b (ADR-0124):
+
+- **Límite:** hasta 20 imágenes por producto; la siguiente responde 409 `image-limit-reached` con `limit`.
+- **Tamaño:** el 413 lleva `maxBytes`, también cuando la subida se corta antes de leer el archivo.
+- **Posiciones:** consecutivas desde 1. Una imagen nueva va al final, y borrar una renumera las demás.
+- **Validación:**
+  - `variantId` debe ser de una variante del mismo producto (400 `unknownVariant`);
+  - un reorden trae cada imagen una vez (400 `imageOrder` en `imageIds`);
+  - `altText` vacío se guarda como `null`, y en el `PATCH` `null` lo quita.
+- **Producto archivado:** no cambia sus imágenes: 409 `invalid-state-transition`.
+- **Respuestas:** `POST` responde con `Location: /v1/admin/catalog/products/{productId}/images/{imageId}`. Cada cambio actualiza `updatedAt` del producto, no su `version`.
+- **Auditoría:** `products.image-add`, `image-update`, `image-reorder` e `image-delete`.
 
 ### 11.9 Categorías y marcas (UC-CAT-12, 13)
 

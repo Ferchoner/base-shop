@@ -25,9 +25,11 @@ import {
   IsSortOf,
 } from '../../../platform/http/pagination/pagination.js';
 import {
+  MAX_ALT_TEXT_LENGTH,
   MAX_CATEGORIES_PER_PRODUCT,
   MAX_DESCRIPTION_LENGTH,
   MAX_DIMENSION_CM,
+  MAX_IMAGES_PER_PRODUCT,
   MAX_PRODUCT_SLUG_LENGTH,
   MAX_TITLE_LENGTH,
   MAX_WEIGHT_GRAMS,
@@ -302,6 +304,64 @@ export class UpdateProductDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+// --- Images (API_SPEC.md §11.8) ---
+
+export class ImageListDto {
+  @ApiProperty({ type: () => [ImageDto] })
+  data: ImageDto[];
+}
+
+/** Text fields of the multipart upload, next to `file`. */
+export class ImageUploadFieldsDto {
+  /** Texto alternativo, hasta 200 caracteres. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_ALT_TEXT_LENGTH)
+  altText?: string;
+
+  /** Variante del mismo producto que muestra la imagen. */
+  @IsOptional()
+  @IsUUID('all')
+  variantId?: string;
+}
+
+export class UpdateImageDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 200,
+    description: '`null` lo quita.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(MAX_ALT_TEXT_LENGTH)
+  altText?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Variante del mismo producto; `null` la quita.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID('all')
+  variantId?: string | null;
+}
+
+export class ImageOrderDto {
+  @ApiProperty({
+    type: [String],
+    description:
+      'Todas las imágenes del producto, cada una una vez, en el nuevo orden.',
+  })
+  @IsArray()
+  @ArrayMaxSize(MAX_IMAGES_PER_PRODUCT)
+  @IsUUID('all', { each: true })
+  imageIds: string[];
 }
 
 export class ProductVersionDto {
