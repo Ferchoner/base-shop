@@ -91,7 +91,8 @@ export class StockEntries {
         quantity: entry.quantity,
         reasonCode: entry.reasonCode,
       });
-      if (adjusted === null) throw new InsufficientStockError(entry.variantId);
+      if (adjusted === null)
+        throw new InsufficientStockError([entry.variantId]);
       await this.record('inventory.adjustment', adjusted);
       return adjusted;
     });

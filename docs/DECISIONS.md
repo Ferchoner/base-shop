@@ -145,6 +145,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0125 | Precios: lista predeterminada, línea de periodos y fachadas | Aceptada |
 | ADR-0126 | Carga masiva de precios: formato, todo o nada y proceso en bloque | Aceptada |
 | ADR-0127 | Inventario: almacén, entradas, ajustes y listado sin copiar datos de Catalog | Aceptada |
+| ADR-0128 | Reservas de stock: fachada, vigencia y TTL configurable | Aceptada |
 
 ---
 
@@ -292,7 +293,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - TTL de reserva fijo, configurable, con valor inicial de 20 minutos.
 - **Alternativas consideradas:** `SELECT … FOR UPDATE`; división entre almacenes; descuento de stock al despachar; TTL por método de pago.
 - **Consecuencias:** Requiere pruebas de concurrencia contra PostgreSQL real. El TTL corto obliga a no ofrecer métodos de pago asíncronos (ADR-0013).
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Las reservas y su TTL configurable (`RESERVATION_TTL`) se implementaron en ADR-0128.
 
 ---
 
@@ -302,7 +303,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:** Si llega un pago capturado para una orden expirada, se intenta reservar stock y procesar la orden. Si no hay stock, la orden pasa a AwaitingManualFulfillment para resolución manual por el staff (conseguir stock y pasar a Paid, o cancelar con reembolso).
 - **Alternativas consideradas:** Reembolso automático; reembolso siempre.
 - **Consecuencias:** Requiere una vista administrativa de órdenes en AwaitingManualFulfillment. Con captura inmediata (ADR-0013), una cancelación en este estado implica reembolso.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Ordering reserva y confirma en la misma transacción con la fachada de Inventory, que permite abrir una reserva nueva para la orden (ADR-0128).
 
 ---
 
@@ -1221,7 +1222,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un producto está disponible si al menos una de sus variantes vendibles lo está; el filtro "solo disponibles" (ADR-0060) usa esta definición.
   - Las cantidades exactas solo se ven en las rutas administrativas (`inventory.read`).
 - **Consecuencias:** En la vista del carrito y en la cotización del checkout, cada línea indica si la cantidad pedida puede surtirse (sí o no), sin revelar la cantidad disponible; así el cliente sabe qué ajustar antes de colocar la orden.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. `InventoryFacade.canFulfill` responde solo sí o no por línea, así que las cantidades no salen de Inventory (ADR-0128).
 
 ---
 
@@ -3343,4 +3344,44 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El orden por SKU cuesta más cuantos más stock items tenga el filtro. Con miles no se nota; con cientos de miles habrá que pasar a una proyección de lectura, la misma salida que prevé ADR-0060.
   - Cada página hace una consulta más a Catalog, en lote.
   - Dos cambios de un mismo stock item se esperan en su fila.
-- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión).
+- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión). La parte b está en ADR-0128.
+
+---
+
+## ADR-0128 — Reservas de stock: fachada, vigencia y TTL configurable
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-160 parte b (UC-INV-05 a 07). Las reservas no tienen API: las usarán el carrito (T-170), el checkout (T-180) y los pagos (T-190). Quedaban abiertos estos puntos:
+  - hasta cuándo se puede confirmar una reserva pasado su vencimiento, si el job de T-230 corre cada minuto;
+  - qué sabe el carrito de la disponibilidad;
+  - cómo se configura el TTL (BR-INV-07);
+  - qué se registra.
+- **Decisión:**
+  - **Fachada `InventoryFacade`:** se exporta en el `index.ts` de Inventory, y sus operaciones se unen a la transacción de quien llama (ADR-0019).
+    - **`canFulfill(requests)`:** responde por variante si las unidades pedidas, sumadas, están disponibles (`onHand − reserved`) en el almacén activo. Solo dice sí o no: las cantidades nunca salen de Inventory (ADR-0061).
+    - **`reserve(orderId, requests)` (UC-INV-05):**
+      - es todo o nada (BR-INV-02), con una actualización condicional por stock item, en orden ascendente de ID (BR-INV-14);
+      - si alguna línea no alcanza, responde 409 `insufficient-stock` con todas las variantes cortas, también las que nunca tuvieron stock;
+      - la reserva vence en `RESERVATION_TTL`;
+      - es idempotente por orden: abre la reserva con `INSERT … ON CONFLICT` sobre el índice único parcial, así que pedirla de nuevo, o dos veces a la vez, responde la reserva activa sin reservar dos veces (BR-INV-04).
+    - **`commit(orderId)` (UC-INV-06):**
+      - pasa la reserva de ACTIVE a COMMITTED con un `UPDATE` condicional, una sola vez;
+      - baja `onHand` y `reserved`, y escribe un movimiento SALE por línea con la orden;
+      - responde `committed`, `already-committed` (un evento repetido, UC-ORD-09) o `not-active` (Ordering aplica ADR-0012).
+    - **`release(orderId)` (UC-INV-07):** pasa la reserva de ACTIVE a RELEASED y devuelve `reserved`. Responde `false` si la orden no tiene reserva activa.
+  - **Vigencia:** una reserva se puede confirmar mientras esté ACTIVE, también después de `expiresAt` y hasta que el job de vencimiento (T-230) la termine. Durante ese tiempo el stock siguió apartado para la orden.
+  - **TTL:** variable `RESERVATION_TTL` con el formato de duración de las demás: `20m` por defecto, de 5 minutos a 2 horas.
+  - **Venta sin reserva previa** (pago tardío de ADR-0012 y `retry-fulfillment`): Ordering reserva y confirma en la misma transacción. Cuando la reserva de una orden ya terminó, se le puede abrir otra.
+  - **Vencimiento (UC-INV-08):** queda en T-230 con su job, que agregará la transición a EXPIRED.
+  - **Registro:** sin auditoría, porque son operaciones del sistema, y sin eventos, porque aún nadie los escucharía. El registro son las reservas y los movimientos SALE.
+  - **Concurrencia:** si se confirma y se libera una misma reserva a la vez, solo una de las dos gana, gracias al `UPDATE` condicional del estado.
+- **Alternativas consideradas:**
+  - **Exigir que `expiresAt` no haya pasado para confirmar:** casi siempre da el mismo resultado, con más pasos.
+  - **`available(variantIds)` con cantidades:** cada consumidor tendría que cuidarse de no exponerlas.
+  - **Un TTL fijo en el código.**
+  - **Auditar cada reserva:** serían miles de entradas del sistema, sin valor para el staff.
+- **Consecuencias:**
+  - Hay una variable nueva en `.env.example`.
+  - T-170, T-180 y T-190 usarán la fachada desde un puerto propio.
+  - Las pruebas de concurrencia contra PostgreSQL muestran que N reservas simultáneas nunca reservan más de lo disponible, y que dos reservas con líneas en orden contrario no se bloquean entre sí.
+- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30).

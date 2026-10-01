@@ -66,10 +66,10 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Aggregates | `Warehouse`; `StockItem` (por variante y almacén: onHand, reserved, version); `Reservation` (referencia, líneas, status, expiresAt) |
 | Registros | `StockMovement` (append-only, no es aggregate) |
 | Domain services | Asignación de almacén (un solo almacén hoy) |
-| Eventos | `StockReserved`, `ReservationReleased`, `ReservationExpired`, `ReservationCommitted`, `StockAdjusted` |
+| Eventos | `StockReserved`, `ReservationReleased`, `ReservationExpired`, `ReservationCommitted`, `StockAdjusted` (solo si tienen consumidor; ninguno todavía, ADR-0128) |
 | Repositories | `WarehouseRepository`, `StockLedgerRepository` (cambios atómicos de `stock_items` con su movimiento, ADR-0127), `ReservationRepository` |
 | Casos de uso | ReceiveStock y AdjustStock (`StockEntries`), UpdateWarehouse, StockListing (ADR-0127), RestockOrder (órdenes canceladas o con envío devuelto, ADR-0052, ADR-0053), ReserveStock, CommitReservation, ReleaseReservation, ExpireReservations (job), GetAvailability |
-| Exporta | Disponibilidad agregada, resultado de reserva |
+| Exporta | `InventoryFacade`: `canFulfill` (sí o no por línea), `reserve`, `commit` y `release` por orden (ADR-0128) |
 
 ## Shopping
 

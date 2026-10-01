@@ -380,11 +380,11 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | id | uuid | No | PK |
 | order_id | uuid | No | Referencia lógica a Ordering |
 | status | enum `reservation_status` (ACTIVE, COMMITTED, RELEASED, EXPIRED) | No | BR-INV-03 |
-| expires_at | timestamptz(3) | No | Colocación + TTL (20 minutos) |
+| expires_at | timestamptz(3) | No | Colocación + TTL (`RESERVATION_TTL`, 20 minutos por defecto; ADR-0128) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** único parcial `(order_id) WHERE status = 'ACTIVE'` (BR-INV-04).
+- **Restricciones:** único parcial `(order_id) WHERE status = 'ACTIVE'` (BR-INV-04). La reserva se abre con `INSERT … ON CONFLICT (order_id) WHERE status = 'ACTIVE' DO NOTHING`, así que dos reservas de una orden a la vez abren una sola (ADR-0128).
 - **Índices:** `(expires_at) WHERE status = 'ACTIVE'` (job de expiración).
 
 ### 6.5 `reservation_lines`

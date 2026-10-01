@@ -20,6 +20,7 @@ import type {
   StockItemId,
   StockLevel,
   StockMovement,
+  VariantId,
 } from '../domain/stock.js';
 import type { WarehouseAddress, WarehouseId } from '../domain/warehouse.js';
 
@@ -134,6 +135,22 @@ export class PrismaInventoryQueries extends InventoryQueries {
           reserved: row.reserved,
           updated_at: row.updatedAt,
         });
+  }
+
+  async availableUnits(
+    warehouseId: WarehouseId,
+    variantIds: readonly VariantId[],
+  ): Promise<ReadonlyMap<VariantId, number>> {
+    const rows = await this.txHost.tx.stockItem.findMany({
+      where: { warehouseId, variantId: { in: [...variantIds] } },
+      select: { variantId: true, onHand: true, reserved: true },
+    });
+    return new Map(
+      rows.map(({ variantId, onHand, reserved }) => [
+        toId<'Variant'>(variantId),
+        onHand - reserved,
+      ]),
+    );
   }
 
   async listMovements(
