@@ -425,6 +425,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - No guarda precios (BR-CRT-04).
 - **Implementado en T-170 (ADR-0131):** cada cambio bloquea la fila de `carts` (`SELECT … FOR UPDATE`). Al carrito de un cliente se llega antes con `pg_advisory_xact_lock` de la clase `CART` (`0x43415254`) y el `hashtext` del cliente. `created_at` y `updated_at` de las líneas los pone la aplicación, y la vista ordena por `created_at`.
+- **Implementado en T-181 parte a (ADR-0137):** el carrito de una orden vencida vuelve a `ACTIVE`, o pasa a `MERGED` con `merged_into_cart_id` en el carrito activo del cliente que recibe sus líneas; antes se toma el bloqueo del cliente y se bloquea su carrito activo, y después el de la orden.
 
 ---
 

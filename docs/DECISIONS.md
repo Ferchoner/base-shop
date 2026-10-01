@@ -154,6 +154,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0134 | Pagos: Ordering usa a Payments, pago en tienda y división de T-190 | Aceptada |
 | ADR-0135 | Reembolsos: cancelar órdenes pagadas, reembolso manual y reintegro hasta T-161 | Aceptada |
 | ADR-0136 | Vencimiento de órdenes impagas: un job en Ordering con su reserva | Aceptada |
+| ADR-0137 | Carrito de una orden vencida: división de T-181 e idempotencia por el carrito de origen | Aceptada |
 
 ---
 
@@ -1095,7 +1096,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Una orden expirada puede recibir un pago tardío (ADR-0012) después de que sus productos regresaron al carrito; si el cliente vuelve a comprar, podría pagar dos veces. Riesgo aceptado mientras el único método sea el pago manual de pruebas; se revisa al habilitar pagos reales.
   - Shopping reacciona al evento `OrderExpired`.
-- **Estado:** Aceptada. T-230 publica `OrderExpired` con las líneas, el cliente y el carrito de origen (ADR-0136); T-181 devuelve las líneas al carrito.
+- **Estado:** Aceptada. T-230 publica `OrderExpired` con las líneas, el cliente y el carrito de origen (ADR-0136); T-181 devuelve las líneas al carrito. Implementada en T-181 parte a (ADR-0137).
 
 ---
 
@@ -3824,4 +3825,38 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una orden vencida suma una versión, como cualquier cambio de estado.
   - Las pruebas que simulaban el vencimiento ahora usan el caso de uso real.
   - Pruebas contra PostgreSQL: el job junto con un pago y junto con una cancelación de la misma orden.
-- **Estado:** Aceptada (plan de T-230 aprobado el 2026-10-01, con sus 3 recomendaciones).
+- **Estado:** Aceptada (plan de T-230 aprobado el 2026-10-01, con sus 3 recomendaciones). Shopping restaura el carrito con `OrderExpired` desde T-181 parte a (ADR-0137).
+
+---
+
+## ADR-0137 — Carrito de una orden vencida: división de T-181 e idempotencia por el carrito de origen
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-181 (UC-CRT-08 y 09). Cuando una orden vence, sus líneas vuelven al carrito (ADR-0054), y T-230 ya publica `OrderExpired` con el cliente, el carrito de origen y las líneas (ADR-0136). La recompra de órdenes canceladas (UC-CRT-09) tiene tres rutas, y la pública identifica al invitado con email y código público, igual que la consulta de pedido de T-185, con un límite compartido. Quedaban abiertas tres cosas:
+  - el tamaño y el orden de la tarea;
+  - cómo restaurar una sola vez aunque el evento se repita;
+  - qué líneas vuelven y con qué límites.
+- **Decisión:**
+  - **División de T-181:**
+    - **a:** restaurar el carrito al vencer la orden (UC-CRT-08). Esta decisión;
+    - **b:** la recompra (UC-CRT-09), después de T-185, para usar su identificación del invitado y su límite.
+  - **Shopping escucha `OrderExpired`** por su nombre, con su propio tipo del evento, y llama al caso de uso `CartRestoration` en una transacción. Shopping nunca lee a Ordering: el evento trae lo necesario.
+  - **Restauración:**
+    - una orden de invitado, o de un cliente sin carrito activo, recupera su carrito de origen: pasa de CHECKED_OUT a ACTIVE con las líneas con las que se colocó, que no cambiaron desde entonces;
+    - un cliente con carrito activo recibe en él las líneas de la orden, sumadas con tope de 30 sin aviso, y el carrito de origen queda MERGED en el activo, como en una fusión;
+    - como en la fusión, el carrito puede pasar de 100 líneas y conserva las que dejaron de venderse: la vista las marca y el cliente decide.
+  - **Idempotencia, sin tabla nueva:** solo se restaura un carrito de origen CHECKED_OUT cuyo último cambio no es posterior al vencimiento. Así, un evento repetido lo encuentra ACTIVE o MERGED, y uno que llega después de que el invitado volvió a usar el carrito para otra orden lo encuentra cambiado después del vencimiento. En ambos casos no cambia nada.
+  - **Bloqueos:** con cliente, primero su bloqueo advisory y su carrito activo, como todo cambio del carrito de un cliente, y después el carrito de origen. Es la segunda operación que bloquea dos carritos, después de la fusión, y nunca espera en ciclo con ella: el carrito de origen de un cliente tiene dueño, y la fusión solo bloquea carritos sin dueño antes del bloqueo del cliente.
+  - **Datos inesperados:** un carrito de origen que no existe o no es del comprador queda en el log con los IDs, sin cambios.
+  - **Sin cambios de API, sin auditoría** (es el sistema) **y sin migración.**
+- **Alternativas consideradas:**
+  - **T-181 completa antes de T-185:** adelantaría la identificación del invitado y el límite compartido.
+  - **Una tabla de órdenes restauradas:** necesita migración, y el carrito de origen ya dice si se restauró.
+  - **Omitir las variantes que dejaron de venderse,** como la recompra: UC-CRT-08 no lo pide, y el carrito ya las muestra.
+  - **Que Ordering llame a `ShoppingFacade` al vencer la orden:** posible en esa dirección, pero ADR-0054 y el modelo de dominio fijan que Shopping reaccione al evento, y el vencimiento no depende de Shopping.
+- **Consecuencias:**
+  - MERGED también significa "sus líneas pasaron a otro carrito" para el carrito de una orden vencida.
+  - Las pruebas que vencen órdenes también restauran su carrito.
+  - Prueba contra PostgreSQL: la restauración junto con una línea nueva del mismo cliente deja un solo carrito activo con todo.
+  - T-181 parte b agrega la recompra.
+- **Estado:** Aceptada (plan de T-181 aprobado el 2026-10-01, con sus 3 recomendaciones). La comparación con la fecha del vencimiento se agregó durante la implementación.
