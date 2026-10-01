@@ -13,12 +13,18 @@ import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-li
 import { MailModule } from '../../../platform/mail/mail.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
-import { newId } from '../../../shared-kernel/index.js';
+import {
+  newId,
+  toId,
+  TransactionManager,
+} from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
+import { PaymentsFacade } from '../../payments/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import type { OrderId, VariantId } from '../domain/order.js';
+import { OrderRepository } from '../domain/order.repository.js';
 import type { PublicCode } from '../domain/public-code.js';
 import { OrderingModule } from '../ordering.module.js';
 
@@ -100,9 +106,18 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
   afterEach(async () => {
     await moduleRef.get(DomainEventDispatcher).whenIdle();
     await prisma.auditLog.deleteMany({
-      where: { action: { in: ['payments.manual-capture', 'orders.cancel'] } },
+      where: {
+        action: {
+          in: [
+            'payments.manual-capture',
+            'payments.manual-refund',
+            'orders.cancel',
+          ],
+        },
+      },
     });
     await prisma.paymentAttempt.deleteMany();
+    await prisma.refund.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
@@ -196,9 +211,11 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
       }),
     );
 
+  /** Runs the operations while another transaction holds the row of the order, or of its payment. */
   async function holding(
-    orderId: OrderId,
+    id: string,
     operations: () => Promise<unknown>[],
+    table: 'orders' | 'payments' = 'orders',
   ): Promise<PromiseSettledResult<unknown>[]> {
     const client = new pg.Client({
       connectionString: process.env.DATABASE_URL,
@@ -206,8 +223,8 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
     await client.connect();
     try {
       await client.query('BEGIN');
-      await client.query('SELECT 1 FROM orders WHERE id = $1 FOR UPDATE', [
-        orderId,
+      await client.query(`SELECT 1 FROM ${table} WHERE id = $1 FOR UPDATE`, [
+        id,
       ]);
       const started = operations();
       await waitForLockWaiters(started.length);
@@ -294,10 +311,15 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
     expect(cancelled.status).toBe('fulfilled');
     expect(order.status).toBe('CANCELLED');
     if (paid.status === 'fulfilled') {
-      // The payment went first: the cancellation found the order still unpaid, and the payment waits for its
-      // refund (ADR-0133).
+      // The payment went first: the cancellation found the order still unpaid, and the payment came back with
+      // its refund started (ADR-0133, ADR-0135).
       expect(payment?.status).toBe('CAPTURED');
       expect(order.paidAt).not.toBeNull();
+      expect(
+        await prisma.refund.findMany({
+          select: { status: true, amount: true },
+        }),
+      ).toEqual([{ status: 'PENDING', amount: 19_900 }]);
     } else {
       expect((paid.reason as Error).constructor.name).toBe(
         'InvalidStateTransitionError',
@@ -305,5 +327,104 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
       expect(payment).toBeNull();
       expect(order.paidAt).toBeNull();
     }
+  });
+
+  const cancel = (orderId: OrderId, version: number) =>
+    run(() =>
+      moduleRef.get(OrderLifecycle).cancel({
+        orderId,
+        actorId: newId<'User'>(),
+        reason: 'Sin stock',
+        restock: false,
+        version,
+      }),
+    );
+
+  it('cancels the payment the buyer started when the order is cancelled before the staff registers it', async () => {
+    const { id, code, cartId } = await placed();
+    await run(() =>
+      requests.startPayment({
+        publicCode: code,
+        payer: { guestCartId: cartId as never },
+        provider: 'MANUAL',
+      }),
+    );
+
+    const [cancelled, paid] = await holding(id, () => [
+      cancel(id, 1),
+      capture(id),
+    ]);
+    await moduleRef.get(DomainEventDispatcher).whenIdle();
+
+    const order = await prisma.order.findUniqueOrThrow({ where: { id } });
+    const payment = await prisma.payment.findFirstOrThrow();
+    const refunds = await prisma.refund.findMany({ select: { status: true } });
+    expect(cancelled.status).toBe('fulfilled');
+    expect(order.status).toBe('CANCELLED');
+    if (paid.status === 'fulfilled') {
+      // The payment went first: it is captured and its refund started (ADR-0135).
+      expect(payment.status).toBe('CAPTURED');
+      expect(refunds).toEqual([{ status: 'PENDING' }]);
+    } else {
+      // The cancellation went first: the payment started is cancelled, and nobody can pay it.
+      expect((paid.reason as Error).constructor.name).toBe(
+        'InvalidStateTransitionError',
+      );
+      expect(payment.status).toBe('CANCELLED');
+      expect(refunds).toEqual([]);
+    }
+  });
+
+  it('registers the refund of a cancelled order once when the staff registers it twice at once, and refunds the order once', async () => {
+    const { id } = await placed();
+    await capture(id);
+    await moduleRef.get(DomainEventDispatcher).whenIdle();
+    const { version } = await prisma.order.findUniqueOrThrow({ where: { id } });
+    await cancel(id, version);
+    const payment = await prisma.payment.findFirstOrThrow();
+    const register = () =>
+      run(() =>
+        moduleRef
+          .get(PaymentsFacade)
+          .registerManualRefund(toId<'Payment'>(payment.id), {
+            reference: 'Devolución 00087',
+            note: null,
+            restock: false,
+            version: payment.version,
+            registeredBy: newId<'User'>(),
+          }),
+      );
+
+    const results = await holding(
+      payment.id,
+      () => [register(), register()],
+      'payments',
+    );
+    await moduleRef.get(DomainEventDispatcher).whenIdle();
+
+    expect(outcomes(results)).toEqual(['VersionConflictError', 'ok']);
+    expect(
+      await prisma.refund.findMany({ select: { status: true, amount: true } }),
+    ).toEqual([{ status: 'COMPLETED', amount: 19_900 }]);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'payments.manual-refund' },
+      }),
+    ).toBe(1);
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id },
+      include: { statusHistory: true },
+    });
+    expect(order.status).toBe('REFUNDED');
+    expect(
+      order.statusHistory.filter(({ toStatus }) => toStatus === 'REFUNDED'),
+    ).toHaveLength(1);
+    const read = await run(() =>
+      moduleRef
+        .get(TransactionManager)
+        .run(() => moduleRef.get(OrderRepository).lock(id)),
+    );
+    expect(read?.snapshot.refundedAt).toEqual(order.refundedAt);
+    expect(order.refundedAt).not.toBeNull();
   });
 });

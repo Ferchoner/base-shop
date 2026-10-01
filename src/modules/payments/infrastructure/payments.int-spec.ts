@@ -176,4 +176,78 @@ describe('Payments: persistence (T-190)', () => {
     });
     expect(await queries.findPayment(newId<'Payment'>())).toBeNull();
   });
+
+  it('saves the refunds of a payment as they start and complete, and locks the payment by id (ADR-0135)', async () => {
+    const DONE = new Date('2026-10-01T13:00:00.000Z');
+    const payment = await captured();
+    const refundId = newId<'Refund'>();
+    const staff = newId<'User'>();
+    await run(async () => {
+      const locked = (await payments.lock(payment.id))!;
+      locked.startRefund(refundId, LATER);
+      await payments.save(locked, LATER);
+    });
+    const pending = await prisma.refund.findUniqueOrThrow({
+      where: { id: refundId },
+    });
+
+    await run(async () => {
+      const locked = (await payments.lock(payment.id))!;
+      locked.completeManualRefund({
+        reference: 'Devolución 00087',
+        registeredBy: staff,
+        now: DONE,
+      });
+      await payments.save(locked, DONE);
+    });
+    // An older refund that failed stays as history, and is read first although it was written last.
+    const failed = newId();
+    await prisma.refund.create({
+      data: {
+        id: failed,
+        paymentId: payment.id,
+        amount: 19_900,
+        status: 'FAILED',
+        createdAt: START,
+        updatedAt: START,
+      },
+    });
+
+    expect(pending).toMatchObject({
+      paymentId: payment.id,
+      amount: 19_900,
+      status: 'PENDING',
+      providerRefundId: null,
+      registeredBy: null,
+      createdAt: LATER,
+      updatedAt: LATER,
+      completedAt: null,
+    });
+    const read = (await run(() => payments.findByOrder(payment.orderId)))!;
+    expect(read.snapshot).toMatchObject({
+      status: 'REFUNDED',
+      refundedAmount: Money.of(19_900, 'MXN'),
+      version: 4,
+    });
+    expect(read.snapshot.refunds).toEqual([
+      expect.objectContaining({ id: failed, status: 'FAILED' }),
+      {
+        id: refundId,
+        amount: Money.of(19_900, 'MXN'),
+        status: 'COMPLETED',
+        providerRefundId: 'Devolución 00087',
+        registeredBy: staff,
+        createdAt: LATER,
+        completedAt: DONE,
+      },
+    ]);
+    expect(read.touchedRefunds).toEqual([]);
+    expect(
+      await prisma.refund.findUniqueOrThrow({ where: { id: refundId } }),
+    ).toMatchObject({ createdAt: LATER, updatedAt: DONE });
+    expect(
+      (await queries.findPayment(payment.id))?.refunds.map(({ id }) => id),
+    ).toEqual([failed, refundId]);
+    expect(await run(() => payments.lock(newId<'Payment'>()))).toBeNull();
+  });
 });

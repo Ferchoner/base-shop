@@ -117,6 +117,9 @@ describe('Ordering: life of an order (T-180)', () => {
     await prisma.auditLog.deleteMany({
       where: { action: { startsWith: 'orders.' } },
     });
+    await prisma.paymentAttempt.deleteMany();
+    await prisma.refund.deleteMany();
+    await prisma.payment.deleteMany();
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();
@@ -370,6 +373,20 @@ describe('Ordering: life of an order (T-180)', () => {
     it('lets a cancellation and a payment of the same order through one after the other', async () => {
       const shirt = await variant(5);
       const id = await placed(shirt);
+      // Payments captured it: the event the handler gets.
+      await prisma.payment.create({
+        data: {
+          id: newId(),
+          orderId: id,
+          orderCode: 'K7M4Q9XA',
+          provider: 'MANUAL',
+          status: 'CAPTURED',
+          amount: 19_900,
+          capturedAmount: 19_900,
+          currency: 'MXN',
+          capturedAt: CAPTURED,
+        },
+      });
       const client = await holder();
       let settled: PromiseSettledResult<unknown>[];
       try {
@@ -395,17 +412,28 @@ describe('Ordering: life of an order (T-180)', () => {
         await client.end();
       }
       const order = await prisma.order.findUniqueOrThrow({ where: { id } });
-      // Whichever went first, the order and the stock agree.
+      const refunds = await prisma.refund.findMany({
+        select: { status: true, amount: true },
+      });
+      // Whichever went first, the order, its refund and the stock agree.
       if (order.status === 'CANCELLED') {
+        // The cancellation went first: the payment waits for its refund (ADR-0135).
         expect(settled[1]).toEqual({
           status: 'fulfilled',
           value: 'recorded-on-cancelled',
         });
         expect(order.paidAt).toEqual(CAPTURED);
+        expect(refunds).toEqual([{ status: 'PENDING', amount: 19_900 }]);
         expect(await stockOf(shirt)).toEqual({ onHand: 5, reserved: 0 });
       } else {
+        // The payment went first: the staff read an older version, and must read the order again.
         expect(order.status).toBe('PAID');
         expect(settled[0].status).toBe('rejected');
+        expect(
+          ((settled[0] as PromiseRejectedResult).reason as Error).constructor
+            .name,
+        ).toBe('VersionConflictError');
+        expect(refunds).toEqual([]);
         expect(await stockOf(shirt)).toEqual({ onHand: 4, reserved: 0 });
       }
     });

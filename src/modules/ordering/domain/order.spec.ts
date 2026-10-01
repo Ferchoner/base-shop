@@ -214,6 +214,21 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
     expect(order.hasChanges).toBe(true);
   });
 
+  it('cancels a paid order, PAID or waiting for stock, keeping its payment (ADR-0135)', () => {
+    for (const status of ['PAID', 'AWAITING_MANUAL_FULFILLMENT'] as const) {
+      const order = saved(status, CAPTURED);
+
+      order.cancel(staff, 'Sin stock', LATER);
+
+      expect(order.snapshot).toMatchObject({
+        status: 'CANCELLED',
+        paidAt: CAPTURED,
+        cancelledAt: LATER,
+      });
+      expect(order.statusChanges[0]).toMatchObject({ from: status });
+    }
+  });
+
   it('cancels nothing shipped, cancelled or expired (BR-CAN-01)', () => {
     for (const status of [
       'SHIPPED',
@@ -312,5 +327,35 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
     expect(() =>
       saved('PAID').recordPaymentAfterCancellation(CAPTURED),
     ).toThrow(InvalidStateTransitionError);
+  });
+
+  it('is refunded once its refund completes, if it was cancelled with a payment (ADR-0051)', () => {
+    const REFUNDED = new Date('2026-10-01T14:00:00.000Z');
+    const order = saved('CANCELLED', CAPTURED);
+
+    order.markRefunded(REFUNDED, LATER);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'REFUNDED',
+      refundedAt: REFUNDED,
+    });
+    expect(order.statusChanges).toEqual([
+      {
+        from: 'CANCELLED',
+        to: 'REFUNDED',
+        actorId: null,
+        reason: null,
+        at: LATER,
+      },
+    ]);
+    for (const other of [
+      saved('CANCELLED'),
+      saved('PAID', CAPTURED),
+      saved('REFUNDED', CAPTURED),
+    ]) {
+      expect(() => other.markRefunded(REFUNDED, LATER)).toThrow(
+        new InvalidStateTransitionError(other.status, 'mark refunded'),
+      );
+    }
   });
 });
