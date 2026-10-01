@@ -92,7 +92,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Repositories | `OrderRepository`; puertos `OrderNumberGenerator` (secuencia) y `OrderCodeGenerator` (aleatorio, ADR-0049) |
 | Casos de uso | QuoteCheckout, PlaceOrder, CancelOrder (solo staff, ADR-0021), MarkOrderPaid, ExpireUnpaidOrders (job), ResolveManualFulfillment; consultas GetOrder, ListMyOrders, ListOrders, GetGuestOrder (email + código público, ADR-0020, ADR-0049) |
 | Exporta | orderId, total, snapshot de dirección e ítems |
-| Implementado | T-180 parte a (ADR-0132): `Order` nace en PendingPayment con sus líneas numeradas, totales e IVA por línea, código público aleatorio y vencimiento del pago; caso de uso `Checkout` (cotizar y colocar); puertos hacia las fachadas de Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access y Geo. T-180 parte b (ADR-0133): transiciones de cancelar, pagar, esperar surtido y surtir con su historial; caso de uso `OrderLifecycle` y manejador de `PaymentCaptured` |
+| Implementado | T-180 parte a (ADR-0132): `Order` nace en PendingPayment con sus líneas numeradas, totales e IVA por línea, código público aleatorio y vencimiento del pago; caso de uso `Checkout` (cotizar y colocar); puertos hacia las fachadas de Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access y Geo. T-180 parte b (ADR-0133): transiciones de cancelar, pagar, esperar surtido y surtir con su historial; caso de uso `OrderLifecycle` y manejador de `PaymentCaptured`. T-230 (ADR-0136): vencimiento con su reserva (`OrderExpiry`, job `ordering.expire-orders`) y `OrderExpired` |
 
 ## Payments
 

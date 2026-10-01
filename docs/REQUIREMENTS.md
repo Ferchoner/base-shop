@@ -317,6 +317,10 @@ Criterios de aceptación:
   - un pago tardío sin stock deja la orden en AwaitingManualFulfillment sin apartar nada;
   - un pago de una orden cancelada la deja cancelada, a la espera de su reembolso;
   - un monto distinto del total no cambia la orden.
+- **UC-ORD-10 y UC-INV-08 (implementación, ADR-0136):**
+  - un solo job de Ordering, cada minuto, vence la orden y su reserva en la misma transacción, por lotes de 100;
+  - publica `OrderExpired` con las líneas, el cliente y el carrito de origen; las líneas vuelven al carrito con T-181;
+  - el pago iniciado de la orden se conserva, para un pago tardío.
 
 ### 5.7 Payments
 

@@ -153,6 +153,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0133 | Administración de órdenes: cancelación sin pago, pago capturado, pago tardío y reserva todo o nada | Aceptada |
 | ADR-0134 | Pagos: Ordering usa a Payments, pago en tienda y división de T-190 | Aceptada |
 | ADR-0135 | Reembolsos: cancelar órdenes pagadas, reembolso manual y reintegro hasta T-161 | Aceptada |
+| ADR-0136 | Vencimiento de órdenes impagas: un job en Ordering con su reserva | Aceptada |
 
 ---
 
@@ -597,7 +598,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101.
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva.
 
 ---
 
@@ -1094,7 +1095,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Una orden expirada puede recibir un pago tardío (ADR-0012) después de que sus productos regresaron al carrito; si el cliente vuelve a comprar, podría pagar dos veces. Riesgo aceptado mientras el único método sea el pago manual de pruebas; se revisa al habilitar pagos reales.
   - Shopping reacciona al evento `OrderExpired`.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. T-230 publica `OrderExpired` con las líneas, el cliente y el carrito de origen (ADR-0136); T-181 devuelve las líneas al carrito.
 
 ---
 
@@ -2236,7 +2237,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los jobs concretos (expiración de reservas y órdenes y conciliación de pagos en T-230, limpieza diaria en T-231, archivo de auditoría en T-220) usan `@ScheduledJob`. La conciliación pasó a T-192, con PayPal, en la Sprint Review del Sprint 3.
   - El registro de ejecuciones en curso es del proceso completo, coherente con una sola instancia (ADR-0029); con varias instancias harán falta bloqueos en PostgreSQL.
   - Un test de un job llama a su método directamente, porque el scheduler está apagado.
-- **Estado:** Aceptada (aprobación formal 2026-09-27).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). El primer job es `ordering.expire-orders` (ADR-0136).
 
 ---
 
@@ -3391,7 +3392,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Hay una variable nueva en `.env.example`.
   - T-170, T-180 y T-190 usarán la fachada desde un puerto propio.
   - Las pruebas de concurrencia contra PostgreSQL muestran que N reservas simultáneas nunca reservan más de lo disponible, y que dos reservas con líneas en orden contrario no se bloquean entre sí.
-- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30). ADR-0133 hace que `reserve` sea todo o nada por sí misma, también dentro de la transacción de quien llama.
+- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30). ADR-0133 hace que `reserve` sea todo o nada por sí misma, también dentro de la transacción de quien llama. T-230 agrega `expire` (ADR-0136).
 
 ---
 
@@ -3788,3 +3789,39 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-192 agrega los reembolsos con proveedor, que pueden fallar, y su reintento (UC-PAY-07). T-215 envía el correo "Reembolso completado".
   - Pruebas contra PostgreSQL: dos registros del mismo reembolso a la vez, y una cancelación junto con el registro del pago de una orden con su pago iniciado.
 - **Estado:** Aceptada (plan de T-190 parte b aprobado el 2026-10-01, con sus 3 recomendaciones).
+
+---
+
+## ADR-0136 — Vencimiento de órdenes impagas: un job en Ordering con su reserva
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-230 (UC-ORD-10, UC-INV-08). Una orden PENDING_PAYMENT vence cuando vence su reserva (BR-ORD-07), y la orden guarda ese momento en `paymentDueAt` (ADR-0132). ADR-0029 pidió un job cada minuto, por lotes, con una transacción por elemento e idempotente, y ADR-0128 dejó a T-230 la transición de la reserva a EXPIRED. Quedaban abiertas tres cosas:
+  - si la orden y la reserva vencen en un job o en dos;
+  - cuándo se publica `OrderExpired`, que T-181 necesita para devolver las líneas al carrito (ADR-0054);
+  - qué pasa con el pago que el comprador ya había iniciado.
+- **Decisión:**
+  - **Un solo job en Ordering,** `ordering.expire-orders`, cada minuto con `@ScheduledJob` (ADR-0101). Llama al caso de uso `OrderExpiry`:
+    - busca hasta 100 órdenes PENDING_PAYMENT con `paymentDueAt` vencido, la que venció primero antes;
+    - vence cada una en su propia transacción: bloquea la orden, vuelve a revisar que siga PENDING_PAYMENT con el pago vencido, la pasa a EXPIRED con `expiredAt` (en el historial sin actor), pasa su reserva a EXPIRED con la nueva `InventoryFacade.expire` y publica `OrderExpired`;
+    - una orden que falla queda en el log con su ID y el lote sigue; vencerla otra vez no cambia nada.
+  - **La orden y su reserva vencen juntas:** con dos jobs, un pago que llegara entre ambos encontraría la reserva vencida y la orden pendiente. Ordering puede llamar a Inventory, pero Inventory no puede llamar a Ordering.
+  - **`InventoryFacade.expire(orderId)`:** pasa la reserva activa de ACTIVE a EXPIRED con el mismo `UPDATE` condicional que `release`, y devuelve sus unidades. Responde `false` si la orden no tiene reserva activa.
+  - **`OrderExpired { orderId, customerId, sourceCartId, lines: [{ variantId, quantity }] }`:** se publica ahora, en la transacción del vencimiento, con lo que Shopping necesita, porque Shopping nunca lee a Ordering. T-181 solo agrega el listener.
+  - **El pago pendiente se conserva:** una orden vencida todavía puede pagarse (ADR-0012), y el staff puede registrar su pago en tienda. Cancelar es distinto: es definitivo, y por eso cancela el pago (ADR-0135).
+  - **Sin auditoría:** es una transición del sistema y queda en el historial, como el pago recibido.
+  - **Carreras:** las resuelve el bloqueo de la orden.
+    - Si el pago llega primero, el job encuentra la orden pagada y no la toca.
+    - Si el job llega primero, el pago sigue el flujo de pago tardío (ADR-0012).
+    - Una cancelación que llega después del job responde 409 `version-conflict`, porque la orden cambió.
+  - **Sin migración:** las órdenes PENDING_PAYMENT siempre son pocas y el índice `(status, placed_at)` basta.
+- **Alternativas consideradas:**
+  - **Dos jobs, uno de reservas en Inventory y otro de órdenes en Ordering:** cumple UC-INV-08 al pie de la letra, pero abre una ventana con la reserva vencida y la orden pendiente.
+  - **Publicar `OrderExpired` en T-181:** T-181 tendría que volver a tocar el vencimiento.
+  - **Cancelar el pago pendiente al vencer:** cerraría el pago tardío del pago manual.
+  - **Un índice parcial nuevo `(payment_due_at) WHERE status = 'PENDING_PAYMENT'`:** innecesario con tan pocas órdenes pendientes.
+- **Consecuencias:**
+  - El índice `(expires_at) WHERE status = 'ACTIVE'` de `reservations`, pensado para un job de Inventory, queda sin uso.
+  - Una orden vencida suma una versión, como cualquier cambio de estado.
+  - Las pruebas que simulaban el vencimiento ahora usan el caso de uso real.
+  - Pruebas contra PostgreSQL: el job junto con un pago y junto con una cancelación de la misma orden.
+- **Estado:** Aceptada (plan de T-230 aprobado el 2026-10-01, con sus 3 recomendaciones).

@@ -115,7 +115,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-04. Se permite compra como invitado con email de contacto (ADR-0010).
 - BR-ORD-05. Estados (ADR-0009): PendingPayment, Paid, AwaitingManualFulfillment, Shipped, Delivered, Cancelled, Expired, Refunded. Solo se permiten las transiciones de la tabla de `REQUIREMENTS.md` (sección 3.1).
 - BR-ORD-06. Si el total recalculado en PlaceOrder no coincide con `expectedTotal`, la orden no se crea (ADR-0019).
-- BR-ORD-07. Una orden en PendingPayment expira cuando vence su reserva.
+- BR-ORD-07. Una orden en PendingPayment expira cuando vence su reserva. Un job vence la orden y su reserva juntas, a más tardar un minuto después (ADR-0136).
 - BR-ORD-08. Solo se marca pagada si el monto capturado es igual al total.
 - BR-ORD-09. Si llega un pago para una orden expirada, se intenta reservar; si no hay stock, la orden pasa a AwaitingManualFulfillment (ADR-0012).
 - BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden. Si perdió el código, lo atiende el staff por un canal externo; el enlace de acceso por correo queda fuera del MVP (ADR-0020, ADR-0077).

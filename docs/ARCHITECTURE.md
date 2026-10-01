@@ -149,7 +149,7 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 
 | Job | Frecuencia | Detalle |
 |---|---|---|
-| Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011 |
+| Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011. Un solo job de Ordering, `ordering.expire-orders`, vence cada orden con su reserva, por lotes de 100 (ADR-0136) |
 | Conciliación de pagos | Cada 5 minutos | Pagos con más de 10 minutos sin resolver (ADR-0014) |
 | Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días); exporta a archivos comprimidos los registros de auditoría de más de 3 meses, los borra de la base y elimina los archivos de más de 2 años |
 
