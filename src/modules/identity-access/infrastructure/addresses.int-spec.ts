@@ -12,6 +12,7 @@ import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import { newId, NotFoundError } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { AddAddress } from '../application/add-address.use-case.js';
+import { IdentityAccessFacade } from '../application/identity-access.facade.js';
 import { MAX_ADDRESSES } from '../application/address-locations.js';
 import { IdentityQueries } from '../application/identity.queries.js';
 import { RemoveAddress } from '../application/remove-address.use-case.js';
@@ -295,5 +296,66 @@ describe('Customer addresses (T-130, UC-IAM-11)', () => {
     );
     await expect(remove(other, address)).rejects.toThrow(NotFoundError);
     expect(await queries.findAddress(other, address)).toBeNull();
+  });
+
+  describe('IdentityAccessFacade for the checkout (ADR-0132)', () => {
+    const facade = () => moduleRef.get(IdentityAccessFacade);
+
+    it('gives the address of the customer as an order keeps it, and none of another customer', async () => {
+      const owner = await insertCustomer();
+      const address = await add(owner, {
+        ...MORELIA,
+        interiorNumber: '4B',
+        references: 'Entre Galeana e Hidalgo',
+      });
+
+      expect(await facade().customerAddress(owner, address)).toEqual({
+        ...MORELIA,
+        interiorNumber: '4B',
+        references: 'Entre Galeana e Hidalgo',
+        stateName: 'Michoacán de Ocampo',
+        municipalityName: 'Morelia',
+      });
+      expect(
+        await facade().customerAddress(await insertCustomer(), address),
+      ).toBeNull();
+    });
+
+    it('gives the contact of an active customer only', async () => {
+      const customer = await insertCustomer();
+      const verified = await insertCustomer();
+      await prisma.user.update({
+        where: { id: verified },
+        data: { emailVerifiedAt: new Date() },
+      });
+      const suspended = await insertCustomer();
+      await prisma.user.update({
+        where: { id: suspended },
+        data: { status: 'SUSPENDED' },
+      });
+      const staff = newId<'User'>();
+      await prisma.user.create({
+        data: {
+          id: staff,
+          type: 'STAFF',
+          email: `${staff}@example.com`,
+          firstNames: 'Ana',
+          lastNames: 'Pérez',
+          passwordHash: 'not-a-real-hash',
+        },
+      });
+
+      expect(await facade().customerContact(customer)).toEqual({
+        email: `${customer}@example.com`,
+        emailVerified: false,
+      });
+      expect(await facade().customerContact(verified)).toEqual({
+        email: `${verified}@example.com`,
+        emailVerified: true,
+      });
+      expect(await facade().customerContact(suspended)).toBeNull();
+      expect(await facade().customerContact(staff)).toBeNull();
+      expect(await facade().customerContact(newId())).toBeNull();
+    });
   });
 });

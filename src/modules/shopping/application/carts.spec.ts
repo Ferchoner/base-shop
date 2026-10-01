@@ -24,6 +24,7 @@ import {
 } from './cart-ports.js';
 import { CartViews, EMPTY_CART } from './cart-views.js';
 import { Carts } from './carts.use-case.js';
+import { ShoppingFacade } from './shopping.facade.js';
 
 // Test doubles of the unit tests of Shopping's application layer.
 
@@ -517,5 +518,98 @@ describe('CartViews (UC-CRT-05, BR-CRT-04, ADR-0061)', () => {
       subtotal: Money.zero('MXN'),
       lastActivityAt: null,
     });
+  });
+});
+
+describe('ShoppingFacade, for the checkout (UC-ORD-01 and 02, ADR-0132)', () => {
+  function facade(...carts: Cart[]) {
+    const repository = new InMemoryCarts(...carts);
+    return {
+      repository,
+      shopping: new ShoppingFacade(repository, inline, clock),
+    };
+  }
+
+  it('gives the variants and units of an active cart, oldest first, without prices', async () => {
+    const guest = Cart.restore({
+      id: newId<'Cart'>(),
+      ownerId: null,
+      status: 'ACTIVE',
+      mergedIntoCartId: null,
+      lastActivityAt: BEFORE,
+      version: 1,
+      lines: [
+        { variantId: cap, quantity: 1, addedAt: NOW },
+        { variantId: shirt, quantity: 2, addedAt: BEFORE },
+      ],
+    });
+    const own = cart({ owner: customer, lines: [[cap, 3]] });
+    const { shopping } = facade(guest, own);
+
+    const expected = {
+      id: guest.id,
+      lines: [
+        { variantId: shirt, quantity: 2 },
+        { variantId: cap, quantity: 1 },
+      ],
+    };
+    expect(await shopping.cartToQuote({ guestCartId: guest.id })).toEqual(
+      expected,
+    );
+    expect(await shopping.lockCartToOrder({ guestCartId: guest.id })).toEqual(
+      expected,
+    );
+    expect(await shopping.cartToQuote({ customerId: customer })).toEqual({
+      id: own.id,
+      lines: [{ variantId: cap, quantity: 3 }],
+    });
+  });
+
+  it('answers null for a customer without an active cart', async () => {
+    const used = cart({ owner: customer, status: 'CHECKED_OUT' });
+    const { shopping } = facade(used);
+
+    expect(await shopping.cartToQuote({ customerId: customer })).toBeNull();
+    expect(await shopping.lockCartToOrder({ customerId: customer })).toBeNull();
+  });
+
+  it('answers 404 for a guest cart that does not exist or has an owner, and 409 for one not active', async () => {
+    const owned = cart({ owner: customer });
+    const used = cart({ status: 'CHECKED_OUT' });
+    const merged = cart({ status: 'MERGED', mergedInto: owned.id });
+    const { shopping } = facade(owned, used, merged);
+
+    for (const read of [
+      (id: CartId) => shopping.cartToQuote({ guestCartId: id }),
+      (id: CartId) => shopping.lockCartToOrder({ guestCartId: id }),
+    ]) {
+      await expect(read(newId<'Cart'>())).rejects.toThrow(NotFoundError);
+      await expect(read(owned.id)).rejects.toThrow(NotFoundError);
+      await expect(read(used.id)).rejects.toThrow(
+        new CartNotActiveError('CHECKED_OUT'),
+      );
+      await expect(read(merged.id)).rejects.toThrow(
+        new CartNotActiveError('MERGED'),
+      );
+    }
+  });
+
+  it('checks the cart out and saves it, only while it is active', async () => {
+    const guest = cart({ lines: [[shirt, 2]] });
+    const { repository, shopping } = facade(guest);
+
+    await shopping.checkOut(guest.id);
+
+    expect(repository.get(guest.id)).toMatchObject({
+      status: 'CHECKED_OUT',
+      lastActivityAt: NOW,
+    });
+    expect(repository.saved).toEqual([guest.id]);
+    await expect(shopping.checkOut(guest.id)).rejects.toThrow(
+      new CartNotActiveError('CHECKED_OUT'),
+    );
+    await expect(shopping.checkOut(newId<'Cart'>())).rejects.toThrow(
+      NotFoundError,
+    );
   });
 });

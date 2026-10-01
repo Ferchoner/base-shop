@@ -33,6 +33,12 @@ class InsufficientStockError extends DomainError {
   readonly category = 'conflict';
 }
 
+/** A validation error found by the domain, such as a state that does not exist (ADR-0132). */
+class UnknownStateError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+}
+
 class PlaceOrderDto {
   @IsUUID()
   cartId: string;
@@ -46,8 +52,8 @@ class PlaceOrderDto {
   delayMs?: number;
 
   @IsOptional()
-  @IsIn(['domain', 'unexpected'])
-  fail?: 'domain' | 'unexpected';
+  @IsIn(['domain', 'domain-validation', 'unexpected'])
+  fail?: 'domain' | 'domain-validation' | 'unexpected';
 }
 
 class CustomerOrderDto {
@@ -84,6 +90,11 @@ class IdempotencyTestController {
     if (order.fail === 'domain') {
       throw new InsufficientStockError('No stock for the cart', {
         lines: [{ variantId: order.cartId, canFulfill: false }],
+      });
+    }
+    if (order.fail === 'domain-validation') {
+      throw new UnknownStateError('The state does not exist', {
+        errors: [{ field: 'shippingAddress.stateCode', code: 'isState' }],
       });
     }
     if (order.fail === 'unexpected') throw new Error('database unreachable');
@@ -248,6 +259,20 @@ describe('Idempotency-Key (e2e, T-115)', () => {
     await placeOrder(key, { cartId, expectedTotal: 100 }).expect(201);
 
     expect(IdempotencyTestController.executions).toBe(1);
+  });
+
+  it('does not keep a validation error of the domain either (ADR-0132)', async () => {
+    const key = randomUUID();
+    const cartId = randomUUID();
+
+    await placeOrder(key, {
+      cartId,
+      expectedTotal: 100,
+      fail: 'domain-validation',
+    }).expect(400);
+    await placeOrder(key, { cartId, expectedTotal: 100 }).expect(201);
+
+    expect(IdempotencyTestController.executions).toBe(2);
   });
 
   it('does not keep an unexpected error, so the client can retry with the same key', async () => {
