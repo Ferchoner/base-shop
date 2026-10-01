@@ -2,11 +2,11 @@
 
 ## Sprint actual
 
-3 — Catálogo vendible (Catalog, Pricing e Inventory). Inicio: 2026-09-29 (propuesta aprobada en el Sprint Review del Sprint 2).
+4 — Compra con pago en tienda (Shopping, Ordering y Payments). Inicio: 2026-10-01 (propuesta aprobada en el Sprint Review del Sprint 3).
 
 ## Goal
 
-Catálogo vendible: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas y costo de envío. Es lo que necesitan el carrito y el checkout del Sprint 4.
+Compra completa con pago en tienda: un cliente o un invitado arma su carrito, coloca la orden y la paga en tienda; si no paga, la orden vence y el stock reservado vuelve.
 
 ## Tasks
 
@@ -14,20 +14,105 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 | Paso | Tareas |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot que haya; `npm run secrets:scan` para correr gitleaks en local antes de commitear |
-| 1 | T-150 (categorías y marcas), T-141 (almacenamiento de imágenes) y T-196 (costo de envío y envío gratis) |
-| 2 | T-140 parte a (productos y variantes) y parte b (imágenes) |
-| 3 | T-145 parte a (precios) y parte b (carga masiva), y T-160 parte a (almacén y stock) y parte b (reservas) |
-| 4 | T-140 parte c (consulta pública, marcas públicas, `storeVisibility` y cache) |
-
-- **Estado:** las tareas de los pasos 0 a 4 están hechas; falta la Sprint Review.
+| 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot (el agrupado llega el lunes 5 de octubre); orden de los validadores de `PageQueryDto` y de los demás DTO, con su prueba |
+| 1 | T-170 (carrito) |
+| 2 | T-180 (checkout y órdenes; resuelve P-73 en su plan) |
+| 3 | T-190 (pago en tienda y reembolso total al cancelar) |
+| 4 | T-230 (vencimiento de reservas y órdenes; la conciliación de pagos pasa a T-192) |
+| 5 | T-185 (consulta de pedido de invitado) y T-181 (restaurar y copiar el carrito) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
-- **T-160:** incluye pruebas de concurrencia de las reservas (`DEVELOPMENT_GUIDE.md`, sección de tests).
-- **Pospuesto:** T-220 (consulta de auditoría) y reducir la imagen de producción.
-- **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan` (lecciones del Sprint 2).
+- **Pospuesto al Sprint 5 o después:** T-195 (envíos), T-161 (reintegro), T-215 (notificaciones), T-192 (PayPal y conciliación), T-231 (limpieza diaria), T-132 (anonimización), T-220 (consulta de auditoría) y reducir la imagen de producción.
+- **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha.
 
-### Resultado del paso 0
+## Risks
+
+- **Ruta crítica:** T-170 → T-180 → T-190 → T-230. T-180 es la tarea más grande y define cómo usa Ordering a Shopping, Pricing, Inventory y Shipping; un retraso en ella retrasa el resto del sprint.
+- **Dependencias entre módulos:** Ordering usará a Shopping, Pricing, Inventory y Shipping, y Payments reaccionará a Ordering. Para no formar ciclos, cada módulo que reacciona a otro se suscribe a sus eventos por nombre (ADR-0125, ADR-0127), como Shopping al restaurar el carrito de una orden vencida (T-181). P-73 se resuelve en el plan de T-180.
+- **Reservas sin vencimiento hasta T-230:** entre T-180 y T-230, las órdenes que no se pagan mantienen apartado su stock (ADR-0128). Solo afecta al entorno local.
+- **Consistencia en el checkout:** el checkout nunca usa la cache; vuelve a leer precios y stock, y compara el total con `expectedTotal` (ADR-0019, ADR-0028).
+- **Idempotencia:** colocar la orden e iniciar el pago exigen `Idempotency-Key`, ligado a quien lo envía (ADR-0063), sobre el almacén de idempotencia de T-115.
+- **Invitados:** el `cartId` es aleatorio y no adivinable (ADR-0059), y la consulta de su pedido lleva rate limiting y no revela si la orden existe (ADR-0020, ADR-0049).
+- **Riesgos heredados del Sprint 3:** ver su review en el historial.
+
+## Sprint Review
+
+PENDIENTE.
+
+---
+
+## Historial
+
+### Sprint 3 — Catálogo vendible (2026-09-29 a 2026-09-30)
+
+**Goal:** catálogo vendible: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas y costo de envío. **Tareas:** T-150, T-141, T-196, T-140 (en tres partes), T-145 (en dos partes) y T-160 (en dos partes), todas en DONE, precedidas por un paso 0.
+
+**Fecha:** 2026-10-01. **Resultado:** objetivo cumplido. Las 6 tareas están en DONE y el pipeline de CI está en verde en `main`. El catálogo es vendible: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y una tienda pública con búsqueda y filtros.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| `npm run secrets:scan` antes de cada commit; avisos de seguridad de dos dependencias corregidos | DONE | Paso 0, ADR-0119 |
+| Categorías y marcas: administración, slugs numerados, movimientos sin ciclos y árbol público con cache | DONE | T-150, ADR-0120 |
+| Imágenes de producto en disco detrás de un puerto, validadas por su contenido y servidas en `/media` | DONE | T-141, ADR-0121 |
+| Método de envío, costo con IVA y envío gratis por monto | DONE | T-196, ADR-0122 |
+| Productos y variantes para el staff, con `search_vector` y eventos | DONE | T-140 parte a, ADR-0123 |
+| Galería de imágenes de cada producto | DONE | T-140 parte b, ADR-0124 |
+| Precios en una línea de periodos sin huecos, precios programados y `PricingFacade.quote` | DONE | T-145 parte a, ADR-0125 |
+| Carga masiva de precios en CSV, todo o nada | DONE | T-145 parte b, ADR-0126 |
+| Almacén, entradas, ajustes, listado de stock y movimientos | DONE | T-160 parte a, ADR-0127 |
+| Reservas para el checkout (`InventoryFacade`), con pruebas de concurrencia | DONE | T-160 parte b, ADR-0128 |
+| Tienda pública (listado, detalle y marcas), `storeVisibility`, test de las tablas de cada contexto y cache acotada | DONE | T-140 parte c, ADR-0129 |
+| 1,528 tests (878 unitarios, 298 de integración y 352 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 129 ADR: 128 aceptados y 1 reemplazado parcialmente (ADR-0001); 11 nuevos en este sprint (ADR-0119 a ADR-0129) | — | `DECISIONS.md` |
+| Las 9 decisiones pendientes siguen abiertas; se abrió P-73 (reintegro de stock sin ciclo entre Inventory y Ordering) | — | `PROGRESS.md` |
+
+El trabajo se integró en 11 pull requests a `main` (del #47 al #57). La CI pasó a la primera en todos, y también en `main` después de cada fusión.
+
+#### Decisiones abiertas que pasan al siguiente sprint
+
+Las nueve de siempre no bloquean el carrito, el checkout ni el pago en tienda. P-73 se resuelve al planear T-180, que define cómo usa Ordering a Inventory.
+
+| Grupo | Decisiones |
+|---|---|
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
+| Arquitectura | P-73 (cómo obtiene Inventory las cantidades del reintegro sin un ciclo con Ordering; bloquea T-161) |
+
+#### Riesgos que pasan al siguiente sprint
+
+- **Resuelto en este sprint:** las lecturas SQL entre contextos del catálogo público ya no dependen del code review: un test verifica que cada módulo use solo sus tablas (ADR-0129). El acceso a la base con la transacción activa (ADR-0093) sigue revisándose a mano.
+- **Heredados, siguen vigentes:** ver la review del Sprint 2 en el historial. Entre ellos, los efectos de eventos que se pierden si falla su handler, el estado en memoria de una sola instancia, la imagen de producción de 920 MB y el adaptador de PayPal sin verificar.
+- **Nuevos del catálogo:**
+  - las reservas no vencen solas hasta T-230 (ADR-0128);
+  - el listado de la tienda calcula la oferta de todos los productos en cada consulta: de 40 a 55 ms con 5 000 productos. Los listados sin búsqueda salen de la cache, y si el catálogo crece se puede pasar a una proyección de lectura (ADR-0060, ADR-0129);
+  - la tienda puede mostrar hasta 120 s un precio o una disponibilidad desactualizados, así que el checkout debe volver a validar (ADR-0028);
+  - una búsqueda hecha solo de palabras vacías ("de"), o del inicio de una, no encuentra nada (ADR-0129);
+  - las imágenes viven en el disco del servidor: van en los respaldos y necesitan un volumen en Docker (ADR-0024). Un archivo queda huérfano si falla su borrado después del commit (ADR-0124);
+  - el test de las tablas de cada contexto reconoce el SQL escrito con palabras clave en mayúsculas (ADR-0129);
+  - dos `ORDER BY` que exigen las reglas no los puede observar ningún test: el de los stock items al reservar (BR-INV-14) y el de la página del listado (ADR-0129).
+
+#### Qué funcionó
+
+- **Partir las tareas grandes:** T-140 en tres partes, y T-145 y T-160 en dos, cada parte con su plan, sus preguntas y su pull request. La consulta pública llegó al final, cuando precios y stock ya tenían dueño.
+- **Dependencias en un solo sentido:** Pricing e Inventory usan la fachada de Catalog, y Catalog no usa a ninguno, así que nunca se formó un ciclo (ADR-0125, ADR-0127). `storeVisibility` salió del servicio de la tienda en vez de la fachada de Pricing.
+- **Pruebas de mutación:** siguieron encontrando huecos reales. En T-140c, 7 de 9 sobrevivientes eran pruebas faltantes, por ejemplo un precio en una lista que no es la predeterminada, o un orden por relevancia que no se distinguía del orden por fecha.
+- **Medir con datos grandes:** con 5 000 productos apareció una página que tardaba 666 ms. Se corrigió a unos 43 ms antes de fusionar.
+- **Concurrencia:** las pruebas de las reservas (cinco órdenes sobre el mismo stock, líneas en orden contrario, confirmar y liberar a la vez, dos reservas de una orden) pasaron en todas las repeticiones, solas y en la suite.
+- **`npm run secrets:scan` antes de cada commit:** ningún falso positivo llegó a un commit.
+
+#### Qué mejorar
+
+- **Edición con comandos de shell:** los heredocs sin comillas siguieron rompiendo cadenas (`\n`), y uno dejó un script de mutaciones con un error de sintaxis. Conviene escribir los scripts con la edición directa o con heredocs entre comillas (`<<'EOF'`).
+- **Migraciones que crean datos:** la lista de precios y el almacén que crean sus migraciones rompieron pruebas anteriores del esquema que creaban filas iguales. Al agregar datos por migración conviene buscar las pruebas que crean la misma clase de filas.
+- **Rate limit en las e2e:** las suites que arman sus datos por HTTP pasan del límite general de 100 solicitudes por minuto y deben subirlo antes de importar `AppModule`.
+- **Medir antes:** la medición de rendimiento llegó al final de T-140c. En consultas que recorren muchas filas conviene medir con datos grandes desde el primer borrador.
+- **Orden de los validadores:** los decoradores de class-validator corren de abajo hacia arriba, y eso sorprendió dos veces (fechas de precios y precios de la tienda). `PageQueryDto` responde "Es mayor que el máximo permitido." a `pageSize=abc`; se corrige en el paso 0 del Sprint 4.
+
+#### Resultado del paso 0
 
 - **Revisión contra los ADR, sin contradicciones:**
   - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso, y siguen abiertas las mismas 9 decisiones;
@@ -52,21 +137,9 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - el paso manual antes de cada commit queda en `DEVELOPMENT_GUIDE.md`.
 - **Imagen de producción:** sigue en 920 MB.
 
-## Risks
+#### Siguiente sprint
 
-- **Ruta crítica:** T-140a → T-145 y T-160 → T-140c. Un retraso en cualquiera retrasa la tienda, que llega completa en T-140c (ADR-0123). Completada: la tienda llegó con T-140c (ADR-0129).
-- **Consulta pública del catálogo (ADR-0060):** lee en una sola consulta tablas de Catalog, Pricing e Inventory y oculta los productos sin precio vigente (BR-PRD-06). Resuelto en ADR-0123: T-140 se divide en tres partes, y la consulta pública (parte c) llega después de T-145 y T-160. Implementada en ADR-0129, con un test que verifica que solo su servicio lea tablas de otros contextos.
-- **Imágenes en el disco del servidor (ADR-0024):** hay que incluirlas en los respaldos, y la imagen de Docker necesita un volumen para ellas.
-- **Cache del catálogo público (ADR-0028):** se invalida por eventos de Catalog. Nunca se usa para stock ni precios al colocar una orden. Cada espacio guarda hasta 1 000 valores, así que muchas combinaciones de filtros no pueden llenar la memoria (ADR-0129).
-- **Riesgos heredados del Sprint 2:** ver su review en el historial.
-
-## Sprint Review
-
-PENDIENTE.
-
----
-
-## Historial
+La propuesta del Sprint 4 se aprobó el 2026-10-01; ver "Sprint actual".
 
 ### Sprint 2 — Identity & Access (2026-09-28 a 2026-09-29)
 
