@@ -17,7 +17,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot que haya; `npm run secrets:scan` para correr gitleaks en local antes de commitear |
 | 1 | T-150 (categorías y marcas), T-141 (almacenamiento de imágenes) y T-196 (costo de envío y envío gratis) |
 | 2 | T-140 parte a (productos y variantes) y parte b (imágenes) |
-| 3 | T-145 parte a (precios) y parte b (carga masiva), y T-160 (almacenes, stock y reservas) |
+| 3 | T-145 parte a (precios) y parte b (carga masiva), y T-160 parte a (almacén y stock) y parte b (reservas) |
 | 4 | T-140 parte c (consulta pública, marcas públicas, `storeVisibility` y cache) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.

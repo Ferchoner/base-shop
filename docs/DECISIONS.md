@@ -144,6 +144,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0124 | Imágenes de producto: galería, límite y subidas simultáneas | Aceptada |
 | ADR-0125 | Precios: lista predeterminada, línea de periodos y fachadas | Aceptada |
 | ADR-0126 | Carga masiva de precios: formato, todo o nada y proceso en bloque | Aceptada |
+| ADR-0127 | Inventario: almacén, entradas, ajustes y listado sin copiar datos de Catalog | Aceptada |
 
 ---
 
@@ -719,7 +720,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un listado que crezca mucho (por ejemplo, auditoría o movimientos de stock) puede usar paginación por cursor sin afectar a los demás.
   - Algunos recursos tienen vista pública y vista administrativa con respuestas distintas.
   - El envoltorio `data` / `meta` permite agregar información a los listados sin romper clientes de `v1`.
-- **Estado:** Aceptada. Implementada en ADR-0111.
+- **Estado:** Aceptada. Implementada en ADR-0111; la paginación por cursor, en ADR-0127.
 
 ---
 
@@ -1207,7 +1208,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La extensión `unaccent` y los índices de búsqueda se crean en una migración con SQL.
   - Si el catálogo crece o la consulta se vuelve lenta, se puede migrar a una proyección de lectura sin cambiar el contrato de la API.
   - El filtro "solo disponibles" usa la disponibilidad de ADR-0061.
-- **Estado:** Aceptada. ADR-0123 fija el `search_vector` (pesos y configuración) y deja la consulta pública para T-140 parte c, después de T-145 y T-160.
+- **Estado:** Aceptada. ADR-0123 fija el `search_vector` (pesos y configuración) y deja la consulta pública para T-140 parte c, después de T-145 y T-160. El listado administrativo de stock no extiende esta excepción: completa cada página con la fachada de Catalog (ADR-0127).
 
 ---
 
@@ -1685,7 +1686,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Mantener la creación de almacenes con un indicador de predeterminado; permitir almacenes inactivos adicionales sin uso.
 - **Consecuencias:** Modifica los contratos aprobados (ADR-0071) en dos endpoints y el modelo de datos (ADR-0066) en un índice; aún no hay implementación ni migraciones.
 - **Revisar si:** se decide operar más de un almacén.
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). El almacén lo crea una migración en T-160 (ADR-0127).
 
 ---
 
@@ -3290,3 +3291,56 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Si hacen falta más de 5,000 filas o de 1 MB, habrá que procesar la carga en segundo plano.
   - T-145 queda completa.
 - **Estado:** Aceptada (plan de T-145 parte b aprobado el 2026-09-30).
+
+---
+
+## ADR-0127 — Inventario: almacén, entradas, ajustes y listado sin copiar datos de Catalog
+
+- **Fecha:** 2026-09-30
+- **Contexto:** T-160 (UC-INV-01 a 07). Las tablas de Inventory existen desde T-110, pero faltaban el almacén inicial (ADR-0081), el módulo y la paginación por cursor que el contrato pide para los movimientos (`API_SPEC.md` §5.2). Además quedaban abiertos varios puntos:
+  - El listado de stock filtra por SKU o título y ordena por SKU, pero esos datos son de Catalog.
+  - La dirección del almacén usa el formato de ADR-0057, igual que las de los clientes.
+  - El contrato no fijaba el tope de un ajuste ni la forma del 409 que responde.
+- **Decisión:**
+  - **División de T-160:**
+    - **a:** el stock para el staff: almacén, entradas, ajustes, listado y movimientos (esta decisión).
+    - **b:** las reservas para el checkout (UC-INV-05 a 07), con sus pruebas de concurrencia, y la fachada de disponibilidad para el carrito. Sus preguntas se deciden al empezarla.
+  - **Almacén inicial:** lo crea la migración `20260930200000_inventory_main_warehouse`, solo si no existe ninguno: "Almacén principal", código `PRINCIPAL`, sin dirección y activo.
+  - **Edición del almacén:**
+    - `PATCH` cambia solo lo que se envía: el nombre (1 a 100 caracteres) y la dirección. `address: null` la quita.
+    - La dirección se valida contra el catálogo del INEGI con la fachada de Geo, mediante el puerto `WarehouseLocations` de Inventory, y guarda los nombres del estado y del municipio (ADR-0057).
+    - No hay `version` (§4): gana el último cambio.
+    - Se audita como `warehouses.update`. La dirección queda solo como "cambió", porque contiene datos personales.
+  - **DTO de dirección compartido:** `AddressInputDto` y `PostalAddressDto` pasan a `src/platform/http/address.dto.ts`. Identity los extiende sin cambiar su contrato.
+  - **Entradas y ajustes:**
+    - La variante debe existir en Catalog, en cualquier estado, y el almacén debe ser el activo; si no, 404.
+    - Una entrada lleva de 1 a 100,000 unidades. Un ajuste lleva de ±1 a ±100,000, el mismo tope (ADR-0071).
+    - El motivo y su dirección siguen ADR-0069, y con `OTHER` la nota es obligatoria. Las notas se guardan sin espacios alrededor, y una vacía se guarda como `null`.
+    - Cada cambio es un `UPDATE` condicional atómico, sin `version` (`DATABASE.md` §12). Un ajuste solo se aplica si `onHand` queda en `reserved` o más; si no, responde 409 `insufficient-stock` con `lines: [{ variantId, canFulfill: false }]` y no escribe nada, ni siquiera el stock item.
+    - El primer cambio de una variante crea su stock item con `INSERT … ON CONFLICT DO NOTHING`, así que dos primeros cambios a la vez lo crean una sola vez.
+    - Cada cambio escribe su movimiento, con `onHandAfter` y el staff, en la misma transacción.
+    - Se auditan como `inventory.receipt` e `inventory.adjustment`.
+  - **Listado de stock sin copiar datos de Catalog:**
+    - Inventory solo lee sus tablas. El SKU y el título salen de `CatalogFacade.variants` en cada página.
+    - `sku` (exacto) y `q` (parte del SKU o del título) los resuelve Catalog, con `variantsBySku` y la nueva `searchVariants`, en IDs de variantes. Inventory filtra por esos IDs, así que los totales son correctos.
+    - El orden por `sku` (el predeterminado) lee todos los stock items del filtro, los ordena en memoria en el orden de SKU de Catalog y toma la página. Los órdenes por `available` y `updatedAt` se resuelven en la base. Los empates se desempatan por ID.
+    - No se extiende la excepción de ADR-0060.
+    - El listado muestra los stock items, es decir, las variantes que ya tuvieron una entrada o un ajuste.
+  - **Movimientos:**
+    - Se paginan por cursor (§5.2): un cursor opaco con la hora de creación y el ID, del más reciente al más antiguo.
+    - Filtros: `type`, uno o más; y `from` y `to`, donde una fecha sola en `to` incluye todo el día, como en el listado de clientes.
+    - Un cursor que no es de este listado responde 400 en `cursor`.
+    - El helper (`src/platform/http/pagination/cursor.ts`) servirá también para la auditoría (T-220).
+  - **Dirección entre módulos:**
+    - Inventory usa a Catalog y a Geo, y ninguno de ellos usa a Inventory.
+    - T-161 (reintegros) necesita las líneas de la orden, que son de Ordering, mientras que Ordering usará a Inventory para reservar (T-180). Cómo evitar el ciclo Inventory ↔ Ordering queda PENDIENTE DE DECISIÓN para T-161; por ejemplo, que Ordering le pase a Inventory las cantidades vendidas.
+- **Alternativas consideradas:**
+  - **Extender la excepción de ADR-0060** con un `JOIN` de solo lectura sobre las tablas de Catalog.
+  - **Copiar SKU y título en `stock_items`:** la copia podría desincronizarse.
+  - **Quitar el orden por SKU del contrato:** es más simple y escala mejor, pero cambia un contrato aprobado (ADR-0071).
+  - **Un DTO de dirección propio en Inventory:** duplicaría las validaciones.
+- **Consecuencias:**
+  - El orden por SKU cuesta más cuantos más stock items tenga el filtro. Con miles no se nota; con cientos de miles habrá que pasar a una proyección de lectura, la misma salida que prevé ADR-0060.
+  - Cada página hace una consulta más a Catalog, en lote.
+  - Dos cambios de un mismo stock item se esperan en su fila.
+- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión).

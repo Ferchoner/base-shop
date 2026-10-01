@@ -334,6 +334,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** índice único parcial `(status) WHERE status = 'ACTIVE'`: a lo sumo un almacén activo (ADR-0091). En el MVP existe exactamente uno, creado por el seed; la API no crea ni desactiva almacenes (ADR-0081).
+- **Almacén inicial:** la migración `20260930200000_inventory_main_warehouse` (T-160, ADR-0127) inserta "Almacén principal" (`PRINCIPAL`, sin dirección, activo) solo si no existe ningún almacén. `address` guarda los campos de ADR-0057 con los nombres del estado y del municipio.
 
 ### 6.2 `stock_items` (inventory)
 
@@ -348,7 +349,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01).
 - **Índices:** el único cubre la búsqueda por variante.
-- **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 12).
+- **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 12). La fila se crea en el primer cambio de la variante con `INSERT … ON CONFLICT DO NOTHING` (ADR-0127).
 
 ### 6.3 `stock_movements` (inventory_movements)
 
