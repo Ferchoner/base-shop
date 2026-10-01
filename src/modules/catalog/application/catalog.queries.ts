@@ -158,4 +158,10 @@ export abstract class CatalogQueries {
   abstract findVariantsBySku(
     skus: readonly string[],
   ): Promise<VariantSnapshot[]>;
+
+  /**
+   * The variants whose SKU or product title contains `text`, whatever its case, ordered by SKU (the same
+   * search as the product listing's `q`).
+   */
+  abstract searchVariants(text: string): Promise<VariantSnapshot[]>;
 }

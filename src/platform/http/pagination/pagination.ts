@@ -68,6 +68,15 @@ export function CommaSeparated(): PropertyDecorator {
   );
 }
 
+/** A date alone as the end of a range covers the whole day (API_SPEC.md §5.3, ADR-0112). */
+export function rangeEnd(value: string | undefined): Date | undefined {
+  if (value === undefined) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T23:59:59.999Z`);
+  }
+  return new Date(value);
+}
+
 /** A listing response (ADR-0036): `data` with this page's results and `meta` with the counts. */
 export interface PageResponse<T> {
   readonly data: T[];
