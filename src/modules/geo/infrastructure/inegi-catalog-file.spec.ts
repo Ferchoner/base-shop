@@ -1,5 +1,4 @@
 import {
-  parseCsv,
   parseInegiCatalog,
   UnreadableCatalogFileError,
 } from './inegi-catalog-file.js';
@@ -62,28 +61,15 @@ describe('parseInegiCatalog (UC-IAM-21)', () => {
     );
   });
 
+  it('rejects a file that ends inside a quoted field', () => {
+    expect(() =>
+      parseInegiCatalog(encode('CVE_ENT,NOM_ENT,CVE_MUN,NOM_MUN\n"09,M')),
+    ).toThrow(
+      new UnreadableCatalogFileError('The file ends inside a quoted field.'),
+    );
+  });
+
   it('rejects an empty file', () => {
     expect(() => parseInegiCatalog(encode(''))).toThrow('The file is empty.');
-  });
-});
-
-describe('parseCsv (RFC 4180)', () => {
-  it('keeps commas, doubled quotes and line breaks inside quoted fields', () => {
-    expect(parseCsv('a,"b, c","say ""hi""","x\ny"\n1,2,3,4')).toEqual([
-      ['a', 'b, c', 'say "hi"', 'x\ny'],
-      ['1', '2', '3', '4'],
-    ]);
-  });
-
-  it('accepts LF and CRLF, empty fields and a last line without a line end', () => {
-    expect(parseCsv('a,,c\r\n\r\nd,e,\nf,g,h')).toEqual([
-      ['a', '', 'c'],
-      ['d', 'e', ''],
-      ['f', 'g', 'h'],
-    ]);
-  });
-
-  it('rejects a file that ends inside a quoted field', () => {
-    expect(() => parseCsv('a,"b\n')).toThrow(UnreadableCatalogFileError);
   });
 });

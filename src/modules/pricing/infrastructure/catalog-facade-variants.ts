@@ -16,4 +16,11 @@ export class CatalogFacadeVariants extends CatalogVariants {
   async exists(variantId: VariantId): Promise<boolean> {
     return (await this.catalog.variants([variantId])).length > 0;
   }
+
+  async findBySkus(
+    skus: readonly string[],
+  ): Promise<ReadonlyMap<string, VariantId>> {
+    const variants = await this.catalog.variantsBySku(skus);
+    return new Map(variants.map(({ sku, id }) => [sku, id]));
+  }
 }

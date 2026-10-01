@@ -300,12 +300,12 @@ describe('Prices (T-145 part a)', () => {
       // Another period appears after the prices were read, as if a change had skipped the lock.
       jest
         .spyOn(repository, 'lock')
-        .mockImplementationOnce(async (listId, id) => {
-          const locked = await lock(listId, id);
+        .mockImplementationOnce(async (listId, ids) => {
+          const locked = await lock(listId, ids);
           await txHost.tx.pricePeriod.create({
             data: {
               id: newId(),
-              variantPriceId: locked.id,
+              variantPriceId: locked[0].id,
               amount: 39_900,
               effectiveFrom: later(5),
               effectiveTo: later(6),

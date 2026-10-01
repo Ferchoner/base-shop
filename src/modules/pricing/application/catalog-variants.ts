@@ -9,4 +9,12 @@ import type { VariantId } from '../domain/variant-price.js';
 export abstract class CatalogVariants {
   /** Whether the variant exists, in any status: the store already hides one that cannot be sold. */
   abstract exists(variantId: VariantId): Promise<boolean>;
+
+  /**
+   * The variants with these SKUs, in any status, by SKU in uppercase (BR-PRD-09). A SKU that does not exist is
+   * left out (ADR-0126).
+   */
+  abstract findBySkus(
+    skus: readonly string[],
+  ): Promise<ReadonlyMap<string, VariantId>>;
 }

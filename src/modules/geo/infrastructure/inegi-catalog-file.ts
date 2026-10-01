@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { MalformedCsvError, parseCsv } from '../../../platform/files/csv.js';
 import type { GeoCatalogRow } from '../domain/geo-catalog.js';
 
 /** Columns of the INEGI municipal catalog (AGEEML, "Catálogo de Municipios Nacional") that the import reads. */
@@ -27,7 +28,7 @@ export function parseInegiCatalog(content: Uint8Array): GeoCatalogRow[] {
       'The file is not UTF-8. Use the CSV whose name ends in _utf8.csv.',
     );
   }
-  const [header, ...records] = parseCsv(text.replace(/^﻿/, ''));
+  const [header, ...records] = readRecords(text.replace(/^﻿/, ''));
   if (header === undefined) {
     throw new UnreadableCatalogFileError('The file is empty.');
   }
@@ -48,56 +49,13 @@ export function parseInegiCatalog(content: Uint8Array): GeoCatalogRow[] {
   }));
 }
 
-/**
- * RFC 4180 CSV: comma-separated fields, optionally in double quotes, where a quoted field may hold commas,
- * line breaks and doubled quotes. Accepts LF and CRLF line ends and skips empty lines.
- */
-export function parseCsv(text: string): string[][] {
-  const records: string[][] = [];
-  let record: string[] = [];
-  let field = '';
-  let quoted = false;
-  let i = 0;
-  const endRecord = () => {
-    record.push(field);
-    if (record.length > 1 || record[0] !== '') records.push(record);
-    record = [];
-    field = '';
-  };
-  while (i < text.length) {
-    const char = text[i];
-    if (quoted) {
-      if (char === '"' && text[i + 1] === '"') {
-        field += '"';
-        i += 2;
-        continue;
-      }
-      if (char === '"') {
-        quoted = false;
-      } else {
-        field += char;
-      }
-      i += 1;
-      continue;
+function readRecords(text: string): string[][] {
+  try {
+    return parseCsv(text).map(({ fields }) => fields);
+  } catch (error) {
+    if (error instanceof MalformedCsvError) {
+      throw new UnreadableCatalogFileError(error.message);
     }
-    if (char === '"') {
-      quoted = true;
-    } else if (char === ',') {
-      record.push(field);
-      field = '';
-    } else if (char === '\n' || char === '\r') {
-      endRecord();
-      if (char === '\r' && text[i + 1] === '\n') i += 1;
-    } else {
-      field += char;
-    }
-    i += 1;
+    throw error;
   }
-  if (quoted) {
-    throw new UnreadableCatalogFileError(
-      'The file ends inside a quoted field.',
-    );
-  }
-  if (field !== '' || record.length > 0) endRecord();
-  return records;
 }

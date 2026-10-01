@@ -106,6 +106,14 @@ export interface PricePeriodChanges {
 const sameMoney = (a: Money | null, b: Money | null) =>
   a === null || b === null ? a === b : a.equals(b);
 
+/** The same price and compare-at price. */
+const samePrice = (
+  period: PricePeriod,
+  price: Pick<NewPrice, 'amount' | 'compareAtAmount'>,
+) =>
+  period.amount.equals(price.amount) &&
+  sameMoney(period.compareAtAmount, price.compareAtAmount);
+
 /**
  * The prices of a variant in a list (DATABASE.md §5.2, ADR-0125). Its periods form one line without gaps
  * from the first one: each ends where the next begins, and the last one has no end.
@@ -154,10 +162,11 @@ export class VariantPrice {
 
   /**
    * Sets a price from now on (UC-PRC-02), or schedules it (UC-PRC-03). A price from now on equal to the
-   * current one opens no period and answers the current one.
+   * current one, or a scheduled price equal to the one scheduled at the same instant, opens no period and
+   * answers the existing one (ADR-0126).
    *
    * @throws CompareAtAmountError when the compare-at price is not above the price.
-   * @throws PricePeriodConflictError when another period begins at the same instant.
+   * @throws PricePeriodConflictError when another period, with another price, begins at the same instant.
    */
   set(
     price: NewPrice,
@@ -173,15 +182,17 @@ export class VariantPrice {
     const start =
       scheduled && price.effectiveFrom !== null ? price.effectiveFrom : now;
     const current = this.at(now);
-    if (
-      !scheduled &&
-      current !== null &&
-      current.amount.equals(price.amount) &&
-      sameMoney(current.compareAtAmount, price.compareAtAmount)
-    ) {
+    if (!scheduled && current !== null && samePrice(current, price)) {
       return { period: current, change: 'unchanged' };
     }
-    if (this.list.some((period) => sameInstant(period.effectiveFrom, start))) {
+    const sameStart = this.list.find((period) =>
+      sameInstant(period.effectiveFrom, start),
+    );
+    if (sameStart !== undefined) {
+      // The same scheduled price again, as when a bulk import is repeated, changes nothing (ADR-0126).
+      if (samePrice(sameStart, price)) {
+        return { period: sameStart, change: 'unchanged' };
+      }
       throw new PricePeriodConflictError('overlap');
     }
     const next = this.list.find((period) => period.effectiveFrom > start);

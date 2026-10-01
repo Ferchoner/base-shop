@@ -6,8 +6,9 @@ export type { VariantSnapshot } from './catalog.queries.js';
 
 /**
  * Public API of Catalog for the other contexts (ADR-0005): snapshots of variants, read on every call. Pricing
- * checks with it that a variant exists before pricing it (T-145, ADR-0125); Inventory, Shopping and Ordering
- * will take the SKU, the options and the product from it.
+ * checks with it that a variant exists before pricing it and finds variants by SKU for the bulk import
+ * (T-145, ADR-0125, ADR-0126); Inventory, Shopping and Ordering will take the SKU, the options and the
+ * product from it.
  */
 @Injectable()
 export class CatalogFacade {
@@ -22,5 +23,16 @@ export class CatalogFacade {
     return unique.length === 0
       ? Promise.resolve([])
       : this.queries.findVariants(unique);
+  }
+
+  /**
+   * The variants with these SKUs, whatever their case (SKUs are stored in uppercase, BR-PRD-09), in any status
+   * and ordered by SKU. A SKU that does not exist is left out. The bulk import of prices uses it (ADR-0126).
+   */
+  variantsBySku(skus: readonly string[]): Promise<VariantSnapshot[]> {
+    const unique = [...new Set(skus.map((sku) => sku.toUpperCase()))];
+    return unique.length === 0
+      ? Promise.resolve([])
+      : this.queries.findVariantsBySku(unique);
   }
 }

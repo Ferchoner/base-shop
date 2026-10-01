@@ -5,13 +5,18 @@ import type { PrismaTransactionAdapter } from '../../../platform/persistence/tra
 import { Money, newId, toId } from '../../../shared-kernel/index.js';
 import type { PriceListId } from '../domain/price-list.js';
 import {
+  type PricePeriod,
   PricePeriodConflictError,
   type VariantId,
   VariantPrice,
 } from '../domain/variant-price.js';
 import { VariantPriceRepository } from '../domain/variant-price.repository.js';
 
-/** `variant_prices` and `price_periods` (DATABASE.md §5.2 and §5.3), always through the active transaction. */
+/**
+ * `variant_prices` and `price_periods` (DATABASE.md §5.2 and §5.3), always through the active transaction.
+ * Every statement takes its rows as arrays, so a bulk import of thousands of rows runs the same few
+ * statements as a single price (ADR-0126).
+ */
 @Injectable()
 export class PrismaVariantPriceRepository extends VariantPriceRepository {
   constructor(
@@ -22,36 +27,70 @@ export class PrismaVariantPriceRepository extends VariantPriceRepository {
 
   async lock(
     priceListId: PriceListId,
-    variantId: VariantId,
-  ): Promise<VariantPrice> {
-    const id =
-      (await this.lockedRow(priceListId, variantId)) ??
-      (await this.createRow(priceListId, variantId));
-    const periods = await this.txHost.tx.pricePeriod.findMany({
-      where: { variantPriceId: id },
+    variantIds: readonly VariantId[],
+  ): Promise<VariantPrice[]> {
+    const ids = [...new Set(variantIds)].sort();
+    if (ids.length === 0) return [];
+    const tx = this.txHost.tx;
+    const now = new Date();
+    // A first price creates the row. Two first prices at the same time both try to insert it; the second
+    // waits for the first one's commit and inserts nothing. In variant order, like the lock below.
+    await tx.$executeRaw`
+      INSERT INTO variant_prices (id, price_list_id, variant_id, created_at, updated_at)
+      SELECT row.id, ${priceListId}::uuid, row.variant_id, ${now}, ${now}
+        FROM unnest(${ids.map(() => newId<'VariantPrice'>())}::uuid[], ${ids}::uuid[])
+             AS row(id, variant_id)
+       ORDER BY row.variant_id
+      ON CONFLICT (price_list_id, variant_id) DO NOTHING`;
+    const rows = await tx.$queryRaw<{ id: string; variant_id: string }[]>`
+      SELECT id, variant_id FROM variant_prices
+       WHERE price_list_id = ${priceListId}::uuid AND variant_id = ANY(${ids}::uuid[])
+       ORDER BY variant_id
+         FOR UPDATE`;
+    const periods = await tx.pricePeriod.findMany({
+      where: { variantPriceId: { in: rows.map(({ id }) => id) } },
     });
-    return VariantPrice.of({
-      id: toId<'VariantPrice'>(id),
-      priceListId,
-      variantId,
-      periods: periods.map((row) => ({
-        id: toId<'PricePeriod'>(row.id),
-        amount: Money.of(row.amount, 'MXN'),
-        compareAtAmount:
-          row.compareAtAmount === null
-            ? null
-            : Money.of(row.compareAtAmount, 'MXN'),
-        effectiveFrom: row.effectiveFrom,
-        effectiveTo: row.effectiveTo,
-        createdBy: row.createdBy,
-        createdAt: row.createdAt,
-      })),
-    });
+    const byRow = new Map<string, typeof periods>();
+    for (const period of periods) {
+      const group = byRow.get(period.variantPriceId);
+      if (group === undefined) byRow.set(period.variantPriceId, [period]);
+      else group.push(period);
+    }
+    return rows.map((row) =>
+      VariantPrice.of({
+        id: toId<'VariantPrice'>(row.id),
+        priceListId,
+        variantId: toId<'Variant'>(row.variant_id),
+        periods: (byRow.get(row.id) ?? []).map((period) => ({
+          id: toId<'PricePeriod'>(period.id),
+          amount: Money.of(period.amount, 'MXN'),
+          compareAtAmount:
+            period.compareAtAmount === null
+              ? null
+              : Money.of(period.compareAtAmount, 'MXN'),
+          effectiveFrom: period.effectiveFrom,
+          effectiveTo: period.effectiveTo,
+          createdBy: period.createdBy,
+          createdAt: period.createdAt,
+        })),
+      }),
+    );
   }
 
-  async save(prices: VariantPrice): Promise<void> {
-    const { removed, ended, added } = prices.changes();
-    if (removed.length + ended.length + added.length === 0) return;
+  async save(prices: readonly VariantPrice[]): Promise<void> {
+    const changed = prices
+      .map((each) => ({ prices: each, changes: each.changes() }))
+      .filter(
+        ({ changes }) =>
+          changes.removed.length + changes.ended.length + changes.added.length >
+          0,
+      );
+    if (changed.length === 0) return;
+    const removed = changed.flatMap(({ changes }) => changes.removed);
+    const ended = changed.flatMap(({ changes }) => changes.ended);
+    const added = changed.flatMap(({ prices: each, changes }) =>
+      changes.added.map((period) => ({ variantPriceId: each.id, period })),
+    );
     const tx = this.txHost.tx;
     try {
       if (removed.length > 0) {
@@ -59,17 +98,12 @@ export class PrismaVariantPriceRepository extends VariantPriceRepository {
           where: { id: { in: [...removed] } },
         });
       }
-      for (const period of ended) {
-        await tx.pricePeriod.update({
-          where: { id: period.id },
-          data: { effectiveTo: period.effectiveTo },
-        });
-      }
+      if (ended.length > 0) await this.end(ended);
       if (added.length > 0) {
         await tx.pricePeriod.createMany({
-          data: added.map((period) => ({
+          data: added.map(({ variantPriceId, period }) => ({
             id: period.id,
-            variantPriceId: prices.id,
+            variantPriceId,
             amount: period.amount.amount,
             compareAtAmount: period.compareAtAmount?.amount ?? null,
             effectiveFrom: period.effectiveFrom,
@@ -87,40 +121,22 @@ export class PrismaVariantPriceRepository extends VariantPriceRepository {
       throw error;
     }
     // The time comes from the application, as for every `@updatedAt` of Prisma (DEVELOPMENT_GUIDE.md).
-    await tx.variantPrice.update({
-      where: { id: prices.id },
+    await tx.variantPrice.updateMany({
+      where: { id: { in: changed.map(({ prices: each }) => each.id) } },
       data: { version: { increment: 1 }, updatedAt: new Date() },
     });
-    prices.markSaved();
+    for (const { prices: each } of changed) each.markSaved();
   }
 
-  private async lockedRow(
-    priceListId: PriceListId,
-    variantId: VariantId,
-  ): Promise<string | undefined> {
-    const rows = await this.txHost.tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM variant_prices
-       WHERE price_list_id = ${priceListId}::uuid AND variant_id = ${variantId}::uuid
-         FOR UPDATE`;
-    return rows[0]?.id;
-  }
-
-  /**
-   * The first price of the variant in the list. Two first prices at the same time both try to insert; the
-   * second waits for the first one's commit, inserts nothing and then locks the row the first one created.
-   */
-  private async createRow(
-    priceListId: PriceListId,
-    variantId: VariantId,
-  ): Promise<string> {
-    const now = new Date();
+  /** The new ends of several periods in one statement. */
+  private async end(periods: readonly PricePeriod[]): Promise<void> {
     await this.txHost.tx.$executeRaw`
-      INSERT INTO variant_prices (id, price_list_id, variant_id, created_at, updated_at)
-      VALUES (${newId<'VariantPrice'>()}::uuid, ${priceListId}::uuid, ${variantId}::uuid, ${now}, ${now})
-      ON CONFLICT (price_list_id, variant_id) DO NOTHING`;
-    const id = await this.lockedRow(priceListId, variantId);
-    if (id === undefined)
-      throw new Error('The variant price row was not created');
-    return id;
+      UPDATE price_periods
+         SET effective_to = ended.effective_to
+        FROM unnest(
+               ${periods.map(({ id }) => id)}::uuid[],
+               ${periods.map(({ effectiveTo }) => effectiveTo?.toISOString() ?? null)}::timestamptz[]
+             ) AS ended(id, effective_to)
+       WHERE price_periods.id = ended.id`;
   }
 }
