@@ -80,6 +80,12 @@ export abstract class InventoryQueries {
 
   abstract findStock(id: StockItemId): Promise<StockLevel | null>;
 
+  /** Units available (`onHand - reserved`) of each variant with a stock item in the warehouse. */
+  abstract availableUnits(
+    warehouseId: WarehouseId,
+    variantIds: readonly VariantId[],
+  ): Promise<ReadonlyMap<VariantId, number>>;
+
   /**
    * Up to `limit` movements of a stock item, newest first (by `createdAt`, then ID), after `position` when
    * given.

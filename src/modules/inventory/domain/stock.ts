@@ -116,16 +116,17 @@ export class AdjustmentNoteRequiredError extends StockFieldError {
 }
 
 /**
- * The change would leave `onHand` below `reserved` or zero (BR-INV-01). Answered 409 `insufficient-stock`
- * with the variant in `lines`, as API_SPEC.md §6.2 describes the type.
+ * An adjustment would leave `onHand` below `reserved` or zero (BR-INV-01), or a reservation cannot take some
+ * of its lines (BR-INV-02). Answered 409 `insufficient-stock` with the variants that cannot be fulfilled in
+ * `lines`, as API_SPEC.md §6.2 describes the type.
  */
 export class InsufficientStockError extends DomainError {
   readonly code = 'insufficient-stock';
   readonly category = 'conflict';
 
-  constructor(variantId: VariantId) {
+  constructor(variantIds: readonly VariantId[]) {
     super('There is not enough stock for the change', {
-      lines: [{ variantId, canFulfill: false }],
+      lines: variantIds.map((variantId) => ({ variantId, canFulfill: false })),
     });
   }
 }

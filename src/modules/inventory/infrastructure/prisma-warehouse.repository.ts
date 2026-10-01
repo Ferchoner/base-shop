@@ -20,16 +20,15 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
   }
 
   async find(id: WarehouseId): Promise<Warehouse | null> {
-    const row = await this.txHost.tx.warehouse.findUnique({ where: { id } });
-    return row === null
-      ? null
-      : Warehouse.restore({
-          id: toId<'Warehouse'>(row.id),
-          code: row.code,
-          name: row.name,
-          address: row.address as WarehouseAddress | null,
-          status: row.status,
-        });
+    return toWarehouse(
+      await this.txHost.tx.warehouse.findUnique({ where: { id } }),
+    );
+  }
+
+  async findActive(): Promise<Warehouse | null> {
+    return toWarehouse(
+      await this.txHost.tx.warehouse.findFirst({ where: { status: 'ACTIVE' } }),
+    );
   }
 
   async save(warehouse: Warehouse): Promise<void> {
@@ -48,4 +47,24 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
       },
     });
   }
+}
+
+function toWarehouse(
+  row: {
+    id: string;
+    code: string;
+    name: string;
+    address: unknown;
+    status: 'ACTIVE' | 'INACTIVE';
+  } | null,
+): Warehouse | null {
+  return row === null
+    ? null
+    : Warehouse.restore({
+        id: toId<'Warehouse'>(row.id),
+        code: row.code,
+        name: row.name,
+        address: (row.address ?? null) as WarehouseAddress | null,
+        status: row.status,
+      });
 }

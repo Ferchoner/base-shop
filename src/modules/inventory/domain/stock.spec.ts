@@ -87,7 +87,7 @@ describe('Stock rules (UC-INV-02, UC-INV-03, ADR-0069)', () => {
   it('answers a lack of stock as insufficient-stock with the variant', () => {
     const variantId = newId<'Variant'>();
 
-    expect(new InsufficientStockError(variantId)).toMatchObject({
+    expect(new InsufficientStockError([variantId])).toMatchObject({
       code: 'insufficient-stock',
       category: 'conflict',
       details: { lines: [{ variantId, canFulfill: false }] },

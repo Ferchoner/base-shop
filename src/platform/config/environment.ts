@@ -98,6 +98,14 @@ export class EnvironmentVariables {
   @Max(10_000)
   VAT_RATE_BP: number = 1_600;
 
+  /**
+   * How long a reservation of stock holds it while the order waits for its payment, from 5 minutes to 2 hours
+   * (BR-INV-07, ADR-0011, ADR-0128). The expiration job of T-230 frees it within the next minute.
+   */
+  @Expose()
+  @IsDurationWithin(300, 7_200, 'from 5m to 2h')
+  RESERVATION_TTL: string = '20m';
+
   /** Addresses a customer can keep (BR-ADR-04, ADR-0057, ADR-0113). */
   @Expose()
   @Type(() => Number)

@@ -122,6 +122,10 @@ class FixedStock extends InventoryQueries {
     return Promise.resolve(this.filtered(filter));
   }
 
+  availableUnits(): Promise<ReadonlyMap<VariantId, number>> {
+    return Promise.reject(new Error('not used'));
+  }
+
   findStock(id: string): Promise<StockLevel | null> {
     return Promise.resolve(this.items.find((item) => item.id === id) ?? null);
   }
