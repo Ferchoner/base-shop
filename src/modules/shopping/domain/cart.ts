@@ -13,7 +13,10 @@ export type CustomerId = Id<'User'>;
 /** A variant of Catalog, known here only by its ID (ADR-0005). */
 export type VariantId = Id<'Variant'>;
 
-/** ACTIVE carts change; a cart used by an order is CHECKED_OUT, and a guest cart merged into another is MERGED. */
+/**
+ * ACTIVE carts change; a cart used by an order is CHECKED_OUT, and a cart whose lines went into another one is
+ * MERGED: a guest cart merged into a customer's, or the cart of an expired order (ADR-0137).
+ */
 export type CartStatus = 'ACTIVE' | 'CHECKED_OUT' | 'MERGED';
 
 /** Units a line holds at most (BR-CRT-02). */
@@ -21,6 +24,12 @@ export const MAX_LINE_QUANTITY = 30;
 
 /** Different variants a cart holds at most (ADR-0131): every view reads each of them in three contexts. */
 export const MAX_CART_LINES = 100;
+
+/** Units of a variant that go into a cart, such as a line of an order. */
+export interface CartItem {
+  readonly variantId: VariantId;
+  readonly quantity: number;
+}
 
 /** A line of a cart: one per variant (BR-CRT-01). */
 export interface CartLine {
@@ -186,15 +195,43 @@ export class Cart {
   absorb(guest: Cart, now: Date): void {
     this.assertActive();
     guest.assertActive();
-    for (const line of guest.lines) {
-      const current = this.lineMap.get(line.variantId)?.quantity ?? 0;
-      const quantity = Math.min(current + line.quantity, MAX_LINE_QUANTITY);
-      if (quantity !== current) this.put(line.variantId, quantity, now);
-    }
+    this.addCapped(guest.lines, now);
     guest.state = 'MERGED';
     guest.mergedInto = this.id;
     guest.touch(now);
     this.touch(now);
+  }
+
+  /**
+   * The order this cart was checked out for expired, and its customer has no other active cart (UC-CRT-08,
+   * ADR-0054): the cart is ACTIVE again, with the lines it was checked out with, which never changed since.
+   *
+   * @returns false, changing nothing, unless the cart is CHECKED_OUT.
+   */
+  reactivate(now: Date): boolean {
+    if (this.state !== 'CHECKED_OUT') return false;
+    this.state = 'ACTIVE';
+    this.touch(now);
+    return true;
+  }
+
+  /**
+   * The lines of an expired order go into this active cart of its customer, up to 30 units per line without
+   * notice, as in a merge (BR-CRT-10, ADR-0054), and the cart the order came from becomes MERGED into this one.
+   * Like a merge, it may pass MAX_CART_LINES and it keeps lines that stopped being sellable (ADR-0137).
+   *
+   * @returns false, changing nothing, unless the cart of the order is CHECKED_OUT.
+   * @throws CartNotActiveError when this cart is not active.
+   */
+  absorbOrder(source: Cart, items: readonly CartItem[], now: Date): boolean {
+    this.assertActive();
+    if (source.state !== 'CHECKED_OUT') return false;
+    this.addCapped(items, now);
+    source.state = 'MERGED';
+    source.mergedInto = this.id;
+    source.touch(now);
+    this.touch(now);
+    return true;
   }
 
   /**
@@ -219,6 +256,15 @@ export class Cart {
     this.assertActive();
     this.state = 'CHECKED_OUT';
     this.touch(now);
+  }
+
+  /** Adds the items to their lines, up to 30 units each and without notice (BR-CRT-05, BR-CRT-10). */
+  private addCapped(items: readonly CartItem[], now: Date): void {
+    for (const item of items) {
+      const current = this.lineMap.get(item.variantId)?.quantity ?? 0;
+      const quantity = Math.min(current + item.quantity, MAX_LINE_QUANTITY);
+      if (quantity !== current) this.put(item.variantId, quantity, now);
+    }
   }
 
   private put(variantId: VariantId, quantity: number, now: Date): void {
