@@ -12,6 +12,7 @@ import type { AuthenticatedUser } from '../../../platform/auth/authenticated-use
 import { RequirePermissions } from '../../../platform/auth/authorization.decorators.js';
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import {
+  rangeEnd,
   toPageResponse,
   toSortOrders,
 } from '../../../platform/http/pagination/pagination.js';
@@ -31,15 +32,6 @@ import {
   ReasonDto,
 } from './identity-admin.dto.js';
 import { toAdminCustomerDto } from './identity-admin.mappers.js';
-
-/** A date alone as the end of a range covers the whole day (API_SPEC.md §5.3, ADR-0112). */
-function rangeEnd(value: string | undefined): Date | undefined {
-  if (value === undefined) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return new Date(`${value}T23:59:59.999Z`);
-  }
-  return new Date(value);
-}
 
 /**
  * Customer accounts (UC-IAM-17 and 18, API_SPEC.md §9.18). Anonymization comes with T-132 (ADR-0111).

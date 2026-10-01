@@ -201,6 +201,15 @@ export class PrismaCatalogQueries extends CatalogQueries {
     return this.variantsWhere({ sku: { in: [...skus] } });
   }
 
+  searchVariants(text: string): Promise<VariantSnapshot[]> {
+    return this.variantsWhere({
+      OR: [
+        { sku: { contains: text.toUpperCase() } },
+        { product: { title: { contains: text, mode: 'insensitive' } } },
+      ],
+    });
+  }
+
   private async variantsWhere(
     where: Prisma.ProductVariantWhereInput,
   ): Promise<VariantSnapshot[]> {

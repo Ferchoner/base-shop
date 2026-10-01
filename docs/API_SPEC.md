@@ -198,7 +198,7 @@ Solo en auditoría y movimientos de stock (ADR-0036, ADR-0037).
 
 - Parámetros: `cursor` (opaco, devuelto por la respuesta anterior) y `limit` (1 a 100, por defecto 50).
 - Respuesta: `{ "data": [], "meta": { "limit": 50, "nextCursor": "…" | null } }`.
-- Un cursor inválido → 400 `validation-error`.
+- Un cursor inválido → 400 `validation-error` en `cursor`, con código `cursor` (ADR-0127).
 
 ### 5.3 Ordenamiento y filtros
 
@@ -1073,6 +1073,27 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 - La orden debe estar cancelada o reembolsada con stock confirmado, o tener el envío en RETURNED, según el motivo. La suma por línea no supera lo vendido.
 - 201 `{ "movements": [StockMovement] }`.
 - Errores: 409 `restock-not-allowed` (con `lines`); 409 `invalid-state-transition` si la orden no admite reintegro.
+
+Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161):
+
+- **Almacén:**
+  - lo crea una migración: "Almacén principal", código `PRINCIPAL`, sin dirección;
+  - `PATCH` cambia solo lo enviado: `name` de 1 a 100 caracteres y `address` en formato `AddressInput` (§8.2), validada contra el catálogo del INEGI; `null` la quita;
+  - la respuesta lleva `Address` con los nombres del estado y del municipio;
+  - sin `version`.
+- **Listado de stock:**
+  - muestra las variantes que ya tuvieron una entrada o un ajuste;
+  - `sku` es exacto y `q` busca parte del SKU o del título, ambos sin distinguir mayúsculas;
+  - `sort` acepta `sku`, `available` y `updatedAt`, con `-` y combinados;
+  - SKU y título salen de Catalog en cada página.
+- **Movimientos:** `type` acepta uno o más tipos separados por comas. `from` y `to` aceptan fecha o fecha y hora ISO 8601, ambos incluidos; una fecha sola en `to` incluye todo el día.
+- **Entradas y ajustes:**
+  - la variante debe existir, en cualquier estado; si no, o si `warehouseId` no es el almacén activo, 404;
+  - un ajuste lleva de ±1 a ±100,000 unidades;
+  - errores en el ajuste: 400 `validation-error` con `reasonDirection` en `quantity` si el motivo solo resta y la cantidad suma, e `isNotEmpty` en `note` con `OTHER` sin nota;
+  - el 409 `insufficient-stock` lleva `lines: [{ variantId, canFulfill: false }]`;
+  - las notas se guardan sin espacios alrededor.
+- **Auditoría:** `inventory.receipt`, `inventory.adjustment` y `warehouses.update`.
 
 UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 

@@ -7,8 +7,8 @@ export type { VariantSnapshot } from './catalog.queries.js';
 /**
  * Public API of Catalog for the other contexts (ADR-0005): snapshots of variants, read on every call. Pricing
  * checks with it that a variant exists before pricing it and finds variants by SKU for the bulk import
- * (T-145, ADR-0125, ADR-0126); Inventory, Shopping and Ordering will take the SKU, the options and the
- * product from it.
+ * (T-145, ADR-0125, ADR-0126). Inventory checks variants and completes and searches its stock listing with
+ * it (T-160, ADR-0127); Shopping and Ordering will take the SKU, the options and the product from it.
  */
 @Injectable()
 export class CatalogFacade {
@@ -34,5 +34,16 @@ export class CatalogFacade {
     return unique.length === 0
       ? Promise.resolve([])
       : this.queries.findVariantsBySku(unique);
+  }
+
+  /**
+   * The variants whose SKU or product title contains `text`, whatever its case, in any status and ordered by
+   * SKU: the same search as the product listing. The stock listing of Inventory filters with it (ADR-0127).
+   */
+  searchVariants(text: string): Promise<VariantSnapshot[]> {
+    const trimmed = text.trim();
+    return trimmed === ''
+      ? Promise.resolve([])
+      : this.queries.searchVariants(trimmed);
   }
 }

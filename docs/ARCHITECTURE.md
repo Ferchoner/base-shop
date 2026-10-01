@@ -39,7 +39,7 @@ src/
 │   ├── clock/                 SystemClock, la implementación del puerto Clock (T-112)
 │   ├── config/                variables de entorno y el formato de sus valores, como las duraciones (T-100, ADR-0114)
 │   ├── files/                 lector CSV (RFC 4180) con la línea de cada registro, para la importación del catálogo geográfico y la carga masiva de precios (T-124, T-145; ADR-0109, ADR-0126)
-│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados, IDs de la URL, `MoneyDto` e imágenes servidas en `/media` (T-100, T-113, T-114, T-115, T-126, T-130, T-141, T-150, T-196)
+│   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados por página y por cursor, IDs de la URL, `MoneyDto`, los DTO de dirección e imágenes servidas en `/media` (T-100, T-113, T-114, T-115, T-126, T-130, T-141, T-150, T-160, T-196)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
 │   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
 │   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
@@ -93,8 +93,8 @@ Capacidades transversales:
 Ver ADR-0005.
 
 - Cada módulo expone una fachada pública; nunca exporta entidades, aggregates ni repositorios.
-- El consumidor define su propio puerto y un adaptador en su infraestructura. Primer caso: Identity declara `AddressLocations` y lo responde con la fachada `GeoCatalog` del módulo `geo` (ADR-0113). Pricing declara `CatalogVariants` y lo responde con `CatalogFacade` (ADR-0125).
-- Dos módulos nunca se usan mutuamente: la regla `no-circular` lo rechaza. Si Pricing usa a Catalog, Catalog no usa a Pricing (ADR-0125).
+- El consumidor define su propio puerto y un adaptador en su infraestructura. Primer caso: Identity declara `AddressLocations` y lo responde con la fachada `GeoCatalog` del módulo `geo` (ADR-0113). Pricing e Inventory declaran su `CatalogVariants` y lo responden con `CatalogFacade` (ADR-0125, ADR-0127); Inventory también declara `WarehouseLocations` para la fachada de Geo.
+- Dos módulos nunca se usan mutuamente: la regla `no-circular` lo rechaza. Pricing e Inventory usan a Catalog, y Catalog no usa a ninguno (ADR-0125, ADR-0127). Un módulo que reacciona a eventos de otro se suscribe por el nombre del evento y declara su propio tipo, sin importar el del otro.
 - Entre contextos solo se comparten IDs, snapshots y eventos. Sin relaciones de Prisma ni llaves foráneas entre contextos.
 - Los límites se verifican automáticamente con `dependency-cruiser` (`npm run lint:boundaries`, reglas en `.dependency-cruiser.cjs`, ADR-0103): capas según la tabla de "Estructura", módulos solo por su `index.ts`, Prisma solo en `platform` e `infrastructure`, shared kernel sin frameworks, `platform` sin módulos y sin dependencias circulares. La excepción de ADR-0060 (lectura de tablas de otros contextos en el catálogo público) no se ve en los imports y se revisa en el code review.
 - Única excepción: el servicio de consultas del catálogo público lee tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060).

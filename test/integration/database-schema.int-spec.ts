@@ -63,7 +63,8 @@ describe('Database schema (T-110)', () => {
   });
 
   it('enforces CHECK constraints (stock reserved never above on hand, BR-INV-01)', async () => {
-    const warehouseId = await insertWarehouse('ACTIVE');
+    // Inactive: the migration of T-160 already created the only active one (ADR-0127).
+    const warehouseId = await insertWarehouse('INACTIVE');
 
     await expect(
       client.query(
@@ -119,7 +120,8 @@ describe('Database schema (T-110)', () => {
   });
 
   it('allows at most one active warehouse (ADR-0081)', async () => {
-    await insertWarehouse('ACTIVE');
+    // The migration of T-160 created the active one (ADR-0127); another one may only be inactive.
+    await insertWarehouse('INACTIVE');
 
     await expect(insertWarehouse('ACTIVE')).rejects.toThrow(
       /warehouses_single_active/,
