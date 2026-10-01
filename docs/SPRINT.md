@@ -20,6 +20,8 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 3 | T-145 parte a (precios) y parte b (carga masiva), y T-160 parte a (almacén y stock) y parte b (reservas) |
 | 4 | T-140 parte c (consulta pública, marcas públicas, `storeVisibility` y cache) |
 
+- **Estado:** las tareas de los pasos 0 a 4 están hechas; falta la Sprint Review.
+
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
 - **T-160:** incluye pruebas de concurrencia de las reservas (`DEVELOPMENT_GUIDE.md`, sección de tests).
 - **Pospuesto:** T-220 (consulta de auditoría) y reducir la imagen de producción.
@@ -52,10 +54,10 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 ## Risks
 
-- **Ruta crítica:** T-140a → T-145 y T-160 → T-140c. Un retraso en cualquiera retrasa la tienda, que llega completa en T-140c (ADR-0123).
-- **Consulta pública del catálogo (ADR-0060):** lee en una sola consulta tablas de Catalog, Pricing e Inventory y oculta los productos sin precio vigente (BR-PRD-06). Resuelto en ADR-0123: T-140 se divide en tres partes, y la consulta pública (parte c) llega después de T-145 y T-160.
+- **Ruta crítica:** T-140a → T-145 y T-160 → T-140c. Un retraso en cualquiera retrasa la tienda, que llega completa en T-140c (ADR-0123). Completada: la tienda llegó con T-140c (ADR-0129).
+- **Consulta pública del catálogo (ADR-0060):** lee en una sola consulta tablas de Catalog, Pricing e Inventory y oculta los productos sin precio vigente (BR-PRD-06). Resuelto en ADR-0123: T-140 se divide en tres partes, y la consulta pública (parte c) llega después de T-145 y T-160. Implementada en ADR-0129, con un test que verifica que solo su servicio lea tablas de otros contextos.
 - **Imágenes en el disco del servidor (ADR-0024):** hay que incluirlas en los respaldos, y la imagen de Docker necesita un volumen para ellas.
-- **Cache del catálogo público (ADR-0028):** se invalida por eventos de Catalog. Nunca se usa para stock ni precios al colocar una orden.
+- **Cache del catálogo público (ADR-0028):** se invalida por eventos de Catalog. Nunca se usa para stock ni precios al colocar una orden. Cada espacio guarda hasta 1 000 valores, así que muchas combinaciones de filtros no pueden llenar la memoria (ADR-0129).
 - **Riesgos heredados del Sprint 2:** ver su review en el historial.
 
 ## Sprint Review

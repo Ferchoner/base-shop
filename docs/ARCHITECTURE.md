@@ -96,8 +96,8 @@ Ver ADR-0005.
 - El consumidor define su propio puerto y un adaptador en su infraestructura. Primer caso: Identity declara `AddressLocations` y lo responde con la fachada `GeoCatalog` del módulo `geo` (ADR-0113). Pricing e Inventory declaran su `CatalogVariants` y lo responden con `CatalogFacade` (ADR-0125, ADR-0127); Inventory también declara `WarehouseLocations` para la fachada de Geo.
 - Dos módulos nunca se usan mutuamente: la regla `no-circular` lo rechaza. Pricing e Inventory usan a Catalog, y Catalog no usa a ninguno (ADR-0125, ADR-0127). Un módulo que reacciona a eventos de otro se suscribe por el nombre del evento y declara su propio tipo, sin importar el del otro.
 - Entre contextos solo se comparten IDs, snapshots y eventos. Sin relaciones de Prisma ni llaves foráneas entre contextos.
-- Los límites se verifican automáticamente con `dependency-cruiser` (`npm run lint:boundaries`, reglas en `.dependency-cruiser.cjs`, ADR-0103): capas según la tabla de "Estructura", módulos solo por su `index.ts`, Prisma solo en `platform` e `infrastructure`, shared kernel sin frameworks, `platform` sin módulos y sin dependencias circulares. La excepción de ADR-0060 (lectura de tablas de otros contextos en el catálogo público) no se ve en los imports y se revisa en el code review.
-- Única excepción: el servicio de consultas del catálogo público lee tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060).
+- Los límites se verifican automáticamente con `dependency-cruiser` (`npm run lint:boundaries`, reglas en `.dependency-cruiser.cjs`, ADR-0103): capas según la tabla de "Estructura", módulos solo por su `index.ts`, Prisma solo en `platform` e `infrastructure`, shared kernel sin frameworks, `platform` sin módulos y sin dependencias circulares. La excepción de ADR-0060 (lectura de tablas de otros contextos en el catálogo público) no se ve en los imports.
+- Única excepción: el servicio de consultas del catálogo público (`PrismaStorefrontQueries`) lee tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060). `test/boundaries/table-ownership.spec.ts` verifica que ningún otro archivo de un módulo use tablas o modelos de Prisma de otro contexto (ADR-0129).
 
 ## Transacciones y concurrencia
 
@@ -132,10 +132,10 @@ Ver ADR-0005.
 - Prohibida para decisiones que requieren consistencia: stock en checkout, precios al colocar la orden, pagos, carrito, permisos y tokens.
 - Todo valor en cache tiene TTL.
 - Almacén en memoria del proceso; si se escala a varias instancias, se cambia a un almacén compartido.
-- Solo se cachean lecturas públicas del catálogo: árbol de categorías, detalle de producto y listados de la tienda sin texto de búsqueda (ADR-0060).
+- Solo se cachean lecturas públicas del catálogo: árbol de categorías, marcas, detalle de producto y listados de la tienda sin texto de búsqueda (ADR-0060, ADR-0129).
 - TTL de 120 segundos, configurable.
 - Invalidación inmediata por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`; el resto, por TTL.
-- Implementación (ADR-0104): `AppCache` separa los datos en espacios de nombres, cada uno con su almacén (`namespace('catalog').getOrLoad(clave, carga)`), y cada espacio se vacía por separado. El handler `PublicCatalogCacheInvalidation` de Catalog vacía todo el espacio `catalog` con cualquiera de los tres eventos. El TTL se configura con `CACHE_TTL_SECONDS`. Las reglas de límites de ADR-0103 ya impiden usar el cache desde Domain y Application.
+- Implementación (ADR-0104): `AppCache` separa los datos en espacios de nombres, cada uno con su almacén (`namespace('catalog').getOrLoad(clave, carga)`), y cada espacio se vacía por separado. El handler `PublicCatalogCacheInvalidation` de Catalog vacía todo el espacio `catalog` con cualquiera de los tres eventos. El TTL se configura con `CACHE_TTL_SECONDS`. Las reglas de límites de ADR-0103 ya impiden usar el cache desde Domain y Application. Cada espacio guarda hasta 1 000 valores (`MAX_ENTRIES_PER_NAMESPACE`) y, al pasar de ahí, descarta el que se usó hace más tiempo (`LruStore`, ADR-0129).
 
 ## Jobs programados
 
