@@ -19,7 +19,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 2 | T-180 (checkout y órdenes, en dos partes; P-73 resuelta en ADR-0132) |
 | 3 | T-190 (pago en tienda y reembolso total al cancelar, en dos partes, ADR-0134) |
 | 4 | T-230 (vencimiento de reservas y órdenes; la conciliación de pagos pasa a T-192) |
-| 5 | T-185 (consulta de pedido de invitado) y T-181 (restaurar y copiar el carrito) |
+| 5 | T-181 parte a (restaurar el carrito), T-185 (consulta de pedido de invitado) y T-181 parte b (copiar el carrito), en ese orden (ADR-0137) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
 - **Pospuesto al Sprint 5 o después:** T-195 (envíos), T-161 (reintegro), T-215 (notificaciones), T-192 (PayPal y conciliación), T-231 (limpieza diaria), T-132 (anonimización), T-220 (consulta de auditoría) y reducir la imagen de producción.

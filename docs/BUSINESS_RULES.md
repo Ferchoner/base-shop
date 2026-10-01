@@ -103,7 +103,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-CRT-07. El carrito de invitado se identifica con un `cartId` opaco, aleatorio y no adivinable; la API no usa cookies (ADR-0010, ADR-0059).
 - BR-CRT-08. Las cuentas de staff no tienen carrito (BR-USR-08).
 - BR-CRT-09. La fusión se dispara con un endpoint explícito después de iniciar sesión; es idempotente; si el cliente no tiene carrito activo, el de invitado pasa a su cuenta; el carrito fusionado ya no se puede modificar; solo se fusionan carritos sin dueño (ADR-0059).
-- BR-CRT-10. Al expirar una orden, sus líneas se suman al carrito activo del cliente registrado o reactivan el carrito original; tope de 30 por línea sin aviso (ADR-0054).
+- BR-CRT-10. Al expirar una orden, sus líneas se suman al carrito activo del cliente registrado o reactivan el carrito original; tope de 30 por línea sin aviso (ADR-0054). Una vez restaurado, el carrito de la orden ya no vuelve a restaurarse (ADR-0137).
 - BR-CRT-11. Las líneas de una orden Cancelled o Refunded pueden copiarse a un carrito para volver a comprarlas, con precios y disponibilidad actuales; la orden no cambia. Puede hacerlo el cliente dueño o, como apoyo, el staff con `orders.manage`, siempre hacia el carrito del cliente (ADR-0055). Si la orden es de un invitado y su carrito original ya no existe, la recompra del staff no se realiza (ADR-0082).
 - BR-CRT-12. Un carrito tiene como máximo 100 variantes distintas; una fusión puede pasar ese límite, pero el carrito no acepta variantes nuevas mientras lo pase (ADR-0131).
 
