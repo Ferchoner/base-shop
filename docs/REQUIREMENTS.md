@@ -405,6 +405,7 @@ Criterios de aceptación:
 - **UC-AUD-02:** paginación por cursor; ningún endpoint modifica ni borra registros.
 - **UC-AUD-03:** los registros con más de 3 meses se exportan a JSON Lines con gzip (un archivo por día) y solo se borran si la exportación se verificó; los archivos con más de 2 años se borran.
 - **UC-NTF-01:** se envía un correo al email de contacto de la orden por orden recibida, pago confirmado, orden enviada (con paquetería y guía, si existen), orden cancelada (indicando si el reembolso está en proceso) y reembolso completado; no se envía por expiración, entrega, entrega fallida, devolución, pago tardío sin stock ni pago fallido; las órdenes anonimizadas no reciben correo; solo se muestra el código público; un fallo de envío se registra en logs sin el email y no revierte ni bloquea la operación que lo originó. El correo de orden recibida incluye el plazo de entrega estimado (ADR-0083).
+- **UC-NTF-01 (implementación, ADR-0143):** un módulo de notificaciones escucha los eventos de la orden, su envío y su reembolso, y lee la orden con la fachada de Ordering; los correos son de texto plano; las instrucciones de pago en tienda van solo con el pago manual habilitado; ningún correo lleva el ID ni el número interno de la orden.
 - **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), tokens de verificación de email y de recuperación de contraseña vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
 
 ---

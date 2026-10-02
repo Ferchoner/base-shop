@@ -25,6 +25,7 @@ import { OrderPaymentRequests } from './application/order-payment-requests.use-c
 import { OrderReader } from './application/order-reader.js';
 import { OrderReorders } from './application/order-reorders.use-case.js';
 import { OrderRestocks } from './application/order-restocks.use-case.js';
+import { OrderingFacade } from './application/ordering.facade.js';
 import { OrderingQueries } from './application/ordering.queries.js';
 import { OrderPayments } from './application/payment-ports.js';
 import { ReorderCarts } from './application/reorder-ports.js';
@@ -59,7 +60,8 @@ import { OrdersController } from './presentation/orders.controller.js';
 /**
  * Ordering bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. It uses Shopping, Catalog,
  * Pricing, Inventory, Shipping, Identity & Access, Geo and Payments through their facades, and none of them uses
- * Ordering, so they never form a cycle (ADR-0132, ADR-0134).
+ * Ordering, so they never form a cycle (ADR-0132, ADR-0134). Its own facade is for Notifications, which only reads
+ * the order for its emails (ADR-0143).
  */
 @Module({
   imports: [
@@ -94,6 +96,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderReader,
     OrderReorders,
     OrderRestocks,
+    OrderingFacade,
     PaymentCapturedHandler,
     RefundCompletedHandler,
     ShipmentDispatchedHandler,
@@ -111,5 +114,6 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: ReorderCarts, useClass: ShoppingFacadeReorderCarts },
     { provide: OrderShipments, useClass: ShippingFacadeOrderShipments },
   ],
+  exports: [OrderingFacade],
 })
 export class OrderingModule {}

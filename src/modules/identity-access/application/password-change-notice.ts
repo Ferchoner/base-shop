@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmailSender } from '../../../shared-kernel/index.js';
-import { inMexicoTime } from './mexico-time.js';
+import { EmailSender, inMexicoTime } from '../../../shared-kernel/index.js';
 
 /**
  * Tells the account owner that their password changed (ADR-0056, ADR-0072, ADR-0115), so someone who did
