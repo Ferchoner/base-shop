@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 5 — Entrega del pedido: Shipping, Inventory y notificaciones (desde el 2026-10-02). El Sprint 4 (compra con pago en tienda) se cerró el 2026-10-02 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Sprint 6 — Privacidad y operación: anonimización, auditoría e imagen de producción (desde el 2026-10-02). El Sprint 5 (entrega del pedido) se cerró el 2026-10-02 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
 
 ## Completed
 
@@ -145,11 +145,12 @@ Sprint 5 — Entrega del pedido: Shipping, Inventory y notificaciones (desde el 
 - [x] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123), cerrado el 2026-09-29
 - [x] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160), cerrado el 2026-10-01
 - [x] Sprint 4: compra con pago en tienda (paso 0, T-170, T-180, T-190, T-230 sin la conciliación, T-185 y T-181), cerrado el 2026-10-02
-- [ ] Sprint 5: entrega del pedido (paso 0, T-195, T-161, T-215 y T-231); plan en `SPRINT.md`
+- [x] Sprint 5: entrega del pedido (paso 0, T-195, T-161, T-215 y T-231), cerrado el 2026-10-02
+- [ ] Sprint 6: privacidad y operación (paso 0, T-132, T-220 y reducir la imagen de producción); plan en `SPRINT.md`
 
 ## Next
 
-- [ ] Después del Sprint 5: anonimización (T-132), consulta de auditoría (T-220), PayPal y conciliación de pagos (T-192) y reducir la imagen de producción
+- [ ] Después del Sprint 6: PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked
 
