@@ -25,7 +25,6 @@ import {
 import {
   ManualPaymentsDisabledError,
   ProviderNotEnabledError,
-  RestockUnavailableError,
 } from '../domain/payment-errors.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
 import { MANUAL_PAYMENTS_ENABLED } from './manual-payments.js';
@@ -237,21 +236,22 @@ export class PaymentsFacade {
    * pending refund, audits it with the note as its reason, and publishes `RefundCompleted`, so the order
    * becomes REFUNDED in the background.
    *
-   * @throws ManualPaymentsDisabledError; RestockUnavailableError until T-161; NotFoundError;
-   *   VersionConflictError; InvalidStateTransitionError unless it is a manual payment with a pending refund.
+   * Its stock comes back apart, with `POST /v1/admin/orders/{orderId}/restocks`: Payments never knows the lines of
+   * the order (ADR-0142).
+   *
+   * @throws ManualPaymentsDisabledError; NotFoundError; VersionConflictError; InvalidStateTransitionError unless
+   *   it is a manual payment with a pending refund.
    */
   async registerManualRefund(
     paymentId: PaymentId,
     input: {
       reference: string;
       note: string | null;
-      restock: boolean;
       version: number;
       registeredBy: StaffId;
     },
   ): Promise<void> {
     this.assertManualPaymentsEnabled();
-    if (input.restock) throw new RestockUnavailableError();
     return this.transactions.run(async () => {
       const payment = await this.payments.lock(paymentId);
       if (payment === null) throw new NotFoundError('Payment', paymentId);

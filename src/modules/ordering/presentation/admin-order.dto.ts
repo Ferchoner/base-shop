@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -10,8 +14,10 @@ import {
   IsUUID,
   Length,
   Matches,
+  Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PostalAddressDto } from '../../../platform/http/address.dto.js';
 import {
@@ -25,6 +31,8 @@ import {
 import {
   ORDER_STATUSES,
   type OrderStatus,
+  RESTOCK_REASONS,
+  type RestockReason,
 } from '../application/order-values.js';
 import {
   AdminOrderPaymentDto,
@@ -106,10 +114,15 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   shippingAddress: PostalAddressDto;
 }
 
+/** A line of `AdminOrder`: with its ID, which a restock names (ADR-0142). */
+export class AdminOrderLineDto extends OrderLineDto {
+  id: string;
+}
+
 /** `AdminOrder` of API_SPEC.md §8.9. */
 export class AdminOrderDto extends AdminOrderSummaryDto {
-  @ApiProperty({ type: () => [OrderLineDto] })
-  lines: OrderLineDto[];
+  @ApiProperty({ type: () => [AdminOrderLineDto] })
+  lines: AdminOrderLineDto[];
 
   @ApiProperty({
     type: () => [StatusHistoryEntryDto],
@@ -199,8 +212,8 @@ export class CancelOrderDto {
   reason: string;
 
   /**
-   * Reintegrar todo el stock; solo en `PAID` y con `inventory.write` (ADR-0052). Las órdenes pagadas se
-   * cancelan desde T-190.
+   * Reintegrar todas las líneas completas en la misma operación; solo en `PAID` y con `inventory.write`
+   * (ADR-0052, ADR-0142).
    */
   @IsOptional()
   @IsBoolean()
@@ -210,6 +223,90 @@ export class CancelOrderDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+/** A line of a restock: what comes back of one line of the order. */
+export class RestockLineDto {
+  /** Una línea de la orden. */
+  @IsUUID('all')
+  orderLineId: string;
+
+  /** Unidades que regresan, de 1 a lo vendido menos lo ya reintegrado. @example 1 */
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  quantity: number;
+}
+
+/** Request of `POST /v1/admin/orders/{orderId}/restocks` (UC-INV-09, API_SPEC.md §15.7). */
+export class RestockOrderDto {
+  @ApiProperty({
+    enum: RESTOCK_REASONS,
+    description:
+      '`ORDER_CANCELLED` para una orden `CANCELLED` o `REFUNDED`; `SHIPMENT_RETURNED` para una orden con el envío `RETURNED`.',
+  })
+  @IsIn(RESTOCK_REASONS)
+  reasonCode: RestockReason;
+
+  @ApiProperty({
+    type: () => [RestockLineDto],
+    description: 'De 1 a 100 líneas de la orden, cada una una sola vez.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique((line: RestockLineDto) => line.orderLineId?.toLowerCase())
+  @ValidateNested({ each: true })
+  @Type(() => RestockLineDto)
+  lines: RestockLineDto[];
+
+  /**
+   * Nota de hasta 500 caracteres, en cada movimiento y en la auditoría: no escribas datos personales.
+   * @example 'Regresó en su caja original'
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+/** `StockMovement` of API_SPEC.md §13: a RESTOCK movement. */
+export class RestockMovementDto {
+  id: string;
+
+  stockItemId: string;
+
+  @ApiProperty({ enum: ['RESTOCK'] })
+  type: string;
+
+  /** Unidades que regresaron. */
+  quantity: number;
+
+  onHandAfter: number;
+
+  @ApiProperty({ enum: RESTOCK_REASONS })
+  reasonCode: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  note: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  orderId: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  orderLineId: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  actorId: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt: Date;
+}
+
+/** Response of `POST /v1/admin/orders/{orderId}/restocks`: a movement per line. */
+export class RestockDto {
+  @ApiProperty({ type: () => [RestockMovementDto] })
+  movements: RestockMovementDto[];
 }
 
 /** Request of `POST /v1/admin/orders/{orderId}/retry-fulfillment` (UC-ORD-08). */

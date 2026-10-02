@@ -18,7 +18,6 @@ import {
 import {
   ManualPaymentsDisabledError,
   ProviderNotEnabledError,
-  RestockUnavailableError,
 } from '../domain/payment-errors.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
 import { type PaymentRequest, PaymentsFacade } from './payments.facade.js';
@@ -326,12 +325,11 @@ describe('PaymentsFacade: refunds (UC-PAY-03 and 06, ADR-0135)', () => {
   const register = (
     facade: PaymentsFacade,
     paymentId: string,
-    changes: { restock?: boolean; version?: number; note?: string | null } = {},
+    changes: { version?: number; note?: string | null } = {},
   ) =>
     facade.registerManualRefund(paymentId as never, {
       reference: 'Devolución 00087',
       note: changes.note === undefined ? 'Efectivo' : changes.note,
-      restock: changes.restock ?? false,
       version: changes.version ?? 2,
       registeredBy: staff,
     });
@@ -377,10 +375,9 @@ describe('PaymentsFacade: refunds (UC-PAY-03 and 06, ADR-0135)', () => {
     expect(audited[0]).not.toHaveProperty('reason');
   });
 
-  it('checks that manual payments are on, then the restock, the payment, its version and its refund', async () => {
+  it('checks that manual payments are on, then the payment, its version and its refund', async () => {
     const payment = refunding();
     const off = setUp({ existing: payment, manual: false });
-    const restock = setUp({ existing: payment });
     const missing = setUp({ existing: payment });
     const outdated = setUp({ existing: payment });
     const noRefund = setUp({ existing: existing('MANUAL', true) });
@@ -388,9 +385,6 @@ describe('PaymentsFacade: refunds (UC-PAY-03 and 06, ADR-0135)', () => {
     await expect(register(off.facade, payment.id)).rejects.toThrow(
       ManualPaymentsDisabledError,
     );
-    await expect(
-      register(restock.facade, payment.id, { restock: true }),
-    ).rejects.toThrow(RestockUnavailableError);
     await expect(register(missing.facade, newId())).rejects.toThrow(
       NotFoundError,
     );
@@ -405,7 +399,6 @@ describe('PaymentsFacade: refunds (UC-PAY-03 and 06, ADR-0135)', () => {
     ).rejects.toThrow(InvalidStateTransitionError);
     for (const { payments, published, audited } of [
       off,
-      restock,
       missing,
       outdated,
       noRefund,

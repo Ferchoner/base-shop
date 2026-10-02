@@ -142,6 +142,7 @@ function fakeStock(
   } = {},
 ) {
   const calls: string[] = [];
+  const restocks: unknown[] = [];
   const reservation = newId<'Reservation'>() as ReservationId;
   const stock: OrderStock = {
     canFulfill: () => {
@@ -179,13 +180,21 @@ function fakeStock(
     expire: () => {
       throw new Error('The life of an order never expires a reservation');
     },
+    restock: (input) => {
+      const { reasonCode, lines } = input;
+      restocks.push(input);
+      calls.push(
+        `restock ${reasonCode} ${lines.map((l) => `${l.quantity}/${l.sold}`).join(',')}`,
+      );
+      return Promise.resolve([]);
+    },
   };
-  return { stock, calls, reservation };
+  return { stock, calls, reservation, restocks };
 }
 
 function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
   const orders = new InMemoryOrders(order);
-  const { stock, calls, reservation } = fakeStock(options);
+  const { stock, calls, reservation, restocks } = fakeStock(options);
   const audited: AuditEntry[] = [];
   const audit = {
     record: (entry: AuditEntry) => {
@@ -229,7 +238,7 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
     audit,
     { now: () => NOW },
   );
-  return { lifecycle, orders, calls, audited, reservation };
+  return { lifecycle, orders, calls, audited, reservation, restocks };
 }
 
 const savedOne = (orders: InMemoryOrders) => {
@@ -331,14 +340,55 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
     ]);
   });
 
-  it('answers the restock of a paid order as unavailable until T-161 (ADR-0135)', async () => {
+  it('cancels a paid order and restocks every line in full in the same operation, audited apart (ADR-0142)', async () => {
     const order = saved('PAID', CAPTURED);
-    const { lifecycle, orders, calls } = setUp(order);
+    const { lifecycle, calls, audited, restocks } = setUp(order);
 
-    await expect(cancel(lifecycle, order, { restock: true })).rejects.toThrow(
-      RestockNotAllowedError.unavailable(),
-    );
-    expect([orders.saved, calls]).toEqual([[], []]);
+    await cancel(lifecycle, order, { restock: true });
+
+    expect(restocks).toEqual([
+      expect.objectContaining({
+        orderId: order.id,
+        reasonCode: 'ORDER_CANCELLED',
+        note: 'Duplicado',
+        actorId: staff,
+      }),
+    ]);
+
+    expect(calls).toEqual([
+      'cancelShipment',
+      'startRefund',
+      `restock ORDER_CANCELLED ${order.snapshot.lines.map((l) => `${l.quantity}/${l.quantity}`).join(',')}`,
+    ]);
+    expect(audited.map(({ action }) => action)).toEqual([
+      'orders.cancel',
+      'orders.restock',
+    ]);
+    expect(audited[1]).toEqual({
+      action: 'orders.restock',
+      resource: { type: 'order', id: order.id },
+      changes: {
+        reasonCode: { from: null, to: 'ORDER_CANCELLED' },
+        lines: {
+          from: null,
+          to: order.snapshot.lines.map(({ id, quantity }) => ({
+            orderLineId: id,
+            quantity,
+          })),
+        },
+      },
+      reason: 'Duplicado',
+    });
+  });
+
+  it('cancels without restocking unless asked', async () => {
+    const order = saved('PAID', CAPTURED);
+    const { lifecycle, calls, audited } = setUp(order);
+
+    await cancel(lifecycle, order);
+
+    expect(calls).toEqual(['cancelShipment', 'startRefund']);
+    expect(audited.map(({ action }) => action)).toEqual(['orders.cancel']);
   });
 
   it('answers 404 for an order that does not exist', async () => {

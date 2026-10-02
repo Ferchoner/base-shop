@@ -19,7 +19,6 @@ import {
 } from '../../../platform/http/pagination/pagination.js';
 import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
-import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { PaymentsFacade } from '../application/payments.facade.js';
 import {
@@ -86,7 +85,7 @@ export class AdminPaymentsController {
   @ApiOperation({
     summary: 'Registrar el reembolso de un pago manual',
     description:
-      'Solo con el pago manual habilitado, y para un pago `MANUAL` con su reembolso pendiente, que inicia la cancelación de su pedido (ADR-0051). Completa el reembolso por todo lo capturado; el pedido pasa a `REFUNDED` en segundo plano (API_SPEC.md §2.5). `restock` necesita además `inventory.write` y llega con T-161 (ADR-0135).',
+      'Solo con el pago manual habilitado, y para un pago `MANUAL` con su reembolso pendiente, que inicia la cancelación de su pedido (ADR-0051). Completa el reembolso por todo lo capturado; el pedido pasa a `REFUNDED` en segundo plano (API_SPEC.md §2.5). El stock se reintegra aparte, con `POST /v1/admin/orders/{orderId}/restocks` (ADR-0142).',
   })
   @ApiOkResponse({ type: AdminPaymentDto })
   @ApiProblemResponses(
@@ -94,7 +93,6 @@ export class AdminPaymentsController {
     'not-found',
     'version-conflict',
     'invalid-state-transition',
-    'restock-not-allowed',
   )
   @RequirePermissions('payments.manage')
   @HttpCode(200)
@@ -105,15 +103,10 @@ export class AdminPaymentsController {
     @Body() body: ManualRefundDto,
   ): Promise<AdminPaymentDto> {
     const id = pathId<'Payment'>(paymentId, 'Payment');
-    const restock = body.restock === true;
-    if (restock && !actor.permissions.includes('inventory.write')) {
-      throw new ProblemException('forbidden');
-    }
     const note = body.note?.trim() ?? '';
     await this.payments.registerManualRefund(id, {
       reference: body.reference.trim(),
       note: note === '' ? null : note,
-      restock,
       version: body.version,
       registeredBy: toId<'User'>(actor.id),
     });

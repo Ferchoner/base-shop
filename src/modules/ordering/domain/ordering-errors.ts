@@ -63,8 +63,8 @@ export class TotalMismatchError extends DomainError {
 
 /**
  * Restocking when cancelling (ADR-0052, E-30) applies only to a PAID order: an unpaid one only releases its
- * reservation (ADR-0133). For a PAID order it comes with T-161, which decides how the lines reach Inventory
- * (ADR-0135). Answered 409 `restock-not-allowed`, with `currentStatus` or `reason: unavailable`.
+ * reservation, and one waiting for stock never had it (ADR-0133). Answered 409 `restock-not-allowed` with
+ * `currentStatus`.
  */
 export class RestockNotAllowedError extends DomainError {
   readonly code = 'restock-not-allowed';
@@ -84,11 +84,25 @@ export class RestockNotAllowedError extends DomainError {
       { currentStatus },
     );
   }
+}
 
-  /** Restocking comes with T-161: the staff must never believe the stock came back. */
-  static unavailable(): RestockNotAllowedError {
-    return new RestockNotAllowedError('Restocking is not available yet', {
-      reason: 'unavailable',
+/**
+ * A restock names a line that is not of its order (UC-INV-09, ADR-0142). Answered as a validation error of
+ * `lines[index].orderLineId`.
+ */
+export class UnknownOrderLineError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+
+  constructor(index: number) {
+    super(`Line ${index} of the restock is not of the order`, {
+      errors: [
+        {
+          field: `lines[${index}].orderLineId`,
+          code: 'orderLine',
+          message: 'No es una línea de la orden.',
+        },
+      ],
     });
   }
 }

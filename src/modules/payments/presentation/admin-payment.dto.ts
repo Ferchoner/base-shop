@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -206,11 +205,6 @@ export class ManualRefundDto {
   @IsString()
   @MaxLength(500)
   note?: string;
-
-  /** Reintegrar todo el stock; requiere `inventory.write` y llega con T-161 (ADR-0135). */
-  @IsOptional()
-  @IsBoolean()
-  restock?: boolean;
 
   /** Versión leída del pago (bloqueo optimista). */
   @IsInt()

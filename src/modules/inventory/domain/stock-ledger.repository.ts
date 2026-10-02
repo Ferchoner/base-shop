@@ -1,5 +1,6 @@
 import type {
   AdjustmentReason,
+  RestockReason,
   StockLevel,
   StockMovement,
   StockMovementId,
@@ -18,6 +19,13 @@ export interface StockEntry {
   readonly actorId: string;
   /** When it happened, as the application's clock says (DEVELOPMENT_GUIDE.md). */
   readonly at: Date;
+}
+
+/** Units of a line of an order that come back to the stock (UC-INV-09, ADR-0052). */
+export interface RestockEntry extends StockEntry {
+  readonly reasonCode: RestockReason;
+  readonly orderId: string;
+  readonly orderLineId: string;
 }
 
 /** The stock after a change and the movement written with it. */
@@ -43,4 +51,15 @@ export abstract class StockLedgerRepository {
   abstract adjust(
     entry: StockEntry & { readonly reasonCode: AdjustmentReason },
   ): Promise<StockChange | null>;
+
+  /**
+   * Brings units of lines of an order back to the stock (UC-INV-09): one RESTOCK movement per entry, updating the
+   * stock items in ascending ID order, like reservations (BR-INV-14).
+   */
+  abstract restock(entries: readonly RestockEntry[]): Promise<StockMovement[]>;
+
+  /** The units restocked so far of each of these lines of orders; a line never restocked is left out. */
+  abstract restockedOf(
+    orderLineIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>>;
 }

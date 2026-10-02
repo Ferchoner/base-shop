@@ -8,6 +8,7 @@ import {
 import type {
   AdminOrderSummaryView,
   AdminOrderView,
+  OrderLineView,
   OrderSummaryView,
   OrderView,
 } from '../application/ordering.queries.js';
@@ -113,7 +114,7 @@ export function toOrderSummaryDto(
 export function toOrderDto(view: WithPaymentAndShipment<OrderView>): OrderDto {
   return {
     ...toOrderSummaryDto(view),
-    lines: toLineDtos(view),
+    lines: view.lines.map(toLineDto),
     shippingAddress: { ...view.shippingAddress },
   };
 }
@@ -143,7 +144,7 @@ export function toAdminOrderDto(
 ): AdminOrderDto {
   return {
     ...toAdminOrderSummaryDto(view),
-    lines: toLineDtos(view),
+    lines: view.lines.map((line) => ({ id: line.id, ...toLineDto(line) })),
     statusHistory: view.statusHistory.map((entry) => ({ ...entry })),
   };
 }
@@ -201,8 +202,9 @@ function toAdminOrderPaymentDto(payment: OrderPayment): AdminOrderPaymentDto {
   };
 }
 
-function toLineDtos(view: OrderView): OrderLineDto[] {
-  return view.lines.map((line) => ({
+/** A line as the customer sees it: never its ID. */
+function toLineDto(line: OrderLineView): OrderLineDto {
+  return {
     lineNumber: line.lineNumber,
     sku: line.sku,
     productName: line.productName,
@@ -212,7 +214,7 @@ function toLineDtos(view: OrderView): OrderLineDto[] {
     taxRateBp: line.taxRateBp,
     taxAmount: toMoneyDto(line.taxAmount),
     lineTotal: toMoneyDto(line.lineTotal),
-  }));
+  };
 }
 
 export function toReorderDto(copy: CartCopy): ReorderDto {

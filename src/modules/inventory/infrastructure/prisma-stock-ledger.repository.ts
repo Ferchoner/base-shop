@@ -4,14 +4,20 @@ import type { PrismaTransactionAdapter } from '../../../platform/persistence/tra
 import { newId, toId } from '../../../shared-kernel/index.js';
 import type {
   AdjustmentReason,
+  RestockReason,
   StockLevel,
+  StockMovement,
   StockMovementType,
 } from '../domain/stock.js';
 import {
+  type RestockEntry,
   type StockChange,
   type StockEntry,
   StockLedgerRepository,
 } from '../domain/stock-ledger.repository.js';
+
+/** Sorts after every UUID. */
+const LAST = '~';
 
 interface StockRow {
   id: string;
@@ -48,6 +54,52 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
     return stock === null
       ? null
       : this.record(stock, entry, 'ADJUSTMENT', entry.reasonCode);
+  }
+
+  async restock(entries: readonly RestockEntry[]): Promise<StockMovement[]> {
+    if (entries.length === 0) return [];
+    const items = await this.txHost.tx.stockItem.findMany({
+      select: { id: true, variantId: true },
+      where: {
+        warehouseId: entries[0].warehouseId,
+        variantId: { in: entries.map(({ variantId }) => variantId) },
+      },
+    });
+    const itemOf = new Map(items.map(({ id, variantId }) => [variantId, id]));
+    // Stock items in ascending ID order (BR-INV-14); one that does not exist yet is created last.
+    const ordered = [...entries].sort((a, b) =>
+      (itemOf.get(a.variantId) ?? LAST).localeCompare(
+        itemOf.get(b.variantId) ?? LAST,
+      ),
+    );
+    const movements: StockMovement[] = [];
+    for (const entry of ordered) {
+      const stock = await this.change(entry, false);
+      if (stock === null) throw new Error('A restock always applies');
+      const { movement } = await this.record(
+        stock,
+        entry,
+        'RESTOCK',
+        entry.reasonCode,
+        { orderId: entry.orderId, orderLineId: entry.orderLineId },
+      );
+      movements.push(movement);
+    }
+    return movements;
+  }
+
+  async restockedOf(
+    orderLineIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    if (orderLineIds.length === 0) return new Map();
+    const rows = await this.txHost.tx.stockMovement.groupBy({
+      by: ['orderLineId'],
+      where: { type: 'RESTOCK', orderLineId: { in: [...orderLineIds] } },
+      _sum: { quantity: true },
+    });
+    return new Map(
+      rows.map(({ orderLineId, _sum }) => [orderLineId!, _sum.quantity ?? 0]),
+    );
   }
 
   /**
@@ -90,12 +142,13 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
         };
   }
 
-  /** The movement of a change, in the same transaction (BR-INV-13). */
+  /** The movement of a change, in the same transaction (BR-INV-13); a restock names its order and line. */
   private async record(
     stock: StockLevel,
     entry: StockEntry,
     type: StockMovementType,
-    reasonCode: AdjustmentReason | null,
+    reasonCode: AdjustmentReason | RestockReason | null,
+    order: { orderId: string; orderLineId: string } | null = null,
   ): Promise<StockChange> {
     await this.txHost.tx.stockMovement.create({
       data: {
@@ -106,6 +159,8 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
         onHandAfter: stock.onHand,
         reasonCode,
         note: entry.note,
+        orderId: order?.orderId ?? null,
+        orderLineId: order?.orderLineId ?? null,
         actorId: entry.actorId,
         createdAt: entry.at,
       },
@@ -120,8 +175,8 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
         onHandAfter: stock.onHand,
         reasonCode,
         note: entry.note,
-        orderId: null,
-        orderLineId: null,
+        orderId: order?.orderId ?? null,
+        orderLineId: order?.orderLineId ?? null,
         actorId: entry.actorId,
         createdAt: entry.at,
       },

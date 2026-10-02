@@ -5,7 +5,10 @@ import type {
   OrderId,
   OrderShipping,
   ReservationId,
+  RestockLine,
+  RestockReason,
   ShippingAddress,
+  StaffId,
   VariantId,
   VariantOptions,
 } from '../domain/order.js';
@@ -122,6 +125,36 @@ export abstract class OrderStock {
 
   /** Ends the reservation of an order that was not paid in time (UC-INV-08); false when it has no active one. */
   abstract expire(orderId: OrderId): Promise<boolean>;
+
+  /**
+   * Brings units of lines of the order back to the stock (UC-INV-09, ADR-0052, ADR-0142), in the transaction of
+   * the caller. Inventory counts what a line sold only once the stock of the order was confirmed, and never
+   * brings a line back beyond it.
+   *
+   * @throws RestockLimitError, 409 `restock-not-allowed` with `lines`, when a line would come back beyond it.
+   */
+  abstract restock(input: {
+    orderId: OrderId;
+    reasonCode: RestockReason;
+    note: string | null;
+    actorId: StaffId;
+    lines: readonly RestockLine[];
+  }): Promise<RestockMovement[]>;
+}
+
+/** A RESTOCK movement Inventory wrote: `StockMovement` of API_SPEC.md §13. */
+export interface RestockMovement {
+  readonly id: string;
+  readonly stockItemId: string;
+  readonly type: string;
+  readonly quantity: number;
+  readonly onHandAfter: number;
+  readonly reasonCode: string | null;
+  readonly note: string | null;
+  readonly orderId: string | null;
+  readonly orderLineId: string | null;
+  readonly actorId: string | null;
+  readonly createdAt: Date;
 }
 
 /** The shipping of an order, and the amount from which it is free. */

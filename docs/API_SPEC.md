@@ -160,6 +160,7 @@ Obligatoria en:
 
 - `POST /v1/orders` y `POST /v1/me/orders` (colocar orden).
 - `POST /v1/orders/{publicCode}/payments` y `POST /v1/me/orders/{publicCode}/payments` (iniciar pago).
+- `POST /v1/admin/orders/{orderId}/restocks` (reintegrar stock, ADR-0142).
 
 | Situación | Respuesta |
 |---|---|
@@ -522,7 +523,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ### 8.9 `AdminOrder`
 
-`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`).
+`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142).
 
 ### 8.10 `Account` (`GET /v1/me`)
 
@@ -1198,7 +1199,7 @@ Implementado en T-181 parte b (ADR-0139):
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
 | POST | `/v1/admin/orders/{orderId}/retry-fulfillment` | `orders.manage` | UC-ORD-08 |
-| POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` | UC-INV-09 (ADR-0132) |
+| POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` + `Idempotency-Key` | UC-INV-09 (ADR-0132, ADR-0142) |
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 
 Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es).
@@ -1308,12 +1309,18 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - 200 `AdminOrder`. Auditado.
 - Errores: 409 `invalid-state-transition` (Shipped o posterior, ya cancelada, o con el envío ya despachado, ADR-0140); 403 `forbidden` si pide `restock` sin `inventory.write`; 409 `restock-not-allowed`.
 
-**`POST /v1/admin/orders/{orderId}/restocks`** — `inventory.write`. Reintegro independiente de una orden (UC-INV-09, ADR-0052, ADR-0053). Lo atiende Ordering, que le pasa a Inventory cada línea con lo vendido; Inventory verifica con sus movimientos que no se reintegre de más (P-73, ADR-0132). Se implementa en T-161.
+**`POST /v1/admin/orders/{orderId}/restocks`** — `inventory.write`. Reintegro independiente de una orden (UC-INV-09, ADR-0052, ADR-0053). Lo atiende Ordering, que le pasa a Inventory cada línea con lo vendido; Inventory verifica con sus movimientos que no se reintegre de más (P-73, ADR-0132). Exige `Idempotency-Key` (ADR-0142).
 
 - Request: `{ "reasonCode": "ORDER_CANCELLED" | "SHIPMENT_RETURNED", "lines": [ { "orderLineId", "quantity" } ], "note" }`.
 - La orden debe estar cancelada o reembolsada con stock confirmado, o tener el envío en RETURNED, según el motivo. La suma por línea no supera lo vendido.
 - 201 `{ "movements": [StockMovement] }`.
 - Errores: 409 `restock-not-allowed` (con `lines`); 409 `invalid-state-transition` si la orden no admite reintegro.
+- **Implementado en T-161 (ADR-0142):**
+  - `lines` de 1 a 100, cada `orderLineId` una sola vez y de la orden, con `quantity` entera de 1 a 100,000; `note` 0–500, sin los espacios de los extremos. Una línea que no es de la orden responde 400 `validation-error` con `orderLine` en `lines[i].orderLineId`;
+  - `invalid-state-transition` lleva el estado de la orden o, para `SHIPMENT_RETURNED`, el de su envío;
+  - lo vendido cuenta solo si el stock de la orden se confirmó; cada línea de `lines` del 409 trae `orderLineId`, `sold`, `restocked` y `requested`, y no se reintegra nada;
+  - cada movimiento lleva motivo, orden, línea, nota y actor; se audita como `orders.restock`, con la nota como motivo. La orden no cambia;
+  - los reintegros de una orden se esperan entre sí, porque cada uno la bloquea.
 
 **`POST /v1/admin/orders/{orderId}/manual-capture`** — `payments.manage`. Registra el pago en tienda de la orden (UC-PAY-02); ver la sección 16.4 (ADR-0134).
 
@@ -1333,7 +1340,7 @@ Implementado en T-180 parte b (ADR-0133):
 - **Cancelar:** `restock: true` sin `inventory.write` responde 403, y en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Se audita `orders.cancel` con el motivo. Desde T-190 parte b (ADR-0135):
   - desde PAID o AWAITING_MANUAL_FULFILLMENT, inicia en la misma operación el reembolso total, que aparece PENDING en `payment.refunds`; el pago sigue CAPTURED y el stock no cambia;
   - desde PENDING_PAYMENT, además de liberar la reserva, cancela el pago iniciado: `payment.status` pasa a CANCELLED;
-  - `restock: true` en una orden PAID responde 409 `restock-not-allowed` con `reason: "unavailable"` hasta T-161, sin cambiar nada.
+  - `restock: true` en una orden PAID reintegra todas las líneas completas en la misma operación, con el motivo de la cancelación como nota, y se audita aparte como `orders.restock` (ADR-0142).
 - **Envío de la orden** (T-195 parte a, ADR-0140):
   - la orden nace con su envío PENDING al pasar a PAID: con el pago capturado, con el pago tardío que consigue stock y al reintentar el surtido; en AWAITING_MANUAL_FULFILLMENT no tiene envío;
   - cancelar una orden PAID cancela su envío en la misma operación. Si el envío ya salió, responde 409 `invalid-state-transition` con el estado del envío en `currentStatus`, y no cambia nada;
@@ -1355,8 +1362,8 @@ Implementado en T-180 parte b (ADR-0133):
 | GET | `/v1/admin/payments` | `orders.read` | Consulta |
 | GET | `/v1/admin/payments/{paymentId}` | `orders.read` | Consulta |
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
-| POST | `/v1/admin/payments/{paymentId}/refunds/manual` | `payments.manage` (+ `inventory.write` con reintegro) | UC-PAY-06 |
-| POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` (+ `inventory.write` con reintegro) | UC-PAY-07 |
+| POST | `/v1/admin/payments/{paymentId}/refunds/manual` | `payments.manage` | UC-PAY-06 |
+| POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` | UC-PAY-07 |
 | POST | `/v1/webhooks/paypal` | Firma de PayPal | UC-PAY-04 |
 
 La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene uno de lectura de pagos y el pago forma parte de la vista de la orden (ADR-0071).
@@ -1408,15 +1415,15 @@ Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas qu
 
 ### 16.5 Reembolsos (UC-PAY-06, UC-PAY-07, ADR-0051, ADR-0052)
 
-- **`POST /v1/admin/payments/{paymentId}/refunds/manual`** — Registrar un reembolso hecho fuera del sistema. Request `{ "reference", "note", "restock": false, "version" }` (`version` del pago). Solo pagos MANUAL con reembolso pendiente o fallido de una orden cancelada. Completa el reembolso: la orden pasa a REFUNDED en segundo plano (sección 2.5). `restock` reintegra todas las líneas si la orden no tiene reintegros previos. 200 `AdminPayment`. Errores: 403 `manual-payments-disabled`; 403 `forbidden` (reintegro sin `inventory.write`); 409 `invalid-state-transition`; 409 `restock-not-allowed`.
-- **`POST /v1/admin/payments/{paymentId}/refunds/retry`** — Reintentar un reembolso fallido con el proveedor. Request `{ "restock": false, "version" }`. 200 `AdminPayment`. Errores: 409 `invalid-state-transition` (no hay reembolso fallido); 409 `restock-not-allowed`.
+- **`POST /v1/admin/payments/{paymentId}/refunds/manual`** — Registrar un reembolso hecho fuera del sistema. Request `{ "reference", "note", "version" }` (`version` del pago). Solo pagos MANUAL con reembolso pendiente o fallido de una orden cancelada. Completa el reembolso: la orden pasa a REFUNDED en segundo plano (sección 2.5). El stock se reintegra aparte, con `POST /v1/admin/orders/{orderId}/restocks` (ADR-0142). 200 `AdminPayment`. Errores: 403 `manual-payments-disabled`; 409 `invalid-state-transition`.
+- **`POST /v1/admin/payments/{paymentId}/refunds/retry`** — Reintentar un reembolso fallido con el proveedor. Request `{ "version" }`. 200 `AdminPayment`. Errores: 409 `invalid-state-transition` (no hay reembolso fallido).
 
 UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/orders/{orderId}/cancel`. UC-PAY-05 (conciliación) es un job.
 
 Implementado en T-190 parte b (ADR-0135):
 
 - **Reembolso manual:** `reference` 1–100 caracteres sin quedar en blanco, que queda como `providerRefundId`; `note` 0–500, motivo de la auditoría `payments.manual-refund`; `version` entero ≥ 1. Solo un reembolso PENDING de un pago MANUAL: uno manual nunca falla, y los fallidos llegan con un proveedor (T-192). Responde el pago REFUNDED, con `refundedAmount` igual a lo capturado y el reembolso COMPLETED con `registeredBy` y `completedAt`.
-- **Orden de las validaciones:** 403 `forbidden` (`restock` sin `inventory.write`), 403 `manual-payments-disabled`, 409 `restock-not-allowed` con `reason: "unavailable"` (todo `restock: true` hasta T-161), 404, 409 `version-conflict` y 409 `invalid-state-transition`.
+- **Orden de las validaciones:** 403 `manual-payments-disabled`, 404, 409 `version-conflict` y 409 `invalid-state-transition`. Desde T-161, `restock` ya no es un campo del registro y responde 400 `validation-error` (ADR-0142).
 - **La orden:** pasa a REFUNDED en segundo plano (sección 2.5).
 - **Reintentar:** UC-PAY-07 pasa a T-192 (ADR-0134).
 

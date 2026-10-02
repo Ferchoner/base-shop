@@ -13,6 +13,7 @@ import type { Order, OrderId, StaffId } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import { OrderStock, type StockLine } from './checkout-ports.js';
+import { restockAudit } from './order-restocks.use-case.js';
 import { OrderPayments } from './payment-ports.js';
 import { OrderShipments } from './shipment-ports.js';
 
@@ -67,10 +68,11 @@ export class OrderLifecycle {
   /**
    * Cancels an order that was not shipped (UC-ORD-07, ADR-0051): an unpaid one releases its reservation and
    * its pending payment, and a paid one, PAID or waiting for stock, starts its full refund in the same
-   * transaction (UC-PAY-03). The restock option comes with T-161 (ADR-0135).
+   * transaction (UC-PAY-03). With `restock`, a PAID order brings every line back to the stock in full, in the
+   * same transaction too, audited as `orders.restock` (ADR-0052, ADR-0142).
    *
-   * @throws NotFoundError; VersionConflictError; RestockNotAllowedError whenever the restock is asked, until
-   *   T-161; InvalidStateTransitionError from SHIPPED on, or for an order already cancelled or expired.
+   * @throws NotFoundError; VersionConflictError; RestockNotAllowedError for a restock of an order that is not
+   *   PAID; InvalidStateTransitionError from SHIPPED on, or for an order already cancelled or expired.
    */
   cancel(input: {
     orderId: OrderId;
@@ -82,10 +84,8 @@ export class OrderLifecycle {
     return this.transactions.run(async () => {
       const order = await this.found(input.orderId);
       assertVersion(order.version, input.version);
-      if (input.restock) {
-        throw order.status === 'PAID'
-          ? RestockNotAllowedError.unavailable()
-          : RestockNotAllowedError.notPaid(order.status);
+      if (input.restock && order.status !== 'PAID') {
+        throw RestockNotAllowedError.notPaid(order.status);
       }
       const before = order.status;
       const now = this.clock.now();
@@ -99,6 +99,16 @@ export class OrderLifecycle {
         await this.shipments.cancel(order.id);
         await this.payments.startRefund(order.id);
       }
+      const restocked = input.restock ? order.linesToRestock() : [];
+      if (input.restock) {
+        await this.stock.restock({
+          orderId: order.id,
+          reasonCode: 'ORDER_CANCELLED',
+          note: input.reason,
+          actorId: input.actorId,
+          lines: restocked,
+        });
+      }
       await this.orders.save(order, now);
       await this.audit.record({
         action: 'orders.cancel',
@@ -106,6 +116,11 @@ export class OrderLifecycle {
         changes: changesBetween({ status: before }, { status: order.status }),
         reason: input.reason,
       });
+      if (input.restock) {
+        await this.audit.record(
+          restockAudit(order.id, 'ORDER_CANCELLED', restocked, input.reason),
+        );
+      }
     });
   }
 

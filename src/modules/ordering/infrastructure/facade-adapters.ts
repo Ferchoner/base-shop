@@ -27,6 +27,7 @@ import {
   type CheckoutVariant,
   type LocationNames,
   OrderStock,
+  type RestockMovement,
   type ShippingCharge,
   ShippingLocations,
   type StockLine,
@@ -37,6 +38,8 @@ import type {
   CustomerId,
   Order,
   OrderId,
+  RestockLine,
+  RestockReason,
   ShippingAddress,
   StaffId,
   VariantId,
@@ -233,6 +236,16 @@ export class InventoryFacadeOrderStock extends OrderStock {
 
   expire(orderId: OrderId): Promise<boolean> {
     return this.inventory.expire(orderId);
+  }
+
+  restock(input: {
+    orderId: OrderId;
+    reasonCode: RestockReason;
+    note: string | null;
+    actorId: StaffId;
+    lines: readonly RestockLine[];
+  }): Promise<RestockMovement[]> {
+    return this.inventory.restock(input);
   }
 }
 
