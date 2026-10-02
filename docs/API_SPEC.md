@@ -103,8 +103,8 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 |---|---|---|---|
 | Registrar un pago manual (`POST /v1/admin/orders/{orderId}/manual-capture`, ADR-0134); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID, se confirma su reserva y se crea su envío en PENDING, todo en una transacción (UC-SHI-03, ADR-0140); si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT, sin envío (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund`, y se inicia su reembolso (ADR-0133, ADR-0135) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes; lista de envíos pendientes del staff |
 | La orden quedó pagada (efecto anterior) | `OrderPaid` | Se envía el correo "Pago confirmado" (ADR-0074), con T-215 | Correo del cliente |
-| Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED y se envía el correo "Orden enviada" | Estado de la orden; correo del cliente |
-| Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED | Estado de la orden |
+| Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED, con `shippedAt` igual al despacho (ADR-0141), y se envía el correo "Orden enviada", con T-215 | Estado de la orden; correo del cliente |
+| Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED, con `deliveredAt` igual a la entrega; si seguía en PAID, pasa antes por SHIPPED (ADR-0141) | Estado de la orden |
 | Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED, con `refundedAt` igual a la fecha del reembolso, y deja de tener `hasPendingRefund` (ADR-0051, ADR-0135); el correo "Reembolso completado" llega con T-215 | Estado de la orden; correo del cliente |
 | Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida" | Correo del cliente |
 | Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada" | Correo del cliente |
@@ -1449,17 +1449,17 @@ Implementado en T-190 parte b (ADR-0135):
   - Cada cambio se audita como `shipping-method.update`; sin cambios no se guarda ni se audita.
   - El método inicial lo crea una migración con los valores de ADR-0092.
 
-**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140).
+**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, failureNote, returnNote, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140).
 
 | Endpoint | Detalle |
 |---|---|
 | `GET …/shipments` | Paginado. Filtros: `status` (defecto PENDING, UC-SHI-08), `orderId`, `q` (código de orden o guía), `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `createdAt` ascendente: primero los más antiguos), `dispatchedAt` |
 | `GET …/shipments/{shipmentId}` | 200 `AdminShipment` |
-| `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100). Permitido en PENDING y DISPATCHED, salvo en envíos despachados como entrega propia. 200. Errores: 409 `invalid-state-transition` |
+| `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100, o las dos en `null` para quitarlas de un envío PENDING, ADR-0141). Permitido en PENDING y DISPATCHED, salvo en envíos despachados como entrega propia. 200. Errores: 409 `invalid-state-transition` |
 | `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED en segundo plano (sección 2.5). 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
 | `POST …/deliver` | Request `{ "version" }`. Desde DISPATCHED. La orden pasa a DELIVERED en segundo plano (sección 2.5). 200 |
-| `POST …/delivery-failure` | Request `{ "note", "version" }`. Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
-| `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/orders/{orderId}/restocks` (ADR-0132). 200 |
+| `POST …/delivery-failure` | Request `{ "note", "version" }` (`note` opcional, 0–500, ADR-0141). Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
+| `POST …/return` | Request `{ "note", "version" }` (`note` opcional, 0–500). Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/orders/{orderId}/restocks` (ADR-0132). 200 |
 
 UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío), dentro de la operación que deja pagada la orden (ADR-0140).
 
@@ -1473,7 +1473,16 @@ Implementado en T-195 parte a (ADR-0140):
   - un envío CANCELLED, o despachado como entrega propia, responde 409 `invalid-state-transition` con `currentStatus`;
   - una `version` anterior responde 409 `version-conflict` con `currentVersion`;
   - se audita como `shipments.update` con los cambios; sin cambios no se guarda ni se audita, y la `version` no sube.
-- **Pendiente (parte b):** `dispatch`, `deliver`, `delivery-failure` y `return`, con la orden siguiendo al envío por eventos.
+
+Implementado en T-195 parte b (ADR-0141):
+
+- **Despachar:** sin `ownDelivery`, por paquetería. Un envío que no está en PENDING responde 409 `invalid-state-transition` antes de revisar la guía; la guía que no corresponde responde 400 `validation-error` en `ownDelivery`, con `trackingRequired` (falta paquetería o guía) o `trackingNotAllowed` (una entrega propia con paquetería o guía).
+- **Entregar, entrega fallida y devolución:** desde DISPATCHED, DISPATCHED y DELIVERY_FAILED; en otro estado, 409 `invalid-state-transition` con `currentStatus`. DELIVERED y RETURNED son definitivos.
+- **Notas:** `note` se guarda sin los espacios de los extremos, en `failureNote` o `returnNote`; vacía o ausente queda en `null`. Es también el motivo de la auditoría.
+- **Quitar la guía:** `carrierName` y `trackingNumber` en `null`, juntos, en un envío PENDING; se audita como `shipments.update`. Solo una en `null` responde 400 `validation-error` con `trackingPair` en esa; en un envío que ya no está en PENDING, 409 `invalid-state-transition`.
+- **Auditoría:** `shipments.dispatch`, `shipments.deliver`, `shipments.delivery-failure` y `shipments.return`, con el cambio de estado.
+- **La orden:** pasa a SHIPPED y a DELIVERED en segundo plano (sección 2.5), sin actor en su historial. Desde SHIPPED ya no se cancela (§15.7). Con la entrega fallida o la devolución sigue en SHIPPED.
+- **A la vez:** despachar y cancelar la orden se esperan, y solo una de las dos ocurre; la otra responde 409.
 
 ---
 

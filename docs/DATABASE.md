@@ -603,15 +603,17 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | own_delivery | boolean | No | Default `false`; entrega propia de la tienda, sin paquetería ni guía (ADR-0078) |
 | dispatched_at, delivered_at, failed_at, returned_at | timestamptz(3) | Sí | — |
 | cancelled_at | timestamptz(3) | Sí | Al cancelarse con su orden (ADR-0140) |
+| failure_note, return_note | text | Sí | Notas del staff en la entrega fallida y en la devolución, de hasta 500 caracteres (ADR-0141) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (status IN ('PENDING', 'CANCELLED') OR dispatched_at IS NOT NULL)`; `CHECK (status IN ('PENDING', 'CANCELLED') OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))` (un envío despachado tiene paquetería y guía o es entrega propia, BR-SHP-04); `CHECK (NOT own_delivery OR (carrier_name IS NULL AND tracking_number IS NULL))` (ADR-0078); `CHECK (status <> 'CANCELLED' OR cancelled_at IS NOT NULL)` (ADR-0140).
+- **Restricciones:** `CHECK (status IN ('PENDING', 'CANCELLED') OR dispatched_at IS NOT NULL)`; `CHECK (status IN ('PENDING', 'CANCELLED') OR own_delivery OR (carrier_name IS NOT NULL AND tracking_number IS NOT NULL))` (un envío despachado tiene paquetería y guía o es entrega propia, BR-SHP-04); `CHECK (NOT own_delivery OR (carrier_name IS NULL AND tracking_number IS NULL))` (ADR-0078); `CHECK (status <> 'CANCELLED' OR cancelled_at IS NOT NULL)` (ADR-0140); `CHECK (status <> 'DELIVERED' OR delivered_at IS NOT NULL)`, `CHECK (status NOT IN ('DELIVERY_FAILED', 'RETURNED') OR failed_at IS NOT NULL)` y `CHECK (status <> 'RETURNED' OR returned_at IS NOT NULL)` (ADR-0141).
 - **Índices:** `(status, created_at)` (lista de trabajo del staff).
 - **Implementado en T-195 parte a (ADR-0140):**
   - la migración `20261002200000_shipping_cancelled_status` agrega CANCELLED al enum, sola, porque un valor nuevo no se puede usar en la transacción que lo agrega;
   - `20261002200100_shipping_order_snapshot` agrega `order_code`, `cancelled_at`, `sku` y `product_name`, las columnas obligatorias sin valor predeterminado porque las tablas estaban vacías, y rehace las dos primeras restricciones para admitir CANCELLED;
   - el envío se crea con `ON CONFLICT DO NOTHING` sobre el único de `order_id`; cada cambio bloquea el envío y compara `version`.
+- **Implementado en T-195 parte b (ADR-0141):** la migración `20261002220000_shipping_delivery_notes` agrega las notas y las restricciones de las fechas de DELIVERED, DELIVERY_FAILED y RETURNED. Las fechas de despacho y de entrega pasan a `orders.shipped_at` y `orders.delivered_at` en segundo plano.
 
 ### 10.3 `shipment_items`
 

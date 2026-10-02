@@ -382,6 +382,11 @@ Criterios de aceptación:
   - la paquetería y la guía se capturan en Pending, o en Dispatched por paquetería, con `version`, y se auditan;
   - la lista muestra por defecto los envíos en Pending, del más antiguo al más reciente;
   - UC-SHI-05 a 07 y 09 llegan en la parte b de T-195.
+- **UC-SHI-04 a 07 y 09 (implementación, ADR-0141):**
+  - el despacho por paquetería exige paquetería y guía, y la entrega propia que no tenga ninguna (400); la paquetería y la guía capturadas por error se quitan mientras el envío está en Pending;
+  - la entrega fallida y la devolución llevan una nota opcional del staff, que el envío muestra;
+  - la orden pasa a Shipped y a Delivered en segundo plano, con las fechas del envío; si la entrega llega antes que el despacho, pasa por Shipped primero;
+  - cada cambio se audita.
 
 ### 5.9 Transversales
 
