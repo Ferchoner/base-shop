@@ -101,7 +101,6 @@ model Reservation {
   lines ReservationLine[]
 
   @@unique([orderId], map: "reservations_one_active_per_order", where: raw("status = 'ACTIVE'::reservation_status"))
-  @@index([expiresAt], map: "reservations_active_expiry_idx", where: raw("status = 'ACTIVE'::reservation_status"))
   @@map("reservations")
 }
 
