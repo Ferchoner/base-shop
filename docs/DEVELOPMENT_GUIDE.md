@@ -179,6 +179,7 @@ Transacciones (ADR-0093):
 - En tests unitarios de casos de uso, `TransactionManager` se reemplaza por un doble que solo ejecuta el trabajo: `{ run: (work) => work() }`.
 - Nombres de código en inglés; documentación en español; ramas, commits y pull requests en inglés (ADR-0084).
 - Montos como enteros en centavos con `Money`.
+- Las fechas las pone la aplicación con `Clock`. Cada plan decide si una operación lee el reloj una sola vez, para que sus fechas coincidan: en T-190 parte b, la cancelación y el inicio del reembolso lo leen por separado, y sus fechas difieren por milisegundos.
 - Sin abstracciones genéricas (`BaseRepository<T>`, `BaseEntity` con lógica).
 - Ningún módulo importa internos de otro; solo su fachada pública.
 
@@ -195,6 +196,10 @@ Tests (Jest):
 - Pruebas de concurrencia obligatorias para reservas de inventario y checkout. El patrón: un cliente `pg` aparte bloquea la fila, se lanzan las operaciones, `waitForLockWaiters(n)` (`test/support/lock-waiters.ts`) espera a que queden bloqueadas y se libera la fila. Esa espera consulta `pg_stat_activity` fuera de toda transacción: dentro de una, PostgreSQL responde con una foto tomada en la primera lectura.
   - Lo que se bloquea en el test es lo que las operaciones van a escribir, no el candado que las protege. Así, sin ese candado las operaciones llegan juntas al punto crítico y el test falla (ADR-0120). Si el test retiene el propio candado, las operaciones solo esperan en fila, y el test pasa también sin él.
 - Una consulta que recorre muchas filas (listados, búsquedas, reportes) se mide con datos grandes desde el primer borrador. Un test de integración temporal, que no se versiona, inserta miles de filas con `generate_series` y toma el tiempo de cada variante: así apareció en T-140c una página que tardaba 666 ms (ADR-0129).
+- Una prueba de respuestas de error idénticas compara los Problem Details sin `correlationId` ni `instance`, que cambian en cada solicitud (T-185, T-181).
+- Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
+- El documento OpenAPI solo se construye en las suites e2e que simulan el entorno local, como la de la documentación de la API. Por eso, antes de cada commit se corre la suite e2e completa, no solo la de la ruta nueva.
+  - Una propiedad que es un arreglo de valores simples declara `@ApiProperty({ type: [String] })`: el plugin de Swagger no infiere su tipo, y sin él la construcción del documento falla (T-181).
 - El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:int`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
 Entorno (ADR-0025):

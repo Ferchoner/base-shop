@@ -24,6 +24,23 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 - **Pospuesto al Sprint 6 o después:** T-132 (anonimización, que necesita a T-195), T-220 (consulta de auditoría), T-192 (PayPal y conciliación, sin cuenta para verificarlo) y reducir la imagen de producción.
 - **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha.
 
+### Resultado del paso 0
+
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores; el índice de ADR coincide con sus secciones, y siguen abiertas las mismas 9 decisiones;
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - cada contexto tiene sus cuatro capas, y `audit` solo infraestructura, como dice `ARCHITECTURE.md`;
+  - los `overrides` de ADR-0091 siguen siendo necesarios, porque Prisma 7.10.0 todavía fija `mysql2` 3.15.3 y `deepmerge-ts` 7.1.5;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Índice sin uso (ADR-0136):** la migración `20261002120000_inventory_drop_reservation_expiry_index` quita `(expires_at) WHERE status = 'ACTIVE'` de `reservations`, y el esquema deja de declararlo. La prueba que compara la base migrada con el esquema detecta tanto una migración olvidada como un índice que el esquema siga declarando.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 4:
+  - comparar errores sin `correlationId` ni `instance`;
+  - el código esperado en los ayudantes de las e2e;
+  - la suite e2e completa antes de cada commit, por el documento OpenAPI, y `@ApiProperty({ type: [String] })` en los arreglos;
+  - decidir en cada plan si una operación lee el reloj una sola vez.
+
 ## Risks
 
 - **Ruta crítica:** T-195 → T-161 → T-215. T-195 crea el envío de la orden pagada y la lleva a SHIPPED y DELIVERED; el reintegro de los envíos devueltos y los correos de envío dependen de él.

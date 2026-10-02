@@ -3827,7 +3827,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una orden vencida suma una versión, como cualquier cambio de estado.
   - Las pruebas que simulaban el vencimiento ahora usan el caso de uso real.
   - Pruebas contra PostgreSQL: el job junto con un pago y junto con una cancelación de la misma orden.
-- **Estado:** Aceptada (plan de T-230 aprobado el 2026-10-01, con sus 3 recomendaciones). Shopping restaura el carrito con `OrderExpired` desde T-181 parte a (ADR-0137).
+- **Estado:** Aceptada (plan de T-230 aprobado el 2026-10-01, con sus 3 recomendaciones). Shopping restaura el carrito con `OrderExpired` desde T-181 parte a (ADR-0137). El índice `(expires_at)` de `reservations` se quitó en el paso 0 del Sprint 5 (migración `20261002120000_inventory_drop_reservation_expiry_index`).
 
 ---
 
