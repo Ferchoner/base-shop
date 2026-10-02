@@ -156,6 +156,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0136 | Vencimiento de órdenes impagas: un job en Ordering con su reserva | Aceptada |
 | ADR-0137 | Carrito de una orden vencida: división de T-181 e idempotencia por el carrito de origen | Aceptada |
 | ADR-0138 | Consulta de pedido de invitado: una sola consulta, 404 único y staff permitido | Aceptada |
+| ADR-0139 | Recompra de órdenes: rutas en Ordering, respuesta con `cartId` y carrito destino del staff | Aceptada |
 
 ---
 
@@ -1113,7 +1114,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Si un cliente paga en tienda una orden ya cancelada, el caso se atiende fuera del sistema.
   - Riesgo aceptado: con el TTL de 20 minutos (se mantiene), un pago en tienda casi siempre llegará después de expirar la orden y seguirá el flujo de pago tardío; como las líneas ya habrán regresado al carrito (ADR-0054), el cliente podría comprar dos veces. Se revisa si el pago en tienda llega a ofrecerse a clientes reales (ADR-0013).
-- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): el pago manual se registra en `POST /v1/admin/orders/{orderId}/manual-capture`.
+- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): el pago manual se registra en `POST /v1/admin/orders/{orderId}/manual-capture`. La recompra se implementó en T-181 parte b (ADR-0139): el staff copia la orden de un cliente a su carrito activo o a uno nuevo.
 
 ---
 
@@ -1710,7 +1711,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El invitado conserva la recompra por su cuenta (`POST /v1/orders/reorder`), que crea un carrito si no envía uno.
 - **Alternativas consideradas:** Crear un carrito nuevo y devolver su `cartId` al staff para que lo comunique al cliente.
 - **Consecuencias:** Nuevo error E-34 (`source-cart-unavailable`, 409 según ADR-0064).
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). Implementada en T-181 parte b (ADR-0139), también para un carrito original que pasó a una cuenta.
 
 ---
 
@@ -3860,7 +3861,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las pruebas que vencen órdenes también restauran su carrito.
   - Prueba contra PostgreSQL: la restauración junto con una línea nueva del mismo cliente deja un solo carrito activo con todo.
   - T-181 parte b agrega la recompra.
-- **Estado:** Aceptada (plan de T-181 aprobado el 2026-10-01, con sus 3 recomendaciones). La comparación con la fecha del vencimiento se agregó durante la implementación.
+- **Estado:** Aceptada (plan de T-181 aprobado el 2026-10-01, con sus 3 recomendaciones). La comparación con la fecha del vencimiento se agregó durante la implementación. La parte b está en ADR-0139.
 
 ---
 
@@ -3884,4 +3885,42 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Las e2e suben `RATE_LIMIT_GUEST_ORDER` a 1000 en 15 minutos, como ya hacían con el límite general; una suite propia lo baja a 2 para comprobar el 429 en la ruta real.
   - T-181 parte b reutiliza la búsqueda para `POST /v1/orders/reorder`.
-- **Estado:** Aceptada (plan de T-185 aprobado el 2026-10-01, con sus 3 recomendaciones).
+- **Estado:** Aceptada (plan de T-185 aprobado el 2026-10-01, con sus 3 recomendaciones). La recompra de invitado usa la misma búsqueda (ADR-0139).
+
+---
+
+## ADR-0139 — Recompra de órdenes: rutas en Ordering, respuesta con `cartId` y carrito destino del staff
+
+- **Fecha:** 2026-10-01
+- **Contexto:** T-181 parte b (UC-CRT-09, BR-CRT-11). `API_SPEC.md` §14.3 fija tres rutas para volver a comprar una orden cancelada o reembolsada: la del cliente, la pública del invitado y la del staff. Ordering usa a Shopping y Shopping nunca usa a Ordering (ADR-0132), así que quedaban abiertas tres cosas:
+  - qué responden las rutas del cliente y del invitado, que el contrato pedía con el `Cart` de Shopping;
+  - a qué carrito copia el staff;
+  - qué límites aplica la recompra.
+- **Decisión:**
+  - **Rutas en Ordering:** Ordering lee la orden bloqueada, revisa su estado y le pasa las líneas a Shopping por el puerto `ReorderCarts`. Shopping responde con tres operaciones nuevas de `ShoppingFacade`: copiar al carrito del cliente, a un carrito de invitado y al carrito de origen de la orden. Todas se unen a la transacción de Ordering, y la orden nunca cambia.
+  - **Shopping decide qué se vende:** solo copia las variantes publicadas, activas y con precio en ese momento (BR-PRD-11), y devuelve las demás en `skippedVariantIds`.
+  - **Respuesta `{ cartId, skippedVariantIds }` en las tres rutas:** el cliente lee el carrito con `GET /v1/me/cart` o `GET /v1/carts/{cartId}`. Ordering no importa la representación del carrito de Shopping, como no importa la de Payments (ADR-0134). Cambia el contrato de la ruta del cliente y de la pública, que respondían `{ cart, skippedVariantIds }`.
+  - **Cliente (`POST /v1/me/orders/{publicCode}/reorder`):** solo sus propias órdenes (404 para las demás); las líneas van a su carrito activo, o a uno nuevo. Una cuenta de staff recibe 403 `staff-cannot-purchase`, porque la ruta cambia un carrito.
+  - **Invitado (`POST /v1/orders/reorder`):**
+    - se identifica igual que en la consulta (ADR-0138), con el mismo 404;
+    - con `cartId`, las líneas van a ese carrito de invitado activo: 404 si no existe o tiene dueño, 409 `cart-not-active` si no está activo, como en las rutas del carrito; sin `cartId`, a un carrito nuevo;
+    - comparte el límite `guest-order` con la consulta, y una cuenta de staff recibe 403 `staff-cannot-purchase`.
+  - **Staff (`POST /v1/admin/orders/{orderId}/reorder`, `orders.manage`):**
+    - la orden de un cliente va a su carrito activo, o a uno nuevo, igual que en la ruta del cliente;
+    - la de un invitado va a su carrito original, el `cartId` que el invitado conoce (ADR-0082). Si sigue CHECKED_OUT, vuelve a ACTIVE solo con las líneas que se siguen vendiendo; si ya está ACTIVE, se le suman. Si ya no existe, tiene dueño o quedó MERGED en una cuenta, responde 409 `source-cart-unavailable` y no se crea otro;
+    - se audita como `orders.reorder` cuando copia.
+  - **Límites, como en la fusión y la restauración:**
+    - tope de 30 por línea sin aviso;
+    - puede pasar de 100 líneas, porque nunca descarta lo que el cliente pidió.
+  - **Sin `Idempotency-Key`,** como dice el contrato: repetir la recompra vuelve a sumar con el tope, y el cliente lo ve y lo corrige en su carrito.
+  - **Orden de las validaciones:** primero la orden (404), después su estado (409 `invalid-state-transition`) y al final el carrito (404 o 409).
+  - **Sin migración.**
+- **Alternativas consideradas:**
+  - **Responder el `Cart` como decía el contrato:** Shopping tendría que exportar su DTO y su mapper, y la presentación de Ordering quedaría acoplada a la de Shopping.
+  - **Al pie de la letra de ADR-0054 y ADR-0055:** un cliente sin carrito activo recuperaría su carrito original en la ruta del staff, pero uno nuevo en la suya. El mismo caso se trataría distinto según la ruta, y para el cliente el ID del carrito no importa.
+  - **409 `cart-line-limit-reached` al pasar de 100 líneas, o exigir `Idempotency-Key`:** el segundo también cambia el contrato.
+- **Consecuencias:**
+  - Cambio de contrato en la respuesta de dos rutas.
+  - T-181 queda completa, y con ella las tareas del Sprint 4.
+  - Prueba contra PostgreSQL: una recompra a la vez que una línea nueva del mismo cliente deja un solo carrito activo con todo.
+- **Estado:** Aceptada (plan de T-181 parte b aprobado el 2026-10-01, con sus 3 recomendaciones).
