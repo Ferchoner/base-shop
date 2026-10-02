@@ -38,10 +38,19 @@ export type RefundOutcome =
   /** The order is not a cancelled one with a payment: nothing changed. */
   | 'unexpected';
 
+/** What the progress of its shipment did to an order (ADR-0141). */
+export type ShipmentOutcome =
+  /** The order moved: SHIPPED when its shipment left, DELIVERED when it was delivered. */
+  | 'moved'
+  /** A repeated or late event: the order was already there, or further. */
+  | 'already-processed'
+  /** The order is not one whose shipment could do that: nothing changed. */
+  | 'unexpected';
+
 /**
  * The life of an order after it is placed (UC-ORD-07 to 09, ADR-0133): the staff cancels it or retries its
- * fulfillment, and a captured payment marks it paid. Each change locks the order, so a staff action and a
- * payment that arrive together wait for each other.
+ * fulfillment, a captured payment marks it paid, and its shipment marks it shipped and delivered (ADR-0141). Each
+ * change locks the order, so a staff action and an event that arrive together wait for each other.
  */
 @Injectable()
 export class OrderLifecycle {
@@ -203,6 +212,57 @@ export class OrderLifecycle {
       order.markRefunded(refund.completedAt, now);
       await this.orders.save(order, now);
       return 'refunded';
+    });
+  }
+
+  /**
+   * Marks a paid order SHIPPED when its shipment leaves (UC-SHI-05, ADR-0141), shipped when it left. Repeating it
+   * changes nothing, also once the order was delivered.
+   *
+   * @throws NotFoundError for an order that does not exist.
+   */
+  recordShipment(shipment: {
+    orderId: OrderId;
+    dispatchedAt: Date;
+  }): Promise<ShipmentOutcome> {
+    return this.transactions.run(async () => {
+      const order = await this.found(shipment.orderId);
+      if (order.status === 'SHIPPED' || order.status === 'DELIVERED') {
+        return 'already-processed';
+      }
+      if (order.status !== 'PAID') return 'unexpected';
+      const now = this.clock.now();
+      order.markShipped(shipment.dispatchedAt, now);
+      await this.orders.save(order, now);
+      return 'moved';
+    });
+  }
+
+  /**
+   * Marks an order DELIVERED when its shipment is delivered (UC-SHI-06, ADR-0141). An order still PAID is marked
+   * SHIPPED first, from when the shipment left: the event of its dispatch is late or was lost. Repeating it changes
+   * nothing.
+   *
+   * @throws NotFoundError for an order that does not exist.
+   */
+  recordDelivery(delivery: {
+    orderId: OrderId;
+    dispatchedAt: Date;
+    deliveredAt: Date;
+  }): Promise<ShipmentOutcome> {
+    return this.transactions.run(async () => {
+      const order = await this.found(delivery.orderId);
+      if (order.status === 'DELIVERED') return 'already-processed';
+      if (order.status !== 'PAID' && order.status !== 'SHIPPED') {
+        return 'unexpected';
+      }
+      const now = this.clock.now();
+      if (order.status === 'PAID') {
+        order.markShipped(delivery.dispatchedAt, now);
+      }
+      order.markDelivered(delivery.deliveredAt, now);
+      await this.orders.save(order, now);
+      return 'moved';
     });
   }
 

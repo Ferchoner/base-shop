@@ -53,6 +53,8 @@ export interface ShipmentView extends OrderShipmentView {
   readonly failedAt: Date | null;
   readonly returnedAt: Date | null;
   readonly cancelledAt: Date | null;
+  readonly failureNote: string | null;
+  readonly returnNote: string | null;
   readonly createdAt: Date;
 }
 

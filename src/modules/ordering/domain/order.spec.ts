@@ -137,6 +137,8 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       sourceCartId,
       placedAt: NOW,
       paidAt: null,
+      shippedAt: null,
+      deliveredAt: null,
       cancelledAt: null,
       expiredAt: null,
       refundedAt: null,

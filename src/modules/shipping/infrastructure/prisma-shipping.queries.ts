@@ -150,6 +150,8 @@ function toShipmentView(row: ShipmentRow): ShipmentView {
     failedAt: row.failedAt,
     returnedAt: row.returnedAt,
     cancelledAt: row.cancelledAt,
+    failureNote: row.failureNote,
+    returnNote: row.returnNote,
     createdAt: row.createdAt,
   };
 }

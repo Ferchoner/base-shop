@@ -85,6 +85,8 @@ export class PrismaShipmentRepository extends ShipmentRepository {
         failedAt: s.failedAt,
         returnedAt: s.returnedAt,
         cancelledAt: s.cancelledAt,
+        failureNote: s.failureNote,
+        returnNote: s.returnNote,
         version: { increment: 1 },
         updatedAt: now,
       },
@@ -124,6 +126,8 @@ export class PrismaShipmentRepository extends ShipmentRepository {
       failedAt: row.failedAt,
       returnedAt: row.returnedAt,
       cancelledAt: row.cancelledAt,
+      failureNote: row.failureNote,
+      returnNote: row.returnNote,
       version: row.version,
     });
   }

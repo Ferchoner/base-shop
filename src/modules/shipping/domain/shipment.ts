@@ -1,4 +1,5 @@
 import {
+  DomainError,
   type Id,
   InvalidStateTransitionError,
   InvalidValueError,
@@ -74,7 +75,40 @@ export interface ShipmentSnapshot {
   readonly failedAt: Date | null;
   readonly returnedAt: Date | null;
   readonly cancelledAt: Date | null;
+  /** Why the delivery failed, as the staff wrote it (ADR-0141). */
+  readonly failureNote: string | null;
+  /** What came back, as the staff wrote it (ADR-0141). */
+  readonly returnNote: string | null;
   readonly version: number;
+}
+
+/**
+ * The tracking of a shipment does not fit the way it leaves (BR-SHP-04, ADR-0078): by a carrier without its carrier
+ * and tracking number, or as own delivery with them. A validation error of `ownDelivery` (API_SPEC.md §17).
+ */
+export class DispatchTrackingError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+
+  constructor(problem: 'trackingRequired' | 'trackingNotAllowed') {
+    super(
+      problem === 'trackingRequired'
+        ? 'A shipment leaves by a carrier only with its carrier and tracking number'
+        : 'A shipment leaves as own delivery only without carrier nor tracking number',
+      {
+        errors: [
+          {
+            field: 'ownDelivery',
+            code: problem,
+            message:
+              problem === 'trackingRequired'
+                ? 'Captura la paquetería y la guía antes de despachar por paquetería.'
+                : 'Una entrega propia no lleva paquetería ni guía: quítalas antes de despachar.',
+          },
+        ],
+      },
+    );
+  }
 }
 
 /**
@@ -126,6 +160,8 @@ export class Shipment {
       failedAt: null,
       returnedAt: null,
       cancelledAt: null,
+      failureNote: null,
+      returnNote: null,
       version: 1,
     });
     shipment.changed = true;
@@ -187,15 +223,104 @@ export class Shipment {
   }
 
   /**
+   * The staff removes a carrier and tracking number recorded by mistake, so the shipment can leave as own delivery
+   * (ADR-0141): only while PENDING, because a shipment that left by a carrier keeps them (BR-SHP-04).
+   *
+   * @returns false, changing nothing, when it has none.
+   * @throws InvalidStateTransitionError unless PENDING.
+   */
+  removeTracking(): boolean {
+    this.assertStatus('PENDING', 'remove the tracking');
+    if (this.state.carrierName === null && this.state.trackingNumber === null) {
+      return false;
+    }
+    this.state = { ...this.state, carrierName: null, trackingNumber: null };
+    this.changed = true;
+    return true;
+  }
+
+  /**
+   * The shipment leaves (UC-SHI-05, BR-SHP-04, ADR-0078): by a carrier, with its carrier and tracking number already
+   * recorded, or as own delivery, without them.
+   *
+   * @throws InvalidStateTransitionError unless PENDING; DispatchTrackingError when its tracking does not fit.
+   */
+  dispatch(ownDelivery: boolean, now: Date): void {
+    this.assertStatus('PENDING', 'dispatch');
+    const { carrierName, trackingNumber } = this.state;
+    if (!ownDelivery && (carrierName === null || trackingNumber === null)) {
+      throw new DispatchTrackingError('trackingRequired');
+    }
+    if (ownDelivery && (carrierName !== null || trackingNumber !== null)) {
+      throw new DispatchTrackingError('trackingNotAllowed');
+    }
+    this.state = {
+      ...this.state,
+      status: 'DISPATCHED',
+      ownDelivery,
+      dispatchedAt: now,
+    };
+    this.changed = true;
+  }
+
+  /**
+   * The customer received it (UC-SHI-06, BR-SHP-03): DELIVERED, final.
+   *
+   * @throws InvalidStateTransitionError unless DISPATCHED.
+   */
+  deliver(now: Date): void {
+    this.assertStatus('DISPATCHED', 'deliver');
+    this.state = { ...this.state, status: 'DELIVERED', deliveredAt: now };
+    this.changed = true;
+  }
+
+  /**
+   * It could not be delivered (UC-SHI-07, ADR-0053): DELIVERY_FAILED, with nothing retried, cancelled nor refunded.
+   *
+   * @throws InvalidStateTransitionError unless DISPATCHED.
+   */
+  failDelivery(note: string | null, now: Date): void {
+    this.assertStatus('DISPATCHED', 'record the delivery failure');
+    this.state = {
+      ...this.state,
+      status: 'DELIVERY_FAILED',
+      failedAt: now,
+      failureNote: note,
+    };
+    this.changed = true;
+  }
+
+  /**
+   * The goods of a failed delivery came back (UC-SHI-09, ADR-0053): RETURNED, final; their stock comes back apart
+   * (UC-INV-09).
+   *
+   * @throws InvalidStateTransitionError unless DELIVERY_FAILED.
+   */
+  markReturned(note: string | null, now: Date): void {
+    this.assertStatus('DELIVERY_FAILED', 'mark returned');
+    this.state = {
+      ...this.state,
+      status: 'RETURNED',
+      returnedAt: now,
+      returnNote: note,
+    };
+    this.changed = true;
+  }
+
+  /**
    * Its order was cancelled before it left (UC-ORD-07, ADR-0140): CANCELLED, final.
    *
    * @throws InvalidStateTransitionError unless PENDING: an order whose shipment left is not cancelled (BR-CAN-01).
    */
   cancel(now: Date): void {
-    if (this.state.status !== 'PENDING') {
-      throw new InvalidStateTransitionError(this.state.status, 'cancel');
-    }
+    this.assertStatus('PENDING', 'cancel');
     this.state = { ...this.state, status: 'CANCELLED', cancelledAt: now };
     this.changed = true;
+  }
+
+  private assertStatus(allowed: ShipmentStatus, action: string): void {
+    if (this.state.status !== allowed) {
+      throw new InvalidStateTransitionError(this.state.status, action);
+    }
   }
 }

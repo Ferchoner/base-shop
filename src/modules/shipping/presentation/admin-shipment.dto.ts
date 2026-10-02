@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsISO8601,
@@ -10,6 +12,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import {
   PageMetaDto,
@@ -127,6 +130,20 @@ export class AdminShipmentDto {
   })
   cancelledAt: Date | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Por qué falló la entrega, según el staff (ADR-0141).',
+  })
+  failureNote: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Qué regresó, según el staff (ADR-0141).',
+  })
+  returnNote: string | null;
+
   /** Versión para el bloqueo optimista. */
   version: number;
 
@@ -188,20 +205,67 @@ const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
 
 /** Request of `PATCH /v1/admin/shipping/shipments/{shipmentId}` (UC-SHI-04, API_SPEC.md §17). */
 export class RecordTrackingDto {
-  /** Paquetería, de 1 a 100 caracteres. @example 'Estafeta' */
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'Estafeta',
+    description:
+      'Paquetería, de 1 a 100 caracteres; `null`, junto con `trackingNumber`, para quitarlas de un envío pendiente (ADR-0141).',
+  })
+  @IsDefined()
+  @ValidateIf((_, value) => value !== null)
   @IsString()
   @Length(1, 100)
   @Matches(/\S/, NOT_BLANK)
-  carrierName: string;
+  carrierName: string | null;
 
-  /** Número de guía, de 1 a 100 caracteres. @example '8055123456' */
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '8055123456',
+    description:
+      'Número de guía, de 1 a 100 caracteres; `null`, junto con `carrierName`, para quitarlas.',
+  })
+  @IsDefined()
+  @ValidateIf((_, value) => value !== null)
   @IsString()
   @Length(1, 100)
   @Matches(/\S/, NOT_BLANK)
-  trackingNumber: string;
+  trackingNumber: string | null;
 
   /** Versión leída del envío (bloqueo optimista). */
   @IsInt()
   @Min(1)
   version: number;
+}
+
+/** Request of the changes of a shipment that need only its `version` (API_SPEC.md §17). */
+export class ShipmentVersionDto {
+  /** Versión leída del envío (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+/** Request of `POST …/shipments/{shipmentId}/dispatch` (UC-SHI-05, ADR-0078). */
+export class DispatchShipmentDto extends ShipmentVersionDto {
+  /**
+   * `true` si la tienda entrega el pedido, sin paquetería ni guía; por defecto `false`, por paquetería, con la
+   * paquetería y la guía ya capturadas.
+   */
+  @IsOptional()
+  @IsBoolean()
+  ownDelivery?: boolean;
+}
+
+/** Request of `POST …/delivery-failure` and `POST …/return` (UC-SHI-07 and 09, ADR-0141). */
+export class ShipmentNoteDto extends ShipmentVersionDto {
+  /**
+   * Nota de hasta 500 caracteres, que se muestra en el envío y queda en la auditoría: no escribas datos personales.
+   * @example 'Nadie recibió el paquete'
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
