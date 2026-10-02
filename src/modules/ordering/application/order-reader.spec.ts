@@ -3,12 +3,15 @@ import type { OrderId } from '../domain/order.js';
 import { OrderReader } from './order-reader.js';
 import type { OrderingQueries } from './ordering.queries.js';
 import type { OrderPayment, OrderPayments } from './payment-ports.js';
-import type { OrderShipments } from './shipment-ports.js';
+import type { OrderShipment, OrderShipments } from './shipment-ports.js';
 
 const [paid, unpaid] = [newId<'Order'>(), newId<'Order'>()];
 const payment = { id: 'payment-1' } as unknown as OrderPayment;
 
-function setUp() {
+function setUp(
+  shipmentsByOrder: ReadonlyMap<OrderId, OrderShipment> = new Map(),
+) {
+  const shipmentsAsked: OrderId[][] = [];
   const asked: OrderId[][] = [];
   const guests: string[][] = [];
   const payments = {
@@ -34,12 +37,16 @@ function setUp() {
     listOrders: () => page([unpaid, paid]),
   } as unknown as OrderingQueries;
   const shipments = {
-    shipmentsOf: () => Promise.resolve(new Map()),
+    shipmentsOf: (ids: readonly OrderId[]) => {
+      shipmentsAsked.push([...ids]);
+      return Promise.resolve(shipmentsByOrder);
+    },
   } as unknown as OrderShipments;
   return {
     reader: new OrderReader(queries, payments, shipments),
     asked,
     guests,
+    shipmentsAsked,
   };
 }
 
@@ -80,6 +87,24 @@ describe('OrderReader (ADR-0134)', () => {
       ['K7M4Q9XA', 'otro@example.com'],
     ]);
     expect(asked).toEqual([[paid]]);
+  });
+
+  it('shows each order with its shipment, read once for a whole page (ADR-0140)', async () => {
+    const shipment = { status: 'PENDING' } as unknown as OrderShipment;
+    const { reader, shipmentsAsked } = setUp(new Map([[paid, shipment]]));
+
+    expect(await reader.order(paid)).toEqual({
+      id: paid,
+      payment,
+      shipment,
+    });
+    const all = await reader.orders({}, [], { page: 1, pageSize: 20 });
+
+    expect(all.items.map(({ shipment: found }) => found)).toEqual([
+      null,
+      shipment,
+    ]);
+    expect(shipmentsAsked).toEqual([[paid], [unpaid, paid]]);
   });
 
   it('asks Payments nothing for an order that does not exist', async () => {

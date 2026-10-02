@@ -14,6 +14,7 @@ import { PersistenceModule } from '../../../platform/persistence/persistence.mod
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
   Clock,
+  InvalidStateTransitionError,
   Money,
   newId,
   TransactionManager,
@@ -121,6 +122,8 @@ describe('Ordering: life of an order (T-180)', () => {
     await prisma.paymentAttempt.deleteMany();
     await prisma.refund.deleteMany();
     await prisma.payment.deleteMany();
+    await prisma.shipmentItem.deleteMany();
+    await prisma.shipment.deleteMany();
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();
@@ -179,7 +182,15 @@ describe('Ordering: life of an order (T-180)', () => {
   }
 
   /** A guest order of one unit of each variant: $100.00 a unit plus $99.00 of shipping. */
-  async function placed(...variants: VariantId[]): Promise<OrderId> {
+  function placed(...variants: VariantId[]): Promise<OrderId> {
+    return placedWith(
+      variants.map((variantId) => ({ variantId, quantity: 1 })),
+    );
+  }
+
+  async function placedWith(
+    lines: readonly { variantId: VariantId; quantity: number }[],
+  ): Promise<OrderId> {
     const cartId = newId<'Cart'>();
     await prisma.cart.create({
       data: {
@@ -187,22 +198,23 @@ describe('Ordering: life of an order (T-180)', () => {
         status: 'ACTIVE',
         lastActivityAt: new Date(START),
         lines: {
-          create: variants.map((variantId, index) => ({
+          create: lines.map(({ variantId, quantity }, index) => ({
             variantId,
-            quantity: 1,
+            quantity,
             createdAt: new Date(START + index),
             updatedAt: new Date(START + index),
           })),
         },
       },
     });
+    const units = lines.reduce((sum, { quantity }) => sum + quantity, 0);
     return run(() =>
       moduleRef.get(Checkout).placeOrder({
         guestCartId: cartId,
         contactEmail: 'cliente@example.com',
         shippingAddress: ADDRESS,
         privacyNoticeVersion: '2026-09',
-        expectedTotal: variants.length * 10_000 + 9_900,
+        expectedTotal: units * 10_000 + 9_900,
       }),
     );
   }
@@ -315,6 +327,138 @@ describe('Ordering: life of an order (T-180)', () => {
       expect(
         (await prisma.order.findUniqueOrThrow({ where: { id } })).status,
       ).toBe('PENDING_PAYMENT');
+    });
+  });
+
+  describe('its shipment (UC-SHI-03, ADR-0140)', () => {
+    const shipmentOf = (orderId: OrderId) =>
+      prisma.shipment.findUnique({
+        where: { orderId },
+        include: { items: { orderBy: { orderLineId: 'asc' } } },
+      });
+
+    it('is created PENDING when the order is paid, from the active warehouse, to its address and with its lines', async () => {
+      const [shirt, cap] = [await variant(), await variant()];
+      const id = await placedWith([
+        { variantId: shirt, quantity: 2 },
+        { variantId: cap, quantity: 1 },
+      ]);
+
+      expect(await pay(id, 39_900)).toBe('paid');
+
+      const order = await prisma.order.findUniqueOrThrow({
+        where: { id },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+      });
+      expect(await shipmentOf(id)).toMatchObject({
+        orderCode: order.publicCode,
+        warehouseId: MAIN,
+        status: 'PENDING',
+        destination: order.shippingAddress,
+        items: order.lines.map((line) => ({
+          orderLineId: line.id,
+          sku: line.sku,
+          productName: line.productName,
+          quantity: line.quantity,
+        })),
+      });
+      expect(
+        order.lines.map(({ variantId, quantity }) => [variantId, quantity]),
+      ).toEqual([
+        [shirt, 2],
+        [cap, 1],
+      ]);
+    });
+
+    it('is created by a late payment with stock and by the retry of the fulfillment, never while the order waits for stock', async () => {
+      const stocked = await variant(5);
+      const late = await placed(stocked);
+      const short = await variant(1);
+      const waiting = await placed(short);
+      await expire(late);
+      await expire(waiting);
+      await prisma.stockItem.updateMany({
+        where: { variantId: short },
+        data: { onHand: 0 },
+      });
+
+      expect(await pay(late, 19_900)).toBe('paid');
+      expect(await pay(waiting, 19_900)).toBe('awaiting-manual-fulfillment');
+      const beforeRetry = await shipmentOf(waiting);
+      await prisma.stockItem.updateMany({
+        where: { variantId: short },
+        data: { onHand: 1 },
+      });
+      await run(() =>
+        lifecycle.retryFulfillment({
+          orderId: waiting,
+          actorId: newId<'User'>(),
+          version: 3,
+        }),
+      );
+
+      expect((await shipmentOf(late))?.status).toBe('PENDING');
+      expect(beforeRetry).toBeNull();
+      expect((await shipmentOf(waiting))?.status).toBe('PENDING');
+    });
+
+    it('is cancelled with its paid order, and an order whose shipment left is not cancelled', async () => {
+      const shirt = await variant(5);
+      const [kept, left] = [await placed(shirt), await placed(shirt)];
+      await pay(kept, 19_900);
+      await pay(left, 19_900);
+      await prisma.shipment.update({
+        where: { orderId: left },
+        data: {
+          status: 'DISPATCHED',
+          ownDelivery: true,
+          dispatchedAt: new Date(START),
+        },
+      });
+      // Payments captured both: the refund of a cancellation needs it.
+      for (const orderId of [kept, left]) {
+        await prisma.payment.create({
+          data: {
+            id: newId(),
+            orderId,
+            orderCode: 'K7M4Q9XA',
+            provider: 'MANUAL',
+            status: 'CAPTURED',
+            amount: 19_900,
+            capturedAmount: 19_900,
+            currency: 'MXN',
+            capturedAt: CAPTURED,
+          },
+        });
+      }
+      const cancel = (orderId: OrderId) =>
+        run(() =>
+          lifecycle.cancel({
+            orderId,
+            actorId: newId<'User'>(),
+            reason: 'Sin stock',
+            restock: false,
+            version: 2,
+          }),
+        );
+
+      await cancel(kept);
+      await expect(cancel(left)).rejects.toThrow(
+        new InvalidStateTransitionError('DISPATCHED', 'cancel'),
+      );
+
+      expect(await shipmentOf(kept)).toMatchObject({
+        status: 'CANCELLED',
+        cancelledAt: expect.any(Date),
+      });
+      expect(
+        (await prisma.order.findUniqueOrThrow({ where: { id: left } })).status,
+      ).toBe('PAID');
+      expect(
+        await prisma.refund.count({
+          where: { payment: { orderId: left } },
+        }),
+      ).toBe(0);
     });
   });
 

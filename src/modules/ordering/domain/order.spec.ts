@@ -402,3 +402,16 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
     }
   });
 });
+
+describe('Lines of an order (ADR-0140)', () => {
+  it('gives each line its own ID, in the order of the lines', () => {
+    const order = place({
+      lines: [line(10_000, 1), line(20_000, 2), line(30_000, 3)],
+    });
+
+    const ids = order.snapshot.lines.map(({ id }) => id);
+
+    expect(new Set(ids).size).toBe(3);
+    expect([...ids].sort()).toEqual(ids);
+  });
+});

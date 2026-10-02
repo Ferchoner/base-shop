@@ -137,6 +137,8 @@ function fakeStock(
   options: {
     commit?: 'committed' | 'already-committed' | 'not-active';
     available?: boolean;
+    /** The shipment of the order was dispatched, though the order is not SHIPPED yet. */
+    shipmentLeft?: boolean;
   } = {},
 ) {
   const calls: string[] = [];
@@ -211,7 +213,11 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
     },
     cancel: () => {
       calls.push('cancelShipment');
-      return Promise.resolve();
+      return options.shipmentLeft === true
+        ? Promise.reject(
+            new InvalidStateTransitionError('DISPATCHED', 'cancel'),
+          )
+        : Promise.resolve();
     },
   } as unknown as OrderShipments;
   const lifecycle = new OrderLifecycle(
@@ -307,6 +313,22 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
         status: { from: status, to: 'CANCELLED' },
       });
     }
+  });
+
+  it('cancels nothing when the shipment of a paid order left, though the order is not SHIPPED yet (ADR-0140)', async () => {
+    const order = saved('PAID', CAPTURED);
+    const { lifecycle, orders, calls, audited } = setUp(order, {
+      shipmentLeft: true,
+    });
+
+    await expect(cancel(lifecycle, order)).rejects.toThrow(
+      new InvalidStateTransitionError('DISPATCHED', 'cancel'),
+    );
+    expect([orders.saved, audited, calls]).toEqual([
+      [],
+      [],
+      ['cancelShipment'],
+    ]);
   });
 
   it('answers the restock of a paid order as unavailable until T-161 (ADR-0135)', async () => {

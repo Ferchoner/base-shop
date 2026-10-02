@@ -82,6 +82,8 @@ describe('Order administration (e2e, T-180)', () => {
     await prisma.refund.deleteMany();
     await prisma.paymentAttempt.deleteMany();
     await prisma.payment.deleteMany();
+    await prisma.shipmentItem.deleteMany();
+    await prisma.shipment.deleteMany();
     await prisma.idempotencyKey.deleteMany();
     await prisma.cartLine.deleteMany();
     await prisma.cart.deleteMany();
