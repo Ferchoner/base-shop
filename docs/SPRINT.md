@@ -2,11 +2,11 @@
 
 ## Sprint actual
 
-4 — Compra con pago en tienda (Shopping, Ordering y Payments). Inicio: 2026-10-01 (propuesta aprobada en el Sprint Review del Sprint 3).
+5 — Entrega del pedido (Shipping, Inventory y notificaciones). Inicio: 2026-10-02 (propuesta aprobada en el Sprint Review del Sprint 4).
 
 ## Goal
 
-Compra completa con pago en tienda: un cliente o un invitado arma su carrito, coloca la orden y la paga en tienda; si no paga, la orden vence y el stock reservado vuelve.
+Entrega del pedido: la orden pagada se envía y se entrega, o se devuelve con su stock; el cliente recibe un correo en cada paso, y la limpieza diaria borra lo vencido.
 
 ## Tasks
 
@@ -14,47 +14,41 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 | Paso | Tareas |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR; pull requests de Dependabot (el agrupado llega el lunes 5 de octubre); orden de los validadores de `PageQueryDto` y de los demás DTO, con su prueba |
-| 1 | T-170 (carrito) |
-| 2 | T-180 (checkout y órdenes, en dos partes; P-73 resuelta en ADR-0132) |
-| 3 | T-190 (pago en tienda y reembolso total al cancelar, en dos partes, ADR-0134) |
-| 4 | T-230 (vencimiento de reservas y órdenes; la conciliación de pagos pasa a T-192) |
-| 5 | T-181 parte a (restaurar el carrito), T-185 (consulta de pedido de invitado) y T-181 parte b (copiar el carrito), en ese orden (ADR-0137) |
+| 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); migración que quita el índice sin uso de `reservations` (ADR-0136) |
+| 1 | T-195 (envíos manuales: creación al pagarse, guía, despacho, entrega, entrega fallida y devolución) |
+| 2 | T-161 (reintegro de stock: reemplaza el 409 de `restock` y atiende las devoluciones) |
+| 3 | T-215 (correos al cliente: orden recibida, pagada, enviada, cancelada y reembolsada) |
+| 4 | T-231 (limpieza diaria) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
-- **Pospuesto al Sprint 5 o después:** T-195 (envíos), T-161 (reintegro), T-215 (notificaciones), T-192 (PayPal y conciliación), T-231 (limpieza diaria), T-132 (anonimización), T-220 (consulta de auditoría) y reducir la imagen de producción.
+- **Pospuesto al Sprint 6 o después:** T-132 (anonimización, que necesita a T-195), T-220 (consulta de auditoría), T-192 (PayPal y conciliación, sin cuenta para verificarlo) y reducir la imagen de producción.
 - **Flujo de trabajo:** cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106). Antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha.
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR, sin contradicciones:**
-  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso, y siguen abiertas las mismas 10 decisiones (P-73 incluida);
-  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
-  - existen los scripts que cita la documentación;
-  - cada contexto tiene sus cuatro capas, y `audit` solo infraestructura, como dice `ARCHITECTURE.md`;
-  - las dependencias coinciden con el stack;
-  - los `overrides` de ADR-0091 siguen siendo necesarios, porque Prisma 7.10.0 todavía fija `mysql2` 3.15.3 y `deepmerge-ts` 7.1.5;
-  - `npm audit` no encuentra vulnerabilidades.
-- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
-- **Validación (ADR-0130):** el pipe reporta primero la presencia y el tipo de cada campo, sin importar el orden de los decoradores. Corrige las 102 propiedades de 14 archivos que tenían la regla de tipo arriba, sin tocarlas: por ejemplo, `pageSize=abc` ahora responde "Debe ser un número entero.".
-- **Rate limit en las e2e:** `test/e2e-environment.ts` sube el límite general a 1000 por minuto en todas las suites; las que prueban límites fijan los suyos.
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma medir con datos grandes y revisar las pruebas al crear datos por migración, y `AI_WORKFLOW.md`, cómo editar con scripts y comprobar el escaneo de secretos antes de cada commit.
 
 ## Risks
 
-- **Ruta crítica:** T-170 → T-180 → T-190 → T-230. T-180 es la tarea más grande y define cómo usa Ordering a Shopping, Pricing, Inventory y Shipping; un retraso en ella retrasa el resto del sprint.
-- **Dependencias entre módulos:** Ordering usará a Shopping, Pricing, Inventory y Shipping, y Payments reaccionará a Ordering. Para no formar ciclos, cada módulo que reacciona a otro se suscribe a sus eventos por nombre (ADR-0125, ADR-0127), como Shopping al restaurar el carrito de una orden vencida (T-181). P-73 se resolvió en el plan de T-180 (ADR-0132): Ordering le pasa a Inventory las líneas del reintegro, e Identity nunca usa a Ordering.
-- **Reservas sin vencimiento hasta T-230:** entre T-180 y T-230, las órdenes que no se pagan mantienen apartado su stock (ADR-0128). Solo afecta al entorno local.
-- **Consistencia en el checkout:** el checkout nunca usa la cache; vuelve a leer precios y stock, y compara el total con `expectedTotal` (ADR-0019, ADR-0028).
-- **Idempotencia:** colocar la orden e iniciar el pago exigen `Idempotency-Key`, ligado a quien lo envía (ADR-0063), sobre el almacén de idempotencia de T-115.
-- **Invitados:** el `cartId` es aleatorio y no adivinable (ADR-0059), y la consulta de su pedido lleva rate limiting y no revela si la orden existe (ADR-0020, ADR-0049).
-- **Riesgos heredados del Sprint 3:** ver su review en el historial.
+- **Ruta crítica:** T-195 → T-161 → T-215. T-195 crea el envío de la orden pagada y la lleva a SHIPPED y DELIVERED; el reintegro de los envíos devueltos y los correos de envío dependen de él.
+- **Dependencias entre módulos:** Ordering usa a Shipping para cotizar, así que Shipping no puede usar a Ordering. T-195 decide en su plan cómo nace el envío al pagarse la orden y cómo avanza la orden con el envío, sin formar un ciclo: con la fachada de Shipping desde Ordering o con eventos (`ShipmentDispatched`, `ShipmentDelivered`, API_SPEC.md §2.5).
+- **Eventos que aún no existen:** Ordering todavía no publica `OrderPlaced`, `OrderPaid` ni `OrderCancelled`, que necesitan los correos (ADR-0074). T-195 y T-215 los agregan.
+- **Reintegro (T-161):** Ordering le pasa a Inventory las líneas y lo vendido de cada una (ADR-0132), y la opción `restock` deja de responder 409 (ADR-0135). La suma reintegrada por línea nunca supera lo vendido (ADR-0052).
+- **Correos (T-215):** se envían en segundo plano con el capturador local (ADR-0045, ADR-0074); P-24 (proveedor real) sigue abierta. Un correo se pierde si falla su manejador.
+- **Limpieza diaria (T-231):** borra datos. Debe ir por lotes, ser idempotente y conservar los carritos de clientes (BR-CRT-06); el carrito original de una orden de invitado que se borre deja la recompra del staff en 409 (ADR-0082).
+- **Riesgos heredados del Sprint 4:** ver su review en el historial.
 
 ## Sprint Review
 
+PENDIENTE.
+
+---
+
+## Historial
+
+### Sprint 4 — Compra con pago en tienda (2026-10-01 a 2026-10-02)
+
+**Goal:** compra completa con pago en tienda: un cliente o un invitado arma su carrito, coloca la orden y la paga en tienda; si no paga, la orden vence y el stock reservado vuelve. **Tareas:** T-170, T-180 (en dos partes), T-190 (en dos partes), T-230, T-181 (en dos partes) y T-185, todas en DONE, precedidas por un paso 0.
+
 **Fecha:** 2026-10-02. **Resultado:** objetivo cumplido. Las 6 tareas están en DONE y el pipeline de CI está en verde en `main`. Un cliente o un invitado arma su carrito, coloca la orden y la paga en tienda; si no paga, la orden vence, su stock vuelve y sus líneas regresan al carrito. El staff administra las órdenes, cancela con reembolso y registra pagos y reembolsos en tienda, y el cliente puede volver a comprar una orden cancelada.
 
-### Entregables
+#### Entregables
 
 | Entregable | Estado | Referencia |
 |---|---|---|
@@ -74,7 +68,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 El trabajo se integró en 10 pull requests a `main` (del #59 al #68). La CI pasó a la primera en todos, y también en `main` después de cada fusión.
 
-### Decisiones abiertas que pasan al siguiente sprint
+#### Decisiones abiertas que pasan al siguiente sprint
 
 Ninguna bloquea los envíos manuales, el reintegro, los correos con el capturador local ni la limpieza diaria.
 
@@ -85,7 +79,7 @@ Ninguna bloquea los envíos manuales, el reintegro, los correos con el capturado
 | Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
 | Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
 
-### Riesgos que pasan al siguiente sprint
+#### Riesgos que pasan al siguiente sprint
 
 - **Resueltos en este sprint:**
   - las reservas ya vencen (T-230);
@@ -107,7 +101,7 @@ Ninguna bloquea los envíos manuales, el reintegro, los correos con el capturado
   - **Índice sin uso:** el índice `(expires_at) WHERE status = 'ACTIVE'` de `reservations` quedó sin uso (ADR-0136).
   - **Documentación OpenAPI:** solo se construye en las suites que simulan el entorno local, así que un DTO que la rompe pasa las pruebas de su propia ruta.
 
-### Qué funcionó
+#### Qué funcionó
 
 - **Partir las tareas:** T-180, T-190 y T-181 se hicieron en dos partes. T-185 se metió entre las dos de T-181 para que la recompra pública usara su identificación del invitado y su límite.
 - **Dependencias en un solo sentido:** Ordering usa ocho fachadas, y Payments y Shopping le responden con eventos (`PaymentCaptured`, `RefundCompleted` y `OrderExpired`), así que nunca se formó un ciclo.
@@ -125,7 +119,7 @@ Ninguna bloquea los envíos manuales, el reintegro, los correos con el capturado
 - **Usar el caso de uso real en las pruebas:** cambiar el vencimiento simulado por el job reveló que la simulación no sumaba versión.
 - **CI a la primera** en los 10 pull requests.
 
-### Qué mejorar
+#### Qué mejorar
 
 - **Documentación OpenAPI:** un `string[]` sin `@ApiProperty({ type: [String] })` rompió la construcción del documento. Solo lo encontró la corrida completa de las e2e, en una suite ajena a la ruta. Conviene una prueba que construya el documento en toda corrida.
 - **Comparar respuestas de error:** los Problem Details llevan `correlationId` e `instance`, que cambian en cada solicitud. Una prueba de "respuestas idénticas" debe excluirlos.
@@ -133,25 +127,24 @@ Ninguna bloquea los envíos manuales, el reintegro, los correos con el capturado
 - **Heredocs:** un heredoc de Python volvió a fallar. La regla de escribir los scripts en archivos sigue vigente.
 - **Fechas dentro de una operación:** el reembolso y la cancelación leen el reloj por separado. Conviene decidir en cada plan si una operación usa una sola fecha.
 
-### Propuesta para el Sprint 5 (aprobada el 2026-10-02)
+#### Resultado del paso 0
 
-- **Goal:** entrega del pedido. La orden pagada se envía y se entrega, o se devuelve con su stock; el cliente recibe un correo en cada paso, y la limpieza diaria borra lo vencido.
-- **Tareas, en orden de dependencias:**
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio y casos de uso, y siguen abiertas las mismas 10 decisiones (P-73 incluida);
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - cada contexto tiene sus cuatro capas, y `audit` solo infraestructura, como dice `ARCHITECTURE.md`;
+  - las dependencias coinciden con el stack;
+  - los `overrides` de ADR-0091 siguen siendo necesarios, porque Prisma 7.10.0 todavía fija `mysql2` 3.15.3 y `deepmerge-ts` 7.1.5;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Validación (ADR-0130):** el pipe reporta primero la presencia y el tipo de cada campo, sin importar el orden de los decoradores. Corrige las 102 propiedades de 14 archivos que tenían la regla de tipo arriba, sin tocarlas: por ejemplo, `pageSize=abc` ahora responde "Debe ser un número entero.".
+- **Rate limit en las e2e:** `test/e2e-environment.ts` sube el límite general a 1000 por minuto en todas las suites; las que prueban límites fijan los suyos.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma medir con datos grandes y revisar las pruebas al crear datos por migración, y `AI_WORKFLOW.md`, cómo editar con scripts y comprobar el escaneo de secretos antes de cada commit.
 
-  | Paso | Tareas |
-  |---|---|
-  | 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); migración que quita el índice sin uso de `reservations` (ADR-0136) |
-  | 1 | T-195 (envíos manuales: creación al pagarse, guía, despacho, entrega, entrega fallida y devolución) |
-  | 2 | T-161 (reintegro de stock: reemplaza el 409 de `restock` y atiende las devoluciones) |
-  | 3 | T-215 (correos al cliente: orden recibida, pagada, enviada, cancelada y reembolsada) |
-  | 4 | T-231 (limpieza diaria) |
+#### Siguiente sprint
 
-- **Pospuesto al Sprint 6 o después:** T-132 (anonimización, que necesita a T-195), T-220 (consulta de auditoría), T-192 (PayPal y conciliación, sin cuenta para verificarlo) y reducir la imagen de producción.
-- **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
-
----
-
-## Historial
+La propuesta del Sprint 5 se aprobó el 2026-10-02; ver "Sprint actual".
 
 ### Sprint 3 — Catálogo vendible (2026-09-29 a 2026-09-30)
 
