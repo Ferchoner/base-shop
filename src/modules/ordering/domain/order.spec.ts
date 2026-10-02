@@ -124,8 +124,8 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       privacyNoticeVersion: '2026-09',
       status: 'PENDING_PAYMENT',
       lines: [
-        { ...lines[0], lineNumber: 1 },
-        { ...lines[1], lineNumber: 2 },
+        { ...lines[0], id: expect.any(String), lineNumber: 1 },
+        { ...lines[1], id: expect.any(String), lineNumber: 2 },
       ],
       totals: orderTotals(lines, SHIPPING),
       shippingTaxRateBp: 1600,

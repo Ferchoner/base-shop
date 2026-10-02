@@ -1,7 +1,14 @@
-import { Money, newId } from '../../../shared-kernel/index.js';
+import {
+  type Clock,
+  Money,
+  newId,
+  type TransactionManager,
+} from '../../../shared-kernel/index.js';
+import type { ShipmentRepository } from '../domain/shipment.repository.js';
 import { ShippingMethod } from '../domain/shipping-method.js';
 import { ShippingMethodRepository } from '../domain/shipping-method.repository.js';
 import { ShippingFacade } from './shipping.facade.js';
+import type { ShippingQueries } from './shipping.queries.js';
 
 const mxn = (amount: number) => Money.of(amount, 'MXN');
 
@@ -20,6 +27,17 @@ class FixedMethod extends ShippingMethodRepository {
   }
 }
 
+/** A facade that only quotes: its shipments are never touched. */
+const quoting = (method: ShippingMethod | null) =>
+  new ShippingFacade(
+    new FixedMethod(method),
+    {} as ShipmentRepository,
+    {} as ShippingQueries,
+    {} as TransactionManager,
+    {} as Clock,
+    1_600,
+  );
+
 describe('ShippingFacade (UC-SHI-01, ADR-0122)', () => {
   const id = newId<'ShippingMethod'>();
   const standard = ShippingMethod.restore({
@@ -34,7 +52,7 @@ describe('ShippingFacade (UC-SHI-01, ADR-0122)', () => {
   });
 
   it('quotes the shipping of an order with the active method and the configured VAT rate', async () => {
-    const facade = new ShippingFacade(new FixedMethod(standard), 1_600);
+    const facade = quoting(standard);
 
     expect(
       await facade.quote({ subtotal: mxn(119_800), discount: mxn(0) }),
@@ -50,7 +68,7 @@ describe('ShippingFacade (UC-SHI-01, ADR-0122)', () => {
   });
 
   it('still shows the threshold and the delivery time when shipping is free', async () => {
-    const facade = new ShippingFacade(new FixedMethod(standard), 1_600);
+    const facade = quoting(standard);
 
     expect(
       await facade.quote({ subtotal: mxn(150_000), discount: mxn(0) }),
@@ -63,7 +81,7 @@ describe('ShippingFacade (UC-SHI-01, ADR-0122)', () => {
   });
 
   it('fails loudly without an active method, which the migration always creates', async () => {
-    const facade = new ShippingFacade(new FixedMethod(null), 1_600);
+    const facade = quoting(null);
 
     await expect(
       facade.quote({ subtotal: mxn(100), discount: mxn(0) }),

@@ -3,6 +3,7 @@ import type { OrderId } from '../domain/order.js';
 import { OrderReader } from './order-reader.js';
 import type { OrderingQueries } from './ordering.queries.js';
 import type { OrderPayment, OrderPayments } from './payment-ports.js';
+import type { OrderShipments } from './shipment-ports.js';
 
 const [paid, unpaid] = [newId<'Order'>(), newId<'Order'>()];
 const payment = { id: 'payment-1' } as unknown as OrderPayment;
@@ -32,19 +33,35 @@ function setUp() {
     listCustomerOrders: () => page([paid, unpaid]),
     listOrders: () => page([unpaid, paid]),
   } as unknown as OrderingQueries;
-  return { reader: new OrderReader(queries, payments), asked, guests };
+  const shipments = {
+    shipmentsOf: () => Promise.resolve(new Map()),
+  } as unknown as OrderShipments;
+  return {
+    reader: new OrderReader(queries, payments, shipments),
+    asked,
+    guests,
+  };
 }
 
 describe('OrderReader (ADR-0134)', () => {
   it('shows each order with its payment, or null while it has none', async () => {
     const { reader, asked } = setUp();
 
-    expect(await reader.order(paid)).toEqual({ id: paid, payment });
+    expect(await reader.order(paid)).toEqual({
+      id: paid,
+      payment,
+      shipment: null,
+    });
     expect(await reader.customerOrder(newId<'User'>(), 'X' as never)).toEqual({
       id: unpaid,
       payment: null,
+      shipment: null,
     });
-    expect(await reader.adminOrder(paid)).toEqual({ id: paid, payment });
+    expect(await reader.adminOrder(paid)).toEqual({
+      id: paid,
+      payment,
+      shipment: null,
+    });
     expect(asked).toEqual([[paid], [unpaid], [paid]]);
   });
 
@@ -53,7 +70,7 @@ describe('OrderReader (ADR-0134)', () => {
 
     expect(
       await reader.guestOrder('K7M4Q9XA' as never, ' Cliente@Example.COM '),
-    ).toEqual({ id: paid, payment });
+    ).toEqual({ id: paid, payment, shipment: null });
     expect(
       await reader.guestOrder('K7M4Q9XA' as never, 'otro@example.com'),
     ).toBeNull();
@@ -83,8 +100,8 @@ describe('OrderReader (ADR-0134)', () => {
 
     expect(mine).toEqual({
       items: [
-        { id: paid, payment },
-        { id: unpaid, payment: null },
+        { id: paid, payment, shipment: null },
+        { id: unpaid, payment: null, shipment: null },
       ],
       totalItems: 9,
     });

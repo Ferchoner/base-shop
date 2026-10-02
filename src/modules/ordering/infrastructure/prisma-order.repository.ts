@@ -58,7 +58,7 @@ export class PrismaOrderRepository extends OrderRepository {
     if (inserted === 0) return false;
     await this.txHost.tx.orderLine.createMany({
       data: o.lines.map((line) => ({
-        id: newId(),
+        id: line.id,
         orderId: o.id,
         lineNumber: line.lineNumber,
         variantId: line.variantId,
@@ -164,6 +164,7 @@ function toSnapshot(row: OrderRow) {
     privacyNoticeVersion: row.privacyNoticeVersion,
     status: row.status,
     lines: row.lines.map((line) => ({
+      id: toId<'OrderLine'>(line.id),
       lineNumber: line.lineNumber,
       variantId: toId<'Variant'>(line.variantId),
       sku: line.sku,

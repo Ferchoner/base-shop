@@ -20,6 +20,7 @@ import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import type { PublicCode } from '../domain/public-code.js';
 import type { OrderStock, StockLine } from './checkout-ports.js';
 import type { OrderPayments } from './payment-ports.js';
+import type { OrderShipments } from './shipment-ports.js';
 import { OrderLifecycle } from './order-lifecycle.use-case.js';
 
 // Test doubles of the unit tests of the life of an order.
@@ -203,9 +204,25 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
       return Promise.resolve();
     },
   } as unknown as OrderPayments;
-  const lifecycle = new OrderLifecycle(orders, stock, payments, inline, audit, {
-    now: () => NOW,
-  });
+  const shipments = {
+    createFor: () => {
+      calls.push('createShipment');
+      return Promise.resolve();
+    },
+    cancel: () => {
+      calls.push('cancelShipment');
+      return Promise.resolve();
+    },
+  } as unknown as OrderShipments;
+  const lifecycle = new OrderLifecycle(
+    orders,
+    stock,
+    payments,
+    shipments,
+    inline,
+    audit,
+    { now: () => NOW },
+  );
   return { lifecycle, orders, calls, audited, reservation };
 }
 
@@ -281,7 +298,7 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
 
       await cancel(lifecycle, order);
 
-      expect(calls).toEqual(['startRefund']);
+      expect(calls).toEqual(['cancelShipment', 'startRefund']);
       expect(savedOne(orders).snapshot).toMatchObject({
         status: 'CANCELLED',
         paidAt: CAPTURED,
@@ -328,7 +345,7 @@ describe('OrderLifecycle: retrying the fulfillment (UC-ORD-08)', () => {
       version: 3,
     });
 
-    expect(calls).toEqual(['reserve 2,1', 'commit']);
+    expect(calls).toEqual(['reserve 2,1', 'commit', 'createShipment']);
     expect(savedOne(orders).snapshot).toMatchObject({
       status: 'PAID',
       paidAt: CAPTURED,
@@ -400,7 +417,7 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
 
       expect(await pay(lifecycle, order)).toBe('paid');
 
-      expect(calls).toEqual(['commit']);
+      expect(calls).toEqual(['commit', 'createShipment']);
       expect(savedOne(orders).snapshot).toMatchObject({
         status: 'PAID',
         paidAt: CAPTURED,
@@ -411,8 +428,11 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
 
   it('reserves again when the reservation ended, for an unpaid or an expired order (ADR-0012)', async () => {
     for (const [status, expected] of [
-      ['PENDING_PAYMENT', ['commit', 'reserveIfAvailable 2,1', 'commit']],
-      ['EXPIRED', ['reserveIfAvailable 2,1', 'commit']],
+      [
+        'PENDING_PAYMENT',
+        ['commit', 'reserveIfAvailable 2,1', 'commit', 'createShipment'],
+      ],
+      ['EXPIRED', ['reserveIfAvailable 2,1', 'commit', 'createShipment']],
     ] as const) {
       const order = saved(status);
       const { lifecycle, orders, calls, reservation } = setUp(order, {

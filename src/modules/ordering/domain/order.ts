@@ -3,6 +3,7 @@ import {
   InvalidStateTransitionError,
   InvalidValueError,
   Money,
+  newId,
 } from '../../../shared-kernel/index.js';
 import { EmptyCartError } from './ordering-errors.js';
 import type { PublicCode } from './public-code.js';
@@ -125,7 +126,11 @@ export interface ShippingAddress {
   readonly country: 'MX';
 }
 
+export type OrderLineId = Id<'OrderLine'>;
+
 export interface OrderLine extends PricedLine {
+  /** UUIDv7, so the lines of an order sort by their number too; its shipment names them (ADR-0140). */
+  readonly id: OrderLineId;
   /** From 1, in the order of the cart. */
   readonly lineNumber: number;
 }
@@ -244,6 +249,7 @@ export class Order {
       status: 'PENDING_PAYMENT',
       lines: input.lines.map((line, index) => ({
         ...line,
+        id: newId<'OrderLine'>(),
         lineNumber: index + 1,
       })),
       totals: orderTotals(input.lines, input.shipping),

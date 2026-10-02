@@ -28,6 +28,7 @@ import {
 } from '../application/order-values.js';
 import {
   AdminOrderPaymentDto,
+  AdminOrderShipmentDto,
   OrderFieldsDto,
   OrderLineDto,
 } from './order.dto.js';
@@ -77,6 +78,13 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
     description: '`null` mientras la orden no tenga pago.',
   })
   payment: AdminOrderPaymentDto | null;
+
+  @ApiProperty({
+    type: () => AdminOrderShipmentDto,
+    nullable: true,
+    description: '`null` mientras la orden no tenga envío.',
+  })
+  shipment: AdminOrderShipmentDto | null;
 
   /** Número interno consecutivo; solo para el staff (ADR-0049). @example 1042 */
   orderNumber: number;
