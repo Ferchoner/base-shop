@@ -32,6 +32,28 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
   - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
 
+### Resultado del paso 0
+
+- **Revisión contra los ADR, sin contradicciones:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y el índice de ADR coincide con sus secciones; siguen abiertas las mismas 9 decisiones;
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - cada contexto tiene sus cuatro capas; `audit` solo infraestructura y `notifications` aplicación e infraestructura, como dice `ARCHITECTURE.md`;
+  - los `overrides` de ADR-0091 siguen siendo necesarios, porque Prisma 7.10.0 todavía fija `mysql2` 3.15.3 y `deepmerge-ts` 7.1.5;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Documento OpenAPI en cada corrida (ADR-0096):**
+  - `configureHttp` construye y revisa el documento en todo entorno salvo producción, y solo lo sirve en desarrollo;
+  - la revisión falla si construirlo falla o si un `$ref` no tiene su esquema, y lo prueba `api-docs.spec.ts`;
+  - comprobado rompiendo el DTO de la recompra: sin `@ApiProperty({ type: [String] })`, la suite de la recompra, corrida sola, falla con la dependencia circular que en T-181 solo apareció en otra suite.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 5:
+  - revisar en cada plan las representaciones de `API_SPEC.md` §8;
+  - comparar los errores de dominio por su `code` y sus `details`;
+  - valores distintos en los datos de prueba;
+  - que `tsc` compila también las specs de integración y e2e;
+  - `set -o pipefail` si se filtra la salida del escaneo de secretos;
+  - que un DTO no redeclara con decorador un campo de su clase base.
+
 ## Risks
 
 - **T-132 cruza contextos:** anonimiza o borra datos de cuatro módulos, y debe esperar a que concluyan las órdenes (ADR-0067):

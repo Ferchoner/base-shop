@@ -2111,7 +2111,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las opciones del plugin se repiten en `nest-cli.json` y en `test/swagger-plugin.cjs`; cambian juntas.
   - Una aplicación de test que no llama a `configureHttp` no tiene el prefijo `/v1`.
   - Cuando existan endpoints, el documento generado debe coincidir con `API_SPEC.md` (sección OpenAPI).
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0109 agrega una convención: la respuesta de éxito y los campos que contienen otros DTO se declaran de forma explícita.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0109 agrega una convención: la respuesta de éxito y los campos que contienen otros DTO se declaran de forma explícita. Desde el paso 0 del Sprint 6, el documento se construye y se revisa en todo entorno salvo producción (que cada `$ref` tenga su esquema), y solo se sirve en desarrollo.
 
 ---
 

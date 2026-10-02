@@ -4,7 +4,7 @@
 
 1. Leer `CLAUDE.md`.
 2. Revisar documentación relacionada.
-3. Crear/confirmar plan.
+3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161).
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
@@ -153,6 +153,7 @@ Versionado y documentación OpenAPI (ADR-0096):
   - los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type: () => [OtroDto] })`;
   - las listas, las fechas y los campos que pueden ser `null` (ADR-0112), por ejemplo `@ApiProperty({ type: String, format: 'date-time', nullable: true })`.
 - Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos.
+- Un DTO no redeclara con decorador un campo de su clase base: TypeScript lo rechaza (TS2612), y `declare` no admite decoradores. Cada vista que necesita otro tipo declara su propio campo, como `payment` y `shipment` en las vistas de la orden (T-195).
 - Los tests end-to-end aplican el mismo plugin (`test/swagger-plugin.cjs`). Como ts-jest compila archivo por archivo, el plugin no deduce ahí los tipos de retorno ni los campos con otros DTO; declarándolos de forma explícita, el documento de los tests coincide con el real.
 
 Errores HTTP y validación (ADR-0095):
@@ -198,7 +199,10 @@ Tests (Jest):
 - Una consulta que recorre muchas filas (listados, búsquedas, reportes) se mide con datos grandes desde el primer borrador. Un test de integración temporal, que no se versiona, inserta miles de filas con `generate_series` y toma el tiempo de cada variante: así apareció en T-140c una página que tardaba 666 ms (ADR-0129).
 - Una prueba de respuestas de error idénticas compara los Problem Details sin `correlationId` ni `instance`, que cambian en cada solicitud (T-185, T-181).
 - Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
-- El documento OpenAPI solo se construye en las suites e2e que simulan el entorno local, como la de la documentación de la API. Por eso, antes de cada commit se corre la suite e2e completa, no solo la de la ruta nueva.
+- Un error de dominio con `details` se compara con `rejects.toMatchObject({ code, details })`. `toThrow(new Error(…))` solo compara el mensaje: la prueba del tope del reintegro pasaba con otras líneas en el error (T-161).
+- Los datos de prueba usan valores distintos donde el código elige entre ellos (T-215). Un reembolso igual al total de la orden, una dirección sin número interior o un solo tipo de despacho dejaron pasar mutaciones.
+- `npx tsc --noEmit` compila también las specs de integración y e2e: al quitar un campo de una firma, se busca en ellas antes del commit. En T-161, el commit feat no compilaba por sí solo.
+- `configureHttp` construye y revisa el documento OpenAPI fuera de producción (paso 0 del Sprint 6): construirlo falla con un DTO que no puede describir, y cada `$ref` debe tener su esquema. Así, toda suite e2e lo construye con el plugin de Swagger, y un DTO que lo rompe falla en su propia suite. Aun así, antes de cada commit se corre la suite e2e completa.
   - Una propiedad que es un arreglo de valores simples declara `@ApiProperty({ type: [String] })`: el plugin de Swagger no infiere su tipo, y sin él la construcción del documento falla (T-181).
 - El proyecto es ESM (`"type": "module"`): Jest corre con `ts-jest` en modo ESM y `node --experimental-vm-modules`. Usar siempre los scripts `npm test`, `npm run test:int`, `npm run test:e2e` y `npm run test:cov`. La advertencia `ExperimentalWarning: VM Modules` es esperada.
 
@@ -273,7 +277,7 @@ Ramas y commits (ADR-0084), en inglés:
 - Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`.
 - Antes de cada commit, con Docker en marcha (ADR-0119):
   1. `git diff --cached --stat`: comprobar que lo preparado es solo lo de ese commit. Un archivo movido con `git mv` queda preparado aunque no se haya agregado después.
-  2. `npm run secrets:scan`: si encuentra algo en lo preparado, se corrige antes de commitear. En los tests, un valor literal junto a palabras como "password" o "key" puede parecer un secreto: se construye el valor o se cambia el nombre, en lugar de ignorarlo.
+  2. `npm run secrets:scan`: si encuentra algo en lo preparado, se corrige antes de commitear. Si su salida se filtra (por ejemplo, con `| tail`), se activa antes `set -o pipefail`: sin él, el filtro oculta el código de salida y el commit encadenado con `&&` se hace aunque el escaneo falle (T-195). En los tests, un valor literal junto a palabras como "password" o "key" puede parecer un secreto: se construye el valor o se cambia el nombre, en lugar de ignorarlo.
 
 ## Configuración local
 
