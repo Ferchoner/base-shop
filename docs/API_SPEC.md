@@ -101,8 +101,8 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 
 | Operación que lo origina | Evento | Efecto en segundo plano | Dónde se nota |
 |---|---|---|---|
-| Registrar un pago manual (`POST /v1/admin/orders/{orderId}/manual-capture`, ADR-0134); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID y se confirma su reserva; si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund`, y se inicia su reembolso (ADR-0133, ADR-0135) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes |
-| La orden quedó pagada (efecto anterior) | `OrderPaid` | Se crea el envío en PENDING (UC-SHI-03) y se envía el correo "Pago confirmado" (ADR-0074) | Lista de envíos pendientes del staff; correo del cliente |
+| Registrar un pago manual (`POST /v1/admin/orders/{orderId}/manual-capture`, ADR-0134); en el futuro, el webhook o la conciliación de PayPal | `PaymentCaptured` | La orden pasa a PAID, se confirma su reserva y se crea su envío en PENDING, todo en una transacción (UC-SHI-03, ADR-0140); si la reserva ya expiró, sigue el flujo de pago tardío y puede quedar en AWAITING_MANUAL_FULFILLMENT, sin envío (UC-ORD-09, ADR-0012). Una orden cancelada sigue cancelada con `hasPendingRefund`, y se inicia su reembolso (ADR-0133, ADR-0135) | Estado de la orden para el staff, el cliente y el invitado: puede seguir en PENDING_PAYMENT o EXPIRED unos instantes; lista de envíos pendientes del staff |
+| La orden quedó pagada (efecto anterior) | `OrderPaid` | Se envía el correo "Pago confirmado" (ADR-0074), con T-215 | Correo del cliente |
 | Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED y se envía el correo "Orden enviada" | Estado de la orden; correo del cliente |
 | Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED | Estado de la orden |
 | Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED, con `refundedAt` igual a la fecha del reembolso, y deja de tener `hasPendingRefund` (ADR-0051, ADR-0135); el correo "Reembolso completado" llega con T-215 | Estado de la orden; correo del cliente |
@@ -111,7 +111,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054, ADR-0137): el invitado, o el cliente sin carrito activo, recupera el carrito de la orden activo otra vez; el cliente con carrito activo recibe en él las líneas | Carrito del cliente o del invitado |
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
-- Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva y el inicio del reembolso.
+- Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva, el inicio del reembolso y la cancelación del envío (ADR-0140).
 - Si el procesamiento de un evento falla, su efecto no ocurre y el fallo queda en el log. Para `PaymentCaptured`, el job de conciliación de pagos vuelve a ejecutar la confirmación (ADR-0014); los demás casos requieren revisión.
 - Todo efecto nuevo en segundo plano se agrega a esta tabla.
 
@@ -1263,7 +1263,7 @@ Implementado en T-180 parte a (ADR-0132):
   7. stock (409 `insufficient-stock`).
 - **Dirección:** sin `addressId` ni `shippingAddress`, o con los dos, 400 `validation-error` con `exactlyOneAddress` en `addressId`. La dirección escrita se valida contra el catálogo del INEGI: 400 `validation-error` en `shippingAddress.stateCode` o `shippingAddress.municipalityCode`.
 - **Invitado con sesión:** un cliente con sesión puede usar `/v1/orders` con un carrito de invitado, y la orden queda como de invitado.
-- **Respuesta:** `Order` sin `id` ni `orderNumber`, con `contactEmail` en minúsculas, `paymentDueAt` igual al vencimiento de la reserva, y `payment` y `shipment` en `null` hasta T-190 y T-195.
+- **Respuesta:** `Order` sin `id` ni `orderNumber`, con `contactEmail` en minúsculas, `paymentDueAt` igual al vencimiento de la reserva, y `payment` y `shipment` en `null`: el pago se inicia después, y el envío nace con la orden pagada (ADR-0140).
 - **Mis pedidos:** el staff recibe 403 `forbidden`. El orden predeterminado es `-placedAt`, con desempate por ID. Un código que no puede existir responde 404.
 - **Parte b:** la administración (§15.7) y UC-ORD-09 se implementaron en ADR-0133.
 
@@ -1306,7 +1306,7 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - Request: `{ "reason": "…", "restock": false, "version": 12 }`. `reason` 1–500 caracteres; `restock` opcional, solo en estado PAID y requiere además `inventory.write` (ADR-0052).
 - Desde PENDING_PAYMENT: Cancelled y libera la reserva. Desde PAID o AWAITING_MANUAL_FULFILLMENT: Cancelled e inicia el reembolso total (ADR-0051).
 - 200 `AdminOrder`. Auditado.
-- Errores: 409 `invalid-state-transition` (Shipped o posterior, ya cancelada); 403 `forbidden` si pide `restock` sin `inventory.write`; 409 `restock-not-allowed`.
+- Errores: 409 `invalid-state-transition` (Shipped o posterior, ya cancelada, o con el envío ya despachado, ADR-0140); 403 `forbidden` si pide `restock` sin `inventory.write`; 409 `restock-not-allowed`.
 
 **`POST /v1/admin/orders/{orderId}/restocks`** — `inventory.write`. Reintegro independiente de una orden (UC-INV-09, ADR-0052, ADR-0053). Lo atiende Ordering, que le pasa a Inventory cada línea con lo vendido; Inventory verifica con sus movimientos que no se reintegre de más (P-73, ADR-0132). Se implementa en T-161.
 
@@ -1329,11 +1329,15 @@ Implementado en T-230 (ADR-0136): cada minuto vencen, por lotes de 100, las órd
 Implementado en T-180 parte b (ADR-0133):
 
 - **Listado:** `q` busca el número interno o el código público exactos (con o sin guion, sin distinguir mayúsculas) o una parte del email de contacto; `guest=false` deja solo las órdenes de clientes; `hasPendingRefund=true` son las CANCELLED con `paidAt`. Cada orden va sin líneas ni historial, pero con la dirección.
-- **Detalle:** `AdminOrder` con `statusHistory` del más antiguo al más reciente. `payment` y `shipment` son `null` hasta T-190 y T-195.
+- **Detalle:** `AdminOrder` con `statusHistory` del más antiguo al más reciente. `payment` llegó con T-190 y `shipment` con T-195 (ADR-0140).
 - **Cancelar:** `restock: true` sin `inventory.write` responde 403, y en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Se audita `orders.cancel` con el motivo. Desde T-190 parte b (ADR-0135):
   - desde PAID o AWAITING_MANUAL_FULFILLMENT, inicia en la misma operación el reembolso total, que aparece PENDING en `payment.refunds`; el pago sigue CAPTURED y el stock no cambia;
   - desde PENDING_PAYMENT, además de liberar la reserva, cancela el pago iniciado: `payment.status` pasa a CANCELLED;
   - `restock: true` en una orden PAID responde 409 `restock-not-allowed` con `reason: "unavailable"` hasta T-161, sin cambiar nada.
+- **Envío de la orden** (T-195 parte a, ADR-0140):
+  - la orden nace con su envío PENDING al pasar a PAID: con el pago capturado, con el pago tardío que consigue stock y al reintentar el surtido; en AWAITING_MANUAL_FULFILLMENT no tiene envío;
+  - cancelar una orden PAID cancela su envío en la misma operación. Si el envío ya salió, responde 409 `invalid-state-transition` con el estado del envío en `currentStatus`, y no cambia nada;
+  - `Order.shipment` y `AdminOrder.shipment` lo muestran en el detalle y en los listados, con `id` y `version` solo para el staff.
 - **Reintentar el surtido:** el estado se revisa antes de reservar; se audita `orders.retry-fulfillment`.
 - **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED; desde T-190 parte b se inicia además su reembolso (ADR-0135). `paidAt` es el momento de la captura.
 - **Concurrencia:** cada cambio bloquea la orden; una `version` desactualizada responde 409 `version-conflict` con `currentVersion`.
@@ -1445,7 +1449,7 @@ Implementado en T-190 parte b (ADR-0135):
   - Cada cambio se audita como `shipping-method.update`; sin cambios no se guarda ni se audita.
   - El método inicial lo crea una migración con los valores de ADR-0092.
 
-**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, version, createdAt }`).
+**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140).
 
 | Endpoint | Detalle |
 |---|---|
@@ -1457,7 +1461,19 @@ Implementado en T-190 parte b (ADR-0135):
 | `POST …/delivery-failure` | Request `{ "note", "version" }`. Desde DISPATCHED. La orden no cambia (ADR-0053). 200 |
 | `POST …/return` | Request `{ "note", "version" }`. Desde DELIVERY_FAILED. El reintegro de stock se hace con `POST /v1/admin/orders/{orderId}/restocks` (ADR-0132). 200 |
 
-UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío) es una reacción a `OrderPaid`.
+UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío), dentro de la operación que deja pagada la orden (ADR-0140).
+
+Implementado en T-195 parte a (ADR-0140):
+
+- **Creación:** Ordering crea el envío en la transacción en que la orden pasa a PAID, con el almacén activo, la dirección de envío y una partida por línea. `orderCode`, `sku` y `productName` se copian de la orden; `orderCode` se muestra con guion.
+- **Cancelación:** el envío pasa de PENDING a CANCELLED, con `cancelledAt`, cuando se cancela su orden pagada (§15.7). No hay ruta para cancelar un envío por separado.
+- **Listado:** sin `status`, solo los PENDING. `q` busca el código de la orden exacto (con o sin guion, sin distinguir mayúsculas) o la guía exacta, sin distinguir mayúsculas. `createdTo` con solo la fecha incluye todo ese día (§5.3). Desempate por ID.
+- **Paquetería y guía:**
+  - `carrierName` y `trackingNumber` obligatorios, de 1 a 100 caracteres, sin quedar en blanco; se guardan sin los espacios de los extremos;
+  - un envío CANCELLED, o despachado como entrega propia, responde 409 `invalid-state-transition` con `currentStatus`;
+  - una `version` anterior responde 409 `version-conflict` con `currentVersion`;
+  - se audita como `shipments.update` con los cambios; sin cambios no se guarda ni se audita, y la `version` no sube.
+- **Pendiente (parte b):** `dispatch`, `deliver`, `delivery-failure` y `return`, con la orden siguiendo al envío por eventos.
 
 ---
 
@@ -1515,7 +1531,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-PAY-03 | Dentro de la cancelación de órdenes |
 | UC-PAY-05 | Sin API: job |
 | UC-SHI-02, 04 a 09 | Sección 17 |
-| UC-SHI-01, 03 | Dentro de la cotización; evento `OrderPaid` |
+| UC-SHI-01, 03 | Dentro de la cotización; dentro del pago de la orden (ADR-0140) |
 | UC-AUD-02 | Sección 18 |
 | UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 | Sin API: transversales y jobs |
 

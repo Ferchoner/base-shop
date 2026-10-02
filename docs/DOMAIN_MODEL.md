@@ -69,7 +69,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Eventos | `StockReserved`, `ReservationReleased`, `ReservationExpired`, `ReservationCommitted`, `StockAdjusted` (solo si tienen consumidor; ninguno todavía, ADR-0128) |
 | Repositories | `WarehouseRepository`, `StockLedgerRepository` (cambios atómicos de `stock_items` con su movimiento, ADR-0127), `ReservationRepository` |
 | Casos de uso | ReceiveStock y AdjustStock (`StockEntries`), UpdateWarehouse, StockListing (ADR-0127), RestockOrder (órdenes canceladas o con envío devuelto, ADR-0052, ADR-0053), ReserveStock, CommitReservation, ReleaseReservation, ExpireReservations (job), GetAvailability |
-| Exporta | `InventoryFacade`: `canFulfill` (sí o no por línea), `reserve`, `commit` y `release` por orden (ADR-0128); `reserve` es todo o nada por sí misma, también dentro de la transacción de quien llama (ADR-0133) |
+| Exporta | `InventoryFacade`: `canFulfill` (sí o no por línea), `reserve`, `commit` y `release` por orden (ADR-0128); `reserve` es todo o nada por sí misma, también dentro de la transacción de quien llama (ADR-0133); `expire` por orden (ADR-0136); `activeWarehouseId`, el almacén del que salen los envíos (ADR-0140) |
 
 ## Shopping
 
@@ -92,7 +92,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Repositories | `OrderRepository`; puertos `OrderNumberGenerator` (secuencia) y `OrderCodeGenerator` (aleatorio, ADR-0049) |
 | Casos de uso | QuoteCheckout, PlaceOrder, CancelOrder (solo staff, ADR-0021), MarkOrderPaid, ExpireUnpaidOrders (job), ResolveManualFulfillment; consultas GetOrder, ListMyOrders, ListOrders, GetGuestOrder (email + código público, ADR-0020, ADR-0049) |
 | Exporta | orderId, total, snapshot de dirección e ítems |
-| Implementado | T-180 parte a (ADR-0132): `Order` nace en PendingPayment con sus líneas numeradas, totales e IVA por línea, código público aleatorio y vencimiento del pago; caso de uso `Checkout` (cotizar y colocar); puertos hacia las fachadas de Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access y Geo. T-180 parte b (ADR-0133): transiciones de cancelar, pagar, esperar surtido y surtir con su historial; caso de uso `OrderLifecycle` y manejador de `PaymentCaptured`. T-230 (ADR-0136): vencimiento con su reserva (`OrderExpiry`, job `ordering.expire-orders`) y `OrderExpired`. T-181 parte b (ADR-0139): `OrderReorders` y el puerto `ReorderCarts` para la recompra |
+| Implementado | T-180 parte a (ADR-0132): `Order` nace en PendingPayment con sus líneas numeradas, totales e IVA por línea, código público aleatorio y vencimiento del pago; caso de uso `Checkout` (cotizar y colocar); puertos hacia las fachadas de Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access y Geo. T-180 parte b (ADR-0133): transiciones de cancelar, pagar, esperar surtido y surtir con su historial; caso de uso `OrderLifecycle` y manejador de `PaymentCaptured`. T-230 (ADR-0136): vencimiento con su reserva (`OrderExpiry`, job `ordering.expire-orders`) y `OrderExpired`. T-181 parte b (ADR-0139): `OrderReorders` y el puerto `ReorderCarts` para la recompra. T-195 parte a (ADR-0140): cada línea tiene su ID desde el dominio; el puerto `OrderShipments` crea el envío de la orden pagada y lo cancela con ella, y las vistas de la orden lo muestran |
 
 ## Payments
 
@@ -111,12 +111,14 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Shipment` (orderId, almacén, destino, ítems, paquetería, guía o entrega propia (ADR-0078), status: Pending, Dispatched, Delivered, DeliveryFailed, Returned — ADR-0050, ADR-0053); `ShippingMethod` (costo fijo, monto mínimo para envío gratis y plazo de entrega estimado, ADR-0083) |
+| Aggregates | `Shipment` (orderId, código de la orden, almacén, destino, ítems con SKU y nombre, paquetería, guía o entrega propia (ADR-0078), status: Pending, Dispatched, Delivered, DeliveryFailed, Returned, Cancelled — ADR-0050, ADR-0053, ADR-0140); `ShippingMethod` (costo fijo, monto mínimo para envío gratis y plazo de entrega estimado, ADR-0083) |
 | Domain services | `ShippingRateCalculator` |
 | Eventos | `ShipmentCreated`, `ShipmentDispatched`, `ShipmentDelivered`, `DeliveryFailed`, `ShipmentReturned` |
 | Repositories | `ShipmentRepository`, `ShippingMethodRepository` |
 | Puertos | Ninguno por ahora; `CarrierGateway` se crea con la primera integración real (ADR-0041) |
-| Casos de uso | QuoteShippingOptions (costo fijo con IVA incluido o gratis por monto, ADR-0042, ADR-0079), CreateShipmentForOrder (automático al pagarse la orden), RegisterTracking (paquetería y guía, manual), MarkDispatched, MarkDelivered, MarkDeliveryFailed, MarkReturned (ADR-0053) |
+| Casos de uso | QuoteShippingOptions (costo fijo con IVA incluido o gratis por monto, ADR-0042, ADR-0079), CreateShipmentForOrder (en la operación que deja pagada la orden, ADR-0140), CancelShipment (con su orden, ADR-0140), RegisterTracking (paquetería y guía, manual), MarkDispatched, MarkDelivered, MarkDeliveryFailed, MarkReturned (ADR-0053) |
+| Exporta | `ShippingFacade`: `quote` para el checkout (ADR-0122); `createShipment`, `cancelShipmentOf` y `shipmentsOf` para Ordering, dentro de su transacción (ADR-0140) |
+| Implementado | T-196 (ADR-0122): `ShippingMethod` y la cotización. T-195 parte a (ADR-0140): `Shipment` con su creación, la captura de paquetería y guía (`ShipmentTracking`) y su cancelación; la consulta del staff |
 
 Envíos manuales (ADR-0041). Costo de envío fijo, gratis a partir de un monto mínimo (ADR-0042).
 
@@ -135,7 +137,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Identity → Ordering | Contacto del cliente y direcciones guardadas | Fachada síncrona; Identity nunca usa a Ordering (ADR-0132) |
 | Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; el checkout marca el carrito en su transacción (ADR-0019); Shopping reacciona a `OrderExpired` |
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134). Ordering escucha `RefundCompleted` desde T-190 parte b (ADR-0135) |
-| Ordering → Shipping | Orden pagada | Evento `OrderPaid` |
+| Ordering → Shipping | Orden pagada o cancelada; envíos de las órdenes | Fachada síncrona `ShippingFacade`, dentro de la transacción de la orden (ADR-0140) |
 | Shipping → Ordering | Progreso del envío | Eventos `ShipmentDispatched`, `ShipmentDelivered` |
 | Ordering, Payments, Shipping → Notificaciones | Datos para los correos al cliente | Eventos `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `RefundCompleted`, `ShipmentDispatched`; email de contacto y datos de la orden por la fachada de Ordering (ADR-0074) |
 

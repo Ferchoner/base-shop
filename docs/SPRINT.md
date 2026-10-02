@@ -15,7 +15,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | Paso | Tareas |
 |---|---|
 | 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); migración que quita el índice sin uso de `reservations` (ADR-0136) |
-| 1 | T-195 (envíos manuales: creación al pagarse, guía, despacho, entrega, entrega fallida y devolución) |
+| 1 | T-195 en dos partes (ADR-0140): (a) creación al pagarse, consulta, guía y cancelación con la orden; (b) despacho, entrega, entrega fallida y devolución |
 | 2 | T-161 (reintegro de stock: reemplaza el 409 de `restock` y atiende las devoluciones) |
 | 3 | T-215 (correos al cliente: orden recibida, pagada, enviada, cancelada y reembolsada) |
 | 4 | T-231 (limpieza diaria) |
@@ -44,8 +44,8 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 ## Risks
 
 - **Ruta crítica:** T-195 → T-161 → T-215. T-195 crea el envío de la orden pagada y la lleva a SHIPPED y DELIVERED; el reintegro de los envíos devueltos y los correos de envío dependen de él.
-- **Dependencias entre módulos:** Ordering usa a Shipping para cotizar, así que Shipping no puede usar a Ordering. T-195 decide en su plan cómo nace el envío al pagarse la orden y cómo avanza la orden con el envío, sin formar un ciclo: con la fachada de Shipping desde Ordering o con eventos (`ShipmentDispatched`, `ShipmentDelivered`, API_SPEC.md §2.5).
-- **Eventos que aún no existen:** Ordering todavía no publica `OrderPlaced`, `OrderPaid` ni `OrderCancelled`, que necesitan los correos (ADR-0074). T-195 y T-215 los agregan.
+- **Dependencias entre módulos:** Ordering usa a Shipping para cotizar, así que Shipping no puede usar a Ordering. T-195 decide en su plan cómo nace el envío al pagarse la orden y cómo avanza la orden con el envío, sin formar un ciclo: con la fachada de Shipping desde Ordering o con eventos (`ShipmentDispatched`, `ShipmentDelivered`, API_SPEC.md §2.5). Resuelto en ADR-0140: Ordering crea y cancela el envío con `ShippingFacade`, y la orden seguirá al envío por eventos en la parte b.
+- **Eventos que aún no existen:** Ordering todavía no publica `OrderPlaced`, `OrderPaid` ni `OrderCancelled`, que necesitan los correos (ADR-0074). T-215 los agrega; el envío ya no depende de `OrderPaid` (ADR-0140).
 - **Reintegro (T-161):** Ordering le pasa a Inventory las líneas y lo vendido de cada una (ADR-0132), y la opción `restock` deja de responder 409 (ADR-0135). La suma reintegrada por línea nunca supera lo vendido (ADR-0052).
 - **Correos (T-215):** se envían en segundo plano con el capturador local (ADR-0045, ADR-0074); P-24 (proveedor real) sigue abierta. Un correo se pierde si falla su manejador.
 - **Limpieza diaria (T-231):** borra datos. Debe ir por lotes, ser idempotente y conservar los carritos de clientes (BR-CRT-06); el carrito original de una orden de invitado que se borre deja la recompra del staff en 409 (ADR-0082).

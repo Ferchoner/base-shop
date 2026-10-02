@@ -360,7 +360,7 @@ Criterios de aceptación:
 |---|---|---|---|
 | UC-SHI-01 | Calcular costo de envío | Sistema (checkout) | BR-SHP-06, BR-SHP-07, BR-SHP-12, ADR-0079 |
 | UC-SHI-02 | Configurar costo fijo y umbral de envío gratis | Staff (`shipping.configure`) | ADR-0042, ADR-0075 |
-| UC-SHI-03 | Crear envío en Pending | Sistema (`OrderPaid`) | BR-SHP-01, BR-SHP-02 |
+| UC-SHI-03 | Crear envío en Pending | Sistema (orden pagada, ADR-0140) | BR-SHP-01, BR-SHP-02 |
 | UC-SHI-04 | Registrar paquetería y guía | Staff (`shipping.manage`) | BR-SHP-04, ADR-0078 |
 | UC-SHI-05 | Marcar despachado | Staff (`shipping.manage`) | BR-SHP-04 |
 | UC-SHI-06 | Marcar entregado | Staff (`shipping.manage`) | BR-SHP-03 |
@@ -372,10 +372,16 @@ Criterios de aceptación:
 
 - **UC-SHI-01:** el costo es el fijo configurado, con IVA incluido, o 0 si el subtotal con IVA menos el descuento es mayor o igual al umbral; el IVA contenido en el envío se calcula con la tasa configurada y se redondea como una línea; costo, IVA y tasa quedan como snapshot en la orden.
 - **UC-SHI-02:** el costo fijo, el umbral y el plazo de entrega estimado (rango en días hábiles, mínimo ≥ 1 y máximo ≥ mínimo) solo los cambia quien tiene `shipping.configure`; los cambios no afectan órdenes colocadas (ADR-0042, ADR-0075, ADR-0083).
-- **UC-SHI-03:** un solo envío por orden, creado de forma idempotente al recibir `OrderPaid`.
+- **UC-SHI-03:** un solo envío por orden, creado de forma idempotente en la misma operación en que la orden pasa a Paid (ADR-0140).
 - **UC-SHI-05:** se despacha con paquetería y guía, o como entrega propia marcada explícitamente y sin paquetería ni guía; cualquier otra combinación se rechaza; la orden pasa a Shipped.
 - **UC-SHI-06:** la orden pasa a Delivered; el envío queda en estado terminal.
 - **UC-SHI-07 / 09:** solo desde Dispatched (fallida) y desde DeliveryFailed (devuelto); la orden permanece en Shipped; sin reintento, cancelación ni reembolso automáticos; el stock que regresa se reintegra con UC-INV-09.
+- **UC-SHI-03, 04 y 08 (implementación, ADR-0140):**
+  - Ordering crea el envío al pasar la orden a Paid, también con el pago tardío y al reintentar el surtido, con el almacén activo, la dirección y las líneas de la orden; el envío guarda el código de la orden y el SKU y el nombre de cada artículo;
+  - cancelar una orden en Paid cancela su envío (Cancelled); si el envío ya salió, la orden no se cancela;
+  - la paquetería y la guía se capturan en Pending, o en Dispatched por paquetería, con `version`, y se auditan;
+  - la lista muestra por defecto los envíos en Pending, del más antiguo al más reciente;
+  - UC-SHI-05 a 07 y 09 llegan en la parte b de T-195.
 
 ### 5.9 Transversales
 
@@ -405,7 +411,7 @@ Criterios de aceptación:
 2. El cliente recibe la indicación de pagar en tienda, con el código público y el total, y paga físicamente en la tienda (ADR-0055).
 3. Un administrador registra el pago (UC-PAY-02) → `PaymentCaptured`.
 4. Si la reserva sigue vigente: se confirma y la orden pasa a Paid. Si ya expiró: aplica ADR-0012 (reservar de nuevo o AwaitingManualFulfillment).
-5. `OrderPaid` crea el envío en Pending (UC-SHI-03).
+5. En la misma operación nace el envío en Pending (UC-SHI-03, ADR-0140).
 6. El staff registra paquetería y guía, o marca el envío como entrega propia, lo despacha y lo marca entregado (UC-SHI-04 a 06, ADR-0078).
 
 ### 6.2 Compra con PayPal (futuro, no habilitado)
@@ -418,7 +424,7 @@ Cada minuto, las reservas vencidas pasan a Expired y sus órdenes en PendingPaym
 
 ### 6.4 Cancelación
 
-El staff con `orders.manage` cancela (UC-ORD-07). En PendingPayment la orden pasa a Cancelled y se libera la reserva. En Paid o AwaitingManualFulfillment pasa a Cancelled y se inicia el reembolso total; cuando se confirma (proveedor o registro manual, UC-PAY-06), la orden pasa a Refunded (ADR-0051). El stock se reintegra de forma opcional al cancelar una orden en Paid, o después con el proceso independiente de Inventory (UC-INV-09, ADR-0052).
+El staff con `orders.manage` cancela (UC-ORD-07). En PendingPayment la orden pasa a Cancelled y se libera la reserva. En Paid o AwaitingManualFulfillment pasa a Cancelled y se inicia el reembolso total; en Paid se cancela también su envío, y si el envío ya salió la orden no se cancela (ADR-0140); cuando se confirma (proveedor o registro manual, UC-PAY-06), la orden pasa a Refunded (ADR-0051). El stock se reintegra de forma opcional al cancelar una orden en Paid, o después con el proceso independiente de Inventory (UC-INV-09, ADR-0052).
 
 ### 6.5 Registro y verificación
 
@@ -447,7 +453,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-09 | Cuenta de staff intenta comprar | 403 | UC-CRT-01, UC-ORD-02 |
 | E-10 | Variante no vendible (no publicada, descontinuada o sin precio) | 409 | UC-CRT-02, UC-ORD-02 |
 | E-11 | Cantidad fuera de 1–30 | 400 | UC-CRT-02, UC-CRT-03 |
-| E-12 | Transición de estado inválida (por ejemplo, cancelar una orden enviada) | 409 | UC-ORD-07, 08, UC-SHI-05 a 07, 09, UC-IAM-16, 18, 19, UC-CAT-08 a 10, 12, 13, UC-PAY-02, 06, 07, UC-CRT-09 |
+| E-12 | Transición de estado inválida (por ejemplo, cancelar una orden enviada) | 409 | UC-ORD-07, 08, UC-SHI-04 a 07, 09, UC-IAM-16, 18, 19, UC-CAT-08 a 10, 12, 13, UC-PAY-02, 06, 07, UC-CRT-09 |
 | E-13 | Valor único duplicado (email en el registro, SKU, slug) | 409 | UC-IAM-01, UC-CAT-04, UC-CAT-06 |
 | E-14 | Borrado de entidad con referencias (rol con usuarios, categoría con productos) | 409 | UC-IAM-15, UC-CAT-12 |
 | E-15 | Periodo de precio superpuesto o ya iniciado | 409 | UC-PRC-02 a 04 |

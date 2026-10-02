@@ -157,6 +157,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0137 | Carrito de una orden vencida: división de T-181 e idempotencia por el carrito de origen | Aceptada |
 | ADR-0138 | Consulta de pedido de invitado: una sola consulta, 404 único y staff permitido | Aceptada |
 | ADR-0139 | Recompra de órdenes: rutas en Ordering, respuesta con `cartId` y carrito destino del staff | Aceptada |
+| ADR-0140 | Envíos: división de T-195, creación al pagarse la orden, envío cancelado y datos de la orden | Aceptada |
 
 ---
 
@@ -853,7 +854,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - No hay generación de guías ni rastreo automático.
   - El costo de envío en el checkout se define en ADR-0042.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Desde ADR-0140, el envío nace en la misma transacción en que la orden pasa a PAID, no con `OrderPaid`.
 
 ---
 
@@ -1023,7 +1024,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los clientes de la API deben tolerar valores de estado que no conocen, de modo que agregar estados en el futuro sea un cambio compatible dentro de `v1` (ADR-0034).
 - **Alternativas consideradas:** Implementar desde ahora los estados de paquetería sin usarlos.
 - **Motivo:** Un estado inalcanzable no es inofensivo en el código: aparece en validaciones, filtros, documentación de la API y pruebas sin que ningún flujo lo produzca. Agregarlo después cuesta poco, y documentarlo como previsto conserva la preparación.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. ADR-0140 agrega Cancelled, solo desde Pending, al cancelar la orden pagada.
 
 ---
 
@@ -1045,7 +1046,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cancelled es terminal solo cuando no hubo pago capturado.
   - Las órdenes en Cancelled con pago capturado son la lista de reembolsos pendientes del staff.
   - El reintegro de stock se define en ADR-0052.
-- **Estado:** Aceptada. Implementada en T-190 parte b (ADR-0135) con el pago manual; los reembolsos que fallan llegan con un proveedor (T-192).
+- **Estado:** Aceptada. Implementada en T-190 parte b (ADR-0135) con el pago manual; los reembolsos que fallan llegan con un proveedor (T-192). Desde ADR-0140, cancelar una orden PAID cancela también su envío, y responde 409 si el envío ya salió.
 
 ---
 
@@ -3924,3 +3925,58 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-181 queda completa, y con ella las tareas del Sprint 4.
   - Prueba contra PostgreSQL: una recompra a la vez que una línea nueva del mismo cliente deja un solo carrito activo con todo.
 - **Estado:** Aceptada (plan de T-181 parte b aprobado el 2026-10-01, con sus 3 recomendaciones).
+
+---
+
+## ADR-0140 — Envíos: división de T-195, creación al pagarse la orden, envío cancelado y datos de la orden
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-195 (UC-SHI-03 a 09). ADR-0041 crea el envío al recibir `OrderPaid`, y `API_SPEC.md` §2.5 lo trataba como un efecto en segundo plano. Pero Ordering usa a Shipping para cotizar (ADR-0132), así que Shipping no puede leer órdenes, y Ordering todavía no publica `OrderPaid`. Quedaban abiertas cuatro cosas:
+  - el tamaño de la tarea, con siete casos de uso;
+  - cómo nace el envío sin que Shipping lea la orden;
+  - qué pasa con el envío al cancelar una orden pagada, que BR-CAN-01 permite y que el modelo del envío no contemplaba;
+  - de dónde salen el código de la orden y el SKU y el nombre de cada artículo de `AdminShipment`, si Shipping no lee Ordering.
+- **Decisión:**
+  - **Dos partes:**
+    - (a) crear el envío, consultarlo, capturar paquetería y guía, mostrarlo en las vistas de la orden y cancelarlo con su orden;
+    - (b) despachar, entregar, entrega fallida y devolución, con la orden siguiendo al envío por eventos (`ShipmentDispatched`, `ShipmentDelivered`).
+  - **El envío nace con la orden pagada, en la misma transacción:**
+    - Ordering lo crea al pasar la orden a PAID: con el pago capturado, con el pago tardío que consigue stock y al reintentar el surtido. Una orden AWAITING_MANUAL_FULFILLMENT no tiene envío.
+    - Ordering le pasa a `ShippingFacade.createShipment` lo que el envío necesita: el código público, el almacén activo (nueva `InventoryFacade.activeWarehouseId`), la dirección de envío y las líneas.
+    - Una orden que ya tiene envío lo conserva: el único de `order_id` y `ON CONFLICT DO NOTHING`.
+    - Se aparta de la redacción de UC-SHI-03 y ADR-0041 ("al recibir `OrderPaid`"). `OrderPaid` lo publicará T-215 para el correo de pago confirmado.
+  - **Cada línea de la orden tiene su ID desde el dominio** (UUIDv7, al colocar la orden), para que los artículos del envío la referencien, igual que el reintegro de T-161.
+  - **Estado CANCELLED, solo desde PENDING, con `cancelledAt`:**
+    - cancelar una orden PAID cancela su envío en la misma transacción;
+    - si el envío ya salió, la cancelación responde 409 `invalid-state-transition` con el estado del envío, y no cambia nada;
+    - un envío cancelado no admite paquetería ni guía (409).
+  - **Datos de la orden en el envío:** `shipments.order_code` y `shipment_items.sku` y `product_name` se copian al crearlo. La lista de trabajo y la búsqueda no necesitan leer Ordering.
+  - **Migraciones:**
+    - `20261002200000_shipping_cancelled_status` agrega el valor al enum; va en su propia migración, porque PostgreSQL no permite usar un valor nuevo del enum en la misma transacción que lo agrega;
+    - `20261002200100_shipping_order_snapshot` agrega las columnas y adapta las restricciones: un envío CANCELLED, como uno PENDING, no tiene fecha de despacho ni paquetería, y siempre tiene `cancelled_at`.
+  - **Vistas de la orden:**
+    - `Order.shipment` lleva el estado, la paquetería, la guía, la entrega propia y las fechas;
+    - `AdminOrder.shipment` lleva además `id` y `version`;
+    - los envíos se leen una sola vez por página.
+  - **Paquetería y guía (UC-SHI-04):**
+    - `PATCH …/shipments/{shipmentId}` bloquea el envío, compara `version` y recorta los espacios;
+    - se permite en PENDING, o en DISPATCHED por paquetería;
+    - se audita como `shipments.update` con los cambios; sin cambios no se guarda ni se audita, como el método de envío (ADR-0122).
+  - **Lista (UC-SHI-08):**
+    - por defecto, los PENDING del más antiguo al más reciente;
+    - `q` busca el código de la orden exacto (con o sin guion, sin distinguir mayúsculas) o la guía exacta, sin distinguir mayúsculas.
+- **Alternativas consideradas:**
+  - **Crear el envío al recibir `OrderPaid`, como decía ADR-0041:**
+    - el evento tendría que llevar la dirección y las líneas;
+    - un fallo del manejador dejaría una orden pagada sin envío y sin reintento;
+    - la orden se podría cancelar mientras el envío todavía no existe.
+  - **Impedir cancelar una orden pagada que tenga envío:** contradice BR-CAN-01, que permite cancelar en PAID.
+  - **Borrar el envío al cancelar:** pierde el rastro de lo que se canceló.
+  - **Leer el código y los productos de Ordering al listar:** Shipping no puede usar a Ordering.
+- **Consecuencias:**
+  - Cambian el mecanismo de UC-SHI-03 y de ADR-0041, y la tabla de efectos en segundo plano (`API_SPEC.md` §2.5).
+  - Cancelar una orden pagada puede responder 409 cuando su envío salió. En la parte a nada despacha todavía.
+  - La parte b resuelve la carrera entre cancelar y despachar. La cancelación ya bloquea el envío por su orden.
+  - El contrato suma CANCELLED a los estados del envío y `cancelledAt` a `AdminShipment`.
+  - Las pruebas que pagan órdenes borran también sus envíos.
+- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación.
