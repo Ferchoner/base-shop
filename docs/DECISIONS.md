@@ -161,6 +161,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0141 | Envíos en camino: notas, guía quitada y la orden que sigue al envío por eventos | Aceptada |
 | ADR-0142 | Reintegro de stock: Ordering bloquea la orden, Inventory pone el tope y el reembolso ya no reintegra | Aceptada |
 | ADR-0143 | Correos de la orden: módulo de notificaciones, eventos de Ordering y su fachada | Aceptada |
+| ADR-0144 | Limpieza diaria: un job por dueño de cada tabla y borrados por lotes | Aceptada |
 
 ---
 
@@ -605,7 +606,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva.
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia.
 
 ---
 
@@ -4108,3 +4109,46 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - No hay correo cuando llega un pago a una orden ya cancelada: con el pago en tienda no ocurre, porque el registro manual solo acepta órdenes PENDING_PAYMENT o EXPIRED. Se revisa con PayPal (T-192).
   - Con T-215 terminada, sigue T-231.
 - **Estado:** Aceptada (plan de T-215 aprobado el 2026-10-02, con su recomendación).
+
+---
+
+## ADR-0144 — Limpieza diaria: un job por dueño de cada tabla y borrados por lotes
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-231 (UC-SYS-01, UC-CRT-07). ADR-0029 fija qué borra la limpieza diaria a las 3:00, hora de México, y con qué retención. Las tablas son de cuatro dueños: Identity & Access, Shopping, Payments y la plataforma (idempotencia). Quedaban abiertas dos cosas:
+  - quién corre cada borrado;
+  - cómo se aplica a los borrados la regla de ADR-0029, "cada elemento en su propia transacción". Una transacción por fila sería muy costosa con miles de llaves de idempotencia.
+- **Decisión:**
+  - **Un job por dueño, todos a las 3:00** (`@ScheduledJob`, ADR-0101). Cada contexto borra solo sus tablas y ningún módulo depende de otro para esto:
+
+    | Job | Qué borra | Retención |
+    |---|---|---|
+    | `identity.cleanup-tokens` | Refresh tokens vencidos o revocados | 30 días después |
+    | `identity.cleanup-tokens` | Enlaces de verificación y de recuperación vencidos, usados o reemplazados | Ninguna (ADR-0056) |
+    | `shopping.cleanup-guest-carts` | Carritos de invitado sin actividad, en cualquier estado, con sus líneas por cascada | 30 días (BR-CRT-06) |
+    | `payments.cleanup-webhook-events` | Eventos de webhooks procesados | 30 días |
+    | `platform.cleanup-idempotency-keys` | Llaves de idempotencia | Al vencer (24 horas, ADR-0063) |
+
+  - **Borrados por lotes:**
+    - lotes de 1,000 filas, cada uno en su propio `DELETE`, fuera de toda transacción;
+    - hasta 100 lotes por ejecución; lo que falte, al día siguiente;
+    - un fallo solo pierde su lote, y repetir no tiene efecto, porque lo borrado ya no existe. Es la interpretación de ADR-0029 para borrados;
+    - `deleteInBatches` del shared kernel los repite hasta que un lote vuelve incompleto.
+  - **Cada `DELETE` vuelve a revisar su condición:**
+    - un carrito que alguien usa mientras corre la limpieza espera su bloqueo y ya no se borra;
+    - una llave de idempotencia reclamada de nuevo, con un vencimiento nuevo, tampoco.
+  - **Carritos:** se eligen por la última actividad, los más antiguos primero, con el índice parcial de los carritos de invitado. Los carritos de clientes se conservan siempre.
+  - **En Identity**, un tipo que falla queda en el log y los otros siguen.
+  - **Sin auditoría:** es una tarea del sistema; cada job deja en el log cuántas filas borró.
+  - **Sin migración:** las tablas ya tenían sus índices de limpieza, salvo los tokens de Identity, que se recorren sin índice.
+- **Alternativas consideradas:**
+  - **Un solo job de limpieza:** necesita un orquestador sin dueño natural que dependa de las fachadas de cuatro módulos.
+  - **Una transacción por fila, al pie de la letra de ADR-0029:** miles de transacciones cada noche sin beneficio, porque un borrado no deja nada a medias.
+  - **Borrar sin volver a revisar la condición:** podría borrar un carrito usado mientras corría la limpieza.
+- **Consecuencias:**
+  - La recompra del staff de una orden de invitado con más de 30 días responde 409 `source-cart-unavailable`, porque su carrito original ya se borró (ADR-0082). Era un riesgo aceptado.
+  - Un refresh token borrado, 30 días después de revocarse, ya no detecta su reutilización (ADR-0023): responde 401 como cualquier token desconocido.
+  - Los tokens de Identity no tienen índice por vencimiento; si las tablas crecen, se agrega uno.
+  - Con T-231 se terminan las tareas del Sprint 5.
+  - Prueba contra PostgreSQL: un carrito usado mientras corre la limpieza no se borra.
+- **Estado:** Aceptada (plan de T-231 aprobado el 2026-10-02, con sus 2 recomendaciones).

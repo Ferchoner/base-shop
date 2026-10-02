@@ -414,6 +414,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Restricciones:** único parcial `(owner_user_id) WHERE status = 'ACTIVE' AND owner_user_id IS NOT NULL` (un carrito activo por cliente, BR-CRT-03); `CHECK (status <> 'MERGED' OR merged_into_cart_id IS NOT NULL)`.
 - **Índices:** `(last_activity_at) WHERE owner_user_id IS NULL` (limpieza de invitados).
+- **Limpieza (T-231, ADR-0144):** los carritos de invitado sin actividad en 30 días se borran por lotes, los más antiguos primero, con sus líneas por cascada; el `DELETE` vuelve a revisar el dueño y la actividad.
 
 ### 7.2 `cart_lines` (cart_items)
 
@@ -667,7 +668,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at | timestamptz(3) | No | — |
 | expires_at | timestamptz(3) | No | +24 horas |
 
-- **Índices:** `(expires_at)` para la limpieza.
+- **Índices:** `(expires_at)` para la limpieza, que borra las llaves vencidas cada día por lotes (ADR-0144).
 - **Uso (ADR-0099):** `created_at` marca el inicio del intento actual; una fila IN_PROGRESS con más de 60 segundos se considera abandonada y la toma la siguiente solicitud con la misma huella. Una fila vencida (`expires_at` pasado) se reutiliza como nueva. `response_body` guarda `{ "kind": "success", "status", "body", "location" }` o, para un error de negocio, `{ "kind": "problem", "code", "extensions" }`.
 
 ### 11.3 `geo_states` y `geo_municipalities`
