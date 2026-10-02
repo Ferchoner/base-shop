@@ -138,7 +138,7 @@ Sprint 4 — Compra con pago en tienda: Shopping, Ordering y Payments (desde el 
 
 - [x] Sprint 2: Identity & Access (T-124, T-122, T-130, T-120, T-131, T-121 y T-123), cerrado el 2026-09-29
 - [x] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160), cerrado el 2026-10-01
-- [ ] Sprint 4: compra con pago en tienda (paso 0, T-170, T-180, T-190, T-230 sin la conciliación, T-185 y T-181); plan en `SPRINT.md`
+- [x] Sprint 4: compra con pago en tienda (paso 0, T-170, T-180, T-190, T-230 sin la conciliación, T-185 y T-181), cerrado el 2026-10-02
 
 ## Next
 
