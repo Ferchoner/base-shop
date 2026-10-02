@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Clock,
+  DomainEventPublisher,
   Money,
   newId,
   NotFoundError,
@@ -41,6 +42,7 @@ import {
   OrderStock,
   ShippingLocations,
 } from './checkout-ports.js';
+import { orderPlaced } from './order-events.js';
 import { VAT_RATE_BP } from './vat-rate.js';
 
 /** Times a new public code is drawn when the one drawn is taken (ADR-0049): a repeat is already rare. */
@@ -123,6 +125,7 @@ export class Checkout {
     private readonly locations: ShippingLocations,
     private readonly orders: OrderRepository,
     private readonly transactions: TransactionManager,
+    private readonly events: DomainEventPublisher,
     private readonly clock: Clock,
     @Inject(VAT_RATE_BP) private readonly taxRateBp: number,
   ) {}
@@ -220,6 +223,8 @@ export class Checkout {
         now,
       });
       await this.carts.checkOut(cart.id);
+      // The email of the received order (ADR-0074), once the order commits.
+      this.events.publish(orderPlaced(order.id, now));
       return order.id;
     });
   }

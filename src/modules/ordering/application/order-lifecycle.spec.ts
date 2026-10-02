@@ -1,6 +1,8 @@
 import {
   type AuditEntry,
   type AuditTrail,
+  type DomainEvent,
+  type DomainEventPublisher,
   InvalidStateTransitionError,
   Money,
   newId,
@@ -229,6 +231,12 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
         : Promise.resolve();
     },
   } as unknown as OrderShipments;
+  const published: DomainEvent[] = [];
+  const events = {
+    publish: (...batch: DomainEvent[]) => {
+      published.push(...batch);
+    },
+  } as unknown as DomainEventPublisher;
   const lifecycle = new OrderLifecycle(
     orders,
     stock,
@@ -236,9 +244,18 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
     shipments,
     inline,
     audit,
+    events,
     { now: () => NOW },
   );
-  return { lifecycle, orders, calls, audited, reservation, restocks };
+  return {
+    lifecycle,
+    orders,
+    calls,
+    audited,
+    reservation,
+    restocks,
+    published,
+  };
 }
 
 const savedOne = (orders: InMemoryOrders) => {

@@ -1,4 +1,6 @@
 import {
+  type DomainEvent,
+  type DomainEventPublisher,
   Money,
   newId,
   NotFoundError,
@@ -279,6 +281,12 @@ function setUp(
       return work();
     },
   } as unknown as TransactionManager;
+  const published: DomainEvent[] = [];
+  const events = {
+    publish: (...batch: DomainEvent[]) => {
+      published.push(...batch);
+    },
+  } as unknown as DomainEventPublisher;
   const checkout = new Checkout(
     carts,
     catalog,
@@ -289,10 +297,11 @@ function setUp(
     locations,
     orders,
     inline,
+    events,
     { now: () => NOW },
     1600,
   );
-  return { checkout, calls, reserved, checkedOut, orders, asked };
+  return { checkout, calls, reserved, checkedOut, orders, asked, published };
 }
 
 const buyer = newId<'User'>() as CustomerId;

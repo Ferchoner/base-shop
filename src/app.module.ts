@@ -6,6 +6,7 @@ import { CatalogModule } from './modules/catalog/index.js';
 import { GeoModule } from './modules/geo/index.js';
 import { IdentityAccessModule } from './modules/identity-access/index.js';
 import { InventoryModule } from './modules/inventory/index.js';
+import { NotificationsModule } from './modules/notifications/index.js';
 import { OrderingModule } from './modules/ordering/index.js';
 import { PaymentsModule } from './modules/payments/index.js';
 import { PricingModule } from './modules/pricing/index.js';
@@ -59,6 +60,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     OrderingModule,
     PaymentsModule,
     ShippingModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

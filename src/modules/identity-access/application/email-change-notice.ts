@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmailSender } from '../../../shared-kernel/index.js';
-import { inMexicoTime } from './mexico-time.js';
+import { EmailSender, inMexicoTime } from '../../../shared-kernel/index.js';
 
 /**
  * Tells the previous address that the account's email changed (ADR-0117), without naming the new one: if

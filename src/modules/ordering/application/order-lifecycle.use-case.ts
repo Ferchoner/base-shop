@@ -4,6 +4,7 @@ import {
   AuditTrail,
   changesBetween,
   Clock,
+  DomainEventPublisher,
   InvalidStateTransitionError,
   type Money,
   NotFoundError,
@@ -13,6 +14,7 @@ import type { Order, OrderId, StaffId } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import { OrderStock, type StockLine } from './checkout-ports.js';
+import { orderCancelled, orderPaid } from './order-events.js';
 import { restockAudit } from './order-restocks.use-case.js';
 import { OrderPayments } from './payment-ports.js';
 import { OrderShipments } from './shipment-ports.js';
@@ -62,6 +64,7 @@ export class OrderLifecycle {
     private readonly shipments: OrderShipments,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
+    private readonly events: DomainEventPublisher,
     private readonly clock: Clock,
   ) {}
 
@@ -121,6 +124,9 @@ export class OrderLifecycle {
           restockAudit(order.id, 'ORDER_CANCELLED', restocked, input.reason),
         );
       }
+      this.events.publish(
+        orderCancelled(order.id, before !== 'PENDING_PAYMENT', now),
+      );
     });
   }
 
@@ -158,6 +164,7 @@ export class OrderLifecycle {
         resource: { type: 'order', id: order.id },
         changes: changesBetween({ status: before }, { status: order.status }),
       });
+      this.events.publish(orderPaid(order.id, now));
     });
   }
 
@@ -203,6 +210,7 @@ export class OrderLifecycle {
       // A paid order has its shipment from the start (UC-SHI-03, ADR-0140).
       if (outcome === 'paid') await this.shipments.createFor(order);
       await this.orders.save(order, now);
+      if (outcome === 'paid') this.events.publish(orderPaid(order.id, now));
       return outcome;
     });
   }

@@ -32,6 +32,7 @@ export {
 } from './email-sender.js';
 export { DomainEventPublisher } from './domain-event-publisher.js';
 export { FrontendLinks } from './frontend-links.js';
+export { inMexicoTime } from './mexico-time.js';
 export { type Id, newCredentialId, newId, toId } from './id.js';
 export { type Currency, MAX_MONEY_AMOUNT, Money } from './money.js';
 export {

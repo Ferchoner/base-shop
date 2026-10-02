@@ -1,4 +1,7 @@
-/** Dates in emails, as people in Mexico read them, like the store's schedules (ADR-0101). */
+/**
+ * Dates in emails, as people in Mexico read them, like the store's schedules (ADR-0101): the account emails of
+ * Identity & Access and the order emails (ADR-0143).
+ */
 const MEXICO_TIME = new Intl.DateTimeFormat('es-MX', {
   dateStyle: 'long',
   timeStyle: 'short',
