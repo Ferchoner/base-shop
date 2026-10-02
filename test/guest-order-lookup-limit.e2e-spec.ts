@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 
-/** The real limit of the guest's lookup: 2 per IP here instead of 10, to reach it quickly (ADR-0065). */
+/** The real limit of the guest's lookup and reorder: 2 per IP here instead of 10, to reach it quickly (ADR-0065). */
 describe('Guest order lookup: limit per IP (e2e, T-185)', () => {
   let app: INestApplication<App>;
   let previous: string | undefined;
@@ -29,17 +29,20 @@ describe('Guest order lookup: limit per IP (e2e, T-185)', () => {
     else process.env.RATE_LIMIT_GUEST_ORDER = previous;
   });
 
-  it('answers 429 with Retry-After once an IP used its lookups, found or not', async () => {
-    const lookup = () =>
+  it('answers 429 with Retry-After once an IP used its lookups and reorders, found or not (ADR-0102)', async () => {
+    const guest = (route: string) =>
       request(app.getHttpServer())
-        .post('/v1/orders/lookup')
+        .post(`/v1/orders/${route}`)
         .send({ contactEmail: 'cliente@example.com', publicCode: 'ZZZZ-ZZZZ' });
 
-    await lookup().expect(404);
-    await lookup().expect(404);
-    const limited = await lookup().expect(429);
+    await guest('lookup').expect(404);
+    // The reorder of a guest spends the same budget (T-181, ADR-0139).
+    await guest('reorder').expect(404);
+    const limited = await guest('lookup').expect(429);
+    const reorderLimited = await guest('reorder').expect(429);
 
     expect(limited.body.type).toBe('/problems/rate-limit-exceeded');
     expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    expect(reorderLimited.body.type).toBe('/problems/rate-limit-exceeded');
   });
 });

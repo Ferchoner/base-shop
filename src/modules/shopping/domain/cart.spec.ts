@@ -373,3 +373,86 @@ describe('Cart of an expired order (UC-CRT-08, ADR-0054, ADR-0137)', () => {
     expect(own.lines).toHaveLength(120);
   });
 });
+
+describe('Cart of a reorder (UC-CRT-09, ADR-0139)', () => {
+  it('takes the lines of an order up to 30 units without notice, and counts as a change', () => {
+    const [shirt, cap] = [variant(), variant()];
+    const cart = restored('ACTIVE', [{ variantId: shirt, quantity: 29 }]);
+
+    cart.copyOrderLines(
+      [
+        { variantId: shirt, quantity: 2 },
+        { variantId: cap, quantity: 1 },
+      ],
+      T1,
+    );
+
+    expect(
+      cart.lines.map(({ variantId, quantity }) => [variantId, quantity]),
+    ).toEqual([
+      [shirt, 30],
+      [cap, 1],
+    ]);
+    expect([cart.lastActivityAt, cart.hasChanges]).toEqual([T1, true]);
+  });
+
+  it('counts as a change even when it adds nothing, and passes MAX_CART_LINES if it must', () => {
+    const shirt = variant();
+    const full = restored('ACTIVE', [{ variantId: shirt, quantity: 30 }]);
+    const many = () =>
+      Array.from({ length: 60 }, () => ({ variantId: variant(), quantity: 1 }));
+    const big = restored('ACTIVE', many());
+
+    full.copyOrderLines([{ variantId: shirt, quantity: 1 }], T1);
+    big.copyOrderLines(many(), T1);
+
+    expect([full.lastActivityAt, full.hasChanges]).toEqual([T1, true]);
+    expect(big.lines).toHaveLength(120);
+  });
+
+  it('takes the lines of an order only while active', () => {
+    for (const status of ['CHECKED_OUT', 'MERGED'] as const) {
+      expect(() => restored(status).copyOrderLines([], T1)).toThrow(
+        new CartNotActiveError(status),
+      );
+    }
+  });
+
+  it('reopens a checked out cart with only the lines given, up to 30 units each', () => {
+    const [shirt, cap, hat] = [variant(), variant(), variant()];
+    const cart = restored('CHECKED_OUT', [
+      { variantId: shirt, quantity: 2 },
+      { variantId: cap, quantity: 1 },
+    ]);
+
+    cart.reopenWith(
+      [
+        { variantId: shirt, quantity: 2 },
+        { variantId: hat, quantity: 31 },
+      ],
+      T1,
+    );
+
+    expect([cart.status, cart.lastActivityAt, cart.hasChanges]).toEqual([
+      'ACTIVE',
+      T1,
+      true,
+    ]);
+    expect(
+      cart.lines.map(({ variantId, quantity }) => [variantId, quantity]),
+    ).toEqual([
+      [shirt, 2],
+      [hat, 30],
+    ]);
+    // The line kept as it was is not written again.
+    expect(cart.touchedVariants.sort()).toEqual([cap, hat].sort());
+  });
+
+  it('reopens nothing but a checked out cart', () => {
+    for (const status of ['ACTIVE', 'MERGED'] as const) {
+      expect(() => restored(status).reopenWith([], T1)).toThrow(
+        new CartNotActiveError(status),
+      );
+    }
+  });
+});
