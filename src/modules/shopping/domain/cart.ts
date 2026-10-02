@@ -258,6 +258,48 @@ export class Cart {
     this.touch(now);
   }
 
+  /**
+   * The lines of a cancelled or refunded order go into this cart, to buy them again (UC-CRT-09, BR-CRT-11): up to
+   * 30 units per line without notice and, like a merge, past MAX_CART_LINES if they must (ADR-0139).
+   *
+   * @throws CartNotActiveError.
+   */
+  copyOrderLines(items: readonly CartItem[], now: Date): void {
+    this.assertActive();
+    this.addCapped(items, now);
+    this.touch(now);
+  }
+
+  /**
+   * The staff buys again a guest order in the cart it came from, still CHECKED_OUT (UC-CRT-09, ADR-0082,
+   * ADR-0139): the cart is ACTIVE again with the items given, the lines of the order that are still sold, up to
+   * 30 units each, instead of those it was checked out with.
+   *
+   * @throws CartNotActiveError unless the cart is CHECKED_OUT.
+   */
+  reopenWith(items: readonly CartItem[], now: Date): void {
+    if (this.state !== 'CHECKED_OUT') throw new CartNotActiveError(this.state);
+    const kept = new Map(
+      items.map(({ variantId, quantity }) => [
+        variantId,
+        Math.min(quantity, MAX_LINE_QUANTITY),
+      ]),
+    );
+    // A Map allows deleting the entry it is on while it is iterated.
+    for (const variantId of this.lineMap.keys()) {
+      if (kept.has(variantId)) continue;
+      this.lineMap.delete(variantId);
+      this.touched.add(variantId);
+    }
+    for (const [variantId, quantity] of kept) {
+      if (this.lineMap.get(variantId)?.quantity !== quantity) {
+        this.put(variantId, quantity, now);
+      }
+    }
+    this.state = 'ACTIVE';
+    this.touch(now);
+  }
+
   /** Adds the items to their lines, up to 30 units each and without notice (BR-CRT-05, BR-CRT-10). */
   private addCapped(items: readonly CartItem[], now: Date): void {
     for (const item of items) {

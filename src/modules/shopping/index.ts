@@ -4,4 +4,5 @@ export {
   type CheckoutCart,
   ShoppingFacade,
 } from './application/shopping.facade.js';
+export type { CartCopy } from './application/cart-copies.js';
 export type { CartTarget } from './application/carts.use-case.js';

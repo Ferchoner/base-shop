@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -35,6 +36,7 @@ import {
 } from '../application/checkout.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
+import { OrderReorders } from '../application/order-reorders.use-case.js';
 import {
   formatPublicCode,
   parsePublicCode,
@@ -45,17 +47,20 @@ import {
   OrderListDto,
   OrderListQueryDto,
   PlaceCustomerOrderDto,
+  ReorderDto,
 } from './order.dto.js';
 import {
   toOrderDto,
   toOrderSummaryDto,
   toPaymentStartDto,
+  toReorderDto,
 } from './ordering.mappers.js';
 import {
   PLACE_ORDER_DESCRIPTION,
   PLACE_ORDER_PROBLEMS,
   START_PAYMENT_DESCRIPTION,
   START_PAYMENT_PROBLEMS,
+  REORDER_RULES,
 } from './orders.controller.js';
 import { PaymentStartDto, StartCustomerPaymentDto } from './payment.dto.js';
 
@@ -74,7 +79,36 @@ export class MeOrdersController {
     private readonly checkout: Checkout,
     private readonly reader: OrderReader,
     private readonly paymentRequests: OrderPaymentRequests,
+    private readonly reorders: OrderReorders,
   ) {}
+
+  @ApiOperation({
+    summary: 'Volver a comprar mi orden',
+    description: `Copia las líneas de mi orden a mi carrito activo, o a uno nuevo si no tengo. ${REORDER_RULES}`,
+  })
+  @ApiOkResponse({ type: ReorderDto })
+  @ApiProblemResponses(
+    'not-found',
+    'invalid-state-transition',
+    'staff-cannot-purchase',
+  )
+  @RequireAccount()
+  @UseGuards(NoStaffPurchases)
+  @HttpCode(200)
+  @Post(':publicCode/reorder')
+  async reorder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('publicCode') publicCode: string,
+  ): Promise<ReorderDto> {
+    const code = parsePublicCode(publicCode);
+    if (code === null) throw new NotFoundError('Order', publicCode);
+    return toReorderDto(
+      await this.reorders.forCustomer({
+        customerId: customer(user),
+        publicCode: code,
+      }),
+    );
+  }
 
   @ApiOperation({
     summary: 'Colocar mi orden',

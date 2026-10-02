@@ -111,6 +111,29 @@ export class GuestOrderLookupDto {
 }
 
 /**
+ * Request of `POST /v1/orders/reorder` (UC-CRT-09, API_SPEC.md §14.3): the guest is found as in the lookup
+ * (ADR-0138), and the lines go into the active guest cart given, or a new one.
+ */
+export class GuestReorderDto extends GuestOrderLookupDto {
+  /** Carrito de invitado activo que recibe las líneas; sin él se crea uno. */
+  @IsOptional()
+  @IsUUID('all')
+  cartId?: string;
+}
+
+/** Answer of the three reorder routes (UC-CRT-09, ADR-0139): read the cart with the routes of the cart. */
+export class ReorderDto {
+  /** El carrito que recibió las líneas. */
+  cartId: string;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Variantes de la orden que ya no se venden y no se copiaron.',
+  })
+  skippedVariantIds: string[];
+}
+
+/**
  * Request of `POST /v1/me/orders` (UC-ORD-02, API_SPEC.md §15.3): exactly one of `addressId` and
  * `shippingAddress`, which the controller checks.
  */
