@@ -143,6 +143,11 @@ export type Buyer =
       readonly privacyNoticeVersion: string;
     };
 
+/** The contact email as an order keeps it, and as a guest finds the order with it: trimmed, in lowercase. */
+export function normalizedContactEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 /** A staff member of Identity, known here only by its ID (ADR-0005). */
 export type StaffId = Id<'User'>;
 
@@ -217,7 +222,7 @@ export class Order {
     now: Date;
   }): Order {
     if (input.lines.length === 0) throw new EmptyCartError();
-    const contactEmail = input.buyer.contactEmail.trim().toLowerCase();
+    const contactEmail = normalizedContactEmail(input.buyer.contactEmail);
     if (contactEmail === '') {
       throw new InvalidValueError('An order needs a contact email');
     }

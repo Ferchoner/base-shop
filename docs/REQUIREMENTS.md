@@ -304,6 +304,7 @@ Criterios de aceptación:
   - Un invitado debe indicar email de contacto, una dirección con el formato de ADR-0057 y la versión del aviso de privacidad presentada (ADR-0067).
   - La orden recibe un número interno consecutivo y un código público aleatorio único; la respuesta al cliente incluye solo el código público (ADR-0049).
 - **UC-ORD-04:** requiere email y código público de la orden (ADR-0049); acepta el código sin distinguir mayúsculas y minúsculas; el error es idéntico si la orden no existe o el email no coincide; tiene rate limiting obligatorio.
+- **UC-ORD-04 (implementación, ADR-0138):** una sola consulta por código, email normalizado y orden de invitado, así que todo fallo responde igual y tarda igual; el staff puede consultar.
 - **UC-ORD-07:** rechazada desde Shipped o posterior; en PendingPayment pasa a Cancelled (terminal) y libera la reserva; en Paid o AwaitingManualFulfillment pasa a Cancelled e inicia el reembolso total (UC-PAY-03); en Paid, el staff con `inventory.write` puede elegir reintegrar el stock completo en la misma operación (ADR-0052); se audita.
 - **UC-ORD-08:** si hay stock, reserva, confirma y pasa a Paid; si se decide no surtir, se cancela según UC-ORD-07.
 - **UC-ORD-09:** con reserva vigente, la confirma y pasa a Paid; si la orden está Expired, aplica BR-ORD-09; idempotente ante eventos duplicados.

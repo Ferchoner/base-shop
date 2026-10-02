@@ -9,6 +9,7 @@ const payment = { id: 'payment-1' } as unknown as OrderPayment;
 
 function setUp() {
   const asked: OrderId[][] = [];
+  const guests: string[][] = [];
   const payments = {
     paymentsOf: (ids: readonly OrderId[]) => {
       asked.push([...ids]);
@@ -21,11 +22,17 @@ function setUp() {
     findOrder: (id: OrderId) =>
       Promise.resolve(id === paid || id === unpaid ? { id } : null),
     findCustomerOrder: () => Promise.resolve({ id: unpaid }),
+    findGuestOrder: (code: string, email: string) => {
+      guests.push([code, email]);
+      return Promise.resolve(
+        email === 'cliente@example.com' ? { id: paid } : null,
+      );
+    },
     findAdminOrder: () => Promise.resolve({ id: paid }),
     listCustomerOrders: () => page([paid, unpaid]),
     listOrders: () => page([unpaid, paid]),
   } as unknown as OrderingQueries;
-  return { reader: new OrderReader(queries, payments), asked };
+  return { reader: new OrderReader(queries, payments), asked, guests };
 }
 
 describe('OrderReader (ADR-0134)', () => {
@@ -39,6 +46,23 @@ describe('OrderReader (ADR-0134)', () => {
     });
     expect(await reader.adminOrder(paid)).toEqual({ id: paid, payment });
     expect(asked).toEqual([[paid], [unpaid], [paid]]);
+  });
+
+  it('finds a guest order with its code and the contact email as orders keep it, with its payment (ADR-0138)', async () => {
+    const { reader, asked, guests } = setUp();
+
+    expect(
+      await reader.guestOrder('K7M4Q9XA' as never, ' Cliente@Example.COM '),
+    ).toEqual({ id: paid, payment });
+    expect(
+      await reader.guestOrder('K7M4Q9XA' as never, 'otro@example.com'),
+    ).toBeNull();
+
+    expect(guests).toEqual([
+      ['K7M4Q9XA', 'cliente@example.com'],
+      ['K7M4Q9XA', 'otro@example.com'],
+    ]);
+    expect(asked).toEqual([[paid]]);
   });
 
   it('asks Payments nothing for an order that does not exist', async () => {

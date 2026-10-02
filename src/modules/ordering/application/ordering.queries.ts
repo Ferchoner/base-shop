@@ -121,6 +121,15 @@ export abstract class OrderingQueries {
     publicCode: PublicCode,
   ): Promise<OrderView | null>;
 
+  /**
+   * A guest order by its public code and contact email, in a single query (UC-ORD-04, ADR-0138): `null` alike
+   * when no order has the code, the email is another one, or the order is a customer's (BR-ORD-11).
+   */
+  abstract findGuestOrder(
+    publicCode: PublicCode,
+    contactEmail: string,
+  ): Promise<OrderView | null>;
+
   /** An order for the staff (UC-ORD-06); `null` if it does not exist. */
   abstract findAdminOrder(id: OrderId): Promise<AdminOrderView | null>;
 

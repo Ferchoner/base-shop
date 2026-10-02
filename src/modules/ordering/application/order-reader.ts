@@ -4,7 +4,11 @@ import type {
   PageRequest,
   SortOrder,
 } from '../../../shared-kernel/index.js';
-import type { CustomerId, OrderId } from '../domain/order.js';
+import {
+  type CustomerId,
+  normalizedContactEmail,
+  type OrderId,
+} from '../domain/order.js';
 import type { PublicCode } from '../domain/public-code.js';
 import {
   type AdminOrderSummaryView,
@@ -45,6 +49,22 @@ export class OrderReader {
   ): Promise<WithPayment<OrderView> | null> {
     return this.withPayment(
       await this.queries.findCustomerOrder(customerId, publicCode),
+    );
+  }
+
+  /**
+   * A guest's order, found with its public code and contact email (UC-ORD-04, ADR-0138); `null` alike when it
+   * does not exist, the email is another one or it is a customer's order (BR-ORD-11).
+   */
+  async guestOrder(
+    publicCode: PublicCode,
+    contactEmail: string,
+  ): Promise<WithPayment<OrderView> | null> {
+    return this.withPayment(
+      await this.queries.findGuestOrder(
+        publicCode,
+        normalizedContactEmail(contactEmail),
+      ),
     );
   }
 

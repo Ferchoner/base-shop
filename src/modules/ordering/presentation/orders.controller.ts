@@ -1,4 +1,12 @@
-import { Body, Controller, Param, Post, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Param,
+  Post,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -15,7 +23,11 @@ import { Checkout } from '../application/checkout.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
 import { parsePublicCode } from '../application/order-values.js';
-import { OrderDto, PlaceGuestOrderDto } from './order.dto.js';
+import {
+  GuestOrderLookupDto,
+  OrderDto,
+  PlaceGuestOrderDto,
+} from './order.dto.js';
 import { toOrderDto, toPaymentStartDto } from './ordering.mappers.js';
 import { PaymentStartDto, StartGuestPaymentDto } from './payment.dto.js';
 
@@ -48,10 +60,11 @@ export const START_PAYMENT_DESCRIPTION =
 export const PLACE_ORDER_DESCRIPTION =
   'Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos.';
 
-/** The order of a guest (UC-ORD-02, API_SPEC.md §15.3). A staff account answers 403 (E-09). */
+/**
+ * The order of a guest (UC-ORD-02 and 04, API_SPEC.md §15.3 and §15.5). A staff account cannot place it nor pay
+ * it (403, E-09), but can look it up, as it can read a guest cart (ADR-0138).
+ */
 @ApiTags('Pedidos')
-@ApiProblemResponses('staff-cannot-purchase')
-@UseGuards(NoStaffPurchases)
 @Controller('orders')
 export class OrdersController {
   constructor(
@@ -65,7 +78,8 @@ export class OrdersController {
     description: `${PLACE_ORDER_DESCRIPTION} El invitado consulta su pedido con el email de contacto y el código público.`,
   })
   @ApiCreatedResponse({ type: OrderDto })
-  @ApiProblemResponses(...PLACE_ORDER_PROBLEMS)
+  @ApiProblemResponses('staff-cannot-purchase', ...PLACE_ORDER_PROBLEMS)
+  @UseGuards(NoStaffPurchases)
   @RateLimit('place-order')
   @Idempotent(cartScope)
   @Post()
@@ -94,7 +108,8 @@ export class OrdersController {
   })
   @ApiCreatedResponse({ type: PaymentStartDto })
   @ApiOkResponse({ type: PaymentStartDto })
-  @ApiProblemResponses(...START_PAYMENT_PROBLEMS)
+  @ApiProblemResponses('staff-cannot-purchase', ...START_PAYMENT_PROBLEMS)
+  @UseGuards(NoStaffPurchases)
   @Idempotent(cartScope)
   @Post(':publicCode/payments')
   async startPayment(
@@ -111,5 +126,28 @@ export class OrdersController {
     });
     if (!start.started) response.status(200);
     return toPaymentStartDto(start);
+  }
+
+  @ApiOperation({
+    summary: 'Consultar el pedido de un invitado',
+    description:
+      'Con el email de contacto y el código público, en el cuerpo para que no queden en logs (ADR-0071). Solo órdenes de invitado: una de cliente se consulta en `/v1/me/orders`. Responde el mismo 404 si la orden no existe, el email no coincide, el código no puede existir o la orden es de una cuenta (BR-ORD-11). Hasta 10 consultas por IP cada 15 minutos, compartidas con la recompra de invitado.',
+  })
+  @ApiOkResponse({ type: OrderDto })
+  @ApiProblemResponses('not-found', 'rate-limit-exceeded')
+  @RateLimit('guest-order')
+  @HttpCode(200)
+  @Post('lookup')
+  async lookup(@Body() body: GuestOrderLookupDto): Promise<OrderDto> {
+    const code = parsePublicCode(body.publicCode);
+    const order =
+      code === null
+        ? null
+        : await this.reader.guestOrder(code, body.contactEmail);
+    // The same answer for every miss, without the email nor the code, also in the log (BR-ORD-11, ADR-0071).
+    if (order === null) {
+      throw new NotFoundError('Guest order', 'with that email and code');
+    }
+    return toOrderDto(order);
   }
 }

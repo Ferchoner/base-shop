@@ -487,6 +487,50 @@ describe('Ordering: checkout (T-180)', () => {
       ).toHaveLength(1);
       expect(parsePublicCode(codes[0])).toBe(codes[0]);
     });
+
+    it("finds a guest order only with its code and its contact email, never a customer's (UC-ORD-04, ADR-0138)", async () => {
+      const customer = await verifiedCustomer();
+      const ids: OrderId[] = [];
+      for (const owner of [null, customer, null]) {
+        const cartId = await cart(
+          [{ variantId: await variant(), quantity: 1 }],
+          owner,
+        );
+        ids.push(
+          await run(() =>
+            checkout.placeOrder(
+              owner === null
+                ? guestOrder(cartId, 1)
+                : {
+                    customerId: owner,
+                    shippingAddress: ADDRESS,
+                    expectedTotal: 19_900,
+                  },
+            ),
+          ),
+        );
+      }
+      const [guest, ofCustomer, anonymized] = await Promise.all(
+        ids.map(async (id) => (await queries.findOrder(id))!),
+      );
+      await prisma.order.update({
+        where: { id: anonymized.id },
+        data: { contactEmail: null, anonymizedAt: new Date(START) },
+      });
+
+      expect(
+        (await queries.findGuestOrder(guest.publicCode, 'cliente@example.com'))
+          ?.id,
+      ).toBe(guest.id);
+      for (const [code, email] of [
+        [guest.publicCode, 'otro@example.com'],
+        [guest.publicCode, 'Cliente@example.com'],
+        [ofCustomer.publicCode, `${customer}@example.com`],
+        [anonymized.publicCode, 'cliente@example.com'],
+      ] as const) {
+        expect(await queries.findGuestOrder(code, email)).toBeNull();
+      }
+    });
   });
 
   describe('orders at the same time', () => {
