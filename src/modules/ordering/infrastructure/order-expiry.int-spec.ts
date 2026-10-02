@@ -134,6 +134,8 @@ describe('Ordering: expiration of unpaid orders (T-230)', () => {
     await prisma.auditLog.deleteMany({
       where: { action: { startsWith: 'orders.' } },
     });
+    await prisma.shipmentItem.deleteMany();
+    await prisma.shipment.deleteMany();
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();

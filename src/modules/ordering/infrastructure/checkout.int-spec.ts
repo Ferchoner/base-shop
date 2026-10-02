@@ -362,7 +362,7 @@ describe('Ordering: checkout (T-180)', () => {
       ).not.toBeNull();
     });
 
-    it('writes nothing for a public code that another order has, and keeps the transaction usable (ADR-0049)', async () => {
+    it('writes nothing for a public code that another order has, keeps the transaction usable (ADR-0049) and the IDs of the lines (ADR-0140)', async () => {
       const orders = moduleRef.get(OrderRepository);
       const transactions = moduleRef.get(TransactionManager);
       const taken = 'K7M4Q9XA' as PublicCode;
@@ -409,10 +409,11 @@ describe('Ordering: checkout (T-180)', () => {
           now: new Date(START),
         });
       const [first, second] = [newId<'Order'>(), newId<'Order'>()];
+      const kept = order(first, taken);
 
       const results = await run(() =>
         transactions.run(async () => [
-          await orders.insert(order(first, taken)),
+          await orders.insert(kept),
           await orders.insert(order(second, taken)),
           await orders.insert(order(second, 'K7M4Q9XB' as PublicCode)),
         ]),
@@ -435,6 +436,9 @@ describe('Ordering: checkout (T-180)', () => {
         [second, 'K7M4Q9XB', 1, 1],
       ]);
       expect(saved[1].orderNumber).toBeGreaterThan(saved[0].orderNumber);
+      expect(saved[0].lines.map(({ id }) => id)).toEqual(
+        kept.snapshot.lines.map(({ id }) => id),
+      );
     });
 
     it("lists a customer's orders by page, sorted by total with ties by ID, and finds only their own", async () => {

@@ -1,6 +1,6 @@
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
-import type { WithPayment } from '../application/order-reader.js';
+import type { WithPaymentAndShipment } from '../application/order-reader.js';
 import {
   formatPublicCode,
   type PublicCode,
@@ -19,13 +19,16 @@ import type { AdminOrderDto, AdminOrderSummaryDto } from './admin-order.dto.js';
 import type { CheckoutQuoteDto } from './checkout.dto.js';
 import type {
   AdminOrderPaymentDto,
+  AdminOrderShipmentDto,
   OrderDto,
   OrderFieldsDto,
   OrderLineDto,
+  OrderShipmentDto,
   OrderSummaryDto,
 } from './order.dto.js';
 import type { PaymentStartDto } from './payment.dto.js';
 import type { CartCopy } from '../application/reorder-ports.js';
+import type { OrderShipment } from '../application/shipment-ports.js';
 import type { ReorderDto } from './order.dto.js';
 
 /** `CheckoutQuote` of API_SPEC.md §8.7. */
@@ -63,7 +66,7 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
   };
 }
 
-/** What every view of an order shares; each adds its own `payment`. */
+/** What every view of an order shares; each adds its own `payment` and `shipment`. */
 function toOrderFields(view: OrderSummaryView): OrderFieldsDto {
   const { totals } = view;
   return {
@@ -81,8 +84,6 @@ function toOrderFields(view: OrderSummaryView): OrderFieldsDto {
       minBusinessDays: view.deliveryMinBusinessDays,
       maxBusinessDays: view.deliveryMaxBusinessDays,
     },
-    // Shipping (T-195) does not exist yet.
-    shipment: null,
     placedAt: view.placedAt,
     paymentDueAt: view.paymentDueAt,
     paidAt: view.paidAt,
@@ -96,7 +97,7 @@ function toOrderFields(view: OrderSummaryView): OrderFieldsDto {
 
 /** An order in a listing: `Order` without its lines nor its address (API_SPEC.md §15.4). */
 export function toOrderSummaryDto(
-  view: WithPayment<OrderSummaryView>,
+  view: WithPaymentAndShipment<OrderSummaryView>,
 ): OrderSummaryDto {
   return {
     ...toOrderFields(view),
@@ -104,11 +105,12 @@ export function toOrderSummaryDto(
       view.payment === null
         ? null
         : { provider: view.payment.provider, status: view.payment.status },
+    shipment: view.shipment === null ? null : toOrderShipmentDto(view.shipment),
   };
 }
 
 /** `Order` of API_SPEC.md §8.8: never the internal number nor the ID (ADR-0049). */
-export function toOrderDto(view: WithPayment<OrderView>): OrderDto {
+export function toOrderDto(view: WithPaymentAndShipment<OrderView>): OrderDto {
   return {
     ...toOrderSummaryDto(view),
     lines: toLineDtos(view),
@@ -118,12 +120,14 @@ export function toOrderDto(view: WithPayment<OrderView>): OrderDto {
 
 /** `AdminOrder` in a listing (API_SPEC.md §15.7): both identifiers, without lines nor history. */
 export function toAdminOrderSummaryDto(
-  view: WithPayment<AdminOrderSummaryView>,
+  view: WithPaymentAndShipment<AdminOrderSummaryView>,
 ): AdminOrderSummaryDto {
   return {
     ...toOrderFields(view),
     payment:
       view.payment === null ? null : toAdminOrderPaymentDto(view.payment),
+    shipment:
+      view.shipment === null ? null : toAdminOrderShipmentDto(view.shipment),
     id: view.id,
     orderNumber: view.orderNumber,
     customerId: view.customerId,
@@ -135,7 +139,7 @@ export function toAdminOrderSummaryDto(
 
 /** `AdminOrder` of API_SPEC.md §8.9. */
 export function toAdminOrderDto(
-  view: WithPayment<AdminOrderView>,
+  view: WithPaymentAndShipment<AdminOrderView>,
 ): AdminOrderDto {
   return {
     ...toAdminOrderSummaryDto(view),
@@ -157,6 +161,27 @@ export function toPaymentStartDto(start: PaymentStart): PaymentStartDto {
       amount: toMoneyDto(start.action.amount),
       instructions: start.action.instructions,
     },
+  };
+}
+
+function toOrderShipmentDto(shipment: OrderShipment): OrderShipmentDto {
+  return {
+    status: shipment.status,
+    carrierName: shipment.carrierName,
+    trackingNumber: shipment.trackingNumber,
+    ownDelivery: shipment.ownDelivery,
+    dispatchedAt: shipment.dispatchedAt,
+    deliveredAt: shipment.deliveredAt,
+  };
+}
+
+function toAdminOrderShipmentDto(
+  shipment: OrderShipment,
+): AdminOrderShipmentDto {
+  return {
+    id: shipment.id,
+    ...toOrderShipmentDto(shipment),
+    version: shipment.version,
   };
 }
 

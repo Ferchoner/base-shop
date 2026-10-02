@@ -124,8 +124,8 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       privacyNoticeVersion: '2026-09',
       status: 'PENDING_PAYMENT',
       lines: [
-        { ...lines[0], lineNumber: 1 },
-        { ...lines[1], lineNumber: 2 },
+        { ...lines[0], id: expect.any(String), lineNumber: 1 },
+        { ...lines[1], id: expect.any(String), lineNumber: 2 },
       ],
       totals: orderTotals(lines, SHIPPING),
       shippingTaxRateBp: 1600,
@@ -400,5 +400,18 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
       expect(order.expireIfDue(LATER)).toBe(false);
       expect([order.status, order.hasChanges]).toEqual([status, false]);
     }
+  });
+});
+
+describe('Lines of an order (ADR-0140)', () => {
+  it('gives each line its own ID, in the order of the lines', () => {
+    const order = place({
+      lines: [line(10_000, 1), line(20_000, 2), line(30_000, 3)],
+    });
+
+    const ids = order.snapshot.lines.map(({ id }) => id);
+
+    expect(new Set(ids).size).toBe(3);
+    expect([...ids].sort()).toEqual(ids);
   });
 });

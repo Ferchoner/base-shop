@@ -22,10 +22,15 @@ import {
   type OrderView,
 } from './ordering.queries.js';
 import { type OrderPayment, OrderPayments } from './payment-ports.js';
+import { type OrderShipment, OrderShipments } from './shipment-ports.js';
 
-/** A view of an order with its payment, `null` while it has none (API_SPEC.md §8.8 and §8.9). */
-export type WithPayment<View> = View & {
+/**
+ * A view of an order with its payment and its shipment, each `null` while it has none (API_SPEC.md §8.8 and
+ * §8.9).
+ */
+export type WithPaymentAndShipment<View> = View & {
   readonly payment: OrderPayment | null;
+  readonly shipment: OrderShipment | null;
 };
 
 /**
@@ -37,17 +42,18 @@ export class OrderReader {
   constructor(
     private readonly queries: OrderingQueries,
     private readonly payments: OrderPayments,
+    private readonly shipments: OrderShipments,
   ) {}
 
-  async order(id: OrderId): Promise<WithPayment<OrderView> | null> {
-    return this.withPayment(await this.queries.findOrder(id));
+  async order(id: OrderId): Promise<WithPaymentAndShipment<OrderView> | null> {
+    return this.attach(await this.queries.findOrder(id));
   }
 
   async customerOrder(
     customerId: CustomerId,
     publicCode: PublicCode,
-  ): Promise<WithPayment<OrderView> | null> {
-    return this.withPayment(
+  ): Promise<WithPaymentAndShipment<OrderView> | null> {
+    return this.attach(
       await this.queries.findCustomerOrder(customerId, publicCode),
     );
   }
@@ -59,8 +65,8 @@ export class OrderReader {
   async guestOrder(
     publicCode: PublicCode,
     contactEmail: string,
-  ): Promise<WithPayment<OrderView> | null> {
-    return this.withPayment(
+  ): Promise<WithPaymentAndShipment<OrderView> | null> {
+    return this.attach(
       await this.queries.findGuestOrder(
         publicCode,
         normalizedContactEmail(contactEmail),
@@ -68,8 +74,10 @@ export class OrderReader {
     );
   }
 
-  async adminOrder(id: OrderId): Promise<WithPayment<AdminOrderView> | null> {
-    return this.withPayment(await this.queries.findAdminOrder(id));
+  async adminOrder(
+    id: OrderId,
+  ): Promise<WithPaymentAndShipment<AdminOrderView> | null> {
+    return this.attach(await this.queries.findAdminOrder(id));
   }
 
   async customerOrders(
@@ -77,8 +85,8 @@ export class OrderReader {
     filter: CustomerOrderFilter,
     sort: readonly SortOrder<CustomerOrderSortField>[],
     page: PageRequest,
-  ): Promise<Page<WithPayment<OrderSummaryView>>> {
-    return this.withPayments(
+  ): Promise<Page<WithPaymentAndShipment<OrderSummaryView>>> {
+    return this.attachAll(
       await this.queries.listCustomerOrders(customerId, filter, sort, page),
     );
   }
@@ -87,29 +95,32 @@ export class OrderReader {
     filter: OrderFilter,
     sort: readonly SortOrder<OrderSortField>[],
     page: PageRequest,
-  ): Promise<Page<WithPayment<AdminOrderSummaryView>>> {
-    return this.withPayments(await this.queries.listOrders(filter, sort, page));
+  ): Promise<Page<WithPaymentAndShipment<AdminOrderSummaryView>>> {
+    return this.attachAll(await this.queries.listOrders(filter, sort, page));
   }
 
-  private async withPayment<View extends { readonly id: OrderId }>(
+  private async attach<View extends { readonly id: OrderId }>(
     view: View | null,
-  ): Promise<WithPayment<View> | null> {
+  ): Promise<WithPaymentAndShipment<View> | null> {
     if (view === null) return null;
-    const payments = await this.payments.paymentsOf([view.id]);
-    return { ...view, payment: payments.get(view.id) ?? null };
+    const [attached] = (await this.attachAll({ items: [view], totalItems: 1 }))
+      .items;
+    return attached;
   }
 
-  private async withPayments<View extends { readonly id: OrderId }>(
+  /** The payments and the shipments of a whole page, in one read of each. */
+  private async attachAll<View extends { readonly id: OrderId }>(
     page: Page<View>,
-  ): Promise<Page<WithPayment<View>>> {
-    const payments = await this.payments.paymentsOf(
-      page.items.map(({ id }) => id),
-    );
+  ): Promise<Page<WithPaymentAndShipment<View>>> {
+    const ids = page.items.map(({ id }) => id);
+    const payments = await this.payments.paymentsOf(ids);
+    const shipments = await this.shipments.shipmentsOf(ids);
     return {
       ...page,
       items: page.items.map((view) => ({
         ...view,
         payment: payments.get(view.id) ?? null,
+        shipment: shipments.get(view.id) ?? null,
       })),
     };
   }

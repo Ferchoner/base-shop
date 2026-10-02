@@ -14,7 +14,7 @@ import {
 } from '../domain/reservation.js';
 import { ReservationRepository } from '../domain/reservation.repository.js';
 import { InsufficientStockError, type VariantId } from '../domain/stock.js';
-import type { Warehouse } from '../domain/warehouse.js';
+import type { Warehouse, WarehouseId } from '../domain/warehouse.js';
 import { WarehouseRepository } from '../domain/warehouse.repository.js';
 import { InventoryQueries } from './inventory.queries.js';
 
@@ -134,6 +134,11 @@ export class InventoryFacade {
     return this.transactions.run(() =>
       this.reservations.expire(orderId, this.clock.now()),
     );
+  }
+
+  /** The warehouse every order is shipped from: the only active one in the MVP (BR-INV-08, ADR-0140). */
+  async activeWarehouseId(): Promise<WarehouseId> {
+    return (await this.activeWarehouse()).id;
   }
 
   private async activeWarehouse(): Promise<Warehouse> {

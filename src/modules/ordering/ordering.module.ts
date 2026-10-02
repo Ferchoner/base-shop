@@ -27,6 +27,7 @@ import { OrderReorders } from './application/order-reorders.use-case.js';
 import { OrderingQueries } from './application/ordering.queries.js';
 import { OrderPayments } from './application/payment-ports.js';
 import { ReorderCarts } from './application/reorder-ports.js';
+import { OrderShipments } from './application/shipment-ports.js';
 import { VAT_RATE_BP } from './application/vat-rate.js';
 import { OrderRepository } from './domain/order.repository.js';
 import {
@@ -37,6 +38,7 @@ import {
   PaymentsFacadeOrderPayments,
   PricingFacadeCheckoutPrices,
   ShippingFacadeCheckoutShipping,
+  ShippingFacadeOrderShipments,
   ShoppingFacadeCheckoutCarts,
   ShoppingFacadeReorderCarts,
 } from './infrastructure/facade-adapters.js';
@@ -101,6 +103,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: ShippingLocations, useClass: GeoShippingLocations },
     { provide: OrderPayments, useClass: PaymentsFacadeOrderPayments },
     { provide: ReorderCarts, useClass: ShoppingFacadeReorderCarts },
+    { provide: OrderShipments, useClass: ShippingFacadeOrderShipments },
   ],
 })
 export class OrderingModule {}

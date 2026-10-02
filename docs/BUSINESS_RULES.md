@@ -147,7 +147,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 
 ## Cancelaciones y devoluciones
 
-- BR-CAN-01. No se cancela una orden en Shipped o posterior. Se puede cancelar en PendingPayment, Paid y AwaitingManualFulfillment. Cancelar una orden sin pagar cancela también su pago pendiente (ADR-0135).
+- BR-CAN-01. No se cancela una orden en Shipped o posterior, ni una orden en Paid cuyo envío ya salió. Se puede cancelar en PendingPayment, Paid y AwaitingManualFulfillment. Cancelar una orden sin pagar cancela también su pago pendiente (ADR-0135); cancelar una orden en Paid cancela también su envío (ADR-0140).
 - BR-CAN-02. Cancelar una orden pagada (Paid o AwaitingManualFulfillment) la lleva a Cancelled e inicia el reembolso total; al confirmarse el reembolso pasa a Refunded. Si el reembolso falla, permanece en Cancelled y se puede reintentar (ADR-0051).
 - BR-CAN-03. Solo el personal con permiso `orders.manage` (Administrador y Superadministrador, ADR-0043) puede cancelar. El cliente no cancela desde la API (ADR-0021).
 - BR-CAN-04. Devoluciones: fuera del MVP (ADR-0018).
@@ -171,11 +171,11 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-02. Una orden genera un solo envío en el MVP.
 - BR-SHP-03. Delivered es un estado terminal.
 - BR-SHP-04. Un envío se despacha por paquetería, con paquetería y número de guía, o como entrega propia de la tienda, marcada explícitamente y sin paquetería ni guía; la base de datos lo garantiza (ADR-0078).
-- BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending al pagarse la orden, y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
+- BR-SHP-05. Los envíos se gestionan manualmente: el envío se crea en Pending en la misma operación en que se paga la orden (ADR-0140), y el staff con `shipping.manage` captura paquetería y guía y marca despachado, entregado o fallido (ADR-0041, ADR-0043).
 - BR-SHP-06. El costo de envío es fijo por orden y es gratis cuando el subtotal con IVA menos el descuento alcanza un monto mínimo; ambos valores los configura el administrador (ADR-0042, ADR-0079). Valores iniciales provisionales: costo fijo de $99.00 y envío gratis desde $1,500.00 (ADR-0092).
 - BR-SHP-07. El costo de envío se calcula al cotizar y queda como snapshot en la orden.
 - BR-SHP-08. El plazo de entrega se informa como estimado: un rango en días hábiles contado desde la confirmación del pago, configurable en el método de envío (valor inicial: 3 a 7). Se muestra en la cotización y en el correo de orden recibida, y queda como snapshot en la orden. Un retraso no dispara acciones automáticas, y en el MVP no hay plazo interno de despacho (ADR-0083).
-- BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053).
+- BR-SHP-09. Estados del envío: Pending → Dispatched → Delivered | DeliveryFailed; DeliveryFailed → Returned (ADR-0050, ADR-0053); Pending → Cancelled, solo al cancelar su orden (ADR-0140).
 - BR-SHP-10. Una entrega fallida o una devolución no cambia el estado de la orden (Shipped) ni dispara reintentos, cancelaciones o reembolsos. Si la mercancía regresa, el staff marca el envío como Returned y reintegra el stock (ADR-0053).
 - BR-SHP-11. Se permite la entrega propia de la tienda, con el mismo costo de envío, la misma dirección y los mismos estados que un envío por paquetería. Recoger en tienda queda fuera del MVP (ADR-0078).
 - BR-SHP-12. El costo de envío configurado incluye IVA. El IVA contenido se calcula con la tasa configurada, se redondea como una línea y queda como snapshot en la orden; con envío gratis es 0. El costo de envío no cuenta para alcanzar el umbral (ADR-0079).

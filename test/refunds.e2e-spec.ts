@@ -82,6 +82,8 @@ describe('Refunds (e2e, T-190)', () => {
     await prisma.paymentAttempt.deleteMany();
     await prisma.refund.deleteMany();
     await prisma.payment.deleteMany();
+    await prisma.shipmentItem.deleteMany();
+    await prisma.shipment.deleteMany();
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();

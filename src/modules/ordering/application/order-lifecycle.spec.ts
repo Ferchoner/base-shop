@@ -20,6 +20,7 @@ import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import type { PublicCode } from '../domain/public-code.js';
 import type { OrderStock, StockLine } from './checkout-ports.js';
 import type { OrderPayments } from './payment-ports.js';
+import type { OrderShipments } from './shipment-ports.js';
 import { OrderLifecycle } from './order-lifecycle.use-case.js';
 
 // Test doubles of the unit tests of the life of an order.
@@ -136,6 +137,8 @@ function fakeStock(
   options: {
     commit?: 'committed' | 'already-committed' | 'not-active';
     available?: boolean;
+    /** The shipment of the order was dispatched, though the order is not SHIPPED yet. */
+    shipmentLeft?: boolean;
   } = {},
 ) {
   const calls: string[] = [];
@@ -203,9 +206,29 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
       return Promise.resolve();
     },
   } as unknown as OrderPayments;
-  const lifecycle = new OrderLifecycle(orders, stock, payments, inline, audit, {
-    now: () => NOW,
-  });
+  const shipments = {
+    createFor: () => {
+      calls.push('createShipment');
+      return Promise.resolve();
+    },
+    cancel: () => {
+      calls.push('cancelShipment');
+      return options.shipmentLeft === true
+        ? Promise.reject(
+            new InvalidStateTransitionError('DISPATCHED', 'cancel'),
+          )
+        : Promise.resolve();
+    },
+  } as unknown as OrderShipments;
+  const lifecycle = new OrderLifecycle(
+    orders,
+    stock,
+    payments,
+    shipments,
+    inline,
+    audit,
+    { now: () => NOW },
+  );
   return { lifecycle, orders, calls, audited, reservation };
 }
 
@@ -281,7 +304,7 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
 
       await cancel(lifecycle, order);
 
-      expect(calls).toEqual(['startRefund']);
+      expect(calls).toEqual(['cancelShipment', 'startRefund']);
       expect(savedOne(orders).snapshot).toMatchObject({
         status: 'CANCELLED',
         paidAt: CAPTURED,
@@ -290,6 +313,22 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
         status: { from: status, to: 'CANCELLED' },
       });
     }
+  });
+
+  it('cancels nothing when the shipment of a paid order left, though the order is not SHIPPED yet (ADR-0140)', async () => {
+    const order = saved('PAID', CAPTURED);
+    const { lifecycle, orders, calls, audited } = setUp(order, {
+      shipmentLeft: true,
+    });
+
+    await expect(cancel(lifecycle, order)).rejects.toThrow(
+      new InvalidStateTransitionError('DISPATCHED', 'cancel'),
+    );
+    expect([orders.saved, audited, calls]).toEqual([
+      [],
+      [],
+      ['cancelShipment'],
+    ]);
   });
 
   it('answers the restock of a paid order as unavailable until T-161 (ADR-0135)', async () => {
@@ -328,7 +367,7 @@ describe('OrderLifecycle: retrying the fulfillment (UC-ORD-08)', () => {
       version: 3,
     });
 
-    expect(calls).toEqual(['reserve 2,1', 'commit']);
+    expect(calls).toEqual(['reserve 2,1', 'commit', 'createShipment']);
     expect(savedOne(orders).snapshot).toMatchObject({
       status: 'PAID',
       paidAt: CAPTURED,
@@ -400,7 +439,7 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
 
       expect(await pay(lifecycle, order)).toBe('paid');
 
-      expect(calls).toEqual(['commit']);
+      expect(calls).toEqual(['commit', 'createShipment']);
       expect(savedOne(orders).snapshot).toMatchObject({
         status: 'PAID',
         paidAt: CAPTURED,
@@ -411,8 +450,11 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
 
   it('reserves again when the reservation ended, for an unpaid or an expired order (ADR-0012)', async () => {
     for (const [status, expected] of [
-      ['PENDING_PAYMENT', ['commit', 'reserveIfAvailable 2,1', 'commit']],
-      ['EXPIRED', ['reserveIfAvailable 2,1', 'commit']],
+      [
+        'PENDING_PAYMENT',
+        ['commit', 'reserveIfAvailable 2,1', 'commit', 'createShipment'],
+      ],
+      ['EXPIRED', ['reserveIfAvailable 2,1', 'commit', 'createShipment']],
     ] as const) {
       const order = saved(status);
       const { lifecycle, orders, calls, reservation } = setUp(order, {

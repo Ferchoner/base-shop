@@ -14,6 +14,7 @@ import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import { OrderStock, type StockLine } from './checkout-ports.js';
 import { OrderPayments } from './payment-ports.js';
+import { OrderShipments } from './shipment-ports.js';
 
 /** What a captured payment did to its order (UC-ORD-09). */
 export type PaymentOutcome =
@@ -48,6 +49,7 @@ export class OrderLifecycle {
     private readonly orders: OrderRepository,
     private readonly stock: OrderStock,
     private readonly payments: OrderPayments,
+    private readonly shipments: OrderShipments,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
     private readonly clock: Clock,
@@ -83,7 +85,9 @@ export class OrderLifecycle {
         await this.stock.release(order.id);
         await this.payments.cancelPending(order.id);
       } else {
-        // Paid: the full refund starts in the same operation (UC-PAY-03, ADR-0051).
+        // Paid: its shipment must not have left (ADR-0140), and the full refund starts in the same operation
+        // (UC-PAY-03, ADR-0051).
+        await this.shipments.cancel(order.id);
         await this.payments.startRefund(order.id);
       }
       await this.orders.save(order, now);
@@ -123,6 +127,7 @@ export class OrderLifecycle {
       const before = order.status;
       const now = this.clock.now();
       order.fulfillManually(input.actorId, reservation.id, now);
+      await this.shipments.createFor(order);
       await this.orders.save(order, now);
       await this.audit.record({
         action: 'orders.retry-fulfillment',
@@ -171,6 +176,8 @@ export class OrderLifecycle {
         default:
           return 'already-processed';
       }
+      // A paid order has its shipment from the start (UC-SHI-03, ADR-0140).
+      if (outcome === 'paid') await this.shipments.createFor(order);
       await this.orders.save(order, now);
       return outcome;
     });

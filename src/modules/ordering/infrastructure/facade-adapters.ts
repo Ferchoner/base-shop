@@ -11,6 +11,10 @@ import {
 } from '../../payments/index.js';
 import { PricingFacade } from '../../pricing/index.js';
 import { ShippingFacade } from '../../shipping/index.js';
+import {
+  type OrderShipment,
+  OrderShipments,
+} from '../application/shipment-ports.js';
 import { ShoppingFacade } from '../../shopping/index.js';
 import {
   type CheckoutCart,
@@ -52,6 +56,44 @@ import {
 
 // Ordering's ports answered with the facades of the modules that own the data (ADR-0005, ADR-0132). Ordering uses
 // them, and none of them uses Ordering, so they never form a cycle.
+
+@Injectable()
+export class ShippingFacadeOrderShipments extends OrderShipments {
+  constructor(
+    private readonly shipping: ShippingFacade,
+    private readonly inventory: InventoryFacade,
+  ) {
+    super();
+  }
+
+  async createFor(order: Order): Promise<void> {
+    const { id, publicCode, shippingAddress, lines } = order.snapshot;
+    await this.shipping.createShipment({
+      orderId: id,
+      orderCode: publicCode,
+      warehouseId: await this.inventory.activeWarehouseId(),
+      destination: shippingAddress,
+      items: lines.map(({ id: orderLineId, sku, productName, quantity }) => ({
+        orderLineId,
+        sku,
+        productName,
+        quantity,
+      })),
+    });
+  }
+
+  cancel(orderId: OrderId): Promise<void> {
+    return this.shipping.cancelShipmentOf(orderId);
+  }
+
+  shipmentsOf(
+    orderIds: readonly OrderId[],
+  ): Promise<ReadonlyMap<OrderId, OrderShipment>> {
+    return this.shipping.shipmentsOf(orderIds) as Promise<
+      ReadonlyMap<OrderId, OrderShipment>
+    >;
+  }
+}
 
 @Injectable()
 export class ShoppingFacadeReorderCarts extends ReorderCarts {
