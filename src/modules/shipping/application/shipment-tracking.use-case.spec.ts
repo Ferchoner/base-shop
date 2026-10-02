@@ -178,4 +178,60 @@ describe('ShipmentTracking (UC-SHI-04, ADR-0140)', () => {
       expect([shipments.saved, audited]).toEqual([[], []]);
     }
   });
+
+  it('removes a carrier and tracking number recorded by mistake from a pending shipment, audited (ADR-0141)', async () => {
+    const shipment = Shipment.restore({
+      ...saved('PENDING').snapshot,
+      carrierName: 'Estafeta',
+      trackingNumber: 'EST-0001',
+    });
+    const { tracking, shipments, audited } = setUp(shipment);
+
+    await tracking.record({
+      shipmentId: shipment.id,
+      carrierName: null,
+      trackingNumber: null,
+      version: 2,
+    });
+
+    expect(shipments.saved).toEqual([shipment]);
+    expect(shipment.snapshot).toMatchObject({
+      carrierName: null,
+      trackingNumber: null,
+    });
+    expect(audited).toEqual([
+      {
+        action: 'shipments.update',
+        resource: { type: 'shipment', id: shipment.id },
+        changes: {
+          carrierName: { from: 'Estafeta', to: null },
+          trackingNumber: { from: 'EST-0001', to: null },
+        },
+      },
+    ]);
+  });
+
+  it('removes nothing from a shipment without them, nor from one that left', async () => {
+    const untracked = saved('PENDING');
+    const dispatched = saved('DISPATCHED');
+    const none = setUp(untracked);
+    const left = setUp(dispatched);
+    const remove = (tracking: ShipmentTracking, shipment: Shipment) =>
+      tracking.record({
+        shipmentId: shipment.id,
+        carrierName: null,
+        trackingNumber: null,
+        version: 2,
+      });
+
+    await remove(none.tracking, untracked);
+    await expect(remove(left.tracking, dispatched)).rejects.toThrow(
+      new InvalidStateTransitionError('DISPATCHED', 'remove the tracking'),
+    );
+
+    for (const { shipments, audited } of [none, left]) {
+      expect([shipments.saved, audited]).toEqual([[], []]);
+    }
+    expect(dispatched.snapshot.carrierName).toBe('Estafeta');
+  });
 });

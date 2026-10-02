@@ -29,7 +29,7 @@ const ADDRESS = {
   municipalityCode: '16053',
 };
 
-/** The shipment of a paid order (e2e, T-195 part a, UC-SHI-03, 04 and 08, ADR-0140). */
+/** The shipment of a paid order and its way (e2e, T-195, UC-SHI-03 to 09, ADR-0140, ADR-0141). */
 describe('Shipments (e2e, T-195)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
@@ -223,6 +223,36 @@ describe('Shipments (e2e, T-195)', () => {
       .set(signedInAs(shipper))
       .send(body);
 
+  /** One of the changes of a shipment on its way: `dispatch`, `deliver`, `delivery-failure` or `return`. */
+  const move = (
+    shipmentId: string,
+    action: string,
+    body: object,
+    user = shipper,
+  ) =>
+    http()
+      .post(`/v1/admin/shipping/shipments/${shipmentId}/${action}`)
+      .set(signedInAs(user))
+      .send(body);
+
+  /** The order as its customer sees it. */
+  const mine = async (customer: AuthenticatedUser, publicCode: string) =>
+    (
+      await http()
+        .get(`/v1/me/orders/${publicCode}`)
+        .set(signedInAs(customer))
+        .expect(200)
+    ).body;
+
+  /** What the staff did to a shipment, oldest first. */
+  const auditsOf = async (shipmentId: string) =>
+    (
+      await prisma.auditLog.findMany({
+        where: { resourceId: shipmentId },
+        orderBy: { occurredAt: 'asc' },
+      })
+    ).map(({ action, actorId, reason }) => ({ action, actorId, reason }));
+
   it('creates the shipment of a paid order, which the staff lists as pending and the order shows', async () => {
     const [shirt, cap] = [await variant(), await variant('Gorra')];
     const { customer, id, publicCode } = await customerOrder([
@@ -280,6 +310,8 @@ describe('Shipments (e2e, T-195)', () => {
       failedAt: null,
       returnedAt: null,
       cancelledAt: null,
+      failureNote: null,
+      returnNote: null,
       version: 1,
       createdAt: expect.any(String),
     });
@@ -465,6 +497,248 @@ describe('Shipments (e2e, T-195)', () => {
       { carrierName: 'Estafeta', trackingNumber: 'x'.repeat(101), version: 1 },
       { carrierName: 'Estafeta', trackingNumber: 'EST-0001' },
       { carrierName: 'Estafeta', trackingNumber: 'EST-0001', version: 0 },
+    ]) {
+      await recordTracking(shipment.id, invalid).expect(400);
+    }
+    expect((await shipmentOf(id)).version).toBe(1);
+  });
+
+  it('dispatches by a carrier and delivers, and the order follows in the background (ADR-0141)', async () => {
+    const { customer, id, publicCode } = await customerOrder([
+      { variantId: await variant(), quantity: 1 },
+    ]);
+    await paid(id);
+    const shipment = await shipmentOf(id);
+    await recordTracking(shipment.id, {
+      carrierName: 'Estafeta',
+      trackingNumber: 'EST-0001',
+      version: 1,
+    }).expect(200);
+
+    const dispatched = await move(shipment.id, 'dispatch', {
+      version: 2,
+    }).expect(200);
+    await idle();
+    const shipped = await mine(customer, publicCode);
+    const cancelled = await http()
+      .post(`/v1/admin/orders/${id}/cancel`)
+      .set(signedInAs(manager))
+      .send({ reason: 'Ya no lo quiere', version: 3 })
+      .expect(409);
+    const delivered = await move(shipment.id, 'deliver', {
+      version: 3,
+    }).expect(200);
+    await idle();
+    const again = await move(shipment.id, 'deliver', { version: 4 }).expect(
+      409,
+    );
+
+    expect(dispatched.body).toMatchObject({
+      status: 'DISPATCHED',
+      carrierName: 'Estafeta',
+      trackingNumber: 'EST-0001',
+      ownDelivery: false,
+      dispatchedAt: expect.any(String),
+      version: 3,
+    });
+    expect(shipped).toMatchObject({
+      status: 'SHIPPED',
+      shippedAt: dispatched.body.dispatchedAt,
+      shipment: {
+        status: 'DISPATCHED',
+        carrierName: 'Estafeta',
+        trackingNumber: 'EST-0001',
+        dispatchedAt: dispatched.body.dispatchedAt,
+      },
+    });
+    expect(cancelled.body).toMatchObject({
+      type: '/problems/invalid-state-transition',
+      currentStatus: 'SHIPPED',
+    });
+    expect(delivered.body).toMatchObject({
+      status: 'DELIVERED',
+      deliveredAt: expect.any(String),
+      version: 4,
+    });
+    expect(await mine(customer, publicCode)).toMatchObject({
+      status: 'DELIVERED',
+      shippedAt: dispatched.body.dispatchedAt,
+      deliveredAt: delivered.body.deliveredAt,
+      shipment: { status: 'DELIVERED' },
+    });
+    expect(again.body).toMatchObject({
+      type: '/problems/invalid-state-transition',
+      currentStatus: 'DELIVERED',
+    });
+    expect(await auditsOf(shipment.id)).toEqual(
+      ['shipments.update', 'shipments.dispatch', 'shipments.deliver'].map(
+        (action) => ({ action, actorId: shipper.id, reason: null }),
+      ),
+    );
+    expect(
+      (await list('status=DELIVERED&sort=-dispatchedAt').expect(200)).body.data,
+    ).toEqual([delivered.body]);
+  });
+
+  it('dispatches as own delivery once a tracking number recorded by mistake is removed (ADR-0078, ADR-0141)', async () => {
+    const { customer, id, publicCode } = await customerOrder([
+      { variantId: await variant(), quantity: 1 },
+    ]);
+    await paid(id);
+    const shipment = await shipmentOf(id);
+    await recordTracking(shipment.id, {
+      carrierName: 'Estafeta',
+      trackingNumber: 'EST-0001',
+      version: 1,
+    }).expect(200);
+
+    const withTracking = await move(shipment.id, 'dispatch', {
+      ownDelivery: true,
+      version: 2,
+    }).expect(400);
+    const halfRemoved = await recordTracking(shipment.id, {
+      carrierName: null,
+      trackingNumber: 'EST-0001',
+      version: 2,
+    }).expect(400);
+    const removed = await recordTracking(shipment.id, {
+      carrierName: null,
+      trackingNumber: null,
+      version: 2,
+    }).expect(200);
+    const withoutTracking = await move(shipment.id, 'dispatch', {
+      ownDelivery: false,
+      version: 3,
+    }).expect(400);
+    const dispatched = await move(shipment.id, 'dispatch', {
+      ownDelivery: true,
+      version: 3,
+    }).expect(200);
+    await idle();
+
+    const errorsOf = (body: { errors: { field: string; code: string }[] }) =>
+      body.errors.map(({ field, code }) => [field, code]);
+    expect(errorsOf(withTracking.body)).toEqual([
+      ['ownDelivery', 'trackingNotAllowed'],
+    ]);
+    expect(errorsOf(halfRemoved.body)).toEqual([
+      ['carrierName', 'trackingPair'],
+    ]);
+    expect(removed.body).toMatchObject({
+      carrierName: null,
+      trackingNumber: null,
+      version: 3,
+    });
+    expect(errorsOf(withoutTracking.body)).toEqual([
+      ['ownDelivery', 'trackingRequired'],
+    ]);
+    expect(dispatched.body).toMatchObject({
+      status: 'DISPATCHED',
+      carrierName: null,
+      trackingNumber: null,
+      ownDelivery: true,
+      version: 4,
+    });
+    expect(await mine(customer, publicCode)).toMatchObject({
+      status: 'SHIPPED',
+      shipment: { status: 'DISPATCHED', ownDelivery: true, carrierName: null },
+    });
+    expect(
+      (
+        await prisma.auditLog.findFirstOrThrow({
+          where: { resourceId: shipment.id, action: 'shipments.update' },
+          orderBy: { occurredAt: 'desc' },
+        })
+      ).changes,
+    ).toEqual({
+      carrierName: { from: 'Estafeta', to: null },
+      trackingNumber: { from: 'EST-0001', to: null },
+    });
+  });
+
+  it('records a failed delivery and the return with their notes, and the order stays shipped (ADR-0053, ADR-0141)', async () => {
+    const { customer, id, publicCode } = await customerOrder([
+      { variantId: await variant(), quantity: 1 },
+    ]);
+    await paid(id);
+    const shipment = await shipmentOf(id);
+    await move(shipment.id, 'dispatch', {
+      ownDelivery: true,
+      version: 1,
+    }).expect(200);
+
+    const failed = await move(shipment.id, 'delivery-failure', {
+      note: '  Nadie recibió el paquete  ',
+      version: 2,
+    }).expect(200);
+    const notDelivered = await move(shipment.id, 'deliver', {
+      version: 3,
+    }).expect(409);
+    const returned = await move(shipment.id, 'return', {
+      note: '   ',
+      version: 3,
+    }).expect(200);
+    await idle();
+
+    expect(failed.body).toMatchObject({
+      status: 'DELIVERY_FAILED',
+      failedAt: expect.any(String),
+      failureNote: 'Nadie recibió el paquete',
+      returnNote: null,
+    });
+    expect(notDelivered.body).toMatchObject({
+      currentStatus: 'DELIVERY_FAILED',
+    });
+    expect(returned.body).toMatchObject({
+      status: 'RETURNED',
+      failureNote: 'Nadie recibió el paquete',
+      returnedAt: expect.any(String),
+      returnNote: null,
+      version: 4,
+    });
+    expect(await mine(customer, publicCode)).toMatchObject({
+      status: 'SHIPPED',
+      deliveredAt: null,
+      shipment: { status: 'RETURNED' },
+    });
+    expect((await auditsOf(shipment.id)).slice(1)).toEqual([
+      {
+        action: 'shipments.delivery-failure',
+        actorId: shipper.id,
+        reason: 'Nadie recibió el paquete',
+      },
+      { action: 'shipments.return', actorId: shipper.id, reason: null },
+    ]);
+  });
+
+  it('moves a shipment only with shipping.manage, valid input and a shipment that exists', async () => {
+    const { id } = await customerOrder([
+      { variantId: await variant(), quantity: 1 },
+    ]);
+    await paid(id);
+    const shipment = await shipmentOf(id);
+
+    await move(
+      shipment.id,
+      'dispatch',
+      { ownDelivery: true, version: 1 },
+      manager,
+    ).expect(403);
+    await move(newId(), 'dispatch', { ownDelivery: true, version: 1 }).expect(
+      404,
+    );
+    for (const [action, invalid] of [
+      ['dispatch', { ownDelivery: 'sí', version: 1 }],
+      ['dispatch', { ownDelivery: true, version: 0 }],
+      ['deliver', {}],
+      ['delivery-failure', { note: 'x'.repeat(501), version: 1 }],
+      ['return', { note: 7, version: 1 }],
+    ] as const) {
+      await move(shipment.id, action, invalid).expect(400);
+    }
+    for (const invalid of [
+      { carrierName: null, version: 1 },
+      { carrierName: 'Estafeta', trackingNumber: null, version: 1 },
     ]) {
       await recordTracking(shipment.id, invalid).expect(400);
     }

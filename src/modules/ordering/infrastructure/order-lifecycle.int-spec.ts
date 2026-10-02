@@ -460,6 +460,79 @@ describe('Ordering: life of an order (T-180)', () => {
         }),
       ).toBe(0);
     });
+
+    it('moves the order as its shipment goes: shipped, then delivered, with its history (ADR-0141)', async () => {
+      const LEFT = new Date('2026-10-01T15:00:00.000Z');
+      const DELIVERED = new Date('2026-10-02T10:00:00.000Z');
+      const shirt = await variant(5);
+      const [followed, late] = [await placed(shirt), await placed(shirt)];
+      await pay(followed, 19_900);
+      await pay(late, 19_900);
+
+      expect(
+        await run(() =>
+          lifecycle.recordShipment({ orderId: followed, dispatchedAt: LEFT }),
+        ),
+      ).toBe('moved');
+      expect(
+        await run(() =>
+          lifecycle.recordShipment({ orderId: followed, dispatchedAt: LEFT }),
+        ),
+      ).toBe('already-processed');
+      await expect(
+        run(() =>
+          lifecycle.cancel({
+            orderId: followed,
+            actorId: newId<'User'>(),
+            reason: 'Sin stock',
+            restock: false,
+            version: 3,
+          }),
+        ),
+      ).rejects.toThrow(new InvalidStateTransitionError('SHIPPED', 'cancel'));
+      for (const orderId of [followed, late]) {
+        expect(
+          await run(() =>
+            lifecycle.recordDelivery({
+              orderId,
+              dispatchedAt: LEFT,
+              deliveredAt: DELIVERED,
+            }),
+          ),
+        ).toBe('moved');
+      }
+
+      const orders = await prisma.order.findMany({
+        where: { id: { in: [followed, late] } },
+        include: { statusHistory: { orderBy: { occurredAt: 'asc' } } },
+      });
+      for (const order of orders) {
+        expect(order).toMatchObject({
+          status: 'DELIVERED',
+          shippedAt: LEFT,
+          deliveredAt: DELIVERED,
+        });
+        expect(
+          order.statusHistory
+            .slice(-2)
+            .map(({ fromStatus, toStatus, actorId }) => [
+              fromStatus,
+              toStatus,
+              actorId,
+            ]),
+        ).toEqual([
+          ['PAID', 'SHIPPED', null],
+          ['SHIPPED', 'DELIVERED', null],
+        ]);
+      }
+      // The late one moved twice in a single save.
+      expect(
+        Object.fromEntries(orders.map(({ id, version }) => [id, version])),
+      ).toEqual({ [followed]: 4, [late]: 3 });
+      expect(
+        (await run(() => moduleRef.get(OrderRepository).lock(late)))!.snapshot,
+      ).toMatchObject({ shippedAt: LEFT, deliveredAt: DELIVERED });
+    });
   });
 
   it('leaves a late payment waiting for stock, reserving nothing of the lines that had it (ADR-0012)', async () => {

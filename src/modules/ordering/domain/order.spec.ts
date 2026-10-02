@@ -361,6 +361,63 @@ describe('Order transitions (REQUIREMENTS.md §3.1, ADR-0133)', () => {
     }
   });
 
+  it('is shipped when its shipment leaves, only once paid (ADR-0141)', () => {
+    const DISPATCHED = new Date('2026-10-01T12:45:00.000Z');
+    const order = saved('PAID', CAPTURED);
+
+    order.markShipped(DISPATCHED, LATER);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'SHIPPED',
+      paidAt: CAPTURED,
+      shippedAt: DISPATCHED,
+      deliveredAt: null,
+    });
+    expect(order.statusChanges).toEqual([
+      { from: 'PAID', to: 'SHIPPED', actorId: null, reason: null, at: LATER },
+    ]);
+    expect(order.hasChanges).toBe(true);
+    for (const status of [
+      'PENDING_PAYMENT',
+      'AWAITING_MANUAL_FULFILLMENT',
+      'SHIPPED',
+      'DELIVERED',
+      'CANCELLED',
+      'EXPIRED',
+      'REFUNDED',
+    ] as const) {
+      expect(() => saved(status).markShipped(DISPATCHED, LATER)).toThrow(
+        new InvalidStateTransitionError(status, 'mark shipped'),
+      );
+    }
+  });
+
+  it('is delivered when its shipment is, only once shipped (ADR-0141)', () => {
+    const DELIVERED = new Date('2026-10-02T10:00:00.000Z');
+    const order = saved('SHIPPED', CAPTURED);
+
+    order.markDelivered(DELIVERED, LATER);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'DELIVERED',
+      deliveredAt: DELIVERED,
+    });
+    expect(order.statusChanges).toEqual([
+      {
+        from: 'SHIPPED',
+        to: 'DELIVERED',
+        actorId: null,
+        reason: null,
+        at: LATER,
+      },
+    ]);
+    for (const status of ['PAID', 'DELIVERED', 'CANCELLED'] as const) {
+      expect(() => saved(status).markDelivered(DELIVERED, LATER)).toThrow(
+        new InvalidStateTransitionError(status, 'mark delivered'),
+      );
+    }
+  });
+
   it('expires an unpaid order once its payment is due, and only once (UC-ORD-10, BR-ORD-07)', () => {
     const early = saved('PENDING_PAYMENT');
     const due = saved('PENDING_PAYMENT');
