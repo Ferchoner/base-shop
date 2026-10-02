@@ -145,6 +145,27 @@ describe('Versioning and API docs (e2e, T-114)', () => {
     });
   });
 
+  describe('in the tests', () => {
+    let app: INestApplication<App>;
+
+    beforeAll(async () => {
+      // configureHttp builds and checks the document here too, so a DTO that breaks it fails any suite.
+      app = await createApp('test');
+    });
+
+    afterAll(async () => {
+      await app.close();
+      jest.restoreAllMocks();
+    });
+
+    it('builds the OpenAPI document without serving it nor Swagger UI', async () => {
+      await request(app.getHttpServer()).get('/docs/v1').expect(404);
+      await request(app.getHttpServer())
+        .get('/docs/v1/openapi.json')
+        .expect(404);
+    });
+  });
+
   describe('outside development', () => {
     let app: INestApplication<App>;
 

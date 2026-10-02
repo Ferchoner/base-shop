@@ -3,7 +3,7 @@ import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-option
 import { ConfigService } from '@nestjs/config';
 import helmet, { type HelmetOptions } from 'helmet';
 import type { EnvironmentVariables } from '../config/environment.js';
-import { setupApiDocs } from './api-docs.js';
+import { buildApiDocument, setupApiDocs } from './api-docs.js';
 import { rejectUnsupportedContentType } from './content-type.js';
 import { requestLoggingMiddleware } from '../logging/request-logging.middleware.js';
 import { correlationIdMiddleware } from './correlation-id.js';
@@ -66,8 +66,11 @@ export function configureHttp(app: INestApplication): void {
   serveMedia(app, config.get('IMAGE_STORAGE_DIR', { infer: true }));
   // Every route lives under /v1; a future version is declared with @Version('2') (ADR-0034, ADR-0096).
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  // The OpenAPI document is built and checked outside production, so a DTO that breaks it fails any suite;
   // Swagger UI exists only in local development (ADR-0031, ADR-0096).
-  if (config.get('NODE_ENV', { infer: true }) === 'development') {
-    setupApiDocs(app);
+  const nodeEnv = config.get('NODE_ENV', { infer: true });
+  if (nodeEnv !== 'production') {
+    const document = buildApiDocument(app);
+    if (nodeEnv === 'development') setupApiDocs(app, document);
   }
 }
