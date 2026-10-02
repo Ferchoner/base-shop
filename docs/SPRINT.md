@@ -18,7 +18,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 1 | T-195 en dos partes (ADR-0140): (a) creación al pagarse, consulta, guía y cancelación con la orden; (b) despacho, entrega, entrega fallida y devolución (ADR-0141) |
 | 2 | T-161 (reintegro de stock: reemplaza el 409 de `restock` y atiende las devoluciones; ADR-0142) |
 | 3 | T-215 (correos al cliente: orden recibida, pagada, enviada, cancelada y reembolsada; ADR-0143) |
-| 4 | T-231 (limpieza diaria) |
+| 4 | T-231 (limpieza diaria, ADR-0144) |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
 - **Pospuesto al Sprint 6 o después:** T-132 (anonimización, que necesita a T-195), T-220 (consulta de auditoría), T-192 (PayPal y conciliación, sin cuenta para verificarlo) y reducir la imagen de producción.

@@ -20,6 +20,12 @@ import {
 } from './infrastructure/facade-adapters.js';
 import { OrderExpiredHandler } from './infrastructure/order-expired.event-handler.js';
 import { PrismaCartRepository } from './infrastructure/prisma-cart.repository.js';
+import { GuestCartCleanupJob } from './infrastructure/guest-cart-cleanup.job.js';
+import { PrismaInactiveGuestCarts } from './infrastructure/prisma-inactive-guest-carts.js';
+import {
+  GuestCartCleanup,
+  InactiveGuestCarts,
+} from './application/guest-cart-cleanup.js';
 import { CartsController } from './presentation/carts.controller.js';
 import { MeCartController } from './presentation/me-cart.controller.js';
 
@@ -37,9 +43,12 @@ import { MeCartController } from './presentation/me-cart.controller.js';
     CartCopies,
     CartRestoration,
     CartViews,
+    GuestCartCleanup,
+    GuestCartCleanupJob,
     OrderExpiredHandler,
     ShoppingFacade,
     { provide: CartRepository, useClass: PrismaCartRepository },
+    { provide: InactiveGuestCarts, useClass: PrismaInactiveGuestCarts },
     { provide: CartCatalog, useClass: CatalogFacadeCartCatalog },
     { provide: CartPrices, useClass: PricingFacadeCartPrices },
     { provide: CartStock, useClass: InventoryFacadeCartStock },

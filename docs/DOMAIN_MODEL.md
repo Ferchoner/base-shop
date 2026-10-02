@@ -80,7 +80,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Repositories | `CartRepository` |
 | Casos de uso | CreateCart, AddItem, ChangeQuantity, RemoveItem, MergeGuestCart, GetCartView, RestoreCartFromExpiredOrder (ADR-0054), CopyCancelledOrderToCart (ADR-0055) |
 | Exporta | `ShoppingFacade` para el checkout: líneas del carrito (variantId, cantidad), el carrito bloqueado y marcarlo CheckedOut (ADR-0132) |
-| Implementado | T-170 (ADR-0131): `Cart` con sus reglas (una línea por variante, de 1 a 30 unidades, hasta 100 variantes, solo el carrito activo cambia, fusión y adopción); puertos `CartCatalog`, `CartPrices` y `CartStock` hacia las fachadas de Catalog, Pricing e Inventory. T-181 parte a (ADR-0137): `CartRestoration` y el manejador de `OrderExpired` devuelven las líneas de una orden vencida. Parte b (ADR-0139): `CartCopies` copia las líneas de una orden para la recompra, por `ShoppingFacade` |
+| Implementado | T-170 (ADR-0131): `Cart` con sus reglas (una línea por variante, de 1 a 30 unidades, hasta 100 variantes, solo el carrito activo cambia, fusión y adopción); puertos `CartCatalog`, `CartPrices` y `CartStock` hacia las fachadas de Catalog, Pricing e Inventory. T-181 parte a (ADR-0137): `CartRestoration` y el manejador de `OrderExpired` devuelven las líneas de una orden vencida. Parte b (ADR-0139): `CartCopies` copia las líneas de una orden para la recompra, por `ShoppingFacade`. T-231 (ADR-0144): `GuestCartCleanup` borra cada día los carritos de invitado inactivos |
 
 ## Ordering
 

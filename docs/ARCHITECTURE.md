@@ -141,7 +141,8 @@ Ver ADR-0005.
 
 - Expiración de reservas y de órdenes impagas.
 - Conciliación de pagos.
-- Limpieza diaria y archivo de la auditoría.
+- Limpieza diaria: un job por dueño de cada tabla (ADR-0144).
+- Archivo de la auditoría (T-220).
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
