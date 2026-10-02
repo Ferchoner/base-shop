@@ -251,6 +251,7 @@ Criterios de aceptación:
 - **UC-INV-07:** `reserved` vuelve a disminuir y la reserva pasa a Released, una sola vez (ADR-0128).
 - **UC-INV-08:** las reservas vencidas se liberan en el minuto siguiente a su vencimiento, por lotes e idempotente.
 - **UC-INV-09:** solo para órdenes canceladas cuyo stock se había confirmado o con envío en Returned; admite cantidades parciales; la suma reintegrada por línea no supera lo vendido; genera movimiento con motivo y referencia a la orden; se audita. El motivo es Orden cancelada o Envío devuelto, según el caso. Se pide desde Ordering, que le pasa a Inventory las líneas y lo vendido de cada una (P-73, ADR-0132).
+- **UC-INV-09 (implementación, ADR-0142):** exige `Idempotency-Key`; lo vendido cuenta solo si el stock de la orden se confirmó; un reintegro que pasaría de lo vendido en alguna línea no reintegra nada; la orden se bloquea, así que dos reintegros de la misma orden se esperan.
 
 ### 5.5 Shopping
 
@@ -342,7 +343,7 @@ Criterios de aceptación:
 - **UC-PAY-01:** el monto se toma de la orden; exige `Idempotency-Key` con el mismo comportamiento que UC-ORD-02 (ADR-0063); devuelve una "acción requerida" genérica. Con el método manual, la acción requerida indica pago en tienda con el código público y el total (ADR-0055).
 - **UC-PAY-02:** disponible solo si la variable de entorno lo habilita; produce `PaymentCaptured` y sigue el mismo flujo que un pago de proveedor; se audita. Solo sobre órdenes en PendingPayment o Expired; en cualquier otro estado se rechaza (ADR-0055).
 - **UC-PAY-04:** firma inválida se rechaza; un evento repetido no produce efectos; un evento tardío no revierte un estado posterior.
-- **UC-PAY-03 / 06 / 07:** el reembolso es por el total capturado; al confirmarse (webhook, conciliación o registro manual) la orden pasa a Refunded y el Payment a Refunded; si falla, la orden permanece en Cancelled y el staff puede reintentarlo; el registro manual solo está disponible con el pago manual habilitado y se audita; no existen reembolsos sin cancelación. Al registrar o reintentar el reembolso, el staff con `inventory.write` puede reintegrar el stock completo solo si la orden no tiene ningún reintegro previo (ADR-0052).
+- **UC-PAY-03 / 06 / 07:** el reembolso es por el total capturado; al confirmarse (webhook, conciliación o registro manual) la orden pasa a Refunded y el Payment a Refunded; si falla, la orden permanece en Cancelled y el staff puede reintentarlo; el registro manual solo está disponible con el pago manual habilitado y se audita; no existen reembolsos sin cancelación. El stock se reintegra aparte, con UC-INV-09 (ADR-0142).
 - **UC-PAY-05:** reejecuta la confirmación de pagos capturados cuya orden sigue en PendingPayment con más de 10 minutos.
 - **UC-PAY-01 y 02 (implementación, ADR-0134):**
   - Ordering atiende el inicio del pago y el registro del pago manual, porque Payments nunca lee órdenes; el pago manual se registra en `POST /v1/admin/orders/{orderId}/manual-capture`;
@@ -352,7 +353,7 @@ Criterios de aceptación:
   - cancelar una orden pagada inicia su reembolso en la misma transacción, y cancelar una sin pagar cancela su pago pendiente;
   - el pago que llega después de cancelar también inicia el reembolso;
   - el reembolso manual se registra en Payments y lleva la orden a REFUNDED en segundo plano con `RefundCompleted`;
-  - las opciones de reintegro responden 409 `restock-not-allowed` con `reason: "unavailable"` hasta T-161.
+  - las opciones de reintegro respondían 409 `restock-not-allowed` con `reason: "unavailable"` hasta T-161; desde ADR-0142, la de la cancelación reintegra y la del reembolso ya no existe.
 
 ### 5.8 Shipping
 

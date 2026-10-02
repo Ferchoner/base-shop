@@ -16,7 +16,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 |---|---|
 | 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); migración que quita el índice sin uso de `reservations` (ADR-0136) |
 | 1 | T-195 en dos partes (ADR-0140): (a) creación al pagarse, consulta, guía y cancelación con la orden; (b) despacho, entrega, entrega fallida y devolución (ADR-0141) |
-| 2 | T-161 (reintegro de stock: reemplaza el 409 de `restock` y atiende las devoluciones) |
+| 2 | T-161 (reintegro de stock: reemplaza el 409 de `restock` y atiende las devoluciones; ADR-0142) |
 | 3 | T-215 (correos al cliente: orden recibida, pagada, enviada, cancelada y reembolsada) |
 | 4 | T-231 (limpieza diaria) |
 

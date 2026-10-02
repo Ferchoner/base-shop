@@ -159,6 +159,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0139 | Recompra de órdenes: rutas en Ordering, respuesta con `cartId` y carrito destino del staff | Aceptada |
 | ADR-0140 | Envíos: división de T-195, creación al pagarse la orden, envío cancelado y datos de la orden | Aceptada |
 | ADR-0141 | Envíos en camino: notas, guía quitada y la orden que sigue al envío por eventos | Aceptada |
+| ADR-0142 | Reintegro de stock: Ordering bloquea la orden, Inventory pone el tope y el reembolso ya no reintegra | Aceptada |
 
 ---
 
@@ -1066,7 +1067,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada reintegro genera un movimiento de stock con motivo y referencia a la orden, y se audita.
 - **Alternativas consideradas:** Reintegro automático siempre; nunca reintegrar desde el sistema.
 - **Consecuencias:** Una orden cancelada puede quedar sin reintegro; el inventario refleja solo lo que el staff confirma que regresó.
-- **Estado:** Aceptada. Hasta T-161, las opciones de reintegro responden 409 `restock-not-allowed` con `reason: "unavailable"` (ADR-0135).
+- **Estado:** Aceptada. Implementada en T-161 (ADR-0142): la opción queda solo al cancelar, y el reembolso ya no reintegra, porque Payments no conoce las líneas de la orden.
 
 ---
 
@@ -3649,7 +3650,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La migración agrega `payment_due_at` `NOT NULL` sin valor predeterminado, porque `orders` estaba vacía.
   - Pruebas de concurrencia contra PostgreSQL: dos órdenes del mismo carrito, dos carritos por la última unidad, dos órdenes del mismo cliente y una orden que espera un cambio del carrito en curso.
   - Hasta T-230, las órdenes sin pago no vencen y mantienen su stock apartado (ADR-0128).
-- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`.
+- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`. El reintegro de P-73 se implementó en T-161 (ADR-0142).
 
 ---
 
@@ -3793,7 +3794,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-161 cambia la respuesta de `restock` por el reintegro real, en la cancelación y en el registro del reembolso.
   - T-192 agrega los reembolsos con proveedor, que pueden fallar, y su reintento (UC-PAY-07). T-215 envía el correo "Reembolso completado".
   - Pruebas contra PostgreSQL: dos registros del mismo reembolso a la vez, y una cancelación junto con el registro del pago de una orden con su pago iniciado.
-- **Estado:** Aceptada (plan de T-190 parte b aprobado el 2026-10-01, con sus 3 recomendaciones).
+- **Estado:** Aceptada (plan de T-190 parte b aprobado el 2026-10-01, con sus 3 recomendaciones). Desde T-161 (ADR-0142), `restock` al cancelar reintegra, y el registro del reembolso ya no lo acepta.
 
 ---
 
@@ -4027,3 +4028,39 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-195 queda terminada. T-161 atiende las devoluciones con `SHIPMENT_RETURNED`.
   - Las suites de integración de Shipping importan `EventsModule`.
 - **Estado:** Aceptada (plan de T-195 parte b aprobado el 2026-10-02, con sus 3 recomendaciones).
+
+---
+
+## ADR-0142 — Reintegro de stock: Ordering bloquea la orden, Inventory pone el tope y el reembolso ya no reintegra
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-161 (UC-INV-09, ADR-0052, ADR-0053). ADR-0132 resolvió P-73: el reintegro independiente se pide en `POST /v1/admin/orders/{orderId}/restocks`, Ordering le pasa a Inventory las líneas y lo vendido de cada una, e Inventory verifica con sus movimientos el tope por línea. Hasta ahora la opción `restock` respondía 409 `unavailable` al cancelar y al registrar el reembolso (ADR-0135). Quedaban abiertas cuatro cosas:
+  - cómo reintegra la opción del reembolso, que es una ruta de Payments, si Payments no conoce las líneas de la orden ni puede usar a Ordering;
+  - qué impide que un reenvío de la misma petición reintegre dos veces dentro del tope;
+  - cómo sabe el sistema si el stock de una orden cancelada se confirmó;
+  - cómo nombra el staff las líneas, si `AdminOrder` no mostraba sus IDs.
+- **Decisión:**
+  - **Reintegro independiente** (`inventory.write`, exige `Idempotency-Key`):
+    - `ORDER_CANCELLED` sirve para una orden CANCELLED o REFUNDED; `SHIPMENT_RETURNED`, para una orden cuyo envío está RETURNED, que Ordering lee con la fachada de Shipping. En otro caso responde 409 `invalid-state-transition`, con el estado de la orden o, para una devolución, el del envío;
+    - las líneas son de 1 a 100, de la orden, sin repetir, con cantidad entera de 1 en adelante. Una línea que no es de la orden responde 400 `validation-error` con `orderLine` en `lines[i].orderLineId`. La nota es opcional, de hasta 500 caracteres;
+    - Ordering bloquea la orden (`FOR UPDATE`), así que dos reintegros de la misma orden se esperan; la cancelación con reintegro usa el mismo bloqueo;
+    - responde 201 con un movimiento RESTOCK por línea y se audita como `orders.restock`, con las líneas y la nota como motivo. La orden no cambia.
+  - **El tope lo pone Inventory** (`InventoryFacade.restock`):
+    - lo vendido de una línea cuenta solo si la orden tiene una reserva COMMITTED; una orden cancelada antes de confirmar su stock vendió 0;
+    - suma los RESTOCK anteriores de cada línea (índice parcial por `order_line_id`) y rechaza el reintegro completo si alguna línea pasaría de lo vendido: 409 `restock-not-allowed` con `lines` (`orderLineId`, `sold`, `restocked`, `requested`) de cada línea que lo haría;
+    - escribe los movimientos en el almacén activo, en orden ascendente de stock item como las reservas (BR-INV-14), con motivo, orden, línea, nota y actor.
+  - **Al cancelar:** `restock: true` en una orden PAID reintegra todas las líneas completas en la misma transacción, con el motivo de la cancelación como nota, y se audita aparte como `orders.restock`.
+  - **El reembolso ya no reintegra:** se quita `restock` del registro del reembolso manual y del reintento de T-192. Payments no conoce las líneas de la orden, y el staff reintegra con la ruta independiente justo después. Enviar `restock` responde 400 `validation-error`, porque el campo ya no existe.
+  - **`AdminOrder.lines` lleva `id`**, solo para el staff, para nombrar las líneas del reintegro; el cliente sigue sin verlo.
+  - **Sin migración:** `stock_movements` ya tenía las columnas, las restricciones y el índice parcial de RESTOCK.
+- **Alternativas consideradas:**
+  - **Mover el reembolso manual a una ruta de Ordering**, como el pago manual (ADR-0134): cambio de contrato mayor solo para conservar un atajo.
+  - **Reintegrar en segundo plano al recibir `RefundCompleted`:** el staff no sabría si el reintegro falló o ya había otro.
+  - **Reintegro sin `Idempotency-Key`, como pedía el contrato:** un reenvío reintegraría dos veces mientras no se pase de lo vendido, sin que nada lo detecte.
+  - **Que Ordering decida si se confirmó el stock**, por el historial de la orden: Inventory ya lo sabe por su reserva, y el tope queda en un solo lugar.
+- **Consecuencias:**
+  - Cambios de contrato: `Idempotency-Key` en el reintegro, `restock` fuera del reembolso manual y del reintento, e `id` en las líneas de `AdminOrder`.
+  - BR-INV-10 y ADR-0052 dejan la opción solo al cancelar.
+  - Prueba contra PostgreSQL: dos reintegros de la misma línea a la vez que juntos pasarían de lo vendido; solo uno ocurre.
+  - Con T-195 y T-161 hechas, sigue T-215.
+- **Estado:** Aceptada (plan de T-161 aprobado el 2026-10-02, con sus 2 recomendaciones). `id` en las líneas de `AdminOrder` se agregó durante la implementación, porque la ruta pide `orderLineId` y ninguna vista lo mostraba.

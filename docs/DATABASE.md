@@ -372,6 +372,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 - **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER'))`; `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`.
 - **Índices:** `(stock_item_id, created_at)`; `(order_line_id) WHERE type = 'RESTOCK'` (tope de reintegro, sección 12).
 - **Integridad:** nunca se modifica ni se borra (ADR-0038).
+- **Implementado en T-161 (ADR-0142):** un reintegro escribe un RESTOCK por línea con motivo, orden, línea, nota y actor. Antes suma los RESTOCK de cada `order_line_id`, con el índice parcial, y lo vendido cuenta solo si la orden tiene una reserva COMMITTED. Sin migración.
 
 ### 6.4 `reservations`
 
@@ -688,7 +689,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
 | Deadlocks | Las líneas se actualizan en orden ascendente de `stock_item_id` | — |
 | Doble reserva de una orden | Reserva idempotente por orden | Único parcial en `reservations (order_id) WHERE status = 'ACTIVE'` |
 | Confirmación doble | Transición Active → Committed una sola vez; `UPDATE ... SET on_hand = on_hand - q, reserved = reserved - q` | `CHECK` de `stock_items`; `version` de `reservations` |
-| Reintegro doble | Antes de reintegrar, se suma lo reintegrado por `order_line_id` en `stock_movements` y se compara con lo vendido; el `UPDATE` del `stock_item` serializa reintegros concurrentes de la misma variante | Índice parcial de RESTOCK por `order_line_id` |
+| Reintegro doble | Antes de reintegrar, se suma lo reintegrado por `order_line_id` en `stock_movements` y se compara con lo vendido. Ordering bloquea la orden (`FOR UPDATE`), así que dos reintegros de la misma orden se esperan y el segundo ve lo que escribió el primero (ADR-0142) | Índice parcial de RESTOCK por `order_line_id` |
 | Ajuste por debajo de lo reservado | Validación en el aggregate | `CHECK` de `stock_items` |
 | Descuadre del libro | Cada cambio de `on_hand` escribe un movimiento en la misma transacción con `on_hand_after` | Conciliación verificable: la suma de movimientos por `stock_item` debe igualar `on_hand` (consulta de verificación en los tests de integración) |
 
