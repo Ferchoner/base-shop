@@ -160,6 +160,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0140 | Envíos: división de T-195, creación al pagarse la orden, envío cancelado y datos de la orden | Aceptada |
 | ADR-0141 | Envíos en camino: notas, guía quitada y la orden que sigue al envío por eventos | Aceptada |
 | ADR-0142 | Reintegro de stock: Ordering bloquea la orden, Inventory pone el tope y el reembolso ya no reintegra | Aceptada |
+| ADR-0143 | Correos de la orden: módulo de notificaciones, eventos de Ordering y su fachada | Aceptada |
 
 ---
 
@@ -1534,7 +1535,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El correo de orden recibida no es comprobante: el código público también se entrega en la respuesta de la API. Si el negocio llega a depender de él, se revisa ADR-0014.
   - La mención de estos correos en el aviso de privacidad se valida junto con P-61.
 - **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se implementa el enlace de acceso al pedido (ADR-0077).
-- **Estado:** Aceptada (aprobación formal 2026-09-25).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Implementada en T-215 (ADR-0143): las instrucciones de pago en tienda van solo con el pago manual habilitado.
 
 ---
 
@@ -4064,3 +4065,46 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Prueba contra PostgreSQL: dos reintegros de la misma línea a la vez que juntos pasarían de lo vendido; solo uno ocurre.
   - Con T-195 y T-161 hechas, sigue T-215.
 - **Estado:** Aceptada (plan de T-161 aprobado el 2026-10-02, con sus 2 recomendaciones). `id` en las líneas de `AdminOrder` se agregó durante la implementación, porque la ruta pide `orderLineId` y ninguna vista lo mostraba.
+
+---
+
+## ADR-0143 — Correos de la orden: módulo de notificaciones, eventos de Ordering y su fachada
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-215 (UC-NTF-01). ADR-0074 decidió los cinco correos, que reaccionan a eventos y leen la orden con una fachada de Ordering. Tres cosas faltaban:
+  - Ordering todavía no publicaba `OrderPlaced`, `OrderPaid` ni `OrderCancelled`, y no tenía fachada;
+  - el correo de orden recibida pide "instrucciones de pago en tienda", pero la orden se coloca antes de iniciar el pago, y el pago en tienda solo existe con `MANUAL_PAYMENTS_ENABLED` (ADR-0040);
+  - el formato de las fechas en los correos vivía en Identity & Access.
+- **Decisión:**
+  - **Módulo `notifications`**, una capacidad transversal sin dominio propio (ARCHITECTURE.md):
+    - escucha `OrderPlaced`, `OrderPaid`, `ShipmentDispatched`, `OrderCancelled` y `RefundCompleted` por nombre, con sus propios tipos;
+    - lee la orden con la nueva `OrderingFacade.orderNotice` mediante un puerto propio (ADR-0103);
+    - ningún módulo lo usa, así que no se forma ningún ciclo.
+  - **`OrderingFacade`:** es la primera fachada de Ordering y solo sirve para los correos. Da el código público con guion, el email de contacto (`null` si la orden está anonimizada), las líneas, los totales, la dirección sin el teléfono, el vencimiento de la reserva y el plazo de entrega.
+  - **Eventos de Ordering**, publicados en la transacción del cambio y despachados después del commit (ADR-0098). Solo llevan la orden, salvo `refundStarted`:
+    - `OrderPlaced` al colocar la orden;
+    - `OrderPaid` cuando la orden pasa a PAID: con el pago capturado, con el pago tardío que consigue stock o al reintentar el surtido. No se publica cuando queda esperando stock;
+    - `OrderCancelled` al cancelar, con `refundStarted` si la orden ya estaba pagada.
+  - **Correos** en texto plano y en español, como los de cuenta (ADR-0110), con el código público y sin el ID ni el número interno:
+    - orden recibida: líneas con sus opciones, subtotal, envío (o "gratis"), descuento si lo hay, total con el IVA incluido, dirección, hasta cuándo se apartan los productos y el plazo de entrega estimado;
+    - pago confirmado: el total pagado;
+    - orden enviada: la paquetería y la guía, o "lo entregará la tienda";
+    - orden cancelada: el reembolso en proceso, o "no se hizo ningún cargo";
+    - reembolso completado: el monto;
+    - todos terminan pidiendo mencionar el código al contactar a la tienda, sin enlaces (ADR-0077).
+  - **Instrucciones de pago:** solo con `MANUAL_PAYMENTS_ENABLED`: "presenta el código en la tienda y paga el total". Sin pago manual, el correo no da instrucciones de pago hasta que PayPal tenga las suyas (T-192).
+  - **Entrega:**
+    - el correo va al email de contacto, nunca a una orden anonimizada (BR-NTF-03);
+    - un fallo del servidor de correo queda en el log como advertencia, sin el destinatario, y no se reintenta (BR-NTF-04);
+    - una orden que no existe queda en el log como error.
+  - **`inMexicoTime` pasa al shared kernel**, para las fechas de los correos de cuenta y de orden.
+- **Alternativas consideradas:**
+  - **Eventos con todos los datos del correo:** Notifications no leería a Ordering, pero cada evento cargaría líneas, totales y dirección que solo usa el correo; ADR-0074 ya eligió la fachada.
+  - **Instrucciones de pago siempre:** hoy es el único método, pero le indicaría al cliente uno que no existe en cuanto se deshabilite.
+  - **Correos en HTML:** más trabajo de formato y de pruebas; los correos de cuenta son de texto.
+- **Consecuencias:**
+  - Ordering exporta una fachada por primera vez, solo para lectura.
+  - Las suites e2e que colocan órdenes intentan enviar los correos. Sin servidor SMTP en las pruebas, el envío falla de inmediato y solo queda una advertencia que el logger de pruebas no muestra. La suite de correos captura los mensajes con un `EmailSender` falso.
+  - No hay correo cuando llega un pago a una orden ya cancelada: con el pago en tienda no ocurre, porque el registro manual solo acepta órdenes PENDING_PAYMENT o EXPIRED. Se revisa con PayPal (T-192).
+  - Con T-215 terminada, sigue T-231.
+- **Estado:** Aceptada (plan de T-215 aprobado el 2026-10-02, con su recomendación).
