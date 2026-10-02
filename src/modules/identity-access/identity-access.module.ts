@@ -13,6 +13,7 @@ import {
 import { ChangeEmail } from './application/change-email.use-case.js';
 import { ChangePassword } from './application/change-password.use-case.js';
 import { ConfirmEmail } from './application/confirm-email.use-case.js';
+import { SpentTokens, TokenCleanup } from './application/token-cleanup.js';
 import { CreateFirstSuperadmin } from './application/create-first-superadmin.use-case.js';
 import { CreateRole } from './application/create-role.use-case.js';
 import { CreateStaff } from './application/create-staff.use-case.js';
@@ -77,6 +78,8 @@ import { PrismaIdentityQueries } from './infrastructure/prisma-identity.queries.
 import { PrismaPasswordResetTokenRepository } from './infrastructure/prisma-password-reset-token.repository.js';
 import { PrismaRoleRepository } from './infrastructure/prisma-role.repository.js';
 import { PrismaSessionRepository } from './infrastructure/prisma-session.repository.js';
+import { PrismaSpentTokens } from './infrastructure/prisma-spent-tokens.js';
+import { TokenCleanupJob } from './infrastructure/token-cleanup.job.js';
 import { PrismaUserRepository } from './infrastructure/prisma-user.repository.js';
 import { AccessTokenGuard } from './presentation/access-token.guard.js';
 import { AdminCustomersController } from './presentation/admin-customers.controller.js';
@@ -156,6 +159,9 @@ import { MeController } from './presentation/me.controller.js';
     { provide: PasswordHasher, useClass: Argon2PasswordHasher },
     { provide: CommonPasswords, useFactory: () => new FileCommonPasswords() },
     { provide: SessionRepository, useClass: PrismaSessionRepository },
+    TokenCleanup,
+    TokenCleanupJob,
+    { provide: SpentTokens, useClass: PrismaSpentTokens },
     {
       provide: EmailVerificationTokenRepository,
       useClass: PrismaEmailVerificationTokenRepository,

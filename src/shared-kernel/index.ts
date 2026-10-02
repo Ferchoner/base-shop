@@ -32,6 +32,12 @@ export {
 } from './email-sender.js';
 export { DomainEventPublisher } from './domain-event-publisher.js';
 export { FrontendLinks } from './frontend-links.js';
+export {
+  CLEANUP_BATCH_SIZE,
+  CLEANUP_MAX_BATCHES,
+  daysBefore,
+  deleteInBatches,
+} from './cleanup.js';
 export { inMexicoTime } from './mexico-time.js';
 export { type Id, newCredentialId, newId, toId } from './id.js';
 export { type Currency, MAX_MONEY_AMOUNT, Money } from './money.js';

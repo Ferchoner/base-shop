@@ -86,6 +86,20 @@ export class IdempotencyStore {
        WHERE ${this.matchesAttempt(attempt)}`;
   }
 
+  /**
+   * Deletes at most `limit` keys expired by `now`, in one statement (ADR-0144), and answers how many. The `DELETE`
+   * checks the expiry again, so a key claimed again meanwhile, which got a new expiry, stays.
+   */
+  deleteExpired(now: Date, limit: number): Promise<number> {
+    return this.prisma.$executeRaw`
+      DELETE FROM idempotency_keys
+       WHERE (scope_type, scope_id, endpoint, key) IN (
+             SELECT scope_type, scope_id, endpoint, key FROM idempotency_keys
+              WHERE expires_at <= ${now}
+              LIMIT ${limit})
+         AND expires_at <= ${now}`;
+  }
+
   /** Frees the key of an attempt whose result is not kept, so the client can retry with it. */
   async release(attempt: IdempotencyAttempt): Promise<void> {
     await this.prisma.$executeRaw`

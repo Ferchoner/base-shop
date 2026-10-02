@@ -2,6 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../../platform/config/environment.js';
 import { MANUAL_PAYMENTS_ENABLED } from './application/manual-payments.js';
+import {
+  ProcessedWebhookEvents,
+  WebhookEventCleanup,
+} from './application/webhook-event-cleanup.js';
+import { PrismaProcessedWebhookEvents } from './infrastructure/prisma-processed-webhook-events.js';
+import { WebhookEventCleanupJob } from './infrastructure/webhook-event-cleanup.job.js';
 import { PaymentsFacade } from './application/payments.facade.js';
 import { PaymentsQueries } from './application/payments.queries.js';
 import { PaymentRepository } from './domain/payment.repository.js';
@@ -23,7 +29,13 @@ import { AdminPaymentsController } from './presentation/admin-payments.controlle
         config.get('MANUAL_PAYMENTS_ENABLED', { infer: true }),
     },
     PaymentsFacade,
+    WebhookEventCleanup,
+    WebhookEventCleanupJob,
     { provide: PaymentRepository, useClass: PrismaPaymentRepository },
+    {
+      provide: ProcessedWebhookEvents,
+      useClass: PrismaProcessedWebhookEvents,
+    },
     { provide: PaymentsQueries, useClass: PrismaPaymentsQueries },
   ],
   exports: [PaymentsFacade],
