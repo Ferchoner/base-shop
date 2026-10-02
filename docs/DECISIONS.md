@@ -158,6 +158,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0138 | Consulta de pedido de invitado: una sola consulta, 404 único y staff permitido | Aceptada |
 | ADR-0139 | Recompra de órdenes: rutas en Ordering, respuesta con `cartId` y carrito destino del staff | Aceptada |
 | ADR-0140 | Envíos: división de T-195, creación al pagarse la orden, envío cancelado y datos de la orden | Aceptada |
+| ADR-0141 | Envíos en camino: notas, guía quitada y la orden que sigue al envío por eventos | Aceptada |
 
 ---
 
@@ -1082,7 +1083,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Returned pasa de estado previsto a implementado en el envío (ADR-0050).
   - Una orden con envío devuelto queda en Shipped; su reembolso, si lo hay, ocurre fuera del sistema.
 - **Revisar si:** se integra un proceso de envío automatizado; entonces se definirán cancelación, reembolso o reintento a partir de entregas fallidas.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Implementada en T-195 parte b (ADR-0141), con una nota opcional del staff en la entrega fallida y en la devolución.
 
 ---
 
@@ -1643,7 +1644,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambia el contrato de `POST …/shipments/{id}/dispatch` (acepta `ownDelivery`) y agrega `ownDelivery` a `AdminShipment` y a `shipment` de `Order`.
   - `PATCH …/shipments/{id}` no puede capturar paquetería ni guía en un envío despachado como entrega propia.
 - **Revisar si:** el negocio quiere ofrecer recoger en tienda, o se integra una paquetería (ADR-0041).
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). Implementada en T-195 (ADR-0140, ADR-0141); la paquetería y la guía capturadas por error se quitan con el `PATCH` mientras el envío está pendiente.
 
 ---
 
@@ -3979,4 +3980,50 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b resuelve la carrera entre cancelar y despachar. La cancelación ya bloquea el envío por su orden.
   - El contrato suma CANCELLED a los estados del envío y `cancelledAt` a `AdminShipment`.
   - Las pruebas que pagan órdenes borran también sus envíos.
-- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación.
+- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación. La parte b está en ADR-0141.
+
+---
+
+## ADR-0141 — Envíos en camino: notas, guía quitada y la orden que sigue al envío por eventos
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-195 parte b (UC-SHI-05 a 07 y 09). ADR-0140 dejó para esta parte despachar, entregar, la entrega fallida y la devolución, con la orden siguiendo al envío por eventos. Quedaban abiertas tres cosas:
+  - dónde queda la `note` de la entrega fallida y de la devolución, que el contrato pide sin decir dónde se guarda;
+  - qué hace Ordering si `ShipmentDelivered` llega con la orden todavía en PAID. Los eventos viven en memoria y se procesan después del commit (ADR-0098), así que el del despacho puede llegar tarde o perderse;
+  - cómo se quita una guía capturada por error. El `PATCH` exige paquetería y guía de 1 a 100 caracteres, y un envío con guía no puede despacharse como entrega propia (ADR-0078).
+- **Decisión:**
+  - **Rutas** (`shipping.manage`, `version`, responden 200 con `AdminShipment`):
+    - `dispatch`, desde PENDING. Con `ownDelivery: false` (por defecto) exige paquetería y guía ya capturadas; con `true`, que no tenga ninguna. Si no, responde 400 `validation-error` en `ownDelivery`, con `trackingRequired` o `trackingNotAllowed`. Primero revisa el estado (409) y después la guía (400);
+    - `deliver`, desde DISPATCHED, definitivo;
+    - `delivery-failure`, desde DISPATCHED; la orden no cambia (ADR-0053);
+    - `return`, desde DELIVERY_FAILED, definitivo; el stock que regresa lo reintegra T-161;
+    - se auditan como `shipments.dispatch`, `shipments.deliver`, `shipments.delivery-failure` y `shipments.return`, con el cambio de estado, y al despachar también el de `ownDelivery`.
+  - **Notas:**
+    - `note` es opcional, de hasta 500 caracteres; se guarda sin los espacios de los extremos, y una nota vacía es ninguna;
+    - se guarda en el envío (`failure_note` y `return_note`, que `AdminShipment` muestra como `failureNote` y `returnNote`) y es además el motivo de la auditoría.
+  - **Quitar la guía:**
+    - el `PATCH` acepta `carrierName` y `trackingNumber` en `null`, los dos juntos y solo en PENDING; se audita como `shipments.update`;
+    - si solo una de las dos es `null`, responde 400 `validation-error` con `trackingPair` en esa;
+    - el despacho nunca las borra por su cuenta: la entrega propia sigue siendo una decisión explícita (ADR-0078).
+  - **La orden sigue al envío por eventos:**
+    - Shipping publica `ShipmentDispatched { shipmentId, orderId, carrierName, trackingNumber, ownDelivery }` y `ShipmentDelivered { shipmentId, orderId, dispatchedAt }` después del commit, con `occurredAt` igual al momento del cambio. Ordering declara sus propios tipos y se suscribe por nombre;
+    - Ordering pasa la orden de PAID a SHIPPED con `shippedAt`, y de SHIPPED a DELIVERED con `deliveredAt`. El historial no lleva actor, como con el pago y el reembolso;
+    - un evento repetido no cambia nada, y una orden en otro estado queda en el log como error;
+    - si `ShipmentDelivered` encuentra la orden en PAID, la pasa por SHIPPED, con `dispatchedAt`, y luego a DELIVERED, en un solo guardado con dos entradas en el historial;
+    - `DeliveryFailed` y `ShipmentReturned` no se publican, porque nadie los escucha (ADR-0128). T-161 leerá el estado del envío con la fachada.
+  - **Base de datos:** la migración `20261002220000_shipping_delivery_notes` agrega las notas y restricciones que exigen la fecha de cada estado: DELIVERED con `delivered_at`; DELIVERY_FAILED y RETURNED con `failed_at`; RETURNED con `returned_at`.
+  - **Despachar y cancelar la orden a la vez:**
+    - las dos operaciones bloquean el envío (la cancelación lo hace por su orden, ADR-0140), así que una espera a la otra y solo una ocurre;
+    - si gana el despacho, la cancelación responde 409 `invalid-state-transition`;
+    - si gana la cancelación, el despacho responde 409 `version-conflict`, porque el envío ya cambió.
+- **Alternativas consideradas:**
+  - **Nota solo en la auditoría, como el pago y el reembolso manuales:** no necesita migración, pero quien atiende la devolución no la vería hasta T-220, y solo con `audit.read`.
+  - **Dejar en el log el `ShipmentDelivered` de una orden en PAID:** la orden quedaría en PAID con el envío entregado hasta que alguien la corrigiera a mano.
+  - **Que despachar como entrega propia borre la guía:** ocultaría un error de captura.
+  - **Publicar `OrderShipped` y `OrderDelivered`:** no tienen consumidor.
+- **Consecuencias:**
+  - Cambios compatibles del contrato: `failureNote` y `returnNote` en `AdminShipment`, y `null` en el `PATCH`.
+  - **Riesgo:** si se pierde un `ShipmentDispatched`, la orden queda en PAID con el envío despachado hasta la entrega. Mientras tanto, cancelarla responde 409 por el envío. No hay conciliación para los eventos de envío (`API_SPEC.md` §2.5).
+  - T-195 queda terminada. T-161 atiende las devoluciones con `SHIPMENT_RETURNED`.
+  - Las suites de integración de Shipping importan `EventsModule`.
+- **Estado:** Aceptada (plan de T-195 parte b aprobado el 2026-10-02, con sus 3 recomendaciones).

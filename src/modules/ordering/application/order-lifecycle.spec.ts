@@ -584,3 +584,136 @@ describe('OrderLifecycle: a completed refund (ADR-0051, ADR-0135)', () => {
     ).rejects.toThrow(NotFoundError);
   });
 });
+
+describe('OrderLifecycle: the progress of its shipment (UC-SHI-05 and 06, ADR-0141)', () => {
+  const LEFT = new Date('2026-10-01T15:00:00.000Z');
+  const DELIVERED = new Date('2026-10-02T10:00:00.000Z');
+
+  it('marks a paid order shipped when its shipment left, without an actor', async () => {
+    const order = saved('PAID', CAPTURED);
+    const { lifecycle, orders } = setUp(order);
+
+    expect(
+      await lifecycle.recordShipment({ orderId: order.id, dispatchedAt: LEFT }),
+    ).toBe('moved');
+
+    const shipped = savedOne(orders);
+    expect(shipped.snapshot).toMatchObject({
+      status: 'SHIPPED',
+      shippedAt: LEFT,
+    });
+    expect(shipped.statusChanges).toEqual([
+      { from: 'PAID', to: 'SHIPPED', actorId: null, reason: null, at: NOW },
+    ]);
+  });
+
+  it('changes nothing for an order already shipped or delivered, nor for one that is not paid', async () => {
+    for (const [order, outcome] of [
+      [saved('SHIPPED', CAPTURED), 'already-processed'],
+      [saved('DELIVERED', CAPTURED), 'already-processed'],
+      [saved('PENDING_PAYMENT'), 'unexpected'],
+      [saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED), 'unexpected'],
+      [saved('CANCELLED', CAPTURED), 'unexpected'],
+    ] as const) {
+      const { lifecycle, orders } = setUp(order);
+
+      expect(
+        await lifecycle.recordShipment({
+          orderId: order.id,
+          dispatchedAt: LEFT,
+        }),
+      ).toBe(outcome);
+      expect(orders.saved).toEqual([]);
+    }
+  });
+
+  it('marks a shipped order delivered when its shipment was', async () => {
+    const order = saved('SHIPPED', CAPTURED);
+    const { lifecycle, orders } = setUp(order);
+
+    expect(
+      await lifecycle.recordDelivery({
+        orderId: order.id,
+        dispatchedAt: LEFT,
+        deliveredAt: DELIVERED,
+      }),
+    ).toBe('moved');
+
+    const delivered = savedOne(orders);
+    expect(delivered.snapshot).toMatchObject({
+      status: 'DELIVERED',
+      deliveredAt: DELIVERED,
+    });
+    expect(delivered.statusChanges).toEqual([
+      {
+        from: 'SHIPPED',
+        to: 'DELIVERED',
+        actorId: null,
+        reason: null,
+        at: NOW,
+      },
+    ]);
+  });
+
+  it('marks a paid order shipped first, from when its shipment left, when the event of the dispatch is late or lost', async () => {
+    const order = saved('PAID', CAPTURED);
+    const { lifecycle, orders } = setUp(order);
+
+    expect(
+      await lifecycle.recordDelivery({
+        orderId: order.id,
+        dispatchedAt: LEFT,
+        deliveredAt: DELIVERED,
+      }),
+    ).toBe('moved');
+
+    const delivered = savedOne(orders);
+    expect(delivered.snapshot).toMatchObject({
+      status: 'DELIVERED',
+      shippedAt: LEFT,
+      deliveredAt: DELIVERED,
+    });
+    expect(delivered.statusChanges.map(({ from, to }) => [from, to])).toEqual([
+      ['PAID', 'SHIPPED'],
+      ['SHIPPED', 'DELIVERED'],
+    ]);
+  });
+
+  it('changes nothing for an order already delivered, nor for one that is neither paid nor shipped', async () => {
+    for (const [order, outcome] of [
+      [saved('DELIVERED', CAPTURED), 'already-processed'],
+      [saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED), 'unexpected'],
+      [saved('CANCELLED', CAPTURED), 'unexpected'],
+      [saved('REFUNDED', CAPTURED), 'unexpected'],
+    ] as const) {
+      const { lifecycle, orders } = setUp(order);
+
+      expect(
+        await lifecycle.recordDelivery({
+          orderId: order.id,
+          dispatchedAt: LEFT,
+          deliveredAt: DELIVERED,
+        }),
+      ).toBe(outcome);
+      expect(orders.saved).toEqual([]);
+    }
+  });
+
+  it('answers 404 for an order that does not exist', async () => {
+    const { lifecycle } = setUp(saved('PAID', CAPTURED));
+
+    await expect(
+      lifecycle.recordShipment({
+        orderId: newId<'Order'>(),
+        dispatchedAt: LEFT,
+      }),
+    ).rejects.toThrow(NotFoundError);
+    await expect(
+      lifecycle.recordDelivery({
+        orderId: newId<'Order'>(),
+        dispatchedAt: LEFT,
+        deliveredAt: DELIVERED,
+      }),
+    ).rejects.toThrow(NotFoundError);
+  });
+});

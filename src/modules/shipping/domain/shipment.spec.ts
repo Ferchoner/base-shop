@@ -4,12 +4,14 @@ import {
   newId,
 } from '../../../shared-kernel/index.js';
 import {
+  DispatchTrackingError,
   Shipment,
   type ShipmentAddress,
   type ShipmentStatus,
 } from './shipment.js';
 
 const NOW = new Date('2026-10-02T12:00:00.000Z');
+const LATER = new Date('2026-10-03T09:30:00.000Z');
 
 const ADDRESS: ShipmentAddress = {
   recipientName: 'María López',
@@ -162,6 +164,195 @@ describe('Shipment (UC-SHI-03 and 04, BR-SHP-01 to 05, ADR-0140)', () => {
       const other = saved(status, { carrierName: 'DHL' });
       expect(() => other.cancel(NOW)).toThrow(
         new InvalidStateTransitionError(status, 'cancel'),
+      );
+    }
+  });
+});
+
+describe('Shipment on its way (UC-SHI-05 to 07 and 09, BR-SHP-03, 04 and 09, ADR-0053, ADR-0078, ADR-0141)', () => {
+  /** Every status but these. */
+  const besides = (...allowed: ShipmentStatus[]) =>
+    (
+      [
+        'PENDING',
+        'DISPATCHED',
+        'DELIVERED',
+        'DELIVERY_FAILED',
+        'RETURNED',
+        'CANCELLED',
+      ] as const
+    ).filter((status) => !allowed.includes(status));
+
+  it('removes a carrier and tracking number recorded by mistake while pending, and nothing when it has none', () => {
+    const shipment = saved('PENDING', { carrierName: 'Estafeta' });
+
+    expect(shipment.removeTracking()).toBe(true);
+
+    expect(shipment.snapshot).toMatchObject({
+      carrierName: null,
+      trackingNumber: null,
+    });
+    expect(shipment.hasChanges).toBe(true);
+    const untracked = saved('PENDING');
+    expect(untracked.removeTracking()).toBe(false);
+    expect(untracked.hasChanges).toBe(false);
+  });
+
+  it('keeps the carrier and tracking number of a shipment that is no longer pending', () => {
+    for (const status of besides('PENDING')) {
+      const shipment = saved(status, { carrierName: 'DHL' });
+
+      expect(() => shipment.removeTracking()).toThrow(
+        new InvalidStateTransitionError(status, 'remove the tracking'),
+      );
+      expect(shipment.snapshot.carrierName).toBe('DHL');
+    }
+  });
+
+  it('leaves by a carrier with its carrier and tracking number, or as own delivery without them', () => {
+    const byCarrier = saved('PENDING', { carrierName: 'Estafeta' });
+    const ownDelivery = saved('PENDING');
+
+    byCarrier.dispatch(false, NOW);
+    ownDelivery.dispatch(true, LATER);
+
+    expect(byCarrier.snapshot).toMatchObject({
+      status: 'DISPATCHED',
+      carrierName: 'Estafeta',
+      trackingNumber: '8055123456',
+      ownDelivery: false,
+      dispatchedAt: NOW,
+    });
+    expect(ownDelivery.snapshot).toMatchObject({
+      status: 'DISPATCHED',
+      carrierName: null,
+      trackingNumber: null,
+      ownDelivery: true,
+      dispatchedAt: LATER,
+    });
+    expect([byCarrier.hasChanges, ownDelivery.hasChanges]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it('does not leave by a carrier without its tracking, nor as own delivery with it (BR-SHP-04)', () => {
+    const untracked = saved('PENDING');
+    const tracked = saved('PENDING', { carrierName: 'Estafeta' });
+    const carrierOnly = Shipment.restore({
+      ...saved('PENDING', { carrierName: 'Estafeta' }).snapshot,
+      trackingNumber: null,
+    });
+
+    expect(() => untracked.dispatch(false, NOW)).toThrow(
+      new DispatchTrackingError('trackingRequired'),
+    );
+    expect(() => carrierOnly.dispatch(false, NOW)).toThrow(
+      new DispatchTrackingError('trackingRequired'),
+    );
+    expect(() => tracked.dispatch(true, NOW)).toThrow(
+      new DispatchTrackingError('trackingNotAllowed'),
+    );
+
+    expect([untracked.status, tracked.status]).toEqual(['PENDING', 'PENDING']);
+    expect([untracked.hasChanges, tracked.hasChanges]).toEqual([false, false]);
+    expect(new DispatchTrackingError('trackingRequired').details).toEqual({
+      errors: [
+        expect.objectContaining({
+          field: 'ownDelivery',
+          code: 'trackingRequired',
+        }),
+      ],
+    });
+    expect(new DispatchTrackingError('trackingNotAllowed').details).toEqual({
+      errors: [
+        expect.objectContaining({
+          field: 'ownDelivery',
+          code: 'trackingNotAllowed',
+        }),
+      ],
+    });
+  });
+
+  it('leaves only once, from pending, whatever its tracking', () => {
+    for (const status of besides('PENDING')) {
+      for (const shipment of [
+        saved(status),
+        saved(status, { carrierName: 'DHL' }),
+      ]) {
+        expect(() => shipment.dispatch(false, NOW)).toThrow(
+          new InvalidStateTransitionError(status, 'dispatch'),
+        );
+        expect(() => shipment.dispatch(true, NOW)).toThrow(
+          new InvalidStateTransitionError(status, 'dispatch'),
+        );
+      }
+    }
+  });
+
+  it('is delivered once dispatched, for good (BR-SHP-03)', () => {
+    const shipment = saved('DISPATCHED', { carrierName: 'DHL' });
+
+    shipment.deliver(LATER);
+
+    expect(shipment.snapshot).toMatchObject({
+      status: 'DELIVERED',
+      dispatchedAt: NOW,
+      deliveredAt: LATER,
+    });
+    expect(shipment.hasChanges).toBe(true);
+    for (const status of besides('DISPATCHED')) {
+      expect(() => saved(status).deliver(LATER)).toThrow(
+        new InvalidStateTransitionError(status, 'deliver'),
+      );
+    }
+  });
+
+  it('fails its delivery once dispatched, with the note of the staff or without one (ADR-0053)', () => {
+    const noted = saved('DISPATCHED', { carrierName: 'DHL' });
+    const unnoted = saved('DISPATCHED', { ownDelivery: true });
+
+    noted.failDelivery('Nadie recibió el paquete', LATER);
+    unnoted.failDelivery(null, LATER);
+
+    expect(noted.snapshot).toMatchObject({
+      status: 'DELIVERY_FAILED',
+      failedAt: LATER,
+      failureNote: 'Nadie recibió el paquete',
+      deliveredAt: null,
+    });
+    expect(unnoted.snapshot).toMatchObject({
+      status: 'DELIVERY_FAILED',
+      failedAt: LATER,
+      failureNote: null,
+    });
+    expect(noted.hasChanges).toBe(true);
+    for (const status of besides('DISPATCHED')) {
+      expect(() => saved(status).failDelivery(null, LATER)).toThrow(
+        new InvalidStateTransitionError(status, 'record the delivery failure'),
+      );
+    }
+  });
+
+  it('comes back only after a failed delivery, for good, keeping why it failed (ADR-0053)', () => {
+    const shipment = saved('DISPATCHED', { carrierName: 'DHL' });
+    shipment.failDelivery('Dirección incompleta', NOW);
+
+    shipment.markReturned('Caja sin abrir', LATER);
+
+    expect(shipment.snapshot).toMatchObject({
+      status: 'RETURNED',
+      failedAt: NOW,
+      failureNote: 'Dirección incompleta',
+      returnedAt: LATER,
+      returnNote: 'Caja sin abrir',
+    });
+    const unnoted = saved('DELIVERY_FAILED', { carrierName: 'DHL' });
+    unnoted.markReturned(null, LATER);
+    expect(unnoted.snapshot.returnNote).toBeNull();
+    for (const status of besides('DELIVERY_FAILED')) {
+      expect(() => saved(status).markReturned(null, LATER)).toThrow(
+        new InvalidStateTransitionError(status, 'mark returned'),
       );
     }
   });

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../../platform/config/environment.js';
 import { ConfigureShippingMethod } from './application/configure-shipping-method.use-case.js';
+import { ShipmentDelivery } from './application/shipment-delivery.use-case.js';
 import { ShipmentTracking } from './application/shipment-tracking.use-case.js';
 import { ShippingFacade } from './application/shipping.facade.js';
 import { ShippingQueries } from './application/shipping.queries.js';
@@ -16,7 +17,8 @@ import { AdminShippingMethodController } from './presentation/admin-shipping-met
 
 /**
  * Shipping bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. Ordering uses its facade to quote
- * the shipping and to create and cancel the shipment of an order, and Shipping never uses Ordering (ADR-0140).
+ * the shipping and to create and cancel the shipment of an order, and Shipping never uses Ordering (ADR-0140): the
+ * order follows its shipment with `ShipmentDispatched` and `ShipmentDelivered` (ADR-0141).
  */
 @Module({
   controllers: [AdminShippingMethodController, AdminShipmentsController],
@@ -30,6 +32,7 @@ import { AdminShippingMethodController } from './presentation/admin-shipping-met
     ShippingFacade,
     ConfigureShippingMethod,
     ShipmentTracking,
+    ShipmentDelivery,
     {
       provide: ShippingMethodRepository,
       useClass: PrismaShippingMethodRepository,

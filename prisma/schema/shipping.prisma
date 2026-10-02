@@ -50,6 +50,10 @@ model Shipment {
   failedAt       DateTime?      @map("failed_at") @db.Timestamptz(3)
   returnedAt     DateTime?      @map("returned_at") @db.Timestamptz(3)
   cancelledAt    DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  /// Why the delivery failed, as the staff wrote it (ADR-0141).
+  failureNote    String?        @map("failure_note")
+  /// What came back, as the staff wrote it (ADR-0141).
+  returnNote     String?        @map("return_note")
   version        Int            @default(1)
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)

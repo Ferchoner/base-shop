@@ -190,6 +190,10 @@ export interface OrderSnapshot {
   readonly placedAt: Date;
   /** When the payment was captured, also when the order could not be fulfilled or was cancelled first. */
   readonly paidAt: Date | null;
+  /** When its shipment left (ADR-0141). */
+  readonly shippedAt: Date | null;
+  /** When its shipment was delivered (ADR-0141). */
+  readonly deliveredAt: Date | null;
   readonly cancelledAt: Date | null;
   readonly expiredAt: Date | null;
   /** When its refund completed: the money went back (ADR-0051). */
@@ -262,6 +266,8 @@ export class Order {
       sourceCartId: input.sourceCartId,
       placedAt: input.now,
       paidAt: null,
+      shippedAt: null,
+      deliveredAt: null,
       cancelledAt: null,
       expiredAt: null,
       refundedAt: null,
@@ -406,6 +412,29 @@ export class Order {
     this.move('EXPIRED', null, null, now);
     this.state = { ...this.state, expiredAt: now };
     return true;
+  }
+
+  /**
+   * Its shipment left (UC-SHI-05, ADR-0141): SHIPPED, shipped when the shipment left. From then on it is not
+   * cancelled (BR-CAN-01).
+   *
+   * @throws InvalidStateTransitionError unless the order is PAID.
+   */
+  markShipped(dispatchedAt: Date, now: Date): void {
+    this.assertStatus(['PAID'], 'mark shipped');
+    this.move('SHIPPED', null, null, now);
+    this.state = { ...this.state, shippedAt: dispatchedAt };
+  }
+
+  /**
+   * Its shipment was delivered (UC-SHI-06, ADR-0141): DELIVERED, final.
+   *
+   * @throws InvalidStateTransitionError unless the order is SHIPPED.
+   */
+  markDelivered(deliveredAt: Date, now: Date): void {
+    this.assertStatus(['SHIPPED'], 'mark delivered');
+    this.move('DELIVERED', null, null, now);
+    this.state = { ...this.state, deliveredAt };
   }
 
   /**

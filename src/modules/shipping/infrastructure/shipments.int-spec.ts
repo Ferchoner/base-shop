@@ -1,6 +1,8 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
+import pg from 'pg';
+import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
 import { EventsModule } from '../../../platform/events/events.module.js';
@@ -8,11 +10,14 @@ import { PersistenceModule } from '../../../platform/persistence/persistence.mod
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
   Clock,
+  InvalidStateTransitionError,
   newId,
   TransactionManager,
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
+import { ShipmentDelivery } from '../application/shipment-delivery.use-case.js';
+import { ShipmentTracking } from '../application/shipment-tracking.use-case.js';
 import {
   type NewShipment,
   ShippingFacade,
@@ -146,6 +151,8 @@ describe('Shipping: shipments (T-195)', () => {
       failedAt: null,
       returnedAt: null,
       cancelledAt: null,
+      failureNote: null,
+      returnNote: null,
       version: 1,
     });
     expect(await prisma.shipment.count()).toBe(1);
@@ -292,5 +299,179 @@ describe('Shipping: shipments (T-195)', () => {
       createdAt: new Date(START + 1_000),
     });
     expect(await queries.findShipment(newId<'Shipment'>())).toBeNull();
+  });
+
+  describe('on its way (UC-SHI-05 to 07 and 09, ADR-0141)', () => {
+    const delivery = () => moduleRef.get(ShipmentDelivery);
+
+    /** A new shipment, created and read back. */
+    async function created(input = shipmentOf()) {
+      await run(() => facade.createShipment(input));
+      return (await lock(input.orderId))!.id;
+    }
+
+    it('keeps when it left, how, how it ended and the notes of the staff, audited', async () => {
+      const byCarrier = await created();
+      const ownDelivery = await created();
+      await run(() =>
+        moduleRef.get(ShipmentTracking).record({
+          shipmentId: byCarrier,
+          carrierName: 'Estafeta',
+          trackingNumber: 'EST-0001',
+          version: 1,
+        }),
+      );
+
+      await run(() =>
+        delivery().dispatch({
+          shipmentId: byCarrier,
+          ownDelivery: false,
+          version: 2,
+        }),
+      );
+      await run(() =>
+        delivery().deliver({ shipmentId: byCarrier, version: 3 }),
+      );
+      await run(() =>
+        delivery().dispatch({
+          shipmentId: ownDelivery,
+          ownDelivery: true,
+          version: 1,
+        }),
+      );
+      await run(() =>
+        delivery().failDelivery({
+          shipmentId: ownDelivery,
+          note: 'Nadie recibió el paquete',
+          version: 2,
+        }),
+      );
+      await run(() =>
+        delivery().markReturned({
+          shipmentId: ownDelivery,
+          note: 'Caja sin abrir',
+          version: 3,
+        }),
+      );
+
+      const [delivered, returned] = await Promise.all(
+        [byCarrier, ownDelivery].map((id) =>
+          prisma.shipment.findUniqueOrThrow({ where: { id } }),
+        ),
+      );
+      expect(delivered).toMatchObject({
+        status: 'DELIVERED',
+        carrierName: 'Estafeta',
+        trackingNumber: 'EST-0001',
+        ownDelivery: false,
+        dispatchedAt: expect.any(Date),
+        deliveredAt: expect.any(Date),
+        failedAt: null,
+        version: 4,
+      });
+      expect(delivered.deliveredAt!.getTime()).toBeGreaterThan(
+        delivered.dispatchedAt!.getTime(),
+      );
+      expect(returned).toMatchObject({
+        status: 'RETURNED',
+        carrierName: null,
+        ownDelivery: true,
+        deliveredAt: null,
+        failedAt: expect.any(Date),
+        failureNote: 'Nadie recibió el paquete',
+        returnedAt: expect.any(Date),
+        returnNote: 'Caja sin abrir',
+        version: 4,
+      });
+      expect((await lock(returned.orderId as OrderId))!.snapshot).toMatchObject(
+        {
+          failureNote: 'Nadie recibió el paquete',
+          returnNote: 'Caja sin abrir',
+        },
+      );
+      const audits = await prisma.auditLog.findMany({
+        where: { resourceId: ownDelivery },
+        orderBy: { occurredAt: 'asc' },
+      });
+      expect(audits.map(({ action, reason }) => [action, reason])).toEqual([
+        ['shipments.dispatch', null],
+        ['shipments.delivery-failure', 'Nadie recibió el paquete'],
+        ['shipments.return', 'Caja sin abrir'],
+      ]);
+    });
+
+    it('keeps each status with its date, as the database requires (ADR-0141)', async () => {
+      const input = shipmentOf();
+      await created(input);
+      const update = (set: string) =>
+        prisma.$executeRawUnsafe(
+          `UPDATE shipments SET own_delivery = true, dispatched_at = now(), ${set} WHERE order_id = $1::uuid`,
+          input.orderId,
+        );
+
+      await expect(update("status = 'DELIVERED'")).rejects.toThrow(
+        /shipments_delivered_at_check/,
+      );
+      await expect(update("status = 'DELIVERY_FAILED'")).rejects.toThrow(
+        /shipments_failed_at_check/,
+      );
+      await expect(
+        update("status = 'RETURNED', failed_at = now()"),
+      ).rejects.toThrow(/shipments_returned_at_check/);
+      await update(
+        "status = 'RETURNED', failed_at = now(), returned_at = now()",
+      );
+    });
+
+    it('lets a dispatch and the cancellation of its order through one after the other, and only one of them happens (ADR-0141)', async () => {
+      const input = shipmentOf();
+      const id = await created(input);
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
+      });
+      await client.connect();
+      let settled: PromiseSettledResult<void>[];
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT 1 FROM shipments WHERE id = $1 FOR UPDATE', [
+          id,
+        ]);
+        const operations = [
+          run(() =>
+            delivery().dispatch({
+              shipmentId: id,
+              ownDelivery: true,
+              version: 1,
+            }),
+          ),
+          run(() => facade.cancelShipmentOf(input.orderId)),
+        ];
+        await waitForLockWaiters(2);
+        await client.query('COMMIT');
+        settled = await Promise.allSettled(operations);
+      } finally {
+        await client.end();
+      }
+
+      const { status } = await prisma.shipment.findUniqueOrThrow({
+        where: { id },
+      });
+      const [dispatch, cancel] = settled;
+      if (status === 'DISPATCHED') {
+        // The dispatch went first: the order is not cancelled (BR-CAN-01).
+        expect(dispatch.status).toBe('fulfilled');
+        expect(cancel).toEqual({
+          status: 'rejected',
+          reason: new InvalidStateTransitionError('DISPATCHED', 'cancel'),
+        });
+      } else {
+        expect(status).toBe('CANCELLED');
+        expect(cancel.status).toBe('fulfilled');
+        expect(dispatch).toEqual({
+          status: 'rejected',
+          reason: new VersionConflictError(2),
+        });
+      }
+    });
   });
 });
