@@ -385,7 +385,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** único parcial `(order_id) WHERE status = 'ACTIVE'` (BR-INV-04). La reserva se abre con `INSERT … ON CONFLICT (order_id) WHERE status = 'ACTIVE' DO NOTHING`, así que dos reservas de una orden a la vez abren una sola (ADR-0128).
-- **Índices:** `(expires_at) WHERE status = 'ACTIVE'` (job de expiración). Sin uso desde T-230: el job busca las órdenes por `orders.payment_due_at` y vence la reserva de cada una (ADR-0136).
+- **Índices:** ninguno además de la llave primaria y el único parcial por orden. El índice `(expires_at) WHERE status = 'ACTIVE'`, pensado para un job de Inventory, se quitó en el paso 0 del Sprint 5 (migración `20261002120000_inventory_drop_reservation_expiry_index`): el job de vencimiento busca las órdenes por `orders.payment_due_at` y vence la reserva de cada una (ADR-0136).
 
 ### 6.5 `reservation_lines`
 
