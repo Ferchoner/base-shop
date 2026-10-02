@@ -24,6 +24,7 @@ import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from './application/order-payment-requests.use-case.js';
 import { OrderReader } from './application/order-reader.js';
 import { OrderReorders } from './application/order-reorders.use-case.js';
+import { OrderRestocks } from './application/order-restocks.use-case.js';
 import { OrderingQueries } from './application/ordering.queries.js';
 import { OrderPayments } from './application/payment-ports.js';
 import { ReorderCarts } from './application/reorder-ports.js';
@@ -92,6 +93,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderPaymentRequests,
     OrderReader,
     OrderReorders,
+    OrderRestocks,
     PaymentCapturedHandler,
     RefundCompletedHandler,
     ShipmentDispatchedHandler,

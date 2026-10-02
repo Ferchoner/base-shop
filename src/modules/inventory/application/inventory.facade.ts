@@ -13,7 +13,15 @@ import {
   type StockRequest,
 } from '../domain/reservation.js';
 import { ReservationRepository } from '../domain/reservation.repository.js';
-import { InsufficientStockError, type VariantId } from '../domain/stock.js';
+import {
+  InsufficientStockError,
+  noteOf,
+  type RestockReason,
+  RestockLimitError,
+  type StockMovement,
+  type VariantId,
+} from '../domain/stock.js';
+import { StockLedgerRepository } from '../domain/stock-ledger.repository.js';
 import type { Warehouse, WarehouseId } from '../domain/warehouse.js';
 import { WarehouseRepository } from '../domain/warehouse.repository.js';
 import { InventoryQueries } from './inventory.queries.js';
@@ -24,6 +32,17 @@ export type {
   ReservationReceipt,
   StockRequest,
 } from '../domain/reservation.js';
+
+export type { RestockReason, StockMovement } from '../domain/stock.js';
+
+/** A line of an order to restock: its variant, the units it sold and those that come back now (UC-INV-09). */
+export interface RestockLine {
+  readonly orderLineId: string;
+  readonly variantId: VariantId;
+  /** The quantity of the line; it counts only once the stock of its order was confirmed. */
+  readonly sold: number;
+  readonly quantity: number;
+}
 
 /** Seconds a reservation holds the stock (`RESERVATION_TTL`, BR-INV-07). */
 export const RESERVATION_TTL_SECONDS = Symbol('RESERVATION_TTL_SECONDS');
@@ -39,6 +58,7 @@ export const RESERVATION_TTL_SECONDS = Symbol('RESERVATION_TTL_SECONDS');
 export class InventoryFacade {
   constructor(
     private readonly reservations: ReservationRepository,
+    private readonly ledger: StockLedgerRepository,
     private readonly warehouses: WarehouseRepository,
     private readonly queries: InventoryQueries,
     private readonly transactions: TransactionManager,
@@ -134,6 +154,70 @@ export class InventoryFacade {
     return this.transactions.run(() =>
       this.reservations.expire(orderId, this.clock.now()),
     );
+  }
+
+  /**
+   * Brings units of lines of an order back to the stock (UC-INV-09, ADR-0052, ADR-0132, ADR-0142). Ordering
+   * names each line with its variant and the units it sold, because Inventory never reads orders. A line sold
+   * only if the stock of its order was confirmed, and the restocks of a line, added up, never pass what it sold.
+   * Each line writes a RESTOCK movement in the active warehouse with its reason, order, line, note and who did it.
+   * It joins the transaction of its caller, which locks the order, so restocks of one order wait for each other.
+   *
+   * @throws RestockLimitError with every line that would bring back more than it sold.
+   * @throws InvalidValueError without lines, with a line twice, or with a quantity that is not a whole number
+   *   above zero.
+   */
+  async restock(input: {
+    orderId: OrderId;
+    reasonCode: RestockReason;
+    note: string | null;
+    actorId: string;
+    lines: readonly RestockLine[];
+  }): Promise<StockMovement[]> {
+    const lineIds = input.lines.map(({ orderLineId }) => orderLineId);
+    if (lineIds.length === 0) {
+      throw new InvalidValueError('A restock needs at least one line');
+    }
+    if (new Set(lineIds).size !== lineIds.length) {
+      throw new InvalidValueError('A restock names each line once');
+    }
+    for (const { quantity } of input.lines) {
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new InvalidValueError(
+          'A restock brings back a whole number of units above zero',
+        );
+      }
+    }
+    return this.transactions.run(async () => {
+      const committed = await this.reservations.isCommitted(input.orderId);
+      const restocked = await this.ledger.restockedOf(lineIds);
+      const beyond = input.lines
+        .map((line) => ({
+          orderLineId: line.orderLineId,
+          sold: committed ? line.sold : 0,
+          restocked: restocked.get(line.orderLineId) ?? 0,
+          requested: line.quantity,
+        }))
+        .filter((line) => line.restocked + line.requested > line.sold);
+      if (beyond.length > 0) throw new RestockLimitError(beyond);
+      const warehouse = await this.activeWarehouse();
+      const at = this.clock.now();
+      const note = noteOf(input.note);
+      return this.ledger.restock(
+        input.lines.map((line) => ({
+          movementId: newId<'StockMovement'>(),
+          warehouseId: warehouse.id,
+          variantId: line.variantId,
+          quantity: line.quantity,
+          note,
+          actorId: input.actorId,
+          at,
+          reasonCode: input.reasonCode,
+          orderId: input.orderId,
+          orderLineId: line.orderLineId,
+        })),
+      );
+    });
   }
 
   /** The warehouse every order is shipped from: the only active one in the MVP (BR-INV-08, ADR-0140). */

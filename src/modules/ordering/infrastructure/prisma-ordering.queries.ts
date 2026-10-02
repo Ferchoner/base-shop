@@ -266,6 +266,7 @@ function toOrderView(row: OrderRow): OrderView {
   return {
     ...toSummaryView(row),
     lines: row.lines.map((line): OrderLineView => ({
+      id: toId<'OrderLine'>(line.id),
       lineNumber: line.lineNumber,
       sku: line.sku,
       productName: line.productName,

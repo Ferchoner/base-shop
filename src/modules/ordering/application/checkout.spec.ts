@@ -227,6 +227,9 @@ function setUp(
     expire: () => {
       throw new Error('The checkout never expires a reservation');
     },
+    restock: () => {
+      throw new Error('The checkout never restocks');
+    },
   };
   const shipping: CheckoutShipping = {
     quote: ({ subtotal, discount }): Promise<ShippingCharge> => {

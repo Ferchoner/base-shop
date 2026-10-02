@@ -391,7 +391,6 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
           .registerManualRefund(toId<'Payment'>(payment.id), {
             reference: 'Devolución 00087',
             note: null,
-            restock: false,
             version: payment.version,
             registeredBy: newId<'User'>(),
           }),

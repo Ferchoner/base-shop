@@ -7,7 +7,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../../platform/auth/authenticated-user.js';
 import { RequirePermissions } from '../../../platform/auth/authorization.decorators.js';
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
@@ -18,18 +23,23 @@ import {
 } from '../../../platform/http/pagination/pagination.js';
 import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
+import { userScope } from '../../../platform/http/idempotency/idempotency-scope.js';
+import { Idempotent } from '../../../platform/http/idempotency/idempotent.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
 import { OrderReorders } from '../application/order-reorders.use-case.js';
+import { OrderRestocks } from '../application/order-restocks.use-case.js';
 import { type OrderSortField } from '../application/ordering.queries.js';
 import {
   AdminOrderDto,
   AdminOrderListDto,
   AdminOrderListQueryDto,
   CancelOrderDto,
+  RestockDto,
+  RestockOrderDto,
   RetryFulfillmentDto,
 } from './admin-order.dto.js';
 import { ReorderDto } from './order.dto.js';
@@ -56,6 +66,7 @@ export class AdminOrdersController {
     private readonly lifecycle: OrderLifecycle,
     private readonly paymentRequests: OrderPaymentRequests,
     private readonly reorders: OrderReorders,
+    private readonly restocks: OrderRestocks,
   ) {}
 
   @ApiOperation({
@@ -120,7 +131,7 @@ export class AdminOrdersController {
   @ApiOperation({
     summary: 'Cancelar un pedido',
     description:
-      'Desde `PENDING_PAYMENT`: pasa a `CANCELLED`, libera su reserva y cancela su pago pendiente. Desde `PAID` o `AWAITING_MANUAL_FULFILLMENT`: pasa a `CANCELLED` e inicia el reembolso total en la misma operación; pasa a `REFUNDED` cuando el reembolso se completa (ADR-0051, ADR-0135). `restock` necesita además `inventory.write`, y hasta T-161 responde 409 `restock-not-allowed`.',
+      'Desde `PENDING_PAYMENT`: pasa a `CANCELLED`, libera su reserva y cancela su pago pendiente. Desde `PAID` o `AWAITING_MANUAL_FULFILLMENT`: pasa a `CANCELLED` e inicia el reembolso total en la misma operación; pasa a `REFUNDED` cuando el reembolso se completa (ADR-0051, ADR-0135). `restock`, solo en `PAID` y con `inventory.write`, reintegra todas las líneas completas en la misma operación, auditado como `orders.restock` (ADR-0142).',
   })
   @ApiOkResponse({ type: AdminOrderDto })
   @ApiProblemResponses(
@@ -150,6 +161,39 @@ export class AdminOrdersController {
       version: body.version,
     });
     return this.read(id);
+  }
+
+  @ApiOperation({
+    summary: 'Reintegrar el stock de un pedido',
+    description:
+      'UC-INV-09 (ADR-0052, ADR-0142). Exige `Idempotency-Key`. `ORDER_CANCELLED` para un pedido `CANCELLED` o `REFUNDED`, y `SHIPMENT_RETURNED` para uno con el envío `RETURNED`; si no, 409 `invalid-state-transition`. Cada línea regresa a lo sumo lo que vendió, sumando los reintegros anteriores; lo vendido cuenta solo si el stock del pedido se confirmó. Si no, 409 `restock-not-allowed` con `lines`, y no se reintegra nada. El pedido no cambia. Se audita como `orders.restock`.',
+  })
+  @ApiCreatedResponse({ type: RestockDto })
+  @ApiProblemResponses(
+    'not-found',
+    'invalid-state-transition',
+    'restock-not-allowed',
+  )
+  @RequirePermissions('inventory.write')
+  @Idempotent(userScope)
+  @Post(':orderId/restocks')
+  async restock(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('orderId') orderId: string,
+    @Body() body: RestockOrderDto,
+  ): Promise<RestockDto> {
+    const note = body.note?.trim() ?? '';
+    const movements = await this.restocks.restock({
+      orderId: orderIdOf(orderId),
+      reasonCode: body.reasonCode,
+      lines: body.lines.map((line) => ({
+        orderLineId: toId<'OrderLine'>(line.orderLineId),
+        quantity: line.quantity,
+      })),
+      note: note === '' ? null : note,
+      actorId: toId<'User'>(actor.id),
+    });
+    return { movements: movements.map((movement) => ({ ...movement })) };
   }
 
   @ApiOperation({

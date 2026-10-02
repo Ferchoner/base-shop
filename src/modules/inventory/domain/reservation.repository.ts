@@ -53,4 +53,7 @@ export abstract class ReservationRepository {
    * (UC-INV-08); `false` when it has none.
    */
   abstract expire(orderId: OrderId, at: Date): Promise<boolean>;
+
+  /** Whether the stock of the order was confirmed: it has a COMMITTED reservation, so its units left (UC-INV-06). */
+  abstract isCommitted(orderId: OrderId): Promise<boolean>;
 }

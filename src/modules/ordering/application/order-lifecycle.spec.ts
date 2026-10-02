@@ -179,6 +179,12 @@ function fakeStock(
     expire: () => {
       throw new Error('The life of an order never expires a reservation');
     },
+    restock: ({ reasonCode, lines }) => {
+      calls.push(
+        `restock ${reasonCode} ${lines.map((l) => `${l.quantity}/${l.sold}`).join(',')}`,
+      );
+      return Promise.resolve([]);
+    },
   };
   return { stock, calls, reservation };
 }
@@ -331,14 +337,17 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
     ]);
   });
 
-  it('answers the restock of a paid order as unavailable until T-161 (ADR-0135)', async () => {
+  it('cancels a paid order and restocks every line in full in the same operation (ADR-0142)', async () => {
     const order = saved('PAID', CAPTURED);
-    const { lifecycle, orders, calls } = setUp(order);
+    const { lifecycle, calls } = setUp(order);
 
-    await expect(cancel(lifecycle, order, { restock: true })).rejects.toThrow(
-      RestockNotAllowedError.unavailable(),
-    );
-    expect([orders.saved, calls]).toEqual([[], []]);
+    await cancel(lifecycle, order, { restock: true });
+
+    expect(calls).toEqual([
+      'cancelShipment',
+      'startRefund',
+      `restock ORDER_CANCELLED ${order.snapshot.lines.map((l) => `${l.quantity}/${l.quantity}`).join(',')}`,
+    ]);
   });
 
   it('answers 404 for an order that does not exist', async () => {

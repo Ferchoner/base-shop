@@ -7,6 +7,7 @@ import type {
 import type {
   CustomerId,
   OrderId,
+  OrderLineId,
   OrderStatus,
   OrderTotals,
   ShippingAddress,
@@ -16,6 +17,8 @@ import type { PublicCode } from '../domain/public-code.js';
 
 /** A line of an order, as it was sold (BR-ORD-03). */
 export interface OrderLineView {
+  /** Only for the staff, who names it to restock (ADR-0142). */
+  readonly id: OrderLineId;
   readonly lineNumber: number;
   readonly sku: string;
   readonly productName: string;

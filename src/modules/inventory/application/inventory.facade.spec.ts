@@ -12,6 +12,7 @@ import type {
 } from '../domain/reservation.js';
 import { ReservationRepository } from '../domain/reservation.repository.js';
 import { InsufficientStockError, type VariantId } from '../domain/stock.js';
+import type { StockLedgerRepository } from '../domain/stock-ledger.repository.js';
 import { Warehouse, type WarehouseId } from '../domain/warehouse.js';
 import { WarehouseRepository } from '../domain/warehouse.repository.js';
 import { InventoryFacade } from './inventory.facade.js';
@@ -109,6 +110,10 @@ class FakeReservations extends ReservationRepository {
   expire(): Promise<boolean> {
     return Promise.resolve(true);
   }
+
+  isCommitted(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
 }
 
 /** Available units by variant; it remembers what it was asked. */
@@ -137,6 +142,7 @@ const facade = (
 ) =>
   new InventoryFacade(
     reservations,
+    {} as StockLedgerRepository,
     new OneWarehouse(active),
     queries,
     inline,

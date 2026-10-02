@@ -5,7 +5,7 @@ import {
   Money,
   newId,
 } from '../../../shared-kernel/index.js';
-import { EmptyCartError } from './ordering-errors.js';
+import { EmptyCartError, UnknownOrderLineError } from './ordering-errors.js';
 import type { PublicCode } from './public-code.js';
 
 export type OrderId = Id<'Order'>;
@@ -151,6 +151,23 @@ export type Buyer =
 /** The contact email as an order keeps it, and as a guest finds the order with it: trimmed, in lowercase. */
 export function normalizedContactEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+/** Why the stock of an order comes back (ADR-0069): the order was cancelled, or its shipment came back. */
+export type RestockReason = 'ORDER_CANCELLED' | 'SHIPMENT_RETURNED';
+
+export const RESTOCK_REASONS: readonly RestockReason[] = [
+  'ORDER_CANCELLED',
+  'SHIPMENT_RETURNED',
+];
+
+/** A line of an order whose units come back to the stock: its variant, what it sold and what comes back. */
+export interface RestockLine {
+  readonly orderLineId: OrderLineId;
+  readonly variantId: VariantId;
+  /** Its quantity: Inventory counts it only once the stock of the order was confirmed (ADR-0142). */
+  readonly sold: number;
+  readonly quantity: number;
 }
 
 /** A staff member of Identity, known here only by its ID (ADR-0005). */
@@ -448,6 +465,51 @@ export class Order {
     }
     this.move('REFUNDED', null, null, now);
     this.state = { ...this.state, refundedAt: completedAt };
+  }
+
+  /**
+   * Its stock can come back for `reason` (UC-INV-09, ADR-0052, ADR-0053): a cancelled or refunded order, or one
+   * whose shipment came back.
+   *
+   * @throws InvalidStateTransitionError with the status of the order, or for a return with that of its shipment
+   *   (the order's when it has none).
+   */
+  assertRestockable(
+    reason: RestockReason,
+    shipmentStatus: string | null,
+  ): void {
+    if (reason === 'ORDER_CANCELLED') {
+      this.assertStatus(['CANCELLED', 'REFUNDED'], 'restock');
+    } else if (shipmentStatus !== 'RETURNED') {
+      throw new InvalidStateTransitionError(
+        shipmentStatus ?? this.state.status,
+        'restock the return',
+      );
+    }
+  }
+
+  /**
+   * The lines to restock, each with its variant and what it sold (UC-INV-09): those asked, or every line in full.
+   *
+   * @throws UnknownOrderLineError for a line that is not of this order.
+   */
+  linesToRestock(
+    requested?: readonly { orderLineId: OrderLineId; quantity: number }[],
+  ): RestockLine[] {
+    const toRestock = (line: OrderLine, quantity: number): RestockLine => ({
+      orderLineId: line.id,
+      variantId: line.variantId,
+      sold: line.quantity,
+      quantity,
+    });
+    if (requested === undefined) {
+      return this.state.lines.map((line) => toRestock(line, line.quantity));
+    }
+    return requested.map(({ orderLineId, quantity }, index) => {
+      const line = this.state.lines.find(({ id }) => id === orderLineId);
+      if (line === undefined) throw new UnknownOrderLineError(index);
+      return toRestock(line, quantity);
+    });
   }
 
   private assertStatus(allowed: readonly OrderStatus[], action: string): void {

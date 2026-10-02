@@ -43,9 +43,16 @@ export const ADJUSTMENT_REASONS: readonly AdjustmentReason[] = [
   'OTHER',
 ];
 
+/** The reasons of a restock: the order was cancelled, or its shipment came back (ADR-0069). */
+export type RestockReason = 'ORDER_CANCELLED' | 'SHIPMENT_RETURNED';
+
+export const RESTOCK_REASONS: readonly RestockReason[] = [
+  'ORDER_CANCELLED',
+  'SHIPMENT_RETURNED',
+];
+
 /** Every reason of a movement: those of an adjustment and those of a restock (ADR-0069). */
-export type StockMovementReason =
-  AdjustmentReason | 'ORDER_CANCELLED' | 'SHIPMENT_RETURNED';
+export type StockMovementReason = AdjustmentReason | RestockReason;
 
 export const STOCK_MOVEMENT_REASONS: readonly StockMovementReason[] = [
   ...ADJUSTMENT_REASONS,
@@ -127,6 +134,32 @@ export class InsufficientStockError extends DomainError {
   constructor(variantIds: readonly VariantId[]) {
     super('There is not enough stock for the change', {
       lines: variantIds.map((variantId) => ({ variantId, canFulfill: false })),
+    });
+  }
+}
+
+/** How a line of an order stands against a restock that would bring back more than it sold (E-30). */
+export interface RestockLimit {
+  readonly orderLineId: string;
+  /** Units of the line that left the stock: 0 when the stock of its order was never confirmed. */
+  readonly sold: number;
+  /** Units of the line restocked before. */
+  readonly restocked: number;
+  /** Units asked now. */
+  readonly requested: number;
+}
+
+/**
+ * A restock would bring back more units of a line than it sold (ADR-0052, E-30): the sum of the restocks of a
+ * line never passes what left the stock. Answered 409 `restock-not-allowed` with every line that would.
+ */
+export class RestockLimitError extends DomainError {
+  readonly code = 'restock-not-allowed';
+  readonly category = 'conflict';
+
+  constructor(lines: readonly RestockLimit[]) {
+    super('A restock would bring back more than what was sold', {
+      lines: lines.map((line) => ({ ...line })),
     });
   }
 }

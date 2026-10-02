@@ -147,6 +147,13 @@ export class PrismaReservationRepository extends ReservationRepository {
     return this.free(orderId, 'RELEASED', at);
   }
 
+  async isCommitted(orderId: OrderId): Promise<boolean> {
+    const committed = await this.txHost.tx.reservation.count({
+      where: { orderId, status: 'COMMITTED' },
+    });
+    return committed > 0;
+  }
+
   expire(orderId: OrderId, at: Date): Promise<boolean> {
     return this.free(orderId, 'EXPIRED', at);
   }
