@@ -408,22 +408,36 @@ describe('Refunds (e2e, T-190)', () => {
       expect((await detail(id).expect(200)).body.status).toBe('REFUNDED');
     });
 
-    it('answers the restock as unavailable until T-161, also for a paid order', async () => {
-      const { id } = await guestOrder(await variant());
+    it('brings the stock of a paid order back when cancelling it with its restock (ADR-0052, ADR-0142)', async () => {
+      const shirt = await variant();
+      const { id } = await guestOrder(shirt);
       await paid(id);
 
       const response = await http()
         .post(`/v1/admin/orders/${id}/cancel`)
         .set(signedInAs(staff('orders.manage', 'inventory.write')))
         .send({ reason: 'Sin stock', version: 2, restock: true })
-        .expect(409);
+        .expect(200);
 
       expect(response.body).toMatchObject({
-        type: '/problems/restock-not-allowed',
-        reason: 'unavailable',
+        status: 'CANCELLED',
+        payment: { refunds: [{ status: 'PENDING' }] },
       });
-      expect((await detail(id).expect(200)).body.status).toBe('PAID');
-      expect(await prisma.refund.count()).toBe(0);
+      expect(
+        (
+          await prisma.stockItem.findFirstOrThrow({
+            where: { variantId: shirt },
+          })
+        ).onHand,
+      ).toBe(5);
+      expect(
+        await prisma.stockMovement.findMany({
+          where: { type: 'RESTOCK' },
+          select: { quantity: true, reasonCode: true, note: true },
+        }),
+      ).toEqual([
+        { quantity: 1, reasonCode: 'ORDER_CANCELLED', note: 'Sin stock' },
+      ]);
     });
   });
 
@@ -540,14 +554,11 @@ describe('Refunds (e2e, T-190)', () => {
       ).toBe(1);
     });
 
-    it('needs inventory.write to restock, which is unavailable until T-161', async () => {
+    it('restocks nothing: the stock of the order comes back apart (ADR-0142)', async () => {
       const { paymentId } = await refunding();
       const { body } = await paymentOf(paymentId).expect(200);
 
-      const forbidden = await refund(paymentId, body.version, {
-        restock: true,
-      }).expect(403);
-      const unavailable = await http()
+      const rejected = await http()
         .post(`/v1/admin/payments/${paymentId}/refunds/manual`)
         .set(signedInAs(staff('payments.manage', 'inventory.write')))
         .send({
@@ -555,13 +566,14 @@ describe('Refunds (e2e, T-190)', () => {
           restock: true,
           version: body.version,
         })
-        .expect(409);
+        .expect(400);
 
-      expect(forbidden.body.type).toBe('/problems/forbidden');
-      expect(unavailable.body).toMatchObject({
-        type: '/problems/restock-not-allowed',
-        reason: 'unavailable',
-      });
+      expect(rejected.body.errors).toEqual([
+        expect.objectContaining({
+          field: 'restock',
+          code: 'whitelistValidation',
+        }),
+      ]);
       expect((await paymentOf(paymentId).expect(200)).body.status).toBe(
         'CAPTURED',
       );
@@ -580,7 +592,6 @@ describe('Refunds (e2e, T-190)', () => {
         { reference: ' ' },
         { reference: 'x'.repeat(101) },
         { note: 'x'.repeat(501) },
-        { restock: 'sí' },
         { version: 0 },
         { version: undefined },
       ]) {

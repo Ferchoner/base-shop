@@ -13,7 +13,7 @@ import {
   priceLine,
   type ShippingAddress,
 } from './order.js';
-import { EmptyCartError } from './ordering-errors.js';
+import { EmptyCartError, UnknownOrderLineError } from './ordering-errors.js';
 import type { PublicCode } from './public-code.js';
 
 const NOW = new Date('2026-10-01T12:00:00.000Z');
@@ -472,5 +472,92 @@ describe('Lines of an order (ADR-0140)', () => {
 
     expect(new Set(ids).size).toBe(3);
     expect([...ids].sort()).toEqual(ids);
+  });
+});
+
+describe('Restock of an order (UC-INV-09, ADR-0052, ADR-0142)', () => {
+  const saved = (status: OrderStatus) =>
+    Order.restore({
+      ...place({ lines: [line(10_000, 2), line(20_000, 1)] }).snapshot,
+      status,
+    });
+
+  it('takes back the stock of a cancelled or refunded order for ORDER_CANCELLED', () => {
+    for (const status of ['CANCELLED', 'REFUNDED'] as const) {
+      expect(() =>
+        saved(status).assertRestockable('ORDER_CANCELLED', null),
+      ).not.toThrow();
+    }
+    for (const status of [
+      'PENDING_PAYMENT',
+      'PAID',
+      'AWAITING_MANUAL_FULFILLMENT',
+      'SHIPPED',
+      'DELIVERED',
+      'EXPIRED',
+    ] as const) {
+      expect(() =>
+        saved(status).assertRestockable('ORDER_CANCELLED', 'RETURNED'),
+      ).toThrow(new InvalidStateTransitionError(status, 'restock'));
+    }
+  });
+
+  it('takes back the stock of a returned shipment for SHIPMENT_RETURNED, naming the status of the shipment otherwise', () => {
+    expect(() =>
+      saved('SHIPPED').assertRestockable('SHIPMENT_RETURNED', 'RETURNED'),
+    ).not.toThrow();
+    expect(() =>
+      saved('SHIPPED').assertRestockable(
+        'SHIPMENT_RETURNED',
+        'DELIVERY_FAILED',
+      ),
+    ).toThrow(
+      new InvalidStateTransitionError('DELIVERY_FAILED', 'restock the return'),
+    );
+    expect(() =>
+      saved('CANCELLED').assertRestockable('SHIPMENT_RETURNED', null),
+    ).toThrow(
+      new InvalidStateTransitionError('CANCELLED', 'restock the return'),
+    );
+  });
+
+  it('names each line to restock with its variant and what it sold, or every line in full', () => {
+    const order = saved('CANCELLED');
+    const [shirt, cap] = order.snapshot.lines;
+
+    expect(
+      order.linesToRestock([{ orderLineId: cap.id, quantity: 1 }]),
+    ).toEqual([
+      { orderLineId: cap.id, variantId: cap.variantId, sold: 1, quantity: 1 },
+    ]);
+    expect(order.linesToRestock()).toEqual([
+      {
+        orderLineId: shirt.id,
+        variantId: shirt.variantId,
+        sold: 2,
+        quantity: 2,
+      },
+      { orderLineId: cap.id, variantId: cap.variantId, sold: 1, quantity: 1 },
+    ]);
+  });
+
+  it('names no line that is not of the order, saying which one it was', () => {
+    const order = saved('CANCELLED');
+    const [shirt] = order.snapshot.lines;
+
+    expect(() =>
+      order.linesToRestock([
+        { orderLineId: shirt.id, quantity: 1 },
+        { orderLineId: newId<'OrderLine'>(), quantity: 1 },
+      ]),
+    ).toThrow(UnknownOrderLineError);
+    expect(new UnknownOrderLineError(1).details).toEqual({
+      errors: [
+        expect.objectContaining({
+          field: 'lines[1].orderLineId',
+          code: 'orderLine',
+        }),
+      ],
+    });
   });
 });
