@@ -1,5 +1,18 @@
 import { DomainError, type Money } from '../../../shared-kernel/index.js';
 
+/**
+ * The guest cart an order came from no longer exists or is no longer the guest's, so the staff cannot buy the order
+ * again for the guest, and no other cart is created (ADR-0082, E-34). Answered 409 `source-cart-unavailable`.
+ */
+export class SourceCartUnavailableError extends DomainError {
+  readonly code = 'source-cart-unavailable';
+  readonly category = 'conflict';
+
+  constructor() {
+    super('The cart of the order is no longer available');
+  }
+}
+
 /** An order needs at least one line (BR-ORD-01, E-33). Answered 409 `empty-cart`. */
 export class EmptyCartError extends DomainError {
   readonly code = 'empty-cart';

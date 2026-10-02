@@ -25,6 +25,8 @@ import type {
   OrderSummaryDto,
 } from './order.dto.js';
 import type { PaymentStartDto } from './payment.dto.js';
+import type { CartCopy } from '../application/reorder-ports.js';
+import type { ReorderDto } from './order.dto.js';
 
 /** `CheckoutQuote` of API_SPEC.md §8.7. */
 export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
@@ -186,4 +188,11 @@ function toLineDtos(view: OrderView): OrderLineDto[] {
     taxAmount: toMoneyDto(line.taxAmount),
     lineTotal: toMoneyDto(line.lineTotal),
   }));
+}
+
+export function toReorderDto(copy: CartCopy): ReorderDto {
+  return {
+    cartId: copy.cartId,
+    skippedVariantIds: [...copy.skippedVariantIds],
+  };
 }

@@ -44,9 +44,42 @@ import {
   type PaymentProvider,
   type PaymentStart,
 } from '../application/payment-ports.js';
+import {
+  type CartCopy,
+  ReorderCarts,
+  type ReorderLine,
+} from '../application/reorder-ports.js';
 
 // Ordering's ports answered with the facades of the modules that own the data (ADR-0005, ADR-0132). Ordering uses
 // them, and none of them uses Ordering, so they never form a cycle.
+
+@Injectable()
+export class ShoppingFacadeReorderCarts extends ReorderCarts {
+  constructor(private readonly shopping: ShoppingFacade) {
+    super();
+  }
+
+  copyToCustomerCart(
+    customerId: CustomerId,
+    lines: readonly ReorderLine[],
+  ): Promise<CartCopy> {
+    return this.shopping.copyToCustomerCart(customerId, lines);
+  }
+
+  copyToGuestCart(
+    cartId: CartId | null,
+    lines: readonly ReorderLine[],
+  ): Promise<CartCopy> {
+    return this.shopping.copyToGuestCart(cartId, lines);
+  }
+
+  copyToSourceCart(
+    sourceCartId: CartId,
+    lines: readonly ReorderLine[],
+  ): Promise<CartCopy | null> {
+    return this.shopping.copyToSourceCart(sourceCartId, lines);
+  }
+}
 
 @Injectable()
 export class ShoppingFacadeCheckoutCarts extends CheckoutCarts {

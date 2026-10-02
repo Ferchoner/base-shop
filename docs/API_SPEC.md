@@ -1160,11 +1160,24 @@ Implementado en T-170 (ADR-0131):
 
 | Endpoint | Acceso | Detalle |
 |---|---|---|
-| `POST /v1/me/orders/{publicCode}/reorder` | Solo cliente | Copia las líneas a su carrito activo (lo crea si no existe). 200 `{ "cart": Cart, "skippedVariantIds": [] }` |
-| `POST /v1/orders/reorder` | Público | Request `{ "contactEmail", "publicCode", "cartId" }` (`cartId` opcional: carrito de invitado activo destino; si falta, se crea uno). 200 `{ "cart", "skippedVariantIds" }`. Rate limit de 10 por IP en 15 minutos |
+| `POST /v1/me/orders/{publicCode}/reorder` | Solo cliente | Copia las líneas a su carrito activo (lo crea si no existe). 200 `{ "cartId", "skippedVariantIds": [] }` (ADR-0139) |
+| `POST /v1/orders/reorder` | Público | Request `{ "contactEmail", "publicCode", "cartId" }` (`cartId` opcional: carrito de invitado activo destino; si falta, se crea uno). 200 `{ "cartId", "skippedVariantIds" }` (ADR-0139). Rate limit de 10 por IP en 15 minutos |
 | `POST /v1/admin/orders/{orderId}/reorder` | `orders.manage` | Cliente registrado: a su carrito activo. Invitado: se reactiva el carrito original de la orden (ADR-0054); si ya no existe, 409 `source-cart-unavailable` y no se crea otro (ADR-0082). 200 `{ "cartId", "skippedVariantIds" }`. Auditado |
 
 Reglas comunes: solo órdenes CANCELLED o REFUNDED (409 `invalid-state-transition` en otro caso); suma con tope de 30; `skippedVariantIds` lista variantes no vendibles omitidas; la orden no cambia. Para invitados, 404 genérico si el par email–código no coincide.
+
+Implementado en T-181 parte b (ADR-0139):
+
+- **Respuesta:** las tres rutas responden `{ cartId, skippedVariantIds }`; el carrito se lee con `GET /v1/me/cart` o `GET /v1/carts/{cartId}`, con precios y disponibilidad actuales.
+- **Lo que se copia:** solo variantes publicadas, activas y con precio; el carrito puede pasar de 100 líneas, como en la fusión. Repetir la recompra vuelve a sumar con el tope, sin `Idempotency-Key`.
+- **Cliente:** otra orden que no sea suya responde 404; una cuenta de staff, 403 `staff-cannot-purchase`.
+- **Invitado:** el mismo 404 de la consulta (§15.5). Un `cartId` que no existe o tiene dueño responde 404, y uno que no está activo, 409 `cart-not-active`. Una cuenta de staff recibe 403 `staff-cannot-purchase`.
+- **Staff:**
+  - la orden de un cliente va a su carrito activo, o a uno nuevo;
+  - la de un invitado, a su carrito original: si sigue CHECKED_OUT vuelve a ACTIVE solo con las líneas que se siguen vendiendo, y si ya está ACTIVE se le suman;
+  - un carrito original que no existe, tiene dueño o quedó MERGED responde 409 `source-cart-unavailable`;
+  - se audita `orders.reorder`.
+- **Orden de las validaciones:** la orden (404), su estado (409) y el carrito (404 o 409).
 
 ---
 

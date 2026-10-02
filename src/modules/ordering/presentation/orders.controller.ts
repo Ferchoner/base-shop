@@ -22,13 +22,20 @@ import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
+import { OrderReorders } from '../application/order-reorders.use-case.js';
 import { parsePublicCode } from '../application/order-values.js';
 import {
   GuestOrderLookupDto,
+  GuestReorderDto,
   OrderDto,
   PlaceGuestOrderDto,
+  ReorderDto,
 } from './order.dto.js';
-import { toOrderDto, toPaymentStartDto } from './ordering.mappers.js';
+import {
+  toOrderDto,
+  toPaymentStartDto,
+  toReorderDto,
+} from './ordering.mappers.js';
 import { PaymentStartDto, StartGuestPaymentDto } from './payment.dto.js';
 
 /** What placing an order answers on both routes (API_SPEC.md §15.3). */
@@ -57,6 +64,9 @@ export const START_PAYMENT_PROBLEMS = [
 export const START_PAYMENT_DESCRIPTION =
   'Exige `Idempotency-Key`. Solo órdenes en `PENDING_PAYMENT`; el monto es el total de la orden. Con `MANUAL`, la acción indica pagar en la tienda con el código público y el total. Si el pago ya se inició con el mismo proveedor responde 200 con la misma acción; con otro, 409.';
 
+export const REORDER_RULES =
+  'Solo órdenes `CANCELLED` o `REFUNDED`; la orden no cambia. Las líneas se suman con tope de 30 por línea, y las variantes que ya no se venden se omiten y se listan en `skippedVariantIds`. Responde el carrito que las recibió: se lee con las rutas del carrito, con precios y disponibilidad actuales.';
+
 export const PLACE_ORDER_DESCRIPTION =
   'Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos.';
 
@@ -71,6 +81,7 @@ export class OrdersController {
     private readonly checkout: Checkout,
     private readonly reader: OrderReader,
     private readonly paymentRequests: OrderPaymentRequests,
+    private readonly reorders: OrderReorders,
   ) {}
 
   @ApiOperation({
@@ -149,5 +160,35 @@ export class OrdersController {
       throw new NotFoundError('Guest order', 'with that email and code');
     }
     return toOrderDto(order);
+  }
+
+  @ApiOperation({
+    summary: 'Volver a comprar la orden de un invitado',
+    description: `Con el email de contacto y el código público, como la consulta: el mismo 404 si no coinciden. Copia las líneas al carrito de invitado activo \`cartId\` o, sin él, a uno nuevo. ${REORDER_RULES} Comparte con la consulta 10 por IP cada 15 minutos.`,
+  })
+  @ApiOkResponse({ type: ReorderDto })
+  @ApiProblemResponses(
+    'staff-cannot-purchase',
+    'not-found',
+    'invalid-state-transition',
+    'cart-not-active',
+    'rate-limit-exceeded',
+  )
+  @UseGuards(NoStaffPurchases)
+  @RateLimit('guest-order')
+  @HttpCode(200)
+  @Post('reorder')
+  async reorder(@Body() body: GuestReorderDto): Promise<ReorderDto> {
+    const code = parsePublicCode(body.publicCode);
+    if (code === null) {
+      throw new NotFoundError('Guest order', 'with that email and code');
+    }
+    return toReorderDto(
+      await this.reorders.forGuest({
+        publicCode: code,
+        contactEmail: body.contactEmail,
+        cartId: body.cartId === undefined ? null : toId<'Cart'>(body.cartId),
+      }),
+    );
   }
 }

@@ -22,6 +22,7 @@ import {
   CartStock,
   type CartVariant,
 } from './cart-ports.js';
+import type { CartCopies } from './cart-copies.js';
 import { CartViews, EMPTY_CART } from './cart-views.js';
 import { Carts } from './carts.use-case.js';
 import { ShoppingFacade } from './shopping.facade.js';
@@ -526,7 +527,12 @@ describe('ShoppingFacade, for the checkout (UC-ORD-01 and 02, ADR-0132)', () => 
     const repository = new InMemoryCarts(...carts);
     return {
       repository,
-      shopping: new ShoppingFacade(repository, inline, clock),
+      shopping: new ShoppingFacade(
+        repository,
+        {} as unknown as CartCopies,
+        inline,
+        clock,
+      ),
     };
   }
 

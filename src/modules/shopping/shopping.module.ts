@@ -7,6 +7,7 @@ import {
   CartPrices,
   CartStock,
 } from './application/cart-ports.js';
+import { CartCopies } from './application/cart-copies.js';
 import { CartRestoration } from './application/cart-restoration.use-case.js';
 import { CartViews } from './application/cart-views.js';
 import { Carts } from './application/carts.use-case.js';
@@ -33,6 +34,7 @@ import { MeCartController } from './presentation/me-cart.controller.js';
   controllers: [CartsController, MeCartController],
   providers: [
     Carts,
+    CartCopies,
     CartRestoration,
     CartViews,
     OrderExpiredHandler,

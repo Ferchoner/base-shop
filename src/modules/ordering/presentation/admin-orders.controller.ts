@@ -23,6 +23,7 @@ import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
+import { OrderReorders } from '../application/order-reorders.use-case.js';
 import { type OrderSortField } from '../application/ordering.queries.js';
 import {
   AdminOrderDto,
@@ -31,8 +32,14 @@ import {
   CancelOrderDto,
   RetryFulfillmentDto,
 } from './admin-order.dto.js';
+import { ReorderDto } from './order.dto.js';
+import { REORDER_RULES } from './orders.controller.js';
 import { ManualCaptureDto } from './payment.dto.js';
-import { toAdminOrderDto, toAdminOrderSummaryDto } from './ordering.mappers.js';
+import {
+  toAdminOrderDto,
+  toAdminOrderSummaryDto,
+  toReorderDto,
+} from './ordering.mappers.js';
 
 const orderIdOf = (id: string) => pathId<'Order'>(id, 'Order');
 
@@ -48,7 +55,25 @@ export class AdminOrdersController {
     private readonly reader: OrderReader,
     private readonly lifecycle: OrderLifecycle,
     private readonly paymentRequests: OrderPaymentRequests,
+    private readonly reorders: OrderReorders,
   ) {}
+
+  @ApiOperation({
+    summary: 'Volver a comprar un pedido para su comprador',
+    description: `La orden de un cliente va a su carrito activo, o a uno nuevo. La de un invitado, a su carrito original: si sigue \`CHECKED_OUT\` vuelve a \`ACTIVE\` solo con las líneas que se siguen vendiendo; si ya no existe o pasó a una cuenta, 409 \`source-cart-unavailable\` y no se crea otro (ADR-0082). ${REORDER_RULES} Se audita como \`orders.reorder\`.`,
+  })
+  @ApiOkResponse({ type: ReorderDto })
+  @ApiProblemResponses(
+    'not-found',
+    'invalid-state-transition',
+    'source-cart-unavailable',
+  )
+  @RequirePermissions('orders.manage')
+  @HttpCode(200)
+  @Post(':orderId/reorder')
+  async reorder(@Param('orderId') orderId: string): Promise<ReorderDto> {
+    return toReorderDto(await this.reorders.forStaff(orderIdOf(orderId)));
+  }
 
   @ApiOperation({
     summary: 'Listar pedidos',

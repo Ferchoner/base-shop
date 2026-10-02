@@ -4,9 +4,16 @@ import {
   NotFoundError,
   TransactionManager,
 } from '../../../shared-kernel/index.js';
-import type { Cart, CartId, VariantId } from '../domain/cart.js';
+import type {
+  Cart,
+  CartId,
+  CartItem,
+  CustomerId,
+  VariantId,
+} from '../domain/cart.js';
 import { CartNotActiveError } from '../domain/cart-errors.js';
 import { CartRepository } from '../domain/cart.repository.js';
+import { CartCopies, type CartCopy } from './cart-copies.js';
 import type { CartTarget } from './carts.use-case.js';
 
 /** The content of an active cart, as the checkout needs it: no prices, which the order works out itself. */
@@ -20,14 +27,16 @@ export interface CheckoutCart {
 }
 
 /**
- * Public API of Shopping for the checkout of Ordering (ADR-0005, T-180). Ordering uses Shopping, and Shopping
- * never uses Ordering, so they never form a cycle. Every operation joins the transaction of its caller, so the
- * checkout locks the cart, creates the order and marks the cart all at once (ADR-0019).
+ * Public API of Shopping for Ordering (ADR-0005): the checkout (T-180) and buying an order again (T-181, ADR-0139).
+ * Ordering uses Shopping, and Shopping never uses Ordering, so they never form a cycle. Every operation joins the
+ * transaction of its caller, so the checkout locks the cart, creates the order and marks the cart all at once
+ * (ADR-0019).
  */
 @Injectable()
 export class ShoppingFacade {
   constructor(
     private readonly carts: CartRepository,
+    private readonly copies: CartCopies,
     private readonly transactions: TransactionManager,
     private readonly clock: Clock,
   ) {}
@@ -74,6 +83,37 @@ export class ShoppingFacade {
       cart.checkOut(this.clock.now());
       await this.carts.save(cart);
     });
+  }
+
+  /** The lines of an order into the customer's active cart, or a new one, to buy them again (UC-CRT-09). */
+  copyToCustomerCart(
+    customer: CustomerId,
+    lines: readonly CartItem[],
+  ): Promise<CartCopy> {
+    return this.copies.toCustomerCart(customer, lines);
+  }
+
+  /**
+   * The lines of a guest order into the active guest cart given, or a new one (UC-CRT-09).
+   *
+   * @throws NotFoundError or CartNotActiveError for the cart given.
+   */
+  copyToGuestCart(
+    cartId: CartId | null,
+    lines: readonly CartItem[],
+  ): Promise<CartCopy> {
+    return this.copies.toGuestCart(cartId, lines);
+  }
+
+  /**
+   * The lines of a guest order into the cart it came from, for the staff (UC-CRT-09, ADR-0082); `null` when that
+   * cart is no longer available.
+   */
+  copyToSourceCart(
+    sourceCartId: CartId,
+    lines: readonly CartItem[],
+  ): Promise<CartCopy | null> {
+    return this.copies.toSourceCart(sourceCartId, lines);
   }
 }
 
