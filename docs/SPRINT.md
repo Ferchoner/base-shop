@@ -53,7 +53,113 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 
 ## Sprint Review
 
-PENDIENTE.
+**Fecha:** 2026-10-02. **Resultado:** objetivo cumplido. Las 4 tareas están en DONE y el pipeline de CI está en verde en `main`.
+- La orden pagada nace con su envío.
+- El staff le captura la guía, la despacha y la entrega, o registra la entrega fallida y la devolución, y la orden sigue al envío.
+- El stock de las órdenes canceladas y de los envíos devueltos vuelve sin pasar de lo vendido.
+- El cliente recibe un correo en cada paso.
+- Cada noche se borra lo vencido.
+
+### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Revisión contra los ADR, índice sin uso de `reservations` fuera y prácticas de la review del Sprint 4 en la guía | DONE | Paso 0, ADR-0136 |
+| El envío nace con la orden pagada; consulta del staff, paquetería y guía, cancelación con la orden y el envío en las vistas de la orden | DONE | T-195 parte a, ADR-0140 |
+| Despacho, entrega, entrega fallida y devolución con notas; la orden pasa a SHIPPED y DELIVERED por eventos | DONE | T-195 parte b, ADR-0141 |
+| Reintegro de stock de órdenes canceladas o reembolsadas y de envíos devueltos, con tope por línea, y al cancelar una orden pagada | DONE | T-161, ADR-0142 |
+| Correos al cliente: orden recibida, pago confirmado, orden enviada, orden cancelada y reembolso completado | DONE | T-215, ADR-0143 |
+| Limpieza diaria de tokens, carritos de invitado inactivos, eventos de webhooks y llaves de idempotencia | DONE | T-231, ADR-0144 |
+| 2,014 tests (1,165 unitarios, 372 de integración y 477 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 144 ADR: 143 aceptados y 1 reemplazado parcialmente (ADR-0001); 5 nuevos en este sprint (ADR-0140 a ADR-0144) | — | `DECISIONS.md` |
+| Siguen abiertas las 9 decisiones de siempre | — | `PROGRESS.md` |
+
+El trabajo se integró en 6 pull requests a `main` (del #70 al #75). La CI pasó a la primera en todos, y también en `main` después de cada fusión.
+
+### Decisiones abiertas que pasan al siguiente sprint
+
+Ninguna bloquea la anonimización, la auditoría ni la imagen de producción. P-61 decide los plazos de conservación (T-232), no la anonimización, que ya está decidida (ADR-0067).
+
+| Grupo | Decisiones |
+|---|---|
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
+
+### Riesgos que pasan al siguiente sprint
+
+- **Resueltos en este sprint:**
+  - el cliente ya recibe correos (T-215), y Ordering publica `OrderPlaced`, `OrderPaid` y `OrderCancelled`;
+  - el reintegro ya no responde 409 (T-161);
+  - el índice sin uso de `reservations` se quitó (paso 0).
+- **Heredados, siguen vigentes:** ver las reviews de los sprints 2 a 4 en el historial. Entre ellos están:
+  - el estado en memoria de una sola instancia;
+  - la imagen de producción de 920 MB, que entra al Sprint 6;
+  - el adaptador de PayPal sin verificar;
+  - pagar dos veces;
+  - los contadores del rate limit en memoria;
+  - la documentación OpenAPI, que solo se construye en algunas suites (paso 0 del Sprint 6).
+- **Nuevos de la entrega:**
+  - **Efectos que dependen de un evento:**
+    - `ShipmentDispatched`, `ShipmentDelivered` y los correos se pierden si falla su manejador;
+    - un despacho perdido deja la orden en PAID hasta la entrega, y mientras tanto cancelarla responde 409 (ADR-0141);
+    - un correo perdido no se reintenta (ADR-0143).
+  - **Varias instancias:** los cuatro jobs de limpieza correrían en cada una. Son idempotentes, pero harían trabajo doble (ADR-0029).
+  - **Correos en las e2e:** las suites que colocan órdenes intentan enviarlos y fallan sin servidor SMTP; el logger de pruebas oculta la advertencia (ADR-0143).
+  - **Limpieza:**
+    - las tablas de tokens no tienen índice por vencimiento;
+    - la recompra del staff de una orden de invitado de más de 30 días responde 409 (ADR-0082);
+    - un refresh token borrado ya no detecta su reutilización (ADR-0144).
+  - **Cambios de contrato:**
+    - `Idempotency-Key` en el reintegro, y `restock` fuera del registro del reembolso (ADR-0142);
+    - `id` en las líneas de `AdminOrder` (ADR-0142), e `id` y `version` en `AdminOrder.shipment` (ADR-0140);
+    - `failureNote` y `returnNote` en `AdminShipment`, y `null` en el `PATCH` de la guía (ADR-0141).
+  - **Sin correo por un pago a una orden ya cancelada:** con el pago en tienda no puede pasar; se revisa con PayPal (T-192, ADR-0143).
+
+### Qué funcionó
+
+- **Partir T-195:** primero la creación y la cancelación del envío; después el despacho, con la orden siguiendo al envío por eventos.
+- **Dependencias en un solo sentido:**
+  - Ordering crea y cancela el envío por la fachada de Shipping;
+  - la orden sigue al envío por eventos;
+  - Notificaciones lee la orden por la primera fachada de Ordering.
+
+  No se formó ningún ciclo.
+- **Pruebas de mutación:** en todas las tareas encontraron pruebas débiles:
+
+  | Tarea | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-195 | 7 de 99 | Valores que no se comprobaban |
+  | T-161 | 3 de 33 | Errores comparados solo por su mensaje |
+  | T-215 | 3 de 28 | Valores que coincidían en los datos de prueba |
+  | T-231 | 2 de 21 | 1 real y 1 equivalente |
+
+- **Concurrencia:** cada carrera nueva tiene su prueba contra PostgreSQL:
+  - despachar contra cancelar la orden;
+  - dos reintegros de una línea a la vez;
+  - un carrito usado mientras corre la limpieza.
+- **Verificar el commit feat por separado:** detectó una spec de integración que no compilaba sola (T-161).
+- **CI a la primera** en los 6 pull requests.
+
+### Qué mejorar
+
+- **Comparar errores de dominio:** `toThrow(new Error(…))` solo compara el mensaje. Un error con `details` se compara con `rejects.toMatchObject({ code, details })` (T-161).
+- **Valores distintos en los datos de prueba:** valores que coinciden dejaron pasar mutaciones (T-215). Fueron un reembolso igual al total, una dirección sin número interior y una sola forma de despacho.
+- **`tsc` compila también las specs de integración:** al quitar un campo de una firma, hay que buscarlo en ellas antes del commit (T-161).
+- **Huecos de contrato tardíos:** `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación. En cada plan conviene revisar las representaciones de `API_SPEC.md` §8 de las vistas que se tocan.
+- **Escaneo de secretos encadenado con `| tail`:** ocultó su código de salida. Con `set -o pipefail`, el commit depende del escaneo (T-195 parte a).
+- **DTO que redeclara un campo de su base:** no puede hacerlo con decorador (TS2612). Cada vista declara su propio campo (T-195 parte a).
+
+### Siguiente sprint
+
+Propuesta aprobada el 2026-10-02: Sprint 6, "Privacidad y operación".
+- **Paso 0:**
+  - una prueba que construye y valida el documento OpenAPI en cada corrida;
+  - el pull request agrupado de Dependabot del lunes 5 de octubre;
+  - las prácticas de esta review en la guía de desarrollo.
+- **Tareas:** T-132 (anonimización), T-220 (consulta y archivo de la auditoría) y reducir la imagen de producción.
+- **Pospuesto:** T-192 (PayPal y conciliación), porque sin cuenta ni sandbox (P-31) no se puede verificar.
 
 ---
 
