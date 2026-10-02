@@ -784,3 +784,102 @@ describe('OrderLifecycle: the progress of its shipment (UC-SHI-05 and 06, ADR-01
     ).rejects.toThrow(NotFoundError);
   });
 });
+
+describe('OrderLifecycle: the events of the order (ADR-0074, ADR-0143)', () => {
+  const event = (eventType: string, orderId: OrderId, extra = {}) => ({
+    eventId: expect.any(String),
+    eventType,
+    occurredAt: NOW,
+    orderId,
+    ...extra,
+  });
+
+  const pay = (lifecycle: OrderLifecycle, order: Order, amount?: number) =>
+    lifecycle.recordPayment({
+      orderId: order.id,
+      amount: amount === undefined ? order.grandTotal : mxn(amount),
+      capturedAt: CAPTURED,
+    });
+
+  it('publishes OrderPaid when a payment, also a late one, or the retried fulfillment leaves the order PAID', async () => {
+    const pending = saved('PENDING_PAYMENT');
+    const expired = saved('EXPIRED');
+    const waiting = saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
+    const paying = setUp(pending);
+    const late = setUp(expired);
+    const retried = setUp(waiting);
+
+    expect(await pay(paying.lifecycle, pending)).toBe('paid');
+    expect(await pay(late.lifecycle, expired)).toBe('paid');
+    await retried.lifecycle.retryFulfillment({
+      orderId: waiting.id,
+      actorId: staff,
+      version: 3,
+    });
+
+    expect(paying.published).toEqual([event('OrderPaid', pending.id)]);
+    expect(late.published).toEqual([event('OrderPaid', expired.id)]);
+    expect(retried.published).toEqual([event('OrderPaid', waiting.id)]);
+  });
+
+  it('publishes nothing for a payment that leaves the order waiting for stock, cancelled or as it was (BR-NTF-02)', async () => {
+    const short = saved('EXPIRED');
+    const cancelled = saved('CANCELLED');
+    const paid = saved('PAID', CAPTURED);
+    const mismatch = saved('PENDING_PAYMENT');
+    const cases = [
+      [setUp(short, { available: false }), short, undefined],
+      [setUp(cancelled), cancelled, undefined],
+      [setUp(paid), paid, undefined],
+      [setUp(mismatch), mismatch, 1],
+    ] as const;
+
+    for (const [{ lifecycle, published }, order, amount] of cases) {
+      await pay(lifecycle, order, amount);
+
+      expect(published).toEqual([]);
+    }
+  });
+
+  it('publishes OrderCancelled, with whether its refund started (UC-PAY-03)', async () => {
+    const unpaid = saved('PENDING_PAYMENT');
+    const paid = saved('PAID', CAPTURED);
+    const waiting = saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
+    const cancelled: unknown[] = [];
+
+    for (const order of [unpaid, paid, waiting]) {
+      const { lifecycle, published } = setUp(order);
+      await lifecycle.cancel({
+        orderId: order.id,
+        actorId: staff,
+        reason: 'Duplicado',
+        restock: false,
+        version: 3,
+      });
+      cancelled.push(...published);
+    }
+
+    expect(cancelled).toEqual([
+      event('OrderCancelled', unpaid.id, { refundStarted: false }),
+      event('OrderCancelled', paid.id, { refundStarted: true }),
+      event('OrderCancelled', waiting.id, { refundStarted: true }),
+    ]);
+  });
+
+  it('publishes nothing when the cancellation fails', async () => {
+    const shipped = saved('SHIPPED', CAPTURED);
+    const { lifecycle, published } = setUp(shipped);
+
+    await expect(
+      lifecycle.cancel({
+        orderId: shipped.id,
+        actorId: staff,
+        reason: 'Duplicado',
+        restock: false,
+        version: 3,
+      }),
+    ).rejects.toThrow(InvalidStateTransitionError);
+
+    expect(published).toEqual([]);
+  });
+});

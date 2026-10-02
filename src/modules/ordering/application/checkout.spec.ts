@@ -694,3 +694,31 @@ describe('Checkout: placing an order (UC-ORD-02)', () => {
     expect(asked.prices).toEqual([[shirt, cap]]);
   });
 });
+
+describe('Checkout: the event of a placed order (ADR-0074, ADR-0143)', () => {
+  it('publishes OrderPlaced with the order, for its email', async () => {
+    const { checkout, published } = setUp({ carts: cartsWith([[shirt, 2]]) });
+
+    const id = await checkout.placeOrder(guestOrder());
+
+    expect(published).toEqual([
+      {
+        eventId: expect.any(String),
+        eventType: 'OrderPlaced',
+        occurredAt: NOW,
+        orderId: id,
+      },
+    ]);
+  });
+
+  it('publishes nothing when the order is not placed', async () => {
+    const { checkout, published } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      shortOf: [shirt],
+    });
+
+    await expect(checkout.placeOrder(guestOrder())).rejects.toThrow();
+
+    expect(published).toEqual([]);
+  });
+});
