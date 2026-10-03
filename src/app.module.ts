@@ -17,6 +17,7 @@ import { AuthorizationModule } from './platform/auth/authorization.module.js';
 import { AppCacheModule } from './platform/cache/app-cache.module.js';
 import { ClockModule } from './platform/clock/clock.module.js';
 import { validateEnvironment } from './platform/config/environment.js';
+import { RetentionPolicyModule } from './platform/config/retention-policy.js';
 import { EventDeliveriesModule } from './platform/events/event-deliveries.module.js';
 import { EventsModule } from './platform/events/events.module.js';
 import { IdempotencyModule } from './platform/http/idempotency/idempotency.module.js';
@@ -45,6 +46,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     EventDeliveriesModule,
     JobsModule.forRoot(),
     ClockModule,
+    RetentionPolicyModule,
     AppCacheModule,
     MailModule,
     ProblemDetailsModule,

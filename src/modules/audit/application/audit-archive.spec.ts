@@ -8,7 +8,6 @@ import {
   AuditArchive,
   AuditArchiveFiles,
   MAX_DAYS_PER_RUN,
-  monthsBefore,
   startOf,
   type UtcDay,
   utcDayOf,
@@ -353,21 +352,6 @@ describe('AuditArchive (UC-AUD-03, ADR-0037, ADR-0146)', () => {
 });
 
 describe('Dates of the archive', () => {
-  it('goes back calendar months, to the last day of a shorter month', () => {
-    expect(monthsBefore(new Date('2026-10-03T09:00:00.000Z'), 3)).toEqual(
-      new Date('2026-07-03T09:00:00.000Z'),
-    );
-    expect(monthsBefore(new Date('2026-05-31T09:00:00.000Z'), 3)).toEqual(
-      new Date('2026-02-28T09:00:00.000Z'),
-    );
-    expect(monthsBefore(new Date('2026-01-15T00:00:00.000Z'), 24)).toEqual(
-      new Date('2024-01-15T00:00:00.000Z'),
-    );
-    expect(monthsBefore(new Date('2026-03-31T23:00:00.000Z'), 1)).toEqual(
-      new Date('2026-02-28T23:00:00.000Z'),
-    );
-  });
-
   it('names a UTC day, and starts it at midnight UTC', () => {
     expect(utcDayOf(new Date('2026-07-01T23:59:59.999-06:00'))).toBe(
       '2026-07-02',

@@ -209,7 +209,7 @@ describe('ShipmentDelivery (UC-SHI-05 to 07 and 09, ADR-0141)', () => {
     ]);
   });
 
-  it('records a failed delivery and the return with their notes as the reason of the audit, and tells no one (ADR-0053)', async () => {
+  it('records a failed delivery and the return with their notes as the reason of the audit; only the return is told, so its order concludes (ADR-0053, ADR-0149)', async () => {
     const failed = saved('DISPATCHED', true);
     const returned = saved('DELIVERY_FAILED');
     const failing = setUp(failed);
@@ -254,7 +254,18 @@ describe('ShipmentDelivery (UC-SHI-05 to 07 and 09, ADR-0141)', () => {
       [failed],
       [returned],
     ]);
-    expect([failing.published, returning.published]).toEqual([[], []]);
+    expect([failing.published, returning.published]).toEqual([
+      [],
+      [
+        {
+          eventId: expect.any(String),
+          eventType: 'ShipmentReturned',
+          occurredAt: NOW,
+          shipmentId: returned.id,
+          orderId: returned.snapshot.orderId,
+        },
+      ],
+    ]);
   });
 
   it('audits without a reason when there is no note', async () => {

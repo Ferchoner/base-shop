@@ -8,6 +8,7 @@ import {
   Shipment,
   type ShipmentAddress,
   type ShipmentStatus,
+  withoutIdentifyingFields,
 } from './shipment.js';
 
 const NOW = new Date('2026-10-02T12:00:00.000Z');
@@ -406,5 +407,48 @@ describe('Shipment.anonymize (UC-IAM-19, ADR-0067)', () => {
     shipment.anonymize(LATER);
 
     expect(shipment.snapshot.anonymizedAt).toBe(NOW);
+  });
+
+  it('keeps nothing of who receives it nor where exactly, whatever address it gets', () => {
+    expect(withoutIdentifyingFields(WHOLE)).toEqual({
+      ...withoutIdentifyingFields(ADDRESS),
+      postalCode: '58000',
+      stateCode: '16',
+      stateName: 'Michoacán de Ocampo',
+      municipalityCode: '16053',
+      municipalityName: 'Morelia',
+      country: 'MX',
+    });
+    expect(
+      withoutIdentifyingFields({ ...WHOLE, postalCode: '06000' }).postalCode,
+    ).toBe('06000');
+  });
+});
+
+describe('Shipment.block (ADR-0070, ADR-0149)', () => {
+  it('is created without being blocked', () => {
+    expect(create().snapshot.blockedAt).toBeNull();
+  });
+
+  it('keeps its destination and the rest as it was, and when it was blocked first', () => {
+    const shipment = saved('DELIVERED');
+    const before = shipment.snapshot;
+
+    shipment.block(NOW);
+    shipment.block(LATER);
+
+    expect(shipment.snapshot).toEqual({ ...before, blockedAt: NOW });
+    expect(shipment.hasChanges).toBe(true);
+  });
+
+  it('changes nothing in a shipment blocked already', () => {
+    const shipment = Shipment.restore({
+      ...saved('DELIVERED').snapshot,
+      blockedAt: NOW,
+    });
+
+    shipment.block(LATER);
+
+    expect(shipment.hasChanges).toBe(false);
   });
 });

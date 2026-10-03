@@ -184,7 +184,7 @@ ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Par
 - Logs y auditoría sin valores de datos personales.
 - Eventos de dominio guardados (ADR-0150) sin datos personales: el que lleva uno se publica como volátil y no se guarda (`OrderAccessRequested`), y el último error de cada entrega se guarda redactado como los logs. El staff las consulta y las reintenta con `events.manage`, auditado.
 - Logs (ADR-0097): nunca se registran cuerpos, encabezados, tokens ni cadenas de consulta. Como red de seguridad, el logger reemplaza por `[redacted]` los correos, los JWT y los tokens `Bearer` que aparezcan en mensajes o stack traces, y en formato texto escapa los saltos de línea para que nadie pueda inyectar líneas falsas.
-- Ciclo de conservación de datos personales en órdenes (operativa, bloqueo y anonimización) diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149); se implementa en T-232. Cada operador valida los plazos con su especialista antes de operar (`PROJECT.md`).
+- Ciclo de conservación de datos personales en órdenes (operativa, bloqueo y anonimización) diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149). Desde T-232 parte a (ADR-0151), el job diario `ordering.retention` bloquea los datos de las órdenes concluidas hace 12 meses, que el comprador deja de ver y el staff ve sin su email ni su dirección exacta, y los anonimiza 60 meses después; audita cada paso como sistema y sin valores, y procesa hasta 1,000 órdenes de cada paso por corrida, así que un plazo acortado por error no anonimiza todo de una vez. Cada operador valida los plazos con su especialista antes de operar (`PROJECT.md`).
 
 ## Auditoría
 

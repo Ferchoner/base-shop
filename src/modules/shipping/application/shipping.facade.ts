@@ -131,6 +131,21 @@ export class ShippingFacade {
     });
   }
 
+  /**
+   * Blocks the shipments of these orders, whose data Ordering is blocking (ADR-0070), in its transaction; an order
+   * without one is skipped.
+   */
+  blockShipmentsOf(orderIds: readonly OrderId[], at: Date): Promise<void> {
+    return this.transactions.run(async () => {
+      for (const orderId of orderIds) {
+        const shipment = await this.shipments.lockByOrder(orderId);
+        if (shipment === null) continue;
+        shipment.block(at);
+        await this.shipments.save(shipment, at);
+      }
+    });
+  }
+
   /** The shipments of these orders, by order; an order without one is left out. */
   shipmentsOf(
     orderIds: readonly string[],

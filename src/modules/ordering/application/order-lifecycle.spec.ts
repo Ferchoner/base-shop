@@ -130,6 +130,14 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The life of an order finds it by its ID');
   }
 
+  dueForBlocking(): Promise<OrderId[]> {
+    throw new Error('This test never blocks orders');
+  }
+
+  dueForAnonymization(): Promise<OrderId[]> {
+    throw new Error('This test never anonymizes orders by their date');
+  }
+
   dueForExpiry(): Promise<OrderId[]> {
     throw new Error('The life of an order never looks for due orders');
   }
@@ -824,6 +832,55 @@ describe('OrderLifecycle: the progress of its shipment (UC-SHI-05 and 06, ADR-01
         orderId: newId<'Order'>(),
         dispatchedAt: LEFT,
         deliveredAt: DELIVERED,
+      }),
+    ).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('OrderLifecycle: a returned shipment (UC-SHI-09, ADR-0145, ADR-0149)', () => {
+  const RETURNED = new Date('2026-10-05T10:00:00.000Z');
+
+  it('concludes a shipped order when its shipment came back, which stays SHIPPED, without a change of status', async () => {
+    const order = saved('SHIPPED', CAPTURED);
+    const { lifecycle, orders } = setUp(order);
+
+    expect(
+      await lifecycle.recordReturn({ orderId: order.id, returnedAt: RETURNED }),
+    ).toBe(true);
+
+    const returned = savedOne(orders);
+    expect(returned.snapshot).toMatchObject({
+      status: 'SHIPPED',
+      concludedAt: RETURNED,
+    });
+    expect(returned.statusChanges).toEqual([]);
+  });
+
+  it('changes nothing for an order that concluded already, nor for one that is not shipped', async () => {
+    const concluded = Order.restore({
+      ...saved('SHIPPED', CAPTURED).snapshot,
+      concludedAt: NOW,
+    });
+    for (const order of [concluded, saved('DELIVERED', CAPTURED)]) {
+      const { lifecycle, orders } = setUp(order);
+
+      expect(
+        await lifecycle.recordReturn({
+          orderId: order.id,
+          returnedAt: RETURNED,
+        }),
+      ).toBe(false);
+      expect(orders.saved).toEqual([]);
+    }
+  });
+
+  it('answers 404 for an order that does not exist', async () => {
+    const { lifecycle } = setUp(saved('SHIPPED', CAPTURED));
+
+    await expect(
+      lifecycle.recordReturn({
+        orderId: newId<'Order'>(),
+        returnedAt: RETURNED,
       }),
     ).rejects.toThrow(NotFoundError);
   });

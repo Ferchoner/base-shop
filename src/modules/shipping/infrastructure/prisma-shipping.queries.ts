@@ -18,10 +18,11 @@ import {
   ShippingQueries,
   type ShippingMethodView,
 } from '../application/shipping.queries.js';
-import type {
-  OrderId,
-  ShipmentDestination,
-  ShipmentId,
+import {
+  type OrderId,
+  type ShipmentDestination,
+  type ShipmentId,
+  withoutIdentifyingFields,
 } from '../domain/shipment.js';
 import {
   SHIPMENT_ROW,
@@ -140,7 +141,14 @@ function toShipmentView(row: ShipmentRow): ShipmentView {
     orderId: toId<'Order'>(row.orderId),
     orderCode: row.orderCode,
     warehouseId: toId<'Warehouse'>(row.warehouseId),
-    destination: row.destination as unknown as ShipmentDestination,
+    // Blocked, it shows only what an anonymized one keeps (ADR-0070).
+    destination:
+      row.blockedAt === null
+        ? (row.destination as unknown as ShipmentDestination)
+        : withoutIdentifyingFields(
+            row.destination as unknown as ShipmentDestination,
+          ),
+    blockedAt: row.blockedAt,
     items: row.items.map((item) => ({
       orderLineId: toId<'OrderLine'>(item.orderLineId),
       sku: item.sku,

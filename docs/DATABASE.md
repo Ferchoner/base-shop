@@ -462,14 +462,16 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | source_cart_id | uuid | No | Referencia lógica a Shopping (restauración, ADR-0054) |
 | privacy_notice_version | text | Sí | Versión del aviso presentada en el checkout de invitado (ADR-0067) |
 | anonymized_at | timestamptz(3) | Sí | Marca de anonimización (ADR-0067) |
+| concluded_at | timestamptz(3) | Sí | Cuándo concluyó la orden, desde cuando se cuentan sus plazos de conservación; `NULL` mientras puede cambiar (ADR-0151) |
+| blocked_at | timestamptz(3) | Sí | Bloqueo de los datos personales: ocultos en la API (ADR-0070, ADR-0151) |
 | placed_at | timestamptz(3) | No | — |
 | payment_due_at | timestamptz(3) | No | Copia del `expires_at` de la reserva al colocar la orden: la orden vence entonces si no se paga (BR-ORD-07, ADR-0132) |
 | paid_at, shipped_at, delivered_at, cancelled_at, expired_at, refunded_at | timestamptz(3) | Sí | — |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso).
-- **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado).
+- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso); `CHECK (blocked_at IS NULL OR concluded_at IS NOT NULL)` (solo se bloquea una orden que concluyó, ADR-0151).
+- **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado); `orders_retention_idx` sobre `(concluded_at) WHERE anonymized_at IS NULL` (ciclo de conservación, ADR-0151).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
 - **Implementado en T-180 parte a (ADR-0132):**
   - la orden se escribe con `INSERT … ON CONFLICT (public_code) DO NOTHING`: un código repetido no aborta la transacción, y la aplicación sortea otro;
@@ -482,6 +484,10 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
   - anonimizar bloquea las órdenes del comprador con `SELECT … FOR UPDATE`, ordenadas por `id`: las del cliente sin `anonymized_at`, o las de invitado con ese `contact_email`, con su índice;
   - cada orden queda con `contact_email` en `NULL` y `anonymized_at`, y en `shipping_address` solo estado, municipio, código postal y país, con los demás campos en `null`; suma una versión;
   - sin migración: las columnas y `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)` ya existían.
+- **Implementado en T-232 parte a (ADR-0151):**
+  - la migración `20261004120000_ordering_retention` agrega `concluded_at`, `blocked_at`, su restricción y el índice parcial, y llena `concluded_at` de las órdenes que ya concluyeron. Para una SHIPPED con su envío devuelto toma `shipments.returned_at`, una lectura de otra tabla que solo hace la migración;
+  - el job busca hasta 1,000 órdenes con `concluded_at <= corte` y sin `anonymized_at` (y sin `blocked_at`, para bloquear), por `concluded_at` y luego `id`; cada una se procesa después con `SELECT … FOR UPDATE`;
+  - las vistas del comprador filtran `blocked_at IS NULL`, y la búsqueda del staff por email también.
 
 ### 8.2 `order_lines` (order_items)
 
@@ -627,6 +633,7 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 | status | enum `shipment_status` (PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED, CANCELLED) | No | ADR-0050, ADR-0053, ADR-0140 |
 | destination | jsonb | No | Snapshot de dirección; al anonimizar se conservan solo estado, municipio y código postal (ADR-0067) |
 | anonymized_at | timestamptz(3) | Sí | Marca de anonimización (ADR-0067) |
+| blocked_at | timestamptz(3) | Sí | Bloqueo con su orden: `destination` se muestra como anonimizado (ADR-0151) |
 | carrier_name | text | Sí | — |
 | tracking_number | text | Sí | — |
 | own_delivery | boolean | No | Default `false`; entrega propia de la tienda, sin paquetería ni guía (ADR-0078) |
@@ -644,6 +651,7 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
   - el envío se crea con `ON CONFLICT DO NOTHING` sobre el único de `order_id`; cada cambio bloquea el envío y compara `version`.
 - **Implementado en T-195 parte b (ADR-0141):** la migración `20261002220000_shipping_delivery_notes` agrega las notas y las restricciones de las fechas de DELIVERED, DELIVERY_FAILED y RETURNED. Las fechas de despacho y de entrega pasan a `orders.shipped_at` y `orders.delivered_at` en segundo plano.
 - **Implementado en T-132 (ADR-0145):** el envío de una orden anonimizada se bloquea, reduce su `destination` como la orden y pone `anonymized_at`; las notas no cambian.
+- **Implementado en T-232 parte a (ADR-0151):** `blocked_at` llega en la migración de Ordering, `20261004120000_ordering_retention`; Ordering pide a Shipping, con su fachada, bloquear los envíos de las órdenes que bloquea.
 
 ### 10.3 `shipment_items`
 
@@ -790,15 +798,15 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 | Tabla | Retención | Fuente |
 |---|---|---|
 | `audit_logs` | 3 meses en base; 2 años en archivos, por día UTC (configurables) | ADR-0037, ADR-0146 |
-| `refresh_tokens` | 30 días tras vencer o revocarse | ADR-0029 |
+| `refresh_tokens` | 30 días tras vencer o revocarse (`SPENT_REFRESH_TOKEN_RETENTION_DAYS`) | ADR-0029, ADR-0151 |
 | `email_verification_tokens`, `password_reset_tokens` | Hasta vencer o usarse | ADR-0056 |
 | `order_access_tokens` | Hasta vencer, usarse o reemplazarse; los de un invitado anonimizado se borran al anonimizarlo | ADR-0148 |
 | `idempotency_keys` | 24 horas | ADR-0063 |
 | `domain_events`, `event_deliveries` | 7 días después de la última entrega (`DELIVERED_EVENT_RETENTION_DAYS`); con una entrega pendiente o fallida, hasta entregarse | ADR-0150 |
-| `processed_webhook_events` | 30 días | ADR-0029 |
-| `carts` de invitado inactivos | 30 días | ADR-0029 |
+| `processed_webhook_events` | 30 días (`PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS`) | ADR-0029, ADR-0151 |
+| `carts` de invitado inactivos | 30 días (`INACTIVE_GUEST_CART_RETENTION_DAYS`) | ADR-0029, ADR-0151 |
 | Órdenes, pagos, envíos, movimientos | Nunca se borran | ADR-0038 |
-| Datos personales en órdenes y envíos | Fases operativa, bloqueo y anonimización con plazos configurables: 12 y 60 meses por defecto, desde que la orden concluye. T-232 agregará una marca de bloqueo en `orders` y `shipments` | ADR-0067, ADR-0070, ADR-0149 |
+| Datos personales en órdenes y envíos | Fases operativa, bloqueo y anonimización con plazos configurables: 12 y 60 meses por defecto, desde `orders.concluded_at`. El job `ordering.retention` pone `blocked_at` en `orders` y `shipments`, y después anonimiza | ADR-0067, ADR-0070, ADR-0149, ADR-0151 |
 
 ---
 

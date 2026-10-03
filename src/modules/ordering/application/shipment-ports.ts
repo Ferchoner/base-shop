@@ -33,6 +33,9 @@ export abstract class OrderShipments {
   /** Anonymizes the shipments of these orders, being anonymized; an order without one is skipped (ADR-0067). */
   abstract anonymize(orderIds: readonly OrderId[], at: Date): Promise<void>;
 
+  /** Blocks the shipments of these orders, being blocked; an order without one is skipped (ADR-0070). */
+  abstract block(orderIds: readonly OrderId[], at: Date): Promise<void>;
+
   /** The shipments of these orders, by order; an order without one is left out. */
   abstract shipmentsOf(
     orderIds: readonly OrderId[],

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../../platform/config/environment.js';
 import { MANUAL_PAYMENTS_ENABLED } from './application/manual-payments.js';
 import {
+  PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS,
   ProcessedWebhookEvents,
   WebhookEventCleanup,
 } from './application/webhook-event-cleanup.js';
@@ -31,6 +32,12 @@ import { AdminPaymentsController } from './presentation/admin-payments.controlle
     PaymentsFacade,
     WebhookEventCleanup,
     WebhookEventCleanupJob,
+    {
+      provide: PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        config.get('PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS', { infer: true }),
+    },
     { provide: PaymentRepository, useClass: PrismaPaymentRepository },
     {
       provide: ProcessedWebhookEvents,

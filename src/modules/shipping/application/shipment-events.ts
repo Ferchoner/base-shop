@@ -22,3 +22,12 @@ export interface ShipmentDelivered extends DomainEvent<'ShipmentDelivered'> {
   readonly orderId: OrderId;
   readonly dispatchedAt: Date;
 }
+
+/**
+ * Published when the goods of a failed delivery come back (UC-SHI-09), at the time they did: the order stays SHIPPED,
+ * and Ordering records then that it concluded, for the retention of its data (ADR-0145, ADR-0151).
+ */
+export interface ShipmentReturned extends DomainEvent<'ShipmentReturned'> {
+  readonly shipmentId: ShipmentId;
+  readonly orderId: OrderId;
+}

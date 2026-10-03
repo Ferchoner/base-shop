@@ -3,6 +3,7 @@ import {
   CLEANUP_MAX_BATCHES,
   daysBefore,
   deleteInBatches,
+  monthsBefore,
 } from './cleanup.js';
 
 /** A table of `rows` rows: each batch deletes what is left, up to its limit. */
@@ -59,6 +60,26 @@ describe('deleteInBatches (ADR-0029, ADR-0144)', () => {
   it('counts whole days back', () => {
     expect(daysBefore(new Date('2026-10-31T09:00:00.000Z'), 30)).toEqual(
       new Date('2026-10-01T09:00:00.000Z'),
+    );
+  });
+});
+
+describe('monthsBefore (ADR-0146, ADR-0149)', () => {
+  it('goes back calendar months, to the last day of a shorter month', () => {
+    expect(monthsBefore(new Date('2026-10-03T09:00:00.000Z'), 3)).toEqual(
+      new Date('2026-07-03T09:00:00.000Z'),
+    );
+    expect(monthsBefore(new Date('2026-05-31T09:00:00.000Z'), 3)).toEqual(
+      new Date('2026-02-28T09:00:00.000Z'),
+    );
+    expect(monthsBefore(new Date('2026-01-15T00:00:00.000Z'), 24)).toEqual(
+      new Date('2024-01-15T00:00:00.000Z'),
+    );
+    expect(monthsBefore(new Date('2026-03-31T23:00:00.000Z'), 1)).toEqual(
+      new Date('2026-02-28T23:00:00.000Z'),
+    );
+    expect(monthsBefore(new Date('2026-03-31T23:00:00.000Z'), 0)).toEqual(
+      new Date('2026-03-31T23:00:00.000Z'),
     );
   });
 });

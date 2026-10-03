@@ -284,6 +284,25 @@ export class OrderLifecycle {
   }
 
   /**
+   * Records that a SHIPPED order concluded when its shipment came back (UC-SHI-09, ADR-0145): the order stays SHIPPED,
+   * and the retention of the data of its buyer starts then (ADR-0151). Repeating it changes nothing.
+   *
+   * @returns whether it recorded the conclusion: false for an order in another status, or that had concluded.
+   * @throws NotFoundError for an order that does not exist.
+   */
+  recordReturn(shipment: {
+    orderId: OrderId;
+    returnedAt: Date;
+  }): Promise<boolean> {
+    return this.transactions.run(async () => {
+      const order = await this.found(shipment.orderId);
+      if (!order.recordReturn(shipment.returnedAt)) return false;
+      await this.orders.save(order, this.clock.now());
+      return true;
+    });
+  }
+
+  /**
    * A payment whose reservation ended: reserve again, or wait for the staff (BR-ORD-09, ADR-0012). An anonymized
    * order has no address to ship to, so it waits for the staff, who can only cancel it with its refund (ADR-0145).
    */

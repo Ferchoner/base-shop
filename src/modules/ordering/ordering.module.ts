@@ -29,6 +29,10 @@ import {
   OrderAccessLinks,
 } from './application/order-access-links.js';
 import { OrderAnonymizations } from './application/order-anonymizations.use-case.js';
+import {
+  PERSONAL_DATA_RETENTION,
+  PersonalDataRetention,
+} from './application/personal-data-retention.js';
 import { OrderExpiry } from './application/order-expiry.use-case.js';
 import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from './application/order-payment-requests.use-case.js';
@@ -61,12 +65,14 @@ import { IdempotencyPlacementResponses } from './infrastructure/idempotency-plac
 import { OrderAccessRequestedHandler } from './infrastructure/order-access-requested.event-handler.js';
 import { OrderExpiryJob } from './infrastructure/order-expiry.job.js';
 import { PaymentCapturedHandler } from './infrastructure/payment-captured.event-handler.js';
+import { PersonalDataRetentionJob } from './infrastructure/personal-data-retention.job.js';
 import { PrismaOrderAccessTokenRepository } from './infrastructure/prisma-order-access-token.repository.js';
 import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
 import { PrismaSpentAccessTokens } from './infrastructure/prisma-spent-access-tokens.js';
 import { RefundCompletedHandler } from './infrastructure/refund-completed.event-handler.js';
 import { ShipmentDeliveredHandler } from './infrastructure/shipment-delivered.event-handler.js';
 import { ShipmentDispatchedHandler } from './infrastructure/shipment-dispatched.event-handler.js';
+import { ShipmentReturnedHandler } from './infrastructure/shipment-returned.event-handler.js';
 import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
 import { AdminOrdersController } from './presentation/admin-orders.controller.js';
 import { CheckoutController } from './presentation/checkout.controller.js';
@@ -106,6 +112,19 @@ import { OrdersController } from './presentation/orders.controller.js';
         config.get('VAT_RATE_BP', { infer: true }),
     },
     {
+      provide: PERSONAL_DATA_RETENTION,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) => ({
+        enabled: config.get('PERSONAL_DATA_RETENTION_ENABLED', { infer: true }),
+        operationalMonths: config.get('PERSONAL_DATA_OPERATIONAL_MONTHS', {
+          infer: true,
+        }),
+        blockedMonths: config.get('PERSONAL_DATA_BLOCKED_MONTHS', {
+          infer: true,
+        }),
+      }),
+    },
+    {
       provide: ORDER_ACCESS_LINK_TTL_SECONDS,
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
@@ -129,6 +148,9 @@ import { OrdersController } from './presentation/orders.controller.js';
     RefundCompletedHandler,
     ShipmentDispatchedHandler,
     ShipmentDeliveredHandler,
+    ShipmentReturnedHandler,
+    PersonalDataRetention,
+    PersonalDataRetentionJob,
     { provide: OrderRepository, useClass: PrismaOrderRepository },
     {
       provide: OrderAccessTokenRepository,

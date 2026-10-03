@@ -152,6 +152,31 @@ export type AnonymizedAddress = Omit<ShippingAddress, IdentifyingField> & {
 /** The address an order keeps: whole, until the order is anonymized. */
 export type OrderAddress = ShippingAddress | AnonymizedAddress;
 
+/**
+ * An address without who receives it nor where exactly: the state, the municipality, the postal code and the country.
+ * What an anonymized order keeps, and what a blocked one shows the staff (ADR-0067, ADR-0070).
+ */
+export function withoutIdentifyingFields(
+  address: OrderAddress,
+): AnonymizedAddress {
+  return {
+    recipientName: null,
+    phone: null,
+    street: null,
+    exteriorNumber: null,
+    interiorNumber: null,
+    neighborhood: null,
+    postalCode: address.postalCode,
+    stateCode: address.stateCode,
+    stateName: address.stateName,
+    municipalityCode: address.municipalityCode,
+    municipalityName: address.municipalityName,
+    city: null,
+    references: null,
+    country: address.country,
+  };
+}
+
 export type OrderLineId = Id<'OrderLine'>;
 
 export interface OrderLine extends PricedLine {
@@ -243,8 +268,21 @@ export interface OrderSnapshot {
   readonly refundedAt: Date | null;
   /** When the data of its buyer was removed (ADR-0067); `null` until then. */
   readonly anonymizedAt: Date | null;
+  /**
+   * When it concluded (`isConcluded`): the start of the retention of the data of its buyer (ADR-0070, ADR-0151).
+   * `null` while it may still change, also once a late payment reopens it.
+   */
+  readonly concludedAt: Date | null;
+  /** When the data of its buyer was blocked: hidden from the usual responses until it is anonymized (ADR-0070). */
+  readonly blockedAt: Date | null;
   readonly version: number;
 }
+
+/**
+ * What a payment clears when it reopens an order that had concluded, expired or cancelled without one: it has not
+ * concluded any more, and the data of its buyer is no longer blocked (ADR-0151).
+ */
+const reopened = { concludedAt: null, blockedAt: null } as const;
 
 /**
  * An order (DOMAIN_MODEL.md, Ordering). It is born PENDING_PAYMENT with the stock reserved, and keeps as a
@@ -317,6 +355,8 @@ export class Order {
       expiredAt: null,
       refundedAt: null,
       anonymizedAt: null,
+      concludedAt: null,
+      blockedAt: null,
       version: 1,
     });
   }
@@ -349,6 +389,17 @@ export class Order {
   /** Whether the data of its buyer was removed (ADR-0067). */
   get isAnonymized(): boolean {
     return this.state.anonymizedAt !== null;
+  }
+
+  /** Whether the data of its buyer is blocked (ADR-0070): its buyer no longer sees it, and the staff sees it hidden. */
+  get isBlocked(): boolean {
+    return this.state.blockedAt !== null;
+  }
+
+  /** Whether it concluded at `cutoff` or before (ADR-0151). */
+  concludedBy(cutoff: Date): boolean {
+    const { concludedAt } = this.state;
+    return concludedAt !== null && concludedAt.getTime() <= cutoff.getTime();
   }
 
   /**
@@ -391,7 +442,12 @@ export class Order {
       'cancel',
     );
     this.move('CANCELLED', actorId, reason, now);
-    this.state = { ...this.state, cancelledAt: now };
+    // A paid one concludes with its refund (ADR-0145).
+    this.state = {
+      ...this.state,
+      cancelledAt: now,
+      concludedAt: this.state.paidAt === null ? now : null,
+    };
   }
 
   /**
@@ -413,6 +469,7 @@ export class Order {
       ...this.state,
       paidAt: capturedAt,
       reservationId: reservationId ?? this.state.reservationId,
+      ...reopened,
     };
   }
 
@@ -428,7 +485,7 @@ export class Order {
       'await manual fulfillment',
     );
     this.move('AWAITING_MANUAL_FULFILLMENT', null, null, now);
-    this.state = { ...this.state, paidAt: capturedAt };
+    this.state = { ...this.state, paidAt: capturedAt, ...reopened };
   }
 
   /**
@@ -468,7 +525,7 @@ export class Order {
   recordPaymentAfterCancellation(capturedAt: Date): boolean {
     this.assertStatus(['CANCELLED'], 'record a payment');
     if (this.state.paidAt !== null) return false;
-    this.state = { ...this.state, paidAt: capturedAt };
+    this.state = { ...this.state, paidAt: capturedAt, ...reopened };
     this.changed = true;
     return true;
   }
@@ -487,7 +544,7 @@ export class Order {
       return false;
     }
     this.move('EXPIRED', null, null, now);
-    this.state = { ...this.state, expiredAt: now };
+    this.state = { ...this.state, expiredAt: now, concludedAt: now };
     return true;
   }
 
@@ -511,7 +568,7 @@ export class Order {
   markDelivered(deliveredAt: Date, now: Date): void {
     this.assertStatus(['SHIPPED'], 'mark delivered');
     this.move('DELIVERED', null, null, now);
-    this.state = { ...this.state, deliveredAt };
+    this.state = { ...this.state, deliveredAt, concludedAt: deliveredAt };
   }
 
   /**
@@ -524,7 +581,40 @@ export class Order {
       throw new InvalidStateTransitionError(this.state.status, 'mark refunded');
     }
     this.move('REFUNDED', null, null, now);
-    this.state = { ...this.state, refundedAt: completedAt };
+    this.state = {
+      ...this.state,
+      refundedAt: completedAt,
+      concludedAt: completedAt,
+    };
+  }
+
+  /**
+   * Its shipment came back (UC-SHI-09, ADR-0053): a SHIPPED order stays SHIPPED, but concludes then (ADR-0145).
+   *
+   * @returns false, changing nothing, unless it is SHIPPED and had not concluded.
+   */
+  recordReturn(returnedAt: Date): boolean {
+    if (this.state.status !== 'SHIPPED' || this.state.concludedAt !== null) {
+      return false;
+    }
+    this.state = { ...this.state, concludedAt: returnedAt };
+    this.changed = true;
+    return true;
+  }
+
+  /**
+   * Blocks the data of its buyer once its operational phase ended (ADR-0070, ADR-0151): it concluded at `cutoff` or
+   * before. The data stays, hidden from the usual responses, until it is anonymized.
+   *
+   * @returns false, changing nothing, when it has not concluded by then, or was blocked or anonymized already.
+   */
+  blockIfDue(cutoff: Date, at: Date): boolean {
+    if (!this.concludedBy(cutoff) || this.isBlocked || this.isAnonymized) {
+      return false;
+    }
+    this.state = { ...this.state, blockedAt: at };
+    this.changed = true;
+    return true;
   }
 
   /**
@@ -601,26 +691,10 @@ export class Order {
    */
   anonymize(shipmentStatus: string | null, at: Date): void {
     if (!this.isConcluded(shipmentStatus)) throw new ActiveOrdersExistError();
-    const address = this.state.shippingAddress;
     this.state = {
       ...this.state,
       contactEmail: null,
-      shippingAddress: {
-        recipientName: null,
-        phone: null,
-        street: null,
-        exteriorNumber: null,
-        interiorNumber: null,
-        neighborhood: null,
-        postalCode: address.postalCode,
-        stateCode: address.stateCode,
-        stateName: address.stateName,
-        municipalityCode: address.municipalityCode,
-        municipalityName: address.municipalityName,
-        city: null,
-        references: null,
-        country: address.country,
-      },
+      shippingAddress: withoutIdentifyingFields(this.state.shippingAddress),
       anonymizedAt: this.state.anonymizedAt ?? at,
     };
     this.changed = true;

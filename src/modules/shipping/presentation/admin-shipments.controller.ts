@@ -277,6 +277,7 @@ function toAdminShipmentDto(view: ShipmentView): AdminShipmentDto {
     warehouseId: view.warehouseId,
     status: view.status,
     destination: { ...view.destination },
+    blockedAt: view.blockedAt,
     items: view.items.map((item) => ({ ...item })),
     carrierName: view.carrierName,
     trackingNumber: view.trackingNumber,

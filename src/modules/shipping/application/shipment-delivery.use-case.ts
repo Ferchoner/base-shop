@@ -15,6 +15,7 @@ import { ShipmentRepository } from '../domain/shipment.repository.js';
 import type {
   ShipmentDelivered,
   ShipmentDispatched,
+  ShipmentReturned,
 } from './shipment-events.js';
 
 /** A change of a shipment by the staff: which one, at the `version` they read. */
@@ -94,7 +95,13 @@ export class ShipmentDelivery {
       input.note,
       (shipment, now) => {
         shipment.markReturned(input.note, now);
-        return null;
+        const s = shipment.snapshot;
+        const returned: ShipmentReturned = {
+          ...eventMetadata('ShipmentReturned', now),
+          shipmentId: s.id,
+          orderId: s.orderId,
+        };
+        return returned;
       },
     );
   }

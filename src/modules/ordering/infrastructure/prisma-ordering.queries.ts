@@ -22,12 +22,13 @@ import {
   type OrderSummaryView,
   type OrderView,
 } from '../application/ordering.queries.js';
-import type {
-  CustomerId,
-  OrderAddress,
-  OrderId,
-  ShippingAddress,
-  VariantOptions,
+import {
+  type CustomerId,
+  type OrderAddress,
+  type OrderId,
+  type ShippingAddress,
+  type VariantOptions,
+  withoutIdentifyingFields,
 } from '../domain/order.js';
 import { parsePublicCode, type PublicCode } from '../domain/public-code.js';
 
@@ -67,6 +68,7 @@ const ADMIN_SUMMARY_FIELDS = {
   orderNumber: true,
   version: true,
   anonymizedAt: true,
+  blockedAt: true,
   shippingAddress: true,
 } satisfies Prisma.OrderSelect;
 
@@ -100,7 +102,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   async findOrder(id: OrderId): Promise<OrderView | null> {
     const row = await this.txHost.tx.order.findFirst({
       select: ORDER_FIELDS,
-      where: { id, anonymizedAt: null },
+      where: { id, anonymizedAt: null, blockedAt: null },
     });
     return row === null ? null : toOrderView(row);
   }
@@ -111,7 +113,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   ): Promise<OrderView | null> {
     const row = await this.txHost.tx.order.findFirst({
       select: ORDER_FIELDS,
-      where: { publicCode, customerId, anonymizedAt: null },
+      where: { publicCode, customerId, anonymizedAt: null, blockedAt: null },
     });
     return row === null ? null : toOrderView(row);
   }
@@ -122,7 +124,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   ): Promise<OrderView | null> {
     const row = await this.txHost.tx.order.findFirst({
       select: ORDER_FIELDS,
-      where: { publicCode, contactEmail, customerId: null },
+      where: { publicCode, contactEmail, customerId: null, blockedAt: null },
     });
     return row === null ? null : toOrderView(row);
   }
@@ -130,7 +132,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   async hasGuestOrders(contactEmail: string): Promise<boolean> {
     const row = await this.txHost.tx.order.findFirst({
       select: { id: true },
-      where: { contactEmail, customerId: null },
+      where: { contactEmail, customerId: null, blockedAt: null },
     });
     return row !== null;
   }
@@ -141,7 +143,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   ): Promise<readonly OrderSummaryView[]> {
     const rows = await this.txHost.tx.order.findMany({
       select: SUMMARY_FIELDS,
-      where: { contactEmail, customerId: null },
+      where: { contactEmail, customerId: null, blockedAt: null },
       orderBy: [{ placedAt: 'desc' }, { id: 'asc' }],
       take: limit,
     });
@@ -208,6 +210,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
     const where: Prisma.OrderWhereInput = {
       customerId,
       anonymizedAt: null,
+      blockedAt: null,
       ...(filter.status === undefined
         ? {}
         : { status: { in: [...filter.status] } }),
@@ -251,7 +254,11 @@ function searchOf(q: string): Prisma.OrderWhereInput[] {
       ? [{ orderNumber: number }]
       : []),
     ...(code === null ? [] : [{ publicCode: code }]),
-    { contactEmail: { contains: text, mode: 'insensitive' as const } },
+    // Never by the email of a blocked order: it is hidden (ADR-0070).
+    {
+      contactEmail: { contains: text, mode: 'insensitive' as const },
+      blockedAt: null,
+    },
   ];
 }
 
@@ -306,13 +313,18 @@ function toOrderView(row: OrderRow): OrderView {
 }
 
 function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {
+  // Written by PrismaOrderRepository from ShippingAddress, and once anonymized.
+  const address = row.shippingAddress as unknown as OrderAddress;
+  const blocked = row.blockedAt !== null;
   return {
     ...toSummaryView(row),
+    // Blocked, it shows only what an anonymized one keeps (ADR-0070).
+    contactEmail: blocked ? null : row.contactEmail,
     orderNumber: Number(row.orderNumber),
     version: row.version,
     anonymizedAt: row.anonymizedAt,
-    // Written by PrismaOrderRepository from ShippingAddress, and once anonymized.
-    shippingAddress: row.shippingAddress as unknown as OrderAddress,
+    blockedAt: row.blockedAt,
+    shippingAddress: blocked ? withoutIdentifyingFields(address) : address,
   };
 }
 

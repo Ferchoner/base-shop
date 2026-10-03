@@ -104,6 +104,14 @@ class OneOrder extends OrderRepository {
     return Promise.resolve(code === CODE ? this.order : null);
   }
 
+  dueForBlocking(): Promise<OrderId[]> {
+    throw new Error('This test never blocks orders');
+  }
+
+  dueForAnonymization(): Promise<OrderId[]> {
+    throw new Error('This test never anonymizes orders by their date');
+  }
+
   dueForExpiry(): Promise<OrderId[]> {
     throw new Error('Buying again never expires orders');
   }
@@ -203,6 +211,21 @@ describe('OrderReorders (UC-CRT-09, ADR-0139)', () => {
           publicCode: CODE,
         }),
       ).rejects.toThrow(NotFoundError);
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it('answers 404 to a customer for their order once blocked or anonymized, as their views do (ADR-0070, ADR-0149)', async () => {
+    const cancelled = ofCustomer('CANCELLED').snapshot;
+    for (const order of [
+      Order.restore({ ...cancelled, concludedAt: PLACED, blockedAt: PLACED }),
+      Order.restore({ ...cancelled, contactEmail: null, anonymizedAt: PLACED }),
+    ]) {
+      const { reorders, calls } = setUp(order);
+
+      await expect(
+        reorders.forCustomer({ customerId: customer, publicCode: CODE }),
+      ).rejects.toThrow(new NotFoundError('Order', CODE));
       expect(calls).toEqual([]);
     }
   });

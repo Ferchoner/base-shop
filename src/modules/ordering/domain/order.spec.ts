@@ -8,10 +8,12 @@ import {
   type Buyer,
   Order,
   type OrderShipping,
+  type OrderSnapshot,
   type OrderStatus,
   orderTotals,
   priceLine,
   type ShippingAddress,
+  withoutIdentifyingFields,
 } from './order.js';
 import {
   ActiveOrdersExistError,
@@ -147,6 +149,8 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       expiredAt: null,
       refundedAt: null,
       anonymizedAt: null,
+      concludedAt: null,
+      blockedAt: null,
       version: 1,
     });
   });
@@ -718,5 +722,142 @@ describe('Anonymization of an order (UC-IAM-19, ADR-0067, ADR-0145)', () => {
     expect(() => saved('PAID', PAID).assertFulfillable()).toThrow(
       new InvalidStateTransitionError('PAID', 'retry fulfillment'),
     );
+  });
+});
+
+describe('Retention of the data of an order (ADR-0070, ADR-0145, ADR-0149)', () => {
+  const PAID = new Date('2026-10-01T12:30:00.000Z');
+  const LATER = new Date('2026-10-02T09:00:00.000Z');
+  const CUTOFF = new Date('2027-10-02T09:00:00.000Z');
+  const staff = newId<'User'>();
+
+  /** A saved order in `status`, at version 4, with the given retention dates. */
+  const saved = (
+    status: OrderStatus,
+    changes: Partial<OrderSnapshot> = {},
+  ): Order =>
+    Order.restore({ ...place().snapshot, status, version: 4, ...changes });
+
+  it('concludes when it gets to its end: cancelled unpaid, expired, delivered or refunded, at that time', () => {
+    const cancelled = saved('PENDING_PAYMENT');
+    cancelled.cancel(staff, 'Duplicado', LATER);
+    const expired = saved('PENDING_PAYMENT');
+    expired.expireIfDue(LATER);
+    const delivered = saved('SHIPPED', { paidAt: PAID });
+    delivered.markDelivered(PAID, LATER);
+    const refunded = saved('CANCELLED', { paidAt: PAID });
+    refunded.markRefunded(PAID, LATER);
+
+    expect(
+      [cancelled, expired, delivered, refunded].map(
+        (order) => order.snapshot.concludedAt,
+      ),
+    ).toEqual([LATER, LATER, PAID, PAID]);
+  });
+
+  it('does not conclude when a paid order is cancelled: it waits for its refund', () => {
+    const order = saved('PAID', { paidAt: PAID });
+
+    order.cancel(staff, 'Sin stock', LATER);
+
+    expect(order.snapshot.concludedAt).toBeNull();
+  });
+
+  it('reopens with a late payment, also blocked: it has not concluded and its data is no longer blocked', () => {
+    const closed = { concludedAt: LATER, blockedAt: CUTOFF };
+    const paid = saved('EXPIRED', closed);
+    paid.markPaid(PAID, CUTOFF);
+    const waiting = saved('EXPIRED', closed);
+    waiting.awaitManualFulfillment(PAID, CUTOFF);
+    const cancelled = saved('CANCELLED', closed);
+    cancelled.recordPaymentAfterCancellation(PAID);
+
+    for (const order of [paid, waiting, cancelled]) {
+      expect(order.snapshot).toMatchObject({
+        concludedAt: null,
+        blockedAt: null,
+      });
+      expect(order.isBlocked).toBe(false);
+    }
+  });
+
+  it('concludes a SHIPPED order when its shipment comes back, once', () => {
+    const order = saved('SHIPPED', { paidAt: PAID });
+
+    expect(order.recordReturn(LATER)).toBe(true);
+    expect(order.recordReturn(CUTOFF)).toBe(false);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'SHIPPED',
+      concludedAt: LATER,
+    });
+    expect(order.hasChanges).toBe(true);
+    for (const status of ['PAID', 'DELIVERED'] as const) {
+      const other = saved(status, { paidAt: PAID });
+      expect(other.recordReturn(LATER)).toBe(false);
+      expect(other.hasChanges).toBe(false);
+    }
+  });
+
+  it('blocks the data of an order that concluded by the cutoff, once, and never one anonymized', () => {
+    const due = saved('DELIVERED', { concludedAt: CUTOFF });
+    const late = saved('DELIVERED', {
+      concludedAt: new Date(CUTOFF.getTime() + 1),
+    });
+    const open = saved('PAID');
+    const anonymized = saved('DELIVERED', {
+      concludedAt: LATER,
+      anonymizedAt: LATER,
+    });
+
+    expect(due.blockIfDue(CUTOFF, LATER)).toBe(true);
+    expect(due.blockIfDue(CUTOFF, CUTOFF)).toBe(false);
+    expect(
+      [late, open, anonymized].map((order) => order.blockIfDue(CUTOFF, LATER)),
+    ).toEqual([false, false, false]);
+
+    expect(due.snapshot.blockedAt).toBe(LATER);
+    expect([due.isBlocked, due.hasChanges]).toEqual([true, true]);
+    expect([late, open, anonymized].map((order) => order.hasChanges)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('tells whether it concluded by a cutoff', () => {
+    expect(
+      [
+        saved('DELIVERED', { concludedAt: CUTOFF }),
+        saved('DELIVERED', { concludedAt: new Date(CUTOFF.getTime() + 1) }),
+        saved('PAID'),
+      ].map((order) => order.concludedBy(CUTOFF)),
+    ).toEqual([true, false, false]);
+  });
+
+  it('hides who receives the address and where exactly, as anonymizing does', () => {
+    expect(
+      withoutIdentifyingFields({
+        ...ADDRESS,
+        interiorNumber: '4B',
+        city: 'Morelia',
+        references: 'Frente a la catedral',
+      }),
+    ).toEqual({
+      recipientName: null,
+      phone: null,
+      street: null,
+      exteriorNumber: null,
+      interiorNumber: null,
+      neighborhood: null,
+      postalCode: ADDRESS.postalCode,
+      stateCode: ADDRESS.stateCode,
+      stateName: ADDRESS.stateName,
+      municipalityCode: ADDRESS.municipalityCode,
+      municipalityName: ADDRESS.municipalityName,
+      city: null,
+      references: null,
+      country: 'MX',
+    });
   });
 });

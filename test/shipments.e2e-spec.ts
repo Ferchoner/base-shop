@@ -312,6 +312,7 @@ describe('Shipments (e2e, T-195)', () => {
       cancelledAt: null,
       failureNote: null,
       returnNote: null,
+      blockedAt: null,
       version: 1,
       createdAt: expect.any(String),
     });
@@ -701,6 +702,12 @@ describe('Shipments (e2e, T-195)', () => {
       deliveredAt: null,
       shipment: { status: 'RETURNED' },
     });
+    // Shipped still, the order concluded when its goods came back: its retention starts then (ADR-0149).
+    const { concludedAt } = await prisma.order.findUniqueOrThrow({
+      where: { id },
+      select: { concludedAt: true },
+    });
+    expect(concludedAt?.toISOString()).toBe(returned.body.returnedAt);
     expect((await auditsOf(shipment.id)).slice(1)).toEqual([
       {
         action: 'shipments.delivery-failure',

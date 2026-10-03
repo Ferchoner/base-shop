@@ -47,6 +47,16 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio". Orden por dependenc
   - no renumerar las secciones que cita el código;
   - actualizar el estado de `PROJECT.md` y `README.md` al cerrar un sprint.
 
+### Resultado del paso 1
+
+T-232 parte a, con el nuevo ADR-0151:
+
+- **Fecha de conclusión:** la orden guarda cuándo concluyó (`concluded_at`). Una SHIPPED concluye cuando vuelve su envío, que Shipping avisa con `ShipmentReturned`, y un pago tardío que la reabre la borra. La migración la llena en las órdenes existentes.
+- **Bloqueo y anonimización:** el job diario `ordering.retention` bloquea las órdenes que concluyeron hace 12 meses, con sus envíos, y anonimiza las de hace 72. Hace hasta 1,000 de cada uno por corrida, cada orden en su transacción, auditada como sistema.
+- **Ocultamiento:** una orden bloqueada desaparece de las vistas del comprador (sus pedidos, la consulta y el enlace del invitado, la recompra), y el staff la ve con `blockedAt`, sin su email ni su dirección exacta, también en el envío; la búsqueda por email no la encuentra.
+- **Plazos:** seis variables nuevas con rango, entre ellas los 30 días de la limpieza diaria, y la política vigente en el log al arrancar.
+- **Riesgos del sprint:** los correos no necesitan ocultamiento, porque una orden bloqueada ya concluyó y no genera eventos; un pago tardío la desbloquea antes de avisar. Las respuestas guardadas por idempotencia ya no existen al anonimizar, porque duran 24 horas.
+
 ## Risks
 
 - **Borrado irreversible y automático:** con los valores por defecto, la anonimización empieza 6 años después de que concluye la orden, pero un plazo mal configurado podría adelantarla. Aplican las salvaguardas de ADR-0149: rangos al arrancar, lotes con tope por corrida y auditoría sin valores.

@@ -71,6 +71,31 @@ export type AnonymizedDestination = Omit<ShipmentAddress, IdentifyingField> & {
 /** Where a shipment goes, whole until its order is anonymized. */
 export type ShipmentDestination = ShipmentAddress | AnonymizedDestination;
 
+/**
+ * A destination without who receives it nor where exactly: the state, the municipality, the postal code and the
+ * country. What an anonymized shipment keeps, and what a blocked one shows (ADR-0067, ADR-0070).
+ */
+export function withoutIdentifyingFields(
+  destination: ShipmentDestination,
+): AnonymizedDestination {
+  return {
+    recipientName: null,
+    phone: null,
+    street: null,
+    exteriorNumber: null,
+    interiorNumber: null,
+    neighborhood: null,
+    postalCode: destination.postalCode,
+    stateCode: destination.stateCode,
+    stateName: destination.stateName,
+    municipalityCode: destination.municipalityCode,
+    municipalityName: destination.municipalityName,
+    city: null,
+    references: null,
+    country: destination.country,
+  };
+}
+
 /** What a shipment carries of a line of its order, with what the staff needs to pack it (ADR-0140). */
 export interface ShipmentItem {
   readonly orderLineId: OrderLineId;
@@ -103,6 +128,8 @@ export interface ShipmentSnapshot {
   readonly returnNote: string | null;
   /** When the data of who receives it was removed, with its order (ADR-0067); `null` until then. */
   readonly anonymizedAt: Date | null;
+  /** When the data of who receives it was blocked, with its order (ADR-0070); `null` until then. */
+  readonly blockedAt: Date | null;
   readonly version: number;
 }
 
@@ -187,6 +214,7 @@ export class Shipment {
       failureNote: null,
       returnNote: null,
       anonymizedAt: null,
+      blockedAt: null,
       version: 1,
     });
     shipment.changed = true;
@@ -349,27 +377,21 @@ export class Shipment {
    * moves again (ADR-0145).
    */
   anonymize(at: Date): void {
-    const destination = this.state.destination;
     this.state = {
       ...this.state,
-      destination: {
-        recipientName: null,
-        phone: null,
-        street: null,
-        exteriorNumber: null,
-        interiorNumber: null,
-        neighborhood: null,
-        postalCode: destination.postalCode,
-        stateCode: destination.stateCode,
-        stateName: destination.stateName,
-        municipalityCode: destination.municipalityCode,
-        municipalityName: destination.municipalityName,
-        city: null,
-        references: null,
-        country: destination.country,
-      },
+      destination: withoutIdentifyingFields(this.state.destination),
       anonymizedAt: this.state.anonymizedAt ?? at,
     };
+    this.changed = true;
+  }
+
+  /**
+   * The data of its order was blocked (ADR-0070): its destination stays, hidden from the staff until it is anonymized.
+   * A blocked order has concluded, so its shipment never moves again.
+   */
+  block(at: Date): void {
+    if (this.state.blockedAt !== null) return;
+    this.state = { ...this.state, blockedAt: at };
     this.changed = true;
   }
 

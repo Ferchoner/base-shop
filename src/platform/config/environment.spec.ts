@@ -771,6 +771,70 @@ describe('PASSWORD_RESET_TTL (BR-USR-16, ADR-0118)', () => {
   });
 });
 
+describe('Retention of personal data and records (ADR-0070, ADR-0149)', () => {
+  it('defaults to the cycle enabled: 12 months visible, 60 blocked, and 30 days for the records', () => {
+    expect(validateEnvironment(REQUIRED)).toMatchObject({
+      PERSONAL_DATA_RETENTION_ENABLED: true,
+      PERSONAL_DATA_OPERATIONAL_MONTHS: 12,
+      PERSONAL_DATA_BLOCKED_MONTHS: 60,
+      SPENT_REFRESH_TOKEN_RETENTION_DAYS: 30,
+      INACTIVE_GUEST_CART_RETENTION_DAYS: 30,
+      PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS: 30,
+    });
+  });
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('reads PERSONAL_DATA_RETENTION_ENABLED %p', (value, expected) => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        PERSONAL_DATA_RETENTION_ENABLED: value,
+      }).PERSONAL_DATA_RETENTION_ENABLED,
+    ).toBe(expected);
+  });
+
+  it.each([
+    ['PERSONAL_DATA_OPERATIONAL_MONTHS', '1'],
+    ['PERSONAL_DATA_OPERATIONAL_MONTHS', '120'],
+    ['PERSONAL_DATA_BLOCKED_MONTHS', '0'],
+    ['PERSONAL_DATA_BLOCKED_MONTHS', '240'],
+    ['SPENT_REFRESH_TOKEN_RETENTION_DAYS', '1'],
+    ['SPENT_REFRESH_TOKEN_RETENTION_DAYS', '365'],
+    ['INACTIVE_GUEST_CART_RETENTION_DAYS', '1'],
+    ['INACTIVE_GUEST_CART_RETENTION_DAYS', '365'],
+    ['PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS', '7'],
+    ['PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS', '365'],
+  ])('accepts %s %p', (name, value) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, [name]: value })[
+        name as keyof ReturnType<typeof validateEnvironment>
+      ],
+    ).toBe(Number(value));
+  });
+
+  it.each([
+    ['PERSONAL_DATA_RETENTION_ENABLED', 'yes'],
+    ['PERSONAL_DATA_OPERATIONAL_MONTHS', '0'],
+    ['PERSONAL_DATA_OPERATIONAL_MONTHS', '121'],
+    ['PERSONAL_DATA_OPERATIONAL_MONTHS', '1.5'],
+    ['PERSONAL_DATA_BLOCKED_MONTHS', '-1'],
+    ['PERSONAL_DATA_BLOCKED_MONTHS', '241'],
+    ['SPENT_REFRESH_TOKEN_RETENTION_DAYS', '0'],
+    ['SPENT_REFRESH_TOKEN_RETENTION_DAYS', '366'],
+    ['INACTIVE_GUEST_CART_RETENTION_DAYS', '0'],
+    ['INACTIVE_GUEST_CART_RETENTION_DAYS', '366'],
+    ['INACTIVE_GUEST_CART_RETENTION_DAYS', 'month'],
+    ['PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS', '6'],
+    ['PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS', '366'],
+  ])('rejects %s %p', (name, value) => {
+    expect(() => validateEnvironment({ ...REQUIRED, [name]: value })).toThrow(
+      name,
+    );
+  });
+});
+
 describe('DELIVERED_EVENT_RETENTION_DAYS (ADR-0150)', () => {
   it('defaults to 7 days', () => {
     expect(validateEnvironment(REQUIRED).DELIVERED_EVENT_RETENTION_DAYS).toBe(

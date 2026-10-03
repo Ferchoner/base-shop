@@ -400,6 +400,7 @@ Criterios de aceptación:
 | UC-AUD-03 | Exportar y depurar auditoría | Sistema (job diario) | ADR-0037 |
 | UC-NTF-01 | Enviar notificaciones por correo | Sistema | ADR-0045, ADR-0074, BR-NTF-01 a 04 |
 | UC-SYS-01 | Limpieza diaria | Sistema (3:00, hora de México) | ADR-0029 |
+| UC-SYS-02 | Ciclo de conservación de datos personales | Sistema (3:00, hora de México) | ADR-0070, ADR-0149, ADR-0151, BR-PRIV-05 |
 
 Criterios de aceptación:
 
@@ -410,6 +411,8 @@ Criterios de aceptación:
 - **UC-NTF-01 (implementación, ADR-0143):** un módulo de notificaciones escucha los eventos de la orden, su envío y su reembolso, y lee la orden con la fachada de Ordering; los correos son de texto plano; las instrucciones de pago en tienda van solo con el pago manual habilitado; ningún correo lleva el ID ni el número interno de la orden.
 - **UC-SYS-01:** borra refresh tokens vencidos o revocados (30 días), tokens de verificación de email y de recuperación de contraseña vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días) y carritos de invitado inactivos (30 días).
 - **UC-SYS-01 y UC-CRT-07 (implementación, ADR-0144):** un job por dueño de cada tabla, a las 3:00, hora de México; borra por lotes de 1,000 filas, hasta 100 lotes por día; un carrito usado mientras corre la limpieza no se borra; los carritos de clientes se conservan.
+- **UC-SYS-01 (plazos, ADR-0151):** los 30 días de los refresh tokens, los carritos de invitado y los eventos de webhooks son configurables con `SPENT_REFRESH_TOKEN_RETENTION_DAYS`, `INACTIVE_GUEST_CART_RETENTION_DAYS` y `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS`.
+- **UC-SYS-02 (ADR-0151):** cada día bloquea los datos personales de las órdenes que concluyeron hace 12 meses o más, con sus envíos, y anonimiza los de las que concluyeron hace 72 meses o más (plazos configurables); hasta 1,000 de cada uno por corrida, de la orden más antigua a la más nueva; cada orden en su propia transacción, auditada como sistema y sin valores; una orden que falla no detiene a las demás. Una orden bloqueada desaparece de las vistas del comprador, y el staff la ve sin el email ni la dirección exacta.
 
 ---
 
@@ -539,7 +542,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 
 - Disponibilidad, tiempos de respuesta y volumen esperado: PENDIENTE DE DECISIÓN (P-14).
 - Métricas, trazas y seguimiento de errores: PENDIENTE DE DECISIÓN (P-07).
-- Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149); se implementa en T-232. Cada operador valida los plazos antes de operar.
+- Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149). El bloqueo y la anonimización automáticos están implementados (UC-SYS-02, ADR-0151); la consulta auditada de los datos bloqueados llega en T-232 parte b. Cada operador valida los plazos antes de operar.
 
 ---
 

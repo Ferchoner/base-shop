@@ -110,6 +110,14 @@ class BuyerOrders extends OrderRepository {
     return Promise.resolve(this.orders);
   }
 
+  dueForBlocking(): Promise<OrderId[]> {
+    throw new Error('This test never blocks orders');
+  }
+
+  dueForAnonymization(): Promise<OrderId[]> {
+    throw new Error('This test never anonymizes orders by their date');
+  }
+
   dueForExpiry(): Promise<OrderId[]> {
     throw new Error('Anonymizing never expires orders');
   }

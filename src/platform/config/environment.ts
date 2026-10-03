@@ -268,6 +268,62 @@ export class EnvironmentVariables {
   AUDIT_ARCHIVE_DIR: string = 'storage/audit';
 
   /**
+   * Whether the personal data of orders and shipments follows its retention cycle: blocked when the operational phase
+   * ends, anonymized when the blocked one does (ADR-0070, ADR-0149). The defaults are no legal advice: each operator
+   * validates them before operating.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) => parseBoolean(value))
+  @IsBoolean()
+  PERSONAL_DATA_RETENTION_ENABLED: boolean = true;
+
+  /** Months the personal data of an order stays visible after the order concluded: from 1 to 120 (ADR-0149). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  PERSONAL_DATA_OPERATIONAL_MONTHS: number = 12;
+
+  /**
+   * Months the personal data of an order stays blocked, hidden, before it is anonymized: from 0 to 240; with 0, it is
+   * anonymized when the operational phase ends (ADR-0149).
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(240)
+  PERSONAL_DATA_BLOCKED_MONTHS: number = 60;
+
+  /** Days a refresh token stays after it expired or was revoked, to detect its reuse: from 1 to 365 (ADR-0149). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  SPENT_REFRESH_TOKEN_RETENTION_DAYS: number = 30;
+
+  /** Days a guest cart stays without activity: from 1 to 365 (BR-CRT-06, ADR-0149). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  INACTIVE_GUEST_CART_RETENTION_DAYS: number = 30;
+
+  /**
+   * Days a processed webhook event stays, to discard its repeats: from 7 to 365, so the retries of a payment provider
+   * are covered (ADR-0149).
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(7)
+  @Max(365)
+  PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS: number = 30;
+
+  /**
    * Days a domain event stays after all its deliveries succeeded, for diagnosis: from 1 to 90 (ADR-0149, ADR-0150).
    * Events with a delivery pending or failed stay until it is delivered.
    */

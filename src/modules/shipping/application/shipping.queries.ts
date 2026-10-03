@@ -49,7 +49,10 @@ export interface ShipmentView extends OrderShipmentView {
   readonly orderCode: string;
   readonly warehouseId: WarehouseId;
   /** Whole until its order is anonymized (ADR-0067). */
+  /** Without who receives it nor where exactly once its order is blocked or anonymized (ADR-0070). */
   readonly destination: ShipmentDestination;
+  /** When the data of its order was blocked (ADR-0070); `null` until then. */
+  readonly blockedAt: Date | null;
   readonly items: readonly ShipmentItem[];
   readonly failedAt: Date | null;
   readonly returnedAt: Date | null;

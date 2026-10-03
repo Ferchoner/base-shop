@@ -44,6 +44,7 @@ export {
   CLEANUP_MAX_BATCHES,
   daysBefore,
   deleteInBatches,
+  monthsBefore,
 } from './cleanup.js';
 export { inMexicoTime } from './mexico-time.js';
 export { type Id, newCredentialId, newId, toId } from './id.js';

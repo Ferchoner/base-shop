@@ -149,6 +149,7 @@ Ver ADR-0005.
 - Archivo de la auditoría: `audit.archive` (ADR-0146).
 - Reintento de entregas de eventos: `platform.deliver-events` (ADR-0150).
 - Limpieza de eventos entregados: `platform.cleanup-events` (ADR-0150).
+- Ciclo de conservación de datos personales: `ordering.retention` (ADR-0151).
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
@@ -159,7 +160,8 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 | Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011. Un solo job de Ordering, `ordering.expire-orders`, vence cada orden con su reserva, por lotes de 100 (ADR-0136) |
 | Conciliación de pagos | Cada 5 minutos | Pagos con más de 10 minutos sin resolver (ADR-0014) |
 | Reintento de entregas de eventos | Cada minuto | `platform.deliver-events` toma hasta 100 entregas vencidas, cada una en una sola instancia (`FOR UPDATE SKIP LOCKED`), y las reintenta con esperas de 1 minuto a 12 horas, hasta 8 intentos (ADR-0150) |
-| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días), eventos de dominio entregados (7 días, `platform.cleanup-events`, ADR-0150) |
+| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días), eventos de dominio entregados (7 días, `platform.cleanup-events`, ADR-0150). Los plazos en días son configurables (ADR-0149, ADR-0151) |
+| Conservación de datos personales | Diaria, 3:00 (America/Mexico_City) | `ordering.retention` bloquea las órdenes que concluyeron hace 12 meses y anonimiza las de hace 72, con sus envíos; hasta 1,000 de cada una por corrida, cada orden en su transacción (ADR-0151) |
 | Archivo de la auditoría | Diaria, 3:00 (America/Mexico_City) | `audit.archive` exporta a un archivo comprimido cada día UTC con más de 3 meses, lo relee y compara, y solo entonces borra sus registros de la base; elimina los archivos de más de 2 años. Un archivo nunca se sobrescribe (ADR-0146) |
 
 ## Integraciones externas

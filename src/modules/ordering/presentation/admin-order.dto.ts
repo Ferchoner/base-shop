@@ -167,6 +167,15 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   anonymizedAt: Date | null;
 
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Cuándo se bloquearon los datos personales de la orden: desde entonces, `contactEmail` y la dirección se muestran como anonimizados (ADR-0070).',
+  })
+  blockedAt: Date | null;
+
   @ApiProperty({ type: () => AdminOrderAddressDto })
   shippingAddress: AdminOrderAddressDto;
 }

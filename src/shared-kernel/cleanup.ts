@@ -29,3 +29,18 @@ export async function deleteInBatches(
 export function daysBefore(now: Date, days: number): Date {
   return new Date(now.getTime() - days * 86_400_000);
 }
+
+/**
+ * The same instant `months` calendar months before `now`, in UTC; on the last day of the month when it is shorter:
+ * the cutoff of a retention counted in months (ADR-0146, ADR-0149).
+ */
+export function monthsBefore(now: Date, months: number): Date {
+  const target = new Date(now.getTime());
+  target.setUTCDate(1);
+  target.setUTCMonth(target.getUTCMonth() - months);
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  target.setUTCDate(Math.min(now.getUTCDate(), lastDay));
+  return target;
+}
