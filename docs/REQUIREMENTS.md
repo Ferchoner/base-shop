@@ -514,7 +514,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Área | Requisito | Fuente |
 |---|---|---|
 | Consistencia | Sin sobreventa; reservas con actualización condicional y `CHECK` en base de datos; pruebas de concurrencia contra PostgreSQL real | ADR-0011, ADR-0033 |
-| Idempotencia | `Idempotency-Key` en colocar orden e iniciar pago (retención 24 horas); webhooks deduplicados (30 días); jobs y handlers idempotentes | ADR-0014, ADR-0029 |
+| Idempotencia | `Idempotency-Key` en colocar orden e iniciar pago (retención 24 horas); webhooks deduplicados (30 días); jobs y handlers idempotentes, porque un handler puede correr dos veces | ADR-0029, ADR-0150 |
 | Seguridad de autenticación | Token de acceso 15 minutos; refresh token 7 días con rotación y detección de reutilización; Argon2id; contraseñas de 15 a 64 caracteres con lista de comunes | ADR-0023, ADR-0047 |
 | Rate limiting | Límites por endpoint de ADR-0065, configurables; 429 con `Retry-After`; sin bloqueo de cuentas | ADR-0065 |
 | Autorización | RBAC contexto.acción; ID del cliente tomado del token en `/v1/me` | ADR-0017, ADR-0036, ADR-0043 |
@@ -527,7 +527,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Mantenibilidad | Monolito modular con límites verificados en CI | ADR-0003, ADR-0005, ADR-0030 |
 | Testabilidad | Dominio sin dependencias de framework; reloj inyectable | ADR-0003 |
 | Observabilidad | Logs en consola con nivel configurable e identificador de correlación | ADR-0032, ADR-0033 |
-| Consistencia | Los efectos entre contextos ocurren en segundo plano después del commit; el cliente advierte la posible demora (`API_SPEC.md`, sección 2.5) | ADR-0014, ADR-0098 |
+| Consistencia | Los efectos entre contextos ocurren en segundo plano después del commit, y se reintentan hasta entregarse; el cliente advierte la posible demora (`API_SPEC.md`, sección 2.5) | ADR-0098, ADR-0150 |
 | Compatibilidad | Solo cambios compatibles dentro de `v1` | ADR-0034 |
 | Independencia del frontend | Sin cookies ni supuestos de cliente | ADR-0010, ADR-0023 |
 | CORS | Orígenes exactos en variable de entorno, vacía por defecto; sin comodín ni credenciales | ADR-0085 |

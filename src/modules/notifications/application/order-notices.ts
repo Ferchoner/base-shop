@@ -17,8 +17,9 @@ import {
 
 /**
  * Emails the buyer of an order about what happened to it (UC-NTF-01, ADR-0074, ADR-0143), once the change
- * commits: to the contact email of the order, never to an anonymized one (BR-NTF-03). At most one email per event
- * and no retries: a failure stays in the log, without the recipient, and never undoes the change (BR-NTF-04).
+ * commits: to the contact email of the order, never to an anonymized one (BR-NTF-03). A mail server that does not
+ * take the email rejects with `EmailDeliveryError`, whose message never holds the recipient: the error goes up, so
+ * the delivery of the event retries the email, and it never undoes the change (BR-NTF-04, ADR-0150).
  */
 @Injectable()
 export class OrderNotices {
@@ -71,12 +72,6 @@ export class OrderNotices {
       return;
     }
     if (order.contactEmail === null) return;
-    try {
-      await this.email.send({ to: order.contactEmail, ...write(order) });
-    } catch (error) {
-      this.logger.warn(
-        `Email ${kind} of order ${orderId} was not sent: ${(error as Error).message}`,
-      );
-    }
+    await this.email.send({ to: order.contactEmail, ...write(order) });
   }
 }

@@ -2,31 +2,62 @@ import { ClsServiceManager } from 'nestjs-cls';
 
 const TRANSACTION_SCOPE = Symbol('transaction-scope');
 
+/** How many callbacks of each kind were registered at some point, to discard later the ones a nested step adds. */
+export interface ScopeMark {
+  readonly beforeCommit: number;
+  readonly afterCommit: number;
+}
+
 /**
- * The outermost transaction opened by TransactionManager.run (ADR-0098). Platform code uses it to run work
- * once the transaction commits, such as dispatching domain events. On rollback the callbacks never run.
+ * The outermost transaction opened by TransactionManager.run (ADR-0098). Platform code uses it to write within the
+ * transaction once its work is done, such as storing domain events (ADR-0150), and to run work once the transaction
+ * commits, such as dispatching them. On rollback the after-commit callbacks never run.
  */
 export class TransactionScope {
-  private readonly callbacks: (() => void)[] = [];
+  private readonly beforeCommitCallbacks: (() => Promise<void>)[] = [];
+  private readonly afterCommitCallbacks: (() => void)[] = [];
+
+  /**
+   * Runs `callback` inside the transaction, after its work succeeded and before the commit, in registration order.
+   * What it writes commits with the work, and if it fails, the transaction rolls back.
+   */
+  beforeCommit(callback: () => Promise<void>): void {
+    this.beforeCommitCallbacks.push(callback);
+  }
 
   /** Runs `callback` right after the commit, in registration order. */
   afterCommit(callback: () => void): void {
-    this.callbacks.push(callback);
+    this.afterCommitCallbacks.push(callback);
   }
 
   /** How many callbacks are registered now, to discard later the ones a nested step adds. */
-  mark(): number {
-    return this.callbacks.length;
+  mark(): ScopeMark {
+    return {
+      beforeCommit: this.beforeCommitCallbacks.length,
+      afterCommit: this.afterCommitCallbacks.length,
+    };
   }
 
   /** Forgets the callbacks registered since `mark`, because the nested step that added them was undone. */
-  discardSince(mark: number): void {
-    this.callbacks.length = Math.min(mark, this.callbacks.length);
+  discardSince(mark: ScopeMark): void {
+    this.beforeCommitCallbacks.length = Math.min(
+      mark.beforeCommit,
+      this.beforeCommitCallbacks.length,
+    );
+    this.afterCommitCallbacks.length = Math.min(
+      mark.afterCommit,
+      this.afterCommitCallbacks.length,
+    );
+  }
+
+  /** Called by the transaction manager inside the transaction, once its work succeeded. */
+  async runBeforeCommitCallbacks(): Promise<void> {
+    for (const callback of this.beforeCommitCallbacks) await callback();
   }
 
   /** Called by the transaction manager once the commit succeeded. */
   runAfterCommitCallbacks(): void {
-    for (const callback of this.callbacks) callback();
+    for (const callback of this.afterCommitCallbacks) callback();
   }
 }
 

@@ -32,7 +32,8 @@ export const MAX_ACCESS_ORDERS = 50;
 
 /**
  * Published when someone asks for an access link (UC-ORD-05), so the link is issued and sent in the background: the
- * answer, and how long it takes, never tell whether the email has orders (ADR-0148). It lives only in memory.
+ * answer, and how long it takes, never tell whether the email has orders (ADR-0148). It carries the email, so it is
+ * volatile and never stored: if it is lost, the guest asks again (ADR-0150).
  */
 export interface OrderAccessRequested extends DomainEvent<'OrderAccessRequested'> {
   /** Normalized. */
@@ -73,7 +74,7 @@ export class OrderAccessLinks {
       ...eventMetadata('OrderAccessRequested', this.clock.now()),
       contactEmail: normalizedContactEmail(contactEmail),
     };
-    this.events.publish(event);
+    this.events.publishVolatile(event);
   }
 
   /**

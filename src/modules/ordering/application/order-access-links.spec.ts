@@ -118,8 +118,8 @@ function setUp(options: { hasOrders?: boolean; emailFails?: boolean } = {}) {
   } as EmailSender;
   const published: DomainEvent[] = [];
   const events = {
-    publish: (...batch: DomainEvent[]) => published.push(...batch),
-  } as DomainEventPublisher;
+    publishVolatile: (...batch: DomainEvent[]) => published.push(...batch),
+  } as unknown as DomainEventPublisher;
   const transactions = {
     run: async <T>(work: () => Promise<T>) => {
       const result = await work();
@@ -154,7 +154,7 @@ describe('OrderAccessLinks (UC-ORD-05, ADR-0148)', () => {
   });
 
   describe('request', () => {
-    it('only publishes OrderAccessRequested with the email normalized, so the link goes out in the background', () => {
+    it('only publishes OrderAccessRequested, volatile because it carries the email normalized, so the link goes out in the background (ADR-0150)', () => {
       const { accessLinks, calls, published } = setUp();
 
       accessLinks.request('  Cliente@Example.COM ');

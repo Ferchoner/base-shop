@@ -156,14 +156,13 @@ describe('OrderNotices (UC-NTF-01, BR-NTF-01 to 04, ADR-0143)', () => {
     );
   });
 
-  it('logs an email the server did not take, without the recipient, and never fails (BR-NTF-04)', async () => {
+  it('lets an email the server did not take fail, without the recipient, so the delivery of the event retries it (BR-NTF-04, ADR-0150)', async () => {
     const { notices } = setUp(undefined, { failing: true });
 
-    await expect(notices.orderPlaced('order')).resolves.toBeUndefined();
+    const sending = notices.orderPlaced('order');
 
-    expect(warn).toHaveBeenCalledWith(
-      'Email order-placed of order order was not sent: connection refused',
-    );
-    expect(JSON.stringify(warn.mock.calls)).not.toContain('cliente@');
+    await expect(sending).rejects.toThrow(EmailDeliveryError);
+    await expect(sending).rejects.toThrow('connection refused');
+    expect(warn).not.toHaveBeenCalled();
   });
 });

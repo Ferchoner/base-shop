@@ -49,7 +49,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
-| Transversal | `audit_logs`, `idempotency_keys`, `geo_states`, `geo_municipalities` |
+| Transversal | `audit_logs`, `idempotency_keys`, `domain_events`, `event_deliveries`, `geo_states`, `geo_municipalities` |
 
 **Correspondencia con los nombres solicitados:**
 
@@ -714,6 +714,19 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 
 Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir del catálogo versionado en `data/inegi/`; nunca se borran (ADR-0057).
 
+### 11.4 `domain_events` y `event_deliveries`
+
+El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la transacción del cambio que lo publica, con una entrega por handler.
+
+| Tabla | Campos | Restricciones e índices |
+|---|---|---|
+| `domain_events` | id (el `eventId`), event_type, payload jsonb (el evento completo, con las fechas marcadas como `{"$date": …}`), occurred_at, created_at | PK `id` |
+| `event_deliveries` | id, event_id (FK `CASCADE`), handler (`Clase.método`), status (enum `event_delivery_status`: PENDING, DELIVERED, FAILED), attempts, next_attempt_at, locked_until, last_error, delivered_at, created_at | `UNIQUE (event_id, handler)`; índice parcial `(next_attempt_at) WHERE status = 'PENDING'`; `CHECK (status <> 'DELIVERED' OR delivered_at IS NOT NULL)`; `CHECK (attempts >= 0)` |
+
+- **Sin datos personales:** los eventos que llevan uno se publican como volátiles y no se guardan (`OrderAccessRequested`).
+- **Entrega:** quien toma una entrega suma un intento y la reserva 5 minutos (`locked_until`); el job toma las vencidas con `FOR UPDATE SKIP LOCKED`. Una entrega nueva espera un minuto, para dejarla al despacho inmediato.
+- **Errores:** `last_error` guarda clase y mensaje, redactados como los logs, hasta 500 caracteres.
+
 ---
 
 ## 12. Integridad de inventario y concurrencia
@@ -779,6 +792,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
 | `email_verification_tokens`, `password_reset_tokens` | Hasta vencer o usarse | ADR-0056 |
 | `order_access_tokens` | Hasta vencer, usarse o reemplazarse; los de un invitado anonimizado se borran al anonimizarlo | ADR-0148 |
 | `idempotency_keys` | 24 horas | ADR-0063 |
+| `domain_events`, `event_deliveries` | Hasta la limpieza de los entregados (T-109 parte b); los fallidos quedan para el staff | ADR-0150 |
 | `processed_webhook_events` | 30 días | ADR-0029 |
 | `carts` de invitado inactivos | 30 días | ADR-0029 |
 | Órdenes, pagos, envíos, movimientos | Nunca se borran | ADR-0038 |

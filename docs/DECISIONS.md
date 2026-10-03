@@ -31,7 +31,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0011 | Inventario: almacén, reservas y concurrencia | Aceptada |
 | ADR-0012 | Pago recibido después de expirar la orden | Aceptada |
 | ADR-0013 | Pagos: proveedores y modo de captura | Aceptada |
-| ADR-0014 | Eventos de dominio sin outbox | Aceptada |
+| ADR-0014 | Eventos de dominio sin outbox | Reemplazada por ADR-0150 |
 | ADR-0015 | Reglas del carrito | Aceptada |
 | ADR-0016 | Publicación de productos | Aceptada |
 | ADR-0017 | Granularidad de permisos | Aceptada |
@@ -167,6 +167,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0147 | Imagen de producción sin el CLI de Prisma, e imagen de migración aparte | Aceptada |
 | ADR-0148 | Enlace de acceso a los pedidos de invitado | Aceptada |
 | ADR-0149 | Plazos de conservación configurables, con valores por defecto | Aceptada |
+| ADR-0150 | Entrega garantizada de eventos (outbox transaccional) | Aceptada |
 
 ---
 
@@ -355,7 +356,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Outbox para todos los eventos; outbox solo para la cadena pago → orden → inventario.
 - **Riesgo aceptado:** Una notificación (por ejemplo, un correo) puede perderse si la aplicación se cae justo después del commit.
 - **Revisar si:** los logs muestran fallos frecuentes de handlers, o el negocio pasa a depender de una notificación (por ejemplo, la confirmación como comprobante).
-- **Estado:** Aceptada. Implementada en ADR-0098, con despacho en segundo plano.
+- **Estado:** Reemplazada por ADR-0150 (2026-10-03): los eventos se guardan con el cambio y se reintentan hasta entregarse. Aceptada antes e implementada en ADR-0098, con despacho en segundo plano.
 
 ---
 
@@ -611,7 +612,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232).
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232). ADR-0150 agrega `platform.deliver-events`, cada minuto, que reintenta las entregas de eventos y funciona con varias instancias.
 
 ---
 
@@ -1354,7 +1355,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias. Comprobado en T-110: Prisma no los detecta (ADR-0091).
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`). Implementada en T-110 con los detalles de ADR-0091 (`order_number` como `BIGSERIAL`, forma del índice de almacén activo y borrado de carritos fusionados). ADR-0148 agrega `order_access_tokens` en Ordering: 39 tablas.
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`). Implementada en T-110 con los detalles de ADR-0091 (`order_number` como `BIGSERIAL`, forma del índice de almacén activo y borrado de carritos fusionados). ADR-0148 agrega `order_access_tokens` en Ordering: 39 tablas. ADR-0150 agrega `domain_events` y `event_deliveries`: 41 tablas.
 
 ---
 
@@ -1541,7 +1542,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El correo de orden recibida no es comprobante: el código público también se entrega en la respuesta de la API. Si el negocio llega a depender de él, se revisa ADR-0014.
   - La mención de estos correos en el aviso de privacidad se valida junto con P-61.
 - **Revisar si:** se habilitan pagos en línea (expiración y pago fallido), se integra una paquetería (entrega fallida) o se implementa el enlace de acceso al pedido (ADR-0077).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Implementada en T-215 (ADR-0143): las instrucciones de pago en tienda van solo con el pago manual habilitado.
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Implementada en T-215 (ADR-0143): las instrucciones de pago en tienda van solo con el pago manual habilitado. ADR-0150: los correos ya no se pierden si la API se cae o el servidor de correo falla; se reintentan, y en un caso raro uno puede llegar dos veces.
 
 ---
 
@@ -2169,7 +2170,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tests de integración esperan a los handlers con `DomainEventDispatcher.whenIdle()`.
   - Corregido `DOMAIN_MODEL.md`: Shopping no reacciona a `OrderPlaced`; el checkout marca el carrito dentro de su transacción (ADR-0019).
 - **Revisar si:** los logs muestran fallos frecuentes de handlers, un efecto en segundo plano necesita garantía de entrega, o se ejecuta más de una instancia.
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0133: el publicador registra un callback por publicación, así que un paso deshecho con `runNested` descarta sus eventos. ADR-0148: un contexto también publica un evento para sí mismo cuando la respuesta no debe esperar el efecto (`OrderAccessRequested`).
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0133: el publicador registra un callback por publicación, así que un paso deshecho con `runNested` descarta sus eventos. ADR-0148: un contexto también publica un evento para sí mismo cuando la respuesta no debe esperar el efecto (`OrderAccessRequested`). Modificada por ADR-0150: `publish` guarda los eventos con el cambio y cada manejador tiene su entrega, que se reintenta hasta 8 veces; `publishVolatile` conserva el despacho sin guardar ni reintentar.
 
 ---
 
@@ -4113,7 +4114,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las suites e2e que colocan órdenes intentan enviar los correos. Sin servidor SMTP en las pruebas, el envío falla de inmediato y solo queda una advertencia que el logger de pruebas no muestra. La suite de correos captura los mensajes con un `EmailSender` falso.
   - No hay correo cuando llega un pago a una orden ya cancelada: con el pago en tienda no ocurre, porque el registro manual solo acepta órdenes PENDING_PAYMENT o EXPIRED. Se revisa con PayPal (T-192).
   - Con T-215 terminada, sigue T-231.
-- **Estado:** Aceptada (plan de T-215 aprobado el 2026-10-02, con su recomendación).
+- **Estado:** Aceptada (plan de T-215 aprobado el 2026-10-02, con su recomendación). ADR-0150: un fallo del servidor de correo llega a la entrega del evento, que lo reintenta (BR-NTF-04).
 
 ---
 
@@ -4375,7 +4376,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Nuevo efecto en segundo plano en `API_SPEC.md` §2.5: si la API se cae antes de enviarlo, el invitado pide otro enlace.
   - Un email con más de 50 órdenes de invitado ve las 50 más recientes; las demás las atiende el staff, que busca por email (ADR-0133).
 - **Revisar si:** existe frontend, que debe servir `/order-access` con `Referrer-Policy: no-referrer` (ADR-0117), o hay proveedor de correo real (P-24).
-- **Estado:** Aceptada (plan de T-186 aprobado el 2026-10-03, con sus 4 recomendaciones). Reemplaza parcialmente a ADR-0077 y modifica ADR-0066.
+- **Estado:** Aceptada (plan de T-186 aprobado el 2026-10-03, con sus 4 recomendaciones). Reemplaza parcialmente a ADR-0077 y modifica ADR-0066. ADR-0150: `OrderAccessRequested` se publica como volátil, sin guardarse, porque lleva el email.
 
 ---
 
@@ -4432,3 +4433,53 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un operador que no valide los plazos opera con los valores por defecto; la lista "Antes de operar" se lo advierte.
 - **Revisar si:** se publica el reglamento de la ley de 2025, o un operador necesita plazos distintos por tipo de dato o de cliente.
 - **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61.
+
+---
+
+## ADR-0150 — Entrega garantizada de eventos (outbox transaccional)
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-109 parte a, Sprint 7. ADR-0014 despachó los eventos en proceso, sin outbox, con la conciliación de pagos como red de seguridad. ADR-0098 amplió el riesgo aceptado: si un manejador falla o la API se cae después del commit, el efecto no ocurre.
+  - La conciliación está en T-192, bloqueada (P-31). Hoy, un `PaymentCaptured` perdido deja el pago capturado y la orden en PENDING_PAYMENT hasta expirar.
+  - Lo mismo pasa con el despacho y la entrega de los envíos, el reembolso completado, la restauración del carrito y los correos.
+  - ADR-0014 pide revisarse "si el negocio pasa a depender de una notificación".
+- **Decisión** (plan de T-109 parte a, con sus 4 recomendaciones):
+  - **Outbox en dos tablas de la plataforma:**
+    - `domain_events`: el evento completo en JSON, con sus fechas marcadas para que vuelvan como fechas; el dinero se guarda como su JSON;
+    - `event_deliveries`: una fila por manejador (`Clase.método`), con estado PENDING, DELIVERED o FAILED, intentos, próximo intento, reserva (`locked_until`), último error y fecha de entrega.
+
+    Un reintento repite solo el manejador que falló.
+  - **Se guardan con el cambio:**
+    - `publish` acumula los eventos en la transacción y los escribe al terminar su trabajo, antes del commit (`TransactionScope.beforeCommit`). Un rollback los descarta, y un paso anidado deshecho también;
+    - si guardarlos falla, la transacción se revierte;
+    - el código que publica no cambia, porque `publish` sigue siendo síncrono;
+    - fuera de una transacción, los guarda en una propia, en segundo plano;
+    - un evento sin manejadores no se guarda.
+  - **Despacho inmediato, como hoy:**
+    - después del commit, en segundo plano y en orden de publicación, cada manejador toma primero su entrega;
+    - recibe el evento como lo leería un reintento, así que el despacho inmediato y el reintento le dan los mismos valores;
+    - lo que ve el cliente no cambia.
+  - **Reintentos:** el job `platform.deliver-events` corre cada minuto.
+    - Toma hasta 100 entregas vencidas, del evento más viejo al más nuevo. Cada una la toma una sola instancia (`FOR UPDATE SKIP LOCKED`), con una reserva de 5 minutos.
+    - Son 8 intentos, con esperas de 1, 5 y 15 minutos, y de 1, 3, 6 y 12 horas: unas 22 horas en total. Después, FAILED.
+    - Una entrega nueva espera un minuto, para dejarla al despacho inmediato.
+    - Un intento que nunca terminó se vuelve a tomar al vencer su reserva. Si era el último, la entrega pasa a FAILED.
+    - La entrega a un manejador que ya no existe pasa a FAILED.
+  - **Al menos una vez:** si la API se cae entre el manejador y la marca de entregado, el manejador corre otra vez. Los manejadores de estado ya lo toleran, y también un reintento fuera de orden (ADR-0141). Un correo puede llegar dos veces en ese caso raro; se prefiere eso a perderlo.
+  - **Eventos volátiles:** `publishVolatile` conserva el despacho anterior, sin guardar ni reintentar. Es solo para eventos con datos personales cuya pérdida no hace daño. Hoy solo `OrderAccessRequested`, que lleva un email: si se pierde, el invitado pide otro enlace (ADR-0148). Así, la tabla de eventos nunca guarda datos personales, y una prueba e2e lo comprueba.
+  - **Errores guardados:** clase y mensaje, con la redacción del logger (ADR-0097) y hasta 500 caracteres. El log dice el intento y cuándo se reintenta.
+  - **Correos de la orden (BR-NTF-04):** un fallo del servidor de correo ya no se queda en una advertencia. Llega a la entrega, que lo reintenta.
+- **Alternativas consideradas:**
+  - **Una sola tabla por evento:** un reintento repetiría también los manejadores que ya funcionaron, como el cambio de la orden o un correo.
+  - **Marcar la entrega en la transacción del propio manejador, o deduplicar los correos por `eventId`:** daría exactamente una vez, pero cada manejador tendría que conocer el outbox.
+  - **Guardar también los eventos con datos personales:** la anonimización y la limpieza tendrían que cubrir la tabla.
+  - **Hacer `publish` asíncrono para escribir al publicar:** obligaba a cambiar cada publicación, sin ganancia.
+  - **Una cola externa (Redis, RabbitMQ):** otro servicio que operar, sin hosting decidido (P-06).
+- **Consecuencias:**
+  - Una caída de la API después del commit ya no pierde efectos: el job los entrega en el siguiente minuto.
+  - El job funciona con varias instancias; el resto de los jobs sigue necesitando un candado (ADR-0029).
+  - Los eventos entregados se acumulan hasta la limpieza diaria, y los fallidos quedan sin consulta para el staff. Ambos llegan en T-109 parte b.
+  - El modelo de datos (ADR-0066) suma `domain_events` y `event_deliveries`: 41 tablas.
+  - Los tests de integración del bus controlan el reloj y vacían el outbox antes de cada prueba.
+- **Revisar si:** el volumen de eventos hace crecer las tablas más de lo que limpia la parte b, o se ejecuta más de una instancia de forma regular.
+- **Estado:** Aceptada (plan de T-109 parte a aprobado el 2026-10-03, con sus 4 recomendaciones). Reemplaza ADR-0014 y modifica ADR-0098.

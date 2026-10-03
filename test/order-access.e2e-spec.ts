@@ -255,6 +255,27 @@ describe('Access link to the guest orders (e2e, T-186)', () => {
     sessionId: newId(),
   };
 
+  it('never stores an email in the domain events: not the access request, nor the events of a guest order (ADR-0150)', async () => {
+    const email = someEmail();
+    await guestOrder(email);
+    await requestLink({ contactEmail: email }).expect(202);
+    await dispatcher.whenIdle();
+
+    const [{ withEmail }] = await prisma.$queryRaw<{ withEmail: number }[]>`
+      SELECT count(*)::int AS "withEmail" FROM domain_events WHERE payload::text LIKE '%@%'`;
+    expect(withEmail).toBe(0);
+    expect(
+      await prisma.storedDomainEvent.count({
+        where: { eventType: 'OrderAccessRequested' },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.storedDomainEvent.count({
+        where: { eventType: 'OrderPlaced' },
+      }),
+    ).toBeGreaterThan(0);
+  });
+
   it('answers 202 the same whether the email has guest orders or not, and sends the link only to one that has', async () => {
     await guestOrder('cliente@example.com');
     const customerEmail = await customerOrder();

@@ -21,6 +21,8 @@ const TRANSVERSAL_OWNERS: Readonly<Record<string, string>> = {
   GeoState: 'geo',
   GeoMunicipality: 'geo',
   IdempotencyKey: 'platform',
+  StoredDomainEvent: 'platform',
+  EventDelivery: 'platform',
 };
 
 /** Methods of a Prisma model, as in `tx.product.findMany(`. */

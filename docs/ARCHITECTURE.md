@@ -41,7 +41,7 @@ src/
 │   ├── files/                 lector CSV (RFC 4180) con la línea de cada registro, para la importación del catálogo geográfico y la carga masiva de precios (T-124, T-145; ADR-0109, ADR-0126)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados por página y por cursor, IDs de la URL, `MoneyDto`, los DTO de dirección e imágenes servidas en `/media` (T-100, T-113, T-114, T-115, T-126, T-130, T-141, T-150, T-160, T-196)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
-│   ├── events/                bus de eventos en proceso: publicador, despachador y @OnDomainEvent (T-116, ADR-0098)
+│   ├── events/                bus de eventos en proceso con outbox: publicador, despachador, @OnDomainEvent y reintentos (T-116, T-109; ADR-0098, ADR-0150)
 │   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
@@ -118,10 +118,11 @@ Ver ADR-0005.
 
 ## Eventos de dominio
 
-- Despacho en proceso, **en segundo plano**, después del commit, sin outbox (ADR-0014, ADR-0098). La operación responde antes de que los handlers terminen; los efectos que se ven con demora están en `API_SPEC.md` (sección 2.5).
-- Application publica con el puerto `DomainEventPublisher` del shared kernel. Dentro de `TransactionManager.run`, los eventos esperan a que confirme la transacción más externa y se descartan si se revierte; fuera de una transacción salen de inmediato.
+- Despacho en proceso, **en segundo plano**, después del commit, con outbox (ADR-0098, ADR-0150). La operación responde antes de que los handlers terminen; los efectos que se ven con demora están en `API_SPEC.md` (sección 2.5).
+- **Entrega garantizada:** `publish` guarda el evento en `domain_events`, con una entrega por handler en `event_deliveries`, en la misma transacción que el cambio. Después del commit, cada handler toma su entrega y corre; si falla o la API se cae, el job `platform.deliver-events` la reintenta hasta 8 veces en unas 22 horas. La entrega es al menos una vez: un handler puede correr dos veces. `publishVolatile` no guarda ni reintenta; es solo para eventos con datos personales cuya pérdida no hace daño.
+- Application publica con el puerto `DomainEventPublisher` del shared kernel. Dentro de `TransactionManager.run`, los eventos se guardan antes del commit, esperan a que confirme la transacción más externa y se descartan si se revierte; fuera de una transacción salen de inmediato.
 - Handlers: adaptadores de entrada en la capa `infrastructure` del contexto que consume, marcados con `@OnDomainEvent('Evento')`; llaman a un caso de uso con su propia transacción. Los eventos que publiquen se despachan igual, así que las cadenas funcionan.
-- Los handlers de un evento corren uno tras otro, en orden de publicación. Un fallo se registra en el log y no detiene a los demás; no hay reintentos automáticos.
+- Los handlers de un evento corren uno tras otro, en orden de publicación. Un fallo se registra en el log y no detiene a los demás; se reintenta solo el handler que falló, y un reintento puede llegar fuera de orden.
 - Al cerrar la aplicación se espera a los handlers en curso antes de desconectar la base.
 - Forma común en el shared kernel (`DomainEvent`): `eventId` (UUIDv7), `eventType` (el nombre de `DOMAIN_MODEL.md`) y `occurredAt`; cada evento agrega sus datos (ADR-0094).
 - Handlers idempotentes por el estado de su dominio: por ejemplo, marcar como pagada una orden que ya lo está no hace nada. `eventId` identifica el evento en los logs.
@@ -146,6 +147,7 @@ Ver ADR-0005.
 - Conciliación de pagos.
 - Limpieza diaria: un job por dueño de cada tabla (ADR-0144).
 - Archivo de la auditoría: `audit.archive` (ADR-0146).
+- Reintento de entregas de eventos: `platform.deliver-events` (ADR-0150).
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
@@ -155,6 +157,7 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 |---|---|---|
 | Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011. Un solo job de Ordering, `ordering.expire-orders`, vence cada orden con su reserva, por lotes de 100 (ADR-0136) |
 | Conciliación de pagos | Cada 5 minutos | Pagos con más de 10 minutos sin resolver (ADR-0014) |
+| Reintento de entregas de eventos | Cada minuto | `platform.deliver-events` toma hasta 100 entregas vencidas, cada una en una sola instancia (`FOR UPDATE SKIP LOCKED`), y las reintenta con esperas de 1 minuto a 12 horas, hasta 8 intentos (ADR-0150) |
 | Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días) |
 | Archivo de la auditoría | Diaria, 3:00 (America/Mexico_City) | `audit.archive` exporta a un archivo comprimido cada día UTC con más de 3 meses, lo relee y compara, y solo entonces borra sus registros de la base; elimina los archivos de más de 2 años. Un archivo nunca se sobrescribe (ADR-0146) |
 
