@@ -538,7 +538,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 
 - Disponibilidad, tiempos de respuesta y volumen esperado: PENDIENTE DE DECISIÓN (P-14).
 - Métricas, trazas y seguimiento de errores: PENDIENTE DE DECISIÓN (P-07).
-- Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, fuera del MVP; plazos PENDIENTES DE VALIDACIÓN LEGAL (P-61).
+- Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149); se implementa en T-232. Cada operador valida los plazos antes de operar.
 
 ---
 

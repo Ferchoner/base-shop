@@ -27,7 +27,8 @@ Detalle en `docs/TASKS.md`, sección "Fundaciones técnicas". Orden por dependen
   - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
   - T-191 (bloqueada);
   - T-330 (despliegue, sin hosting);
-  - las tareas diferidas: T-193, T-200 y T-232.
+  - las tareas diferidas: T-193 y T-200;
+  - T-232 (ciclo de conservación de datos personales), sin bloqueo desde ADR-0149, propuesta para el Sprint 8.
 - **Flujo de trabajo:**
   - cada parte se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
   - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.

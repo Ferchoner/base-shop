@@ -137,6 +137,7 @@ Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (
 - [x] Paso 3 del Sprint 6: la imagen de producción pasa de 924 MB a 557 MB sin el CLI de Prisma, que vuelve a desarrollo; una imagen `migrate` aplica las migraciones antes de cada despliegue, y la CI migra un PostgreSQL 18 con ella y arranca la de producción contra él (ADR-0147)
 - [x] T-220: consulta de la auditoría con `audit.read`, paginada por cursor y con filtros por actor, acción o prefijo, recurso, resultado y fechas; el job diario `audit.archive` exporta cada día UTC de más de 3 meses a un archivo JSON Lines con gzip en una carpeta privada, lo relee y compara cada ID antes de borrar exactamente esos registros, nunca sobrescribe un archivo y borra los de más de 2 años; retenciones configurables (ADR-0146)
 - [x] T-186 (paso 4 del Sprint 6, a pedido del usuario): enlace de acceso a los pedidos de invitado. Se pide con el email solo y responde 202 igual, antes de emitir el enlace, que se envía en segundo plano solo si el email tiene órdenes de invitado; abre una vez las 50 más recientes. Tabla `order_access_tokens`, bloqueo advisory del email con la anonimización, limpieza diaria y límites de 3 por email y 10 por IP por hora (ADR-0148)
+- [x] P-61 cerrada (ADR-0149): plazos de conservación configurables con valores por defecto, y la validación legal como lista de cada operador antes de operar; T-232 deja de estar diferida
 - [x] Paso 0 del Sprint 7: revisión contra los ADR, con el estado de ADR-0077 y los módulos transversales de `ARCHITECTURE.md` corregidos; prácticas de la review del Sprint 6 en la guía de desarrollo; T-109 agregada
 - [x] Paso 0 del Sprint 5: revisión contra los ADR sin contradicciones; una migración quita el índice sin uso de `reservations` (ADR-0136); prácticas de la review del Sprint 4 en la guía de desarrollo
 - [x] T-195 (parte a): la orden pagada nace con su envío PENDING en la misma transacción, desde el almacén activo y con el código de la orden y cada línea copiados; el staff lista y consulta los envíos y captura paquetería y guía (auditada, con bloqueo y `version`); cancelar una orden pagada cancela su envío (nuevo estado CANCELLED) o responde 409 si ya salió; las vistas de la orden muestran el envío; el despacho, la entrega, la entrega fallida y la devolución siguen en la parte b (ADR-0140)
@@ -157,6 +158,7 @@ Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (
 ## Next
 
 - [ ] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes); plan en `SPRINT.md`
+- [ ] T-232: ciclo de conservación de datos personales con plazos configurables (ADR-0149), propuesta para el Sprint 8
 - [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked
@@ -192,7 +194,6 @@ Ninguna pendiente.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-14 | Objetivos no funcionales cuantitativos | — |
-| P-61 | Validación legal con especialista: valores de los plazos de fase operativa y bloqueo, y las preguntas de ADR-0070 (incluidas retención de auditoría y cuentas inactivas); además, la presentación del plazo de entrega estimado (ADR-0083) | T-232 |
 
 ### Contradicciones y ambigüedades de la especificación
 
@@ -260,6 +261,7 @@ Ninguna pendiente.
 | P-68 | Recompra del staff sin carrito original | ADR-0082 |
 | P-72 | Valores iniciales del método de envío | ADR-0092 |
 | P-73 | Reintegro de stock sin ciclo entre Inventory y Ordering | ADR-0132 |
+| P-61 | Plazos de conservación de datos personales: configurables con valores por defecto; la validación legal pasa a cada operador (`PROJECT.md`, "Antes de operar con clientes reales") | ADR-0149 |
 
 ## Notas
 

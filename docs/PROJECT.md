@@ -20,11 +20,12 @@ Incluido:
 - Listas de precios con precios históricos y programados
 - Almacenes, inventario y reservas de inventario
 - Carrito (incluido carrito de invitado)
-- Checkout y pedidos (incluida compra como invitado)
+- Checkout y pedidos (incluida compra como invitado, y el enlace de acceso a sus pedidos por correo, ADR-0148)
 - Pagos
 - Envíos
 - Notificaciones (como reacción a eventos)
 - Auditoría técnica
+- Privacidad: aviso versionado, anonimización y conservación de datos personales con plazos configurables (ADR-0067, ADR-0149)
 - Documentación (OpenAPI) y testing
 
 Fuera del MVP (ver ADR-0018):
@@ -35,7 +36,6 @@ Fuera del MVP (ver ADR-0018):
 - Métodos de pago asíncronos (efectivo en tiendas de conveniencia y transferencia a través de un proveedor, ADR-0013). El pago manual en tienda (ADR-0055) es solo para pruebas.
 - Múltiples almacenes en operación (el modelo los soporta).
 - Múltiples monedas.
-- Enlace de acceso al pedido por correo para invitados (ADR-0077).
 - Recoger en tienda (ADR-0078).
 
 "Administración" no es un módulo propio: cada contexto expone sus operaciones administrativas protegidas por permisos (ver ADR-0004).
@@ -93,4 +93,19 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 ## 8. Estado
 
-Fase: Inicialización. Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Sprint 2 (Identity & Access) cerrado el 2026-09-29: registro, verificación de email, sesiones, recuperación de contraseña, staff, roles, permisos y direcciones. Sprint 3 (catálogo vendible) cerrado el 2026-10-01: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y tienda pública. Sprint 4 (compra con pago en tienda) cerrado el 2026-10-02: carrito, checkout, órdenes, pago en tienda, reembolsos, vencimiento y recompra. Sprint 5 (entrega del pedido) cerrado el 2026-10-02: envíos, reintegro de stock, correos al cliente y limpieza diaria. En curso: Sprint 6 (privacidad y operación), desde el 2026-10-02. Ver `SPRINT.md` y `PROGRESS.md`.
+Fase: Inicialización. Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Sprint 2 (Identity & Access) cerrado el 2026-09-29: registro, verificación de email, sesiones, recuperación de contraseña, staff, roles, permisos y direcciones. Sprint 3 (catálogo vendible) cerrado el 2026-10-01: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y tienda pública. Sprint 4 (compra con pago en tienda) cerrado el 2026-10-02: carrito, checkout, órdenes, pago en tienda, reembolsos, vencimiento y recompra. Sprint 5 (entrega del pedido) cerrado el 2026-10-02: envíos, reintegro de stock, correos al cliente y limpieza diaria. Sprint 6 (privacidad y operación) cerrado el 2026-10-03: anonimización, consulta y archivo de la auditoría, imagen de producción reducida y enlace de acceso a los pedidos de invitado. En curso: Sprint 7 (entrega garantizada de eventos), desde el 2026-10-03. Ver `SPRINT.md` y `PROGRESS.md`.
+
+## 9. Antes de operar con clientes reales
+
+base-shop no tiene una entidad vendedora definida: cada operador resuelve esta lista antes de atender clientes reales, y la revisa cuando cambia la ley.
+
+- **Datos personales (ADR-0149), con un especialista legal:**
+  - los plazos de conservación: fase operativa y de bloqueo, cuentas inactivas, auditoría, eventos de webhooks, refresh tokens y carritos de invitado. Todos son variables de `.env.example`, con valores por defecto que no son asesoría legal;
+  - las preguntas de ADR-0070, entre ellas qué datos exigen conservar las obligaciones fiscales y mercantiles, y el plazo de prescripción que aplica;
+  - el texto del aviso de privacidad, con su versión y los plazos vigentes (ADR-0067);
+  - la presentación del plazo de entrega estimado (ADR-0083);
+  - una nueva revisión cuando se publique el reglamento de la ley de 2025.
+- **Impuestos y envíos, con el contador y el administrador (P-69):** el IVA del costo de envío, el modo de redondeo del IVA y los valores del método de envío con costos reales (ADR-0079, ADR-0092, ADR-0094).
+- **Infraestructura:** hosting, despliegue, secretos en el servidor y proveedor real de correos (P-05, P-06, P-13, P-24).
+- **Pagos:** el pago manual en tienda es solo para pruebas (ADR-0055); PayPal debe verificarse en su sandbox antes de habilitarse (T-191).
+- **Recomendado:** segundo factor de autenticación para el staff (ADR-0048).
