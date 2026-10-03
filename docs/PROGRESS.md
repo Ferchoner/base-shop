@@ -136,6 +136,7 @@ Sprint 6 — Privacidad y operación: anonimización, auditoría e imagen de pro
 - [x] T-132: anonimización de clientes y de compradores invitados desde el nuevo módulo `privacy`, en una transacción: la cuenta, sus sesiones, enlaces, direcciones y carritos; el contacto y la dirección de las órdenes y sus envíos; y las respuestas guardadas por idempotencia. Espera a que las órdenes concluyan (una SHIPPED con su envío devuelto concluye; una cancelada con pago espera su reembolso), y el checkout del mismo cliente y la anonimización se esperan. La del cliente responde `{ userId, anonymizedAt, anonymizedOrderCount }` (ADR-0145)
 - [x] Paso 3 del Sprint 6: la imagen de producción pasa de 924 MB a 557 MB sin el CLI de Prisma, que vuelve a desarrollo; una imagen `migrate` aplica las migraciones antes de cada despliegue, y la CI migra un PostgreSQL 18 con ella y arranca la de producción contra él (ADR-0147)
 - [x] T-220: consulta de la auditoría con `audit.read`, paginada por cursor y con filtros por actor, acción o prefijo, recurso, resultado y fechas; el job diario `audit.archive` exporta cada día UTC de más de 3 meses a un archivo JSON Lines con gzip en una carpeta privada, lo relee y compara cada ID antes de borrar exactamente esos registros, nunca sobrescribe un archivo y borra los de más de 2 años; retenciones configurables (ADR-0146)
+- [x] T-186 (paso 4 del Sprint 6, a pedido del usuario): enlace de acceso a los pedidos de invitado. Se pide con el email solo y responde 202 igual, antes de emitir el enlace, que se envía en segundo plano solo si el email tiene órdenes de invitado; abre una vez las 50 más recientes. Tabla `order_access_tokens`, bloqueo advisory del email con la anonimización, limpieza diaria y límites de 3 por email y 10 por IP por hora (ADR-0148)
 - [x] Paso 0 del Sprint 5: revisión contra los ADR sin contradicciones; una migración quita el índice sin uso de `reservations` (ADR-0136); prácticas de la review del Sprint 4 en la guía de desarrollo
 - [x] T-195 (parte a): la orden pagada nace con su envío PENDING en la misma transacción, desde el almacén activo y con el código de la orden y cada línea copiados; el staff lista y consulta los envíos y captura paquetería y guía (auditada, con bloqueo y `version`); cancelar una orden pagada cancela su envío (nuevo estado CANCELLED) o responde 409 si ya salió; las vistas de la orden muestran el envío; el despacho, la entrega, la entrega fallida y la devolución siguen en la parte b (ADR-0140)
 - [x] T-195 (parte b) y T-195 terminada: el staff despacha por paquetería o como entrega propia, entrega, y registra la entrega fallida y la devolución con una nota opcional que el envío muestra; quita la guía capturada por error; la orden pasa a SHIPPED y DELIVERED en segundo plano con `ShipmentDispatched` y `ShipmentDelivered`, y una entrega que llega antes que el despacho la pasa por SHIPPED; despachar y cancelar a la vez se esperan (ADR-0141)
@@ -150,7 +151,7 @@ Sprint 6 — Privacidad y operación: anonimización, auditoría e imagen de pro
 - [x] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160), cerrado el 2026-10-01
 - [x] Sprint 4: compra con pago en tienda (paso 0, T-170, T-180, T-190, T-230 sin la conciliación, T-185 y T-181), cerrado el 2026-10-02
 - [x] Sprint 5: entrega del pedido (paso 0, T-195, T-161, T-215 y T-231), cerrado el 2026-10-02
-- [ ] Sprint 6: privacidad y operación (paso 0, T-132, T-220 y reducir la imagen de producción); plan en `SPRINT.md`
+- [ ] Sprint 6: privacidad y operación (paso 0, T-132, T-220, reducir la imagen de producción y T-186); plan en `SPRINT.md`
 
 ## Next
 
@@ -245,7 +246,7 @@ Ninguna pendiente.
 | P-45 | Notificaciones por correo | ADR-0074 |
 | P-48 | Permiso para configurar el costo de envío | ADR-0075 |
 | P-49 | Reactivación de entidades suspendidas, archivadas o desactivadas | ADR-0076 |
-| P-56 | Enlace de acceso al pedido por correo (fuera del MVP) | ADR-0077 |
+| P-56 | Enlace de acceso al pedido por correo (fuera del MVP; implementado después en ADR-0148) | ADR-0077 |
 | P-57 | Envíos sin paquetería | ADR-0078 |
 | P-58 | IVA del envío y base del umbral de envío gratis | ADR-0079 |
 | P-66 | Efecto de desactivar categorías y marcas en la tienda | ADR-0080 |

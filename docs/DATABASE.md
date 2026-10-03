@@ -46,7 +46,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Pricing | `price_lists`, `variant_prices`, `price_periods` |
 | Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines` |
 | Shopping | `carts`, `cart_lines` |
-| Ordering | `orders`, `order_lines`, `order_status_history` |
+| Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
 | Transversal | `audit_logs`, `idempotency_keys`, `geo_states`, `geo_municipalities` |
@@ -516,6 +516,24 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Índices:** `(order_id, occurred_at)`. Append-only.
 
+### 8.4 `order_access_tokens`
+
+Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | uuid | PK |
+| contact_email | text | Normalizado, como `orders.contact_email`; sin FK, porque el email no es una entidad |
+| token_hash | text | SHA-256 del token; nunca el token |
+| expires_at | timestamptz(3) | `ORDER_ACCESS_LINK_TTL` después de emitirlo |
+| used_at | timestamptz(3) | Al abrirlo, con la fila bloqueada |
+| invalidated_at | timestamptz(3) | Cuando un enlace nuevo del email lo reemplaza |
+| created_at | timestamptz(3) | — |
+
+- **Índices:** `UNIQUE (token_hash)`; `(contact_email)`.
+- **Concurrencia:** emitir un enlace y anonimizar al invitado toman primero `pg_advisory_xact_lock` de la clase `ORDA` (`0x4F524441`) con el `hashtext` del email.
+- **Retención:** la limpieza diaria borra los vencidos, usados o reemplazados; la anonimización del invitado borra los de su email.
+
 ---
 
 ## 9. Payments
@@ -759,6 +777,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
 | `audit_logs` | 3 meses en base; 2 años en archivos, por día UTC (configurables) | ADR-0037, ADR-0146 |
 | `refresh_tokens` | 30 días tras vencer o revocarse | ADR-0029 |
 | `email_verification_tokens`, `password_reset_tokens` | Hasta vencer o usarse | ADR-0056 |
+| `order_access_tokens` | Hasta vencer, usarse o reemplazarse; los de un invitado anonimizado se borran al anonimizarlo | ADR-0148 |
 | `idempotency_keys` | 24 horas | ADR-0063 |
 | `processed_webhook_events` | 30 días | ADR-0029 |
 | `carts` de invitado inactivos | 30 días | ADR-0029 |

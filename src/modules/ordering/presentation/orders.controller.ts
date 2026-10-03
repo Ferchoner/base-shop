@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +21,7 @@ import { ApiProblemResponses } from '../../../platform/http/problem-details/api-
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
+import { OrderAccessLinks } from '../application/order-access-links.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
 import { OrderReorders } from '../application/order-reorders.use-case.js';
@@ -27,11 +29,15 @@ import { parsePublicCode } from '../application/order-values.js';
 import {
   GuestOrderLookupDto,
   GuestReorderDto,
+  OrderAccessDto,
+  OrderAccessLinkRequestDto,
+  OrderAccessRequestDto,
   OrderDto,
   PlaceGuestOrderDto,
   ReorderDto,
 } from './order.dto.js';
 import {
+  toOrderAccessDto,
   toOrderDto,
   toPaymentStartDto,
   toReorderDto,
@@ -71,8 +77,8 @@ export const PLACE_ORDER_DESCRIPTION =
   'Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos.';
 
 /**
- * The order of a guest (UC-ORD-02 and 04, API_SPEC.md §15.3 and §15.5). A staff account cannot place it nor pay
- * it (403, E-09), but can look it up, as it can read a guest cart (ADR-0138).
+ * The order of a guest (UC-ORD-02, 04 and 05, API_SPEC.md §15.3, §15.5 and §15.6). A staff account cannot place it
+ * nor pay it (403, E-09), but can look it up and use an access link, as it can read a guest cart (ADR-0138).
  */
 @ApiTags('Pedidos')
 @Controller('orders')
@@ -82,6 +88,7 @@ export class OrdersController {
     private readonly reader: OrderReader,
     private readonly paymentRequests: OrderPaymentRequests,
     private readonly reorders: OrderReorders,
+    private readonly accessLinks: OrderAccessLinks,
   ) {}
 
   @ApiOperation({
@@ -142,7 +149,7 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Consultar el pedido de un invitado',
     description:
-      'Con el email de contacto y el código público, en el cuerpo para que no queden en logs (ADR-0071). Solo órdenes de invitado: una de cliente se consulta en `/v1/me/orders`. Responde el mismo 404 si la orden no existe, el email no coincide, el código no puede existir o la orden es de una cuenta (BR-ORD-11). Hasta 10 consultas por IP cada 15 minutos, compartidas con la recompra de invitado.',
+      'Con el email de contacto y el código público, en el cuerpo para que no queden en logs (ADR-0071). Solo órdenes de invitado: una de cliente se consulta en `/v1/me/orders`. Responde el mismo 404 si la orden no existe, el email no coincide, el código no puede existir o la orden es de una cuenta (BR-ORD-11). Hasta 10 consultas por IP cada 15 minutos, compartidas con la recompra de invitado y el enlace de acceso.',
   })
   @ApiOkResponse({ type: OrderDto })
   @ApiProblemResponses('not-found', 'rate-limit-exceeded')
@@ -160,6 +167,34 @@ export class OrdersController {
       throw new NotFoundError('Guest order', 'with that email and code');
     }
     return toOrderDto(order);
+  }
+
+  @ApiOperation({
+    summary: 'Pedir un enlace a los pedidos de invitado',
+    description:
+      'Con el email de contacto solo, para quien perdió el código de su pedido. Responde 202 sin cuerpo en cuanto recibe la solicitud: el enlace se emite y se envía después, solo si el email tiene órdenes de invitado, así que ni la respuesta ni su tiempo dicen si las tiene. El enlace nuevo invalida los anteriores. Límite: 3 por email y 10 por IP por hora.',
+  })
+  @ApiAcceptedResponse()
+  @ApiProblemResponses('rate-limit-exceeded')
+  @RateLimit('order-access-email', 'order-access-ip')
+  @HttpCode(202)
+  @Post('access-links')
+  requestAccessLink(@Body() body: OrderAccessLinkRequestDto): void {
+    this.accessLinks.request(body.contactEmail);
+  }
+
+  @ApiOperation({
+    summary: 'Abrir el enlace a los pedidos de invitado',
+    description:
+      'Con el token del enlace, que sirve una sola vez, dentro de su vigencia y mientras no se pida otro. Responde las 50 órdenes de invitado más recientes del email, sin líneas ni dirección; el detalle de cada una se consulta con el email y su código en `POST /v1/orders/lookup`. Comparte con la consulta 10 por IP cada 15 minutos.',
+  })
+  @ApiOkResponse({ type: OrderAccessDto })
+  @ApiProblemResponses('invalid-or-expired-token', 'rate-limit-exceeded')
+  @RateLimit('guest-order')
+  @HttpCode(200)
+  @Post('access')
+  async access(@Body() body: OrderAccessRequestDto): Promise<OrderAccessDto> {
+    return toOrderAccessDto(await this.accessLinks.redeem(body.token));
   }
 
   @ApiOperation({

@@ -181,3 +181,9 @@
   - el nuevo target `migrate` del `Dockerfile` aplica las migraciones con el CLI de Prisma, como paso único antes de arrancar la API;
   - el paso 10 de la CI construye las dos imágenes, migra un PostgreSQL 18 vacío con una y arranca la otra contra él (`.github/scripts/smoke-test-images.sh`);
   - sin cambios de API ni migraciones.
+- T-186 (paso 4 del Sprint 6, nuevo ADR-0148): enlace de acceso a los pedidos de invitado, con el diseño previsto en ADR-0077, que queda reemplazada parcialmente:
+  - `POST /v1/orders/access-links` con `{ contactEmail }` responde 202 sin cuerpo antes de emitir el enlace; el evento interno `OrderAccessRequested` lo emite y lo envía ("Consulta tus pedidos", `FRONTEND_BASE_URL/order-access?token=…`) solo si el email tiene órdenes de invitado;
+  - `POST /v1/orders/access` con `{ token }` abre una vez las 50 órdenes de invitado más recientes del email (`OrderSummary`); 400 `invalid-or-expired-token` si se usó, venció o se pidió otro;
+  - nueva tabla `order_access_tokens` (migración `20261003120000_ordering_access_tokens`) con bloqueo advisory del email, que la anonimización del invitado vacía y el job diario `ordering.cleanup-access-tokens` limpia;
+  - variables `ORDER_ACCESS_LINK_TTL` (30m), `RATE_LIMIT_ORDER_ACCESS_EMAIL` (3/1h) y `RATE_LIMIT_ORDER_ACCESS_IP` (10/1h); abrir el enlace comparte `RATE_LIMIT_GUEST_ORDER`;
+  - los enlaces de un solo uso (`OneTimeLink`, `newLinkToken`, `InvalidOrExpiredTokenError` y `lifetimeInWords`) pasan de Identity al shared kernel.

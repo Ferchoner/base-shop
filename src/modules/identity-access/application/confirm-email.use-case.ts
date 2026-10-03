@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Clock, TransactionManager } from '../../../shared-kernel/index.js';
+import {
+  Clock,
+  hashLinkToken,
+  InvalidOrExpiredTokenError,
+  isUsableLink,
+  TransactionManager,
+} from '../../../shared-kernel/index.js';
 import { EmailVerificationTokenRepository } from '../domain/email-verification.js';
-import { InvalidOrExpiredTokenError } from '../domain/identity-errors.js';
-import { isUsableLink } from '../domain/one-time-link.js';
 import { UserRepository } from '../domain/user.repository.js';
-import { hashLinkToken } from './link-tokens.js';
 
 /**
  * Confirms an email with the token of its link (UC-IAM-02, BR-USR-11): once, within its lifetime, and only

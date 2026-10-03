@@ -1,5 +1,6 @@
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
+import type { OrderAccess } from '../application/order-access-links.js';
 import type { WithPaymentAndShipment } from '../application/order-reader.js';
 import {
   formatPublicCode,
@@ -21,6 +22,7 @@ import type { CheckoutQuoteDto } from './checkout.dto.js';
 import type {
   AdminOrderPaymentDto,
   AdminOrderShipmentDto,
+  OrderAccessDto,
   OrderDto,
   OrderFieldsDto,
   OrderLineDto,
@@ -107,6 +109,14 @@ export function toOrderSummaryDto(
         ? null
         : { provider: view.payment.provider, status: view.payment.status },
     shipment: view.shipment === null ? null : toOrderShipmentDto(view.shipment),
+  };
+}
+
+/** What an access link opens (API_SPEC.md §15.6): the summaries of the guest orders of its email. */
+export function toOrderAccessDto(access: OrderAccess): OrderAccessDto {
+  return {
+    contactEmail: access.contactEmail,
+    orders: access.orders.map(toOrderSummaryDto),
   };
 }
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../../platform/config/environment.js';
+import { parseDuration } from '../../platform/config/duration.js';
 import { CatalogModule } from '../catalog/index.js';
 import { GeoModule } from '../geo/index.js';
 import { IdentityAccessModule } from '../identity-access/index.js';
@@ -19,6 +20,14 @@ import {
   ShippingLocations,
 } from './application/checkout-ports.js';
 import { Checkout } from './application/checkout.use-case.js';
+import {
+  AccessTokenCleanup,
+  SpentAccessTokens,
+} from './application/access-token-cleanup.js';
+import {
+  ORDER_ACCESS_LINK_TTL_SECONDS,
+  OrderAccessLinks,
+} from './application/order-access-links.js';
 import { OrderAnonymizations } from './application/order-anonymizations.use-case.js';
 import { OrderExpiry } from './application/order-expiry.use-case.js';
 import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
@@ -33,6 +42,7 @@ import { ReorderCarts } from './application/reorder-ports.js';
 import { PlacementResponses } from './application/placement-responses.js';
 import { OrderShipments } from './application/shipment-ports.js';
 import { VAT_RATE_BP } from './application/vat-rate.js';
+import { OrderAccessTokenRepository } from './domain/order-access-token.js';
 import { OrderRepository } from './domain/order.repository.js';
 import {
   CatalogFacadeCheckoutCatalog,
@@ -46,10 +56,14 @@ import {
   ShoppingFacadeCheckoutCarts,
   ShoppingFacadeReorderCarts,
 } from './infrastructure/facade-adapters.js';
+import { AccessTokenCleanupJob } from './infrastructure/access-token-cleanup.job.js';
 import { IdempotencyPlacementResponses } from './infrastructure/idempotency-placement-responses.js';
+import { OrderAccessRequestedHandler } from './infrastructure/order-access-requested.event-handler.js';
 import { OrderExpiryJob } from './infrastructure/order-expiry.job.js';
 import { PaymentCapturedHandler } from './infrastructure/payment-captured.event-handler.js';
+import { PrismaOrderAccessTokenRepository } from './infrastructure/prisma-order-access-token.repository.js';
 import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
+import { PrismaSpentAccessTokens } from './infrastructure/prisma-spent-access-tokens.js';
 import { RefundCompletedHandler } from './infrastructure/refund-completed.event-handler.js';
 import { ShipmentDeliveredHandler } from './infrastructure/shipment-delivered.event-handler.js';
 import { ShipmentDispatchedHandler } from './infrastructure/shipment-dispatched.event-handler.js';
@@ -91,6 +105,12 @@ import { OrdersController } from './presentation/orders.controller.js';
       useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
         config.get('VAT_RATE_BP', { infer: true }),
     },
+    {
+      provide: ORDER_ACCESS_LINK_TTL_SECONDS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        parseDuration(config.get('ORDER_ACCESS_LINK_TTL', { infer: true })),
+    },
     Checkout,
     OrderLifecycle,
     OrderExpiry,
@@ -100,12 +120,21 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderReorders,
     OrderRestocks,
     OrderAnonymizations,
+    OrderAccessLinks,
+    OrderAccessRequestedHandler,
+    AccessTokenCleanup,
+    AccessTokenCleanupJob,
     OrderingFacade,
     PaymentCapturedHandler,
     RefundCompletedHandler,
     ShipmentDispatchedHandler,
     ShipmentDeliveredHandler,
     { provide: OrderRepository, useClass: PrismaOrderRepository },
+    {
+      provide: OrderAccessTokenRepository,
+      useClass: PrismaOrderAccessTokenRepository,
+    },
+    { provide: SpentAccessTokens, useClass: PrismaSpentAccessTokens },
     { provide: OrderingQueries, useClass: PrismaOrderingQueries },
     { provide: CheckoutCarts, useClass: ShoppingFacadeCheckoutCarts },
     { provide: CheckoutCatalog, useClass: CatalogFacadeCheckoutCatalog },

@@ -13,6 +13,7 @@ import {
   type OrderStatus,
   priceLine,
 } from '../domain/order.js';
+import type { OrderAccessTokenRepository } from '../domain/order-access-token.js';
 import { OrderRepository, type OrdersOf } from '../domain/order.repository.js';
 import { ActiveOrdersExistError } from '../domain/ordering-errors.js';
 import type { PublicCode } from '../domain/public-code.js';
@@ -143,6 +144,12 @@ function setUp(orders: Order[], shipmentStatuses: Record<string, string> = {}) {
       return Promise.resolve();
     },
   } as unknown as OrderShipments;
+  const accessTokens = {
+    deleteOf: (contactEmail: string) => {
+      calls.push(`deleteOf ${contactEmail}`);
+      return Promise.resolve();
+    },
+  } as unknown as OrderAccessTokenRepository;
   const responses = {
     forgetOf: (forgotten: readonly Order[]) => {
       calls.push(`forgetOf ${forgotten.map(({ id }) => id).join(',')}`);
@@ -163,6 +170,7 @@ function setUp(orders: Order[], shipmentStatuses: Record<string, string> = {}) {
     anonymizations: new OrderAnonymizations(
       repository,
       shipments,
+      accessTokens,
       responses,
       inline,
       audit,
@@ -249,7 +257,7 @@ describe('OrderAnonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
     expect([calls, audited]).toEqual([[], []]);
   });
 
-  it('anonymizes the guest orders with the email, normalized, when the code is of one of them, with or without dash', async () => {
+  it('anonymizes the guest orders with the email, normalized, when the code is of one of them, with or without dash, and deletes the access links of the email (ADR-0148)', async () => {
     const first = saved('DELIVERED', 'K7M4Q9XA', PAID);
     const second = saved('CANCELLED', 'H3N8P2WB');
     const { anonymizations, repository, calls } = setUp([first, second], {
@@ -268,6 +276,7 @@ describe('OrderAnonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
     expect(calls).toEqual([
       'shipmentsOf 2',
       `anonymize ${first.id},${second.id}`,
+      'deleteOf cliente@example.com',
       `forgetOf ${first.id},${second.id}`,
     ]);
   });

@@ -20,6 +20,19 @@ describe('rateLimitKey (ADR-0102)', () => {
     expect(key).not.toContain('example');
   });
 
+  it('counts by a hash of the contact email of the body, apart from its email field (ADR-0148)', () => {
+    const key = rateLimitKey('contact-email', {
+      ip,
+      body: { contactEmail: ' Ana@Example.com', email: 'otra@example.com' },
+    });
+
+    expect(key).toBe(`email:${hashEmail('ana@example.com')}`);
+    expect(key).not.toContain('example');
+    expect(
+      rateLimitKey('email', { ip, body: { contactEmail: 'a@b.mx' } }),
+    ).toBe(`ip:${ip}`);
+  });
+
   it('prefers the signed-in user over the email', () => {
     expect(
       rateLimitKey('user-or-email', {
@@ -44,6 +57,9 @@ describe('rateLimitKey (ADR-0102)', () => {
 
   it('falls back to the IP when the request lacks the field', () => {
     expect(rateLimitKey('email', { ip, body: {} })).toBe(`ip:${ip}`);
+    expect(
+      rateLimitKey('contact-email', { ip, body: { contactEmail: ' ' } }),
+    ).toBe(`ip:${ip}`);
     expect(rateLimitKey('user-or-cart', { ip })).toBe(`ip:${ip}`);
   });
 });

@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 /**
- * Tokens of the links sent by email, for email verification and password recovery (ADR-0046, ADR-0056):
- * 256 random bits in base64url. Only their SHA-256 is stored; with that entropy, a fast hash is enough.
+ * Tokens of the links sent by email, for email verification, password recovery and access to the guest orders
+ * of an email (ADR-0046, ADR-0056, ADR-0148): 256 random bits in base64url. Only their SHA-256 is stored; with
+ * that entropy, a fast hash is enough.
  */
 export function newLinkToken(): { token: string; hash: string } {
   const token = randomBytes(32).toString('base64url');

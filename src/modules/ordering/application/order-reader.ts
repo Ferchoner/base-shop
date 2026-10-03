@@ -74,6 +74,19 @@ export class OrderReader {
     );
   }
 
+  /**
+   * The newest `limit` guest orders of a normalized contact email, newest first (UC-ORD-05, ADR-0148), with their
+   * payments and shipments.
+   */
+  async guestOrders(
+    contactEmail: string,
+    limit: number,
+  ): Promise<readonly WithPaymentAndShipment<OrderSummaryView>[]> {
+    const orders = await this.queries.listGuestOrders(contactEmail, limit);
+    return (await this.attachAll({ items: orders, totalItems: orders.length }))
+      .items;
+  }
+
   async adminOrder(
     id: OrderId,
   ): Promise<WithPaymentAndShipment<AdminOrderView> | null> {

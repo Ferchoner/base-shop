@@ -2,12 +2,12 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   EmailSender,
   FrontendLinks,
+  lifetimeInWords,
   newId,
+  newLinkToken,
 } from '../../../shared-kernel/index.js';
 import { PasswordResetTokenRepository } from '../domain/password-reset.js';
 import type { UserId } from '../domain/user.js';
-import { lifetimeInWords } from './lifetime-in-words.js';
-import { newLinkToken } from './link-tokens.js';
 
 /** Seconds a recovery link lives (`PASSWORD_RESET_TTL`, BR-USR-16). */
 export const PASSWORD_RESET_TTL_SECONDS = Symbol('PASSWORD_RESET_TTL_SECONDS');

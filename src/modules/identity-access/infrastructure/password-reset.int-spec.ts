@@ -12,17 +12,17 @@ import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
   type EmailMessage,
   EmailSender,
+  hashLinkToken,
+  InvalidOrExpiredTokenError,
   newId,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { ChangeEmail } from '../application/change-email.use-case.js';
-import { hashLinkToken } from '../application/link-tokens.js';
 import { PasswordHasher } from '../application/password-hasher.js';
 import { RequestPasswordReset } from '../application/request-password-reset.use-case.js';
 import { ResetPassword } from '../application/reset-password.use-case.js';
 import { ResolveSignedInAccount } from '../application/resolve-signed-in-account.js';
 import { SignIn } from '../application/sign-in.use-case.js';
-import { InvalidOrExpiredTokenError } from '../domain/identity-errors.js';
 import { PasswordPolicyViolationError } from '../domain/password.js';
 import type { SessionId } from '../domain/session.js';
 import type { UserId } from '../domain/user.js';

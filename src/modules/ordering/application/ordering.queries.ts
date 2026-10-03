@@ -140,6 +140,18 @@ export abstract class OrderingQueries {
     contactEmail: string,
   ): Promise<OrderView | null>;
 
+  /**
+   * Whether the email has a guest order, to send it an access link (UC-ORD-05, ADR-0148). An anonymized order no
+   * longer has the email.
+   */
+  abstract hasGuestOrders(contactEmail: string): Promise<boolean>;
+
+  /** The newest `limit` guest orders of the email, newest first; ties are broken by ID (UC-ORD-05, ADR-0148). */
+  abstract listGuestOrders(
+    contactEmail: string,
+    limit: number,
+  ): Promise<readonly OrderSummaryView[]>;
+
   /** An order for the staff (UC-ORD-06); `null` if it does not exist. */
   abstract findAdminOrder(id: OrderId): Promise<AdminOrderView | null>;
 
