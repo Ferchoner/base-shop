@@ -4,12 +4,12 @@
 
 1. Leer `CLAUDE.md`.
 2. Revisar documentación relacionada.
-3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161). Si la tarea borra o anonimiza datos personales, el plan lista todas sus copias (tokens, enlaces, respuestas guardadas por idempotencia, archivos, contenido de eventos): en T-132 las respuestas guardadas aparecieron durante la implementación.
+3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161). Si la tarea borra o anonimiza datos personales, el plan lista todas sus copias (tokens, enlaces, respuestas guardadas por idempotencia, archivos, contenido de eventos): en T-132 las respuestas guardadas aparecieron durante la implementación. Si la tarea cambia un mecanismo transversal (eventos, transacciones, correos), el plan revisa cómo maneja los errores cada consumidor: en T-109, que los correos atrapaban la falla del servidor de correo apareció a mitad de la implementación.
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
-7. Actualizar documentación.
-8. Actualizar `TASKS.md` y `PROGRESS.md`.
+7. Actualizar documentación. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran.
+8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
 ## Convenciones
@@ -209,6 +209,7 @@ Tests (Jest):
 - Si el código agrupa o corta por día, las pruebas usan instantes que caen en días distintos en UTC y en México, como las 03:00 UTC (T-220).
 - En las e2e, un límite por email cuenta durante toda la suite, así que cada prueba usa su propio email. Los correos de la orden llegan al mismo `EmailSender` falso que los demás: una prueba de otro correo lo filtra por su asunto (T-186).
 - Las pruebas de mutación de cada tarea quitan o limitan los mutantes que pueden no terminar, como cambiar el orden de una lectura por lotes (T-220).
+- Una tabla que llenan todas las suites, como el outbox de eventos (`domain_events`), se vacía antes de cada prueba que la cuenta o la recorre (T-109).
 - `npx tsc --noEmit` compila también las specs de integración y e2e: al quitar un campo de una firma, se busca en ellas antes del commit. En T-161, el commit feat no compilaba por sí solo.
 - `configureHttp` construye y revisa el documento OpenAPI fuera de producción (paso 0 del Sprint 6): construirlo falla con un DTO que no puede describir, y cada `$ref` debe tener su esquema. Así, toda suite e2e lo construye con el plugin de Swagger, y un DTO que lo rompe falla en su propia suite. Aun así, antes de cada commit se corre la suite e2e completa.
   - Una propiedad que es un arreglo de valores simples declara `@ApiProperty({ type: [String] })`: el plugin de Swagger no infiere su tipo, y sin él la construcción del documento falla (T-181).

@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (privacidad y operación) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Sprint 8 — Ciclo de conservación de datos personales (desde el 2026-10-03). El Sprint 7 (entrega garantizada de eventos) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
 
 ## Completed
 
@@ -138,6 +138,7 @@ Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (
 - [x] T-220: consulta de la auditoría con `audit.read`, paginada por cursor y con filtros por actor, acción o prefijo, recurso, resultado y fechas; el job diario `audit.archive` exporta cada día UTC de más de 3 meses a un archivo JSON Lines con gzip en una carpeta privada, lo relee y compara cada ID antes de borrar exactamente esos registros, nunca sobrescribe un archivo y borra los de más de 2 años; retenciones configurables (ADR-0146)
 - [x] T-186 (paso 4 del Sprint 6, a pedido del usuario): enlace de acceso a los pedidos de invitado. Se pide con el email solo y responde 202 igual, antes de emitir el enlace, que se envía en segundo plano solo si el email tiene órdenes de invitado; abre una vez las 50 más recientes. Tabla `order_access_tokens`, bloqueo advisory del email con la anonimización, limpieza diaria y límites de 3 por email y 10 por IP por hora (ADR-0148)
 - [x] T-109 parte a: outbox transaccional. Los eventos se guardan con el cambio, con una entrega por handler; el despacho después del commit sigue igual, y el job `platform.deliver-events` reintenta cada minuto lo que falló o no corrió, hasta 8 intentos. `OrderAccessRequested` es volátil y los correos de la orden se reintentan (ADR-0150)
+- [x] Paso 0 del Sprint 8: revisión contra los ADR extendida a `PROJECT.md` y `README.md`, con la tabla del stack corregida (imagen `migrate`, ADR-0150 y conciliación pendiente); prácticas de la review del Sprint 7 en la guía de desarrollo
 - [x] T-109 parte b: el staff consulta y reintenta las entregas fallidas en `/v1/admin/event-deliveries`, una o en bloque, con el permiso nuevo `events.manage`, y la limpieza diaria `platform.cleanup-events` borra los eventos entregados hace más de 7 días (ADR-0150)
 - [x] P-61 cerrada (ADR-0149): plazos de conservación configurables con valores por defecto, y la validación legal como lista de cada operador antes de operar; T-232 deja de estar diferida
 - [x] Paso 0 del Sprint 7: revisión contra los ADR, con el estado de ADR-0077 y los módulos transversales de `ARCHITECTURE.md` corregidos; prácticas de la review del Sprint 6 en la guía de desarrollo; T-109 agregada
@@ -159,8 +160,8 @@ Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (
 
 ## Next
 
-- [ ] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes); plan en `SPRINT.md`
-- [ ] T-232: ciclo de conservación de datos personales con plazos configurables (ADR-0149), propuesta para el Sprint 8
+- [x] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes, y P-61 cerrada), cerrado el 2026-10-03
+- [ ] Sprint 8: ciclo de conservación de datos personales (paso 0 y T-232 en dos partes); plan en `SPRINT.md`
 - [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked
