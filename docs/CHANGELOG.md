@@ -187,3 +187,4 @@
   - nueva tabla `order_access_tokens` (migración `20261003120000_ordering_access_tokens`) con bloqueo advisory del email, que la anonimización del invitado vacía y el job diario `ordering.cleanup-access-tokens` limpia;
   - variables `ORDER_ACCESS_LINK_TTL` (30m), `RATE_LIMIT_ORDER_ACCESS_EMAIL` (3/1h) y `RATE_LIMIT_ORDER_ACCESS_IP` (10/1h); abrir el enlace comparte `RATE_LIMIT_GUEST_ORDER`;
   - los enlaces de un solo uso (`OneTimeLink`, `newLinkToken`, `InvalidOrExpiredTokenError` y `lifetimeInWords`) pasan de Identity al shared kernel.
+- Sprint 6 cerrado (2026-10-03) con el objetivo cumplido: T-132, T-220, la reducción de la imagen de producción y T-186, agregada a pedido del usuario, en 5 pull requests (#77 a #81) con la CI verde a la primera; 2,158 tests y 4 ADR nuevos (ADR-0145 a ADR-0148). Review en el historial de `SPRINT.md`; el Sprint 7 queda pendiente de decisión.
