@@ -62,6 +62,8 @@ La fuente de verdad del proyecto está en `docs/`:
 | `SECURITY.md` | Seguridad |
 | `DECISIONS.md` | Registro de decisiones (ADR) |
 | `TASKS.md`, `PROGRESS.md` | Plan de trabajo y estado |
+| `SPRINT.md` | Sprint actual y reviews de los anteriores |
+| `CHANGELOG.md` | Cambios registrados |
 | `DEVELOPMENT_GUIDE.md` | Flujo de trabajo y convenciones |
 
 ## Flujo de trabajo

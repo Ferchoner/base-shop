@@ -31,6 +31,22 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio". Orden por dependenc
   - cada parte se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
   - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
 
+### Resultado del paso 0
+
+- **Revisión contra los ADR, ahora también de `PROJECT.md` y `README.md`:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y siguen abiertas las mismas 8 decisiones;
+  - tres desajustes corregidos en la tabla del stack de `PROJECT.md`: la fila de Docker no tenía la imagen `migrate` (ADR-0147), la de observabilidad citaba ADR-0014, ya reemplazado, y la de jobs daba la conciliación de pagos como hecha, cuando llega con T-192;
+  - el `README.md` lista ahora `SPRINT.md` y `CHANGELOG.md`, y sus scripts existen;
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - cada contexto tiene sus cuatro capas, y los módulos transversales las que dice `ARCHITECTURE.md`;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 7:
+  - revisar en el plan cómo maneja los errores cada consumidor de un mecanismo transversal;
+  - vaciar antes de cada prueba las tablas que llenan todas las suites;
+  - no renumerar las secciones que cita el código;
+  - actualizar el estado de `PROJECT.md` y `README.md` al cerrar un sprint.
+
 ## Risks
 
 - **Borrado irreversible y automático:** con los valores por defecto, la anonimización empieza 6 años después de que concluye la orden, pero un plazo mal configurado podría adelantarla. Aplican las salvaguardas de ADR-0149: rangos al arrancar, lotes con tope por corrida y auditoría sin valores.
