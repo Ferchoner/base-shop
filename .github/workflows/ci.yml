@@ -78,8 +78,14 @@ jobs:
       - name: 9. Secret scan
         run: npm run secrets:scan
 
-      - name: 10. Production Docker image
-        run: docker build --target production --tag base-shop:ci .
+      # The production image has no Prisma CLI and installs no peer dependency on its own; the migrate image applies
+      # the migrations before each deployment (ADR-0147). The smoke test migrates an empty PostgreSQL 18 with one
+      # and starts the other against it.
+      - name: 10. Production Docker images and smoke test
+        run: |
+          docker build --target production --tag base-shop:ci .
+          docker build --target migrate --tag base-shop-migrate:ci .
+          bash .github/scripts/smoke-test-images.sh base-shop:ci base-shop-migrate:ci
 
   commit-messages:
     name: Commit messages
