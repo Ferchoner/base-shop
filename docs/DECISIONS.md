@@ -907,6 +907,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `customers.manage` | Suspender y anonimizar clientes |
 | `staff.manage` | Gestionar cuentas del staff y roles |
 | `audit.read` | Consultar la auditoría |
+| `events.manage` | Ver y reintentar las entregas de eventos de dominio (agregado por ADR-0150) |
 
   - **Roles iniciales:**
     - Superadministrador: todos los permisos. No se puede quitar el último (BR-USR-03).
@@ -922,7 +923,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los roles se editan en base de datos, así que pueden crearse otros sin cambiar código.
   - Sin segundo factor, una contraseña del staff filtrada da acceso completo a sus permisos; el rate limiting del login y la auditoría de inicios de sesión son las mitigaciones actuales.
 - **Revisar:** segundo factor (2FA) para el staff como mejora de seguridad a mediano o largo plazo, idealmente antes de operar con clientes reales.
-- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116.
+- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito.
 
 ---
 
@@ -4157,7 +4158,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tokens de Identity no tienen índice por vencimiento; si las tablas crecen, se agrega uno.
   - Con T-231 se terminan las tareas del Sprint 5.
   - Prueba contra PostgreSQL: un carrito usado mientras corre la limpieza no se borra.
-- **Estado:** Aceptada (plan de T-231 aprobado el 2026-10-02, con sus 2 recomendaciones).
+- **Estado:** Aceptada (plan de T-231 aprobado el 2026-10-02, con sus 2 recomendaciones). ADR-0150 agrega `platform.cleanup-events`, que borra los eventos entregados hace más de 7 días.
 
 ---
 
@@ -4432,7 +4433,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Quedan abiertas 8 decisiones.
   - Un operador que no valide los plazos opera con los valores por defecto; la lista "Antes de operar" se lo advierte.
 - **Revisar si:** se publica el reglamento de la ley de 2025, o un operador necesita plazos distintos por tipo de dato o de cliente.
-- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61.
+- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61. ADR-0150 suma `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto) a la política configurable; los eventos no llevan datos personales.
 
 ---
 
@@ -4469,6 +4470,13 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Eventos volátiles:** `publishVolatile` conserva el despacho anterior, sin guardar ni reintentar. Es solo para eventos con datos personales cuya pérdida no hace daño. Hoy solo `OrderAccessRequested`, que lleva un email: si se pierde, el invitado pide otro enlace (ADR-0148). Así, la tabla de eventos nunca guarda datos personales, y una prueba e2e lo comprueba.
   - **Errores guardados:** clase y mensaje, con la redacción del logger (ADR-0097) y hasta 500 caracteres. El log dice el intento y cuándo se reintenta.
   - **Correos de la orden (BR-NTF-04):** un fallo del servidor de correo ya no se queda en una advertencia. Llega a la entrega, que lo reintenta.
+  - **Parte b, para el staff** (plan aprobado el 2026-10-03, con sus 4 recomendaciones):
+    - **Permiso nuevo `events.manage`:** para el Administrador, por migración, y el Superadministrador, implícito; el Operador no lo tiene.
+    - **`GET /v1/admin/event-deliveries`:** paginado (ADR-0036), con las FAILED por defecto y filtros por estado, tipo de evento y manejador. Cada entrega trae su evento completo, que nunca lleva datos personales.
+    - **Reintento de una entrega:** `POST …/{deliveryId}/retry`. La entrega FAILED vuelve a PENDING con 0 intentos, así que tiene otros 8, y el job la toma en el siguiente minuto. Responde 202, y otra en otro estado responde 409 `invalid-state-transition`. Se audita `events.retry-delivery`.
+    - **Reintento en bloque:** `POST …/retry`, con todas las FAILED de un tipo de evento o de un manejador, o todas. Responde cuántas reactivó y se audita una vez `events.retry-deliveries`, con el filtro.
+    - **Limpieza diaria `platform.cleanup-events`, a las 3:00:** borra por lotes los eventos cuyas entregas están todas en DELIVERED desde hace `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto, de 1 a 90, ADR-0149). Las pendientes y las fallidas se conservan hasta entregarse. A diferencia de las otras limpiezas, el `DELETE` no vuelve a comprobar el lote: las entregas de esos eventos ya no cambian, porque el staff solo reintenta las fallidas.
+    - **Dónde vive:** en la plataforma (`EventDeliveriesModule`), porque las tablas son suyas y ningún módulo las lee, y aparte de `EventsModule`, que las pruebas del bus usan sin base de datos.
 - **Alternativas consideradas:**
   - **Una sola tabla por evento:** un reintento repetiría también los manejadores que ya funcionaron, como el cambio de la orden o un correo.
   - **Marcar la entrega en la transacción del propio manejador, o deduplicar los correos por `eventId`:** daría exactamente una vez, pero cada manejador tendría que conocer el outbox.
@@ -4478,8 +4486,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Una caída de la API después del commit ya no pierde efectos: el job los entrega en el siguiente minuto.
   - El job funciona con varias instancias; el resto de los jobs sigue necesitando un candado (ADR-0029).
-  - Los eventos entregados se acumulan hasta la limpieza diaria, y los fallidos quedan sin consulta para el staff. Ambos llegan en T-109 parte b.
+  - Los eventos entregados se borran 7 días después, y los fallidos los consulta y reintenta el staff con `events.manage` (parte b).
   - El modelo de datos (ADR-0066) suma `domain_events` y `event_deliveries`: 41 tablas.
   - Los tests de integración del bus controlan el reloj y vacían el outbox antes de cada prueba.
 - **Revisar si:** el volumen de eventos hace crecer las tablas más de lo que limpia la parte b, o se ejecuta más de una instancia de forma regular.
-- **Estado:** Aceptada (plan de T-109 parte a aprobado el 2026-10-03, con sus 4 recomendaciones). Reemplaza ADR-0014 y modifica ADR-0098.
+- **Estado:** Aceptada (planes de T-109 partes a y b aprobados el 2026-10-03, con sus 4 recomendaciones cada uno). Reemplaza ADR-0014 y modifica ADR-0098.

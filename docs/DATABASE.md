@@ -726,6 +726,8 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 - **Sin datos personales:** los eventos que llevan uno se publican como volátiles y no se guardan (`OrderAccessRequested`).
 - **Entrega:** quien toma una entrega suma un intento y la reserva 5 minutos (`locked_until`); el job toma las vencidas con `FOR UPDATE SKIP LOCKED`. Una entrega nueva espera un minuto, para dejarla al despacho inmediato.
 - **Errores:** `last_error` guarda clase y mensaje, redactados como los logs, hasta 500 caracteres.
+- **Reintento del staff:** una entrega FAILED vuelve a PENDING con `attempts = 0` y `next_attempt_at` en el momento (T-109 parte b).
+- **Limpieza:** cada día se borran por lotes los eventos cuyas entregas están todas en DELIVERED desde hace `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto); las entregas se borran en cascada.
 
 ---
 
@@ -792,7 +794,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 | `email_verification_tokens`, `password_reset_tokens` | Hasta vencer o usarse | ADR-0056 |
 | `order_access_tokens` | Hasta vencer, usarse o reemplazarse; los de un invitado anonimizado se borran al anonimizarlo | ADR-0148 |
 | `idempotency_keys` | 24 horas | ADR-0063 |
-| `domain_events`, `event_deliveries` | Hasta la limpieza de los entregados (T-109 parte b); los fallidos quedan para el staff | ADR-0150 |
+| `domain_events`, `event_deliveries` | 7 días después de la última entrega (`DELIVERED_EVENT_RETENTION_DAYS`); con una entrega pendiente o fallida, hasta entregarse | ADR-0150 |
 | `processed_webhook_events` | 30 días | ADR-0029 |
 | `carts` de invitado inactivos | 30 días | ADR-0029 |
 | Órdenes, pagos, envíos, movimientos | Nunca se borran | ADR-0038 |

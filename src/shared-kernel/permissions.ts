@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   'staff.manage': 'Gestionar cuentas del staff y roles',
   // Audit
   'audit.read': 'Consultar la auditoría',
+  // Platform
+  'events.manage': 'Ver y reintentar las entregas de eventos de dominio',
 } as const;
 
 export type PermissionCode = keyof typeof PERMISSIONS;

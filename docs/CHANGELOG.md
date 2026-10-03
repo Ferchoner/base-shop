@@ -196,3 +196,8 @@
   - Nuevo `publishVolatile` para eventos con datos personales cuya pérdida no hace daño: `OrderAccessRequested` deja de guardarse.
   - Los correos de la orden dejan que el fallo del servidor de correo suba, así que se reintentan (BR-NTF-04).
   - Migración `20261003200000_events_outbox` (41 tablas).
+- T-109 parte b (ADR-0150); T-109 en DONE:
+  - `GET /v1/admin/event-deliveries` (las FAILED por defecto, filtros por estado, tipo de evento y manejador, cada una con su evento) y los reintentos `POST …/{deliveryId}/retry` (202, o 409 si no falló) y `POST …/retry` en bloque, auditados como `events.retry-delivery` y `events.retry-deliveries`;
+  - permiso nuevo `events.manage` para el Administrador (migración `20261003220000_events_manage_permission`) y el Superadministrador;
+  - limpieza diaria `platform.cleanup-events` de los eventos entregados hace más de `DELIVERED_EVENT_RETENTION_DAYS` (7 días, de 1 a 90);
+  - nueva sección 22 de `API_SPEC.md`.

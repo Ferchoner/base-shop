@@ -118,6 +118,7 @@ Catálogo y roles de ADR-0043.
 | `customers.manage` | ✓ | ✓ | — |
 | `staff.manage` | ✓ | — | — |
 | `audit.read` | ✓ | ✓ | — |
+| `events.manage` (ADR-0150) | ✓ | ✓ | — |
 
 `shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis.
 

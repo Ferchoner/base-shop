@@ -96,6 +96,7 @@ Eventos de dominio (ADR-0098, ADR-0150):
 - **Consumir:** un handler es un provider en `infrastructure` del contexto que consume, en un archivo `*.event-handler.ts`, con un método `@OnDomainEvent('NombreDelEvento')` que llama a un caso de uso de su contexto. Debe ser idempotente, porque la entrega es al menos una vez, y no puede asumir el orden respecto de otras solicitudes ni de otros eventos: un reintento llega más tarde. Para que se reintente, deja que el error suba.
 - Los handlers corren en segundo plano: quien publica no espera su resultado ni se entera de sus errores. Todo efecto nuevo que el cliente vea con demora se agrega a `API_SPEC.md` (sección 2.5).
 - En tests de integración, `DomainEventDispatcher.whenIdle()` espera a que terminen los handlers, incluidos los de eventos publicados por otros handlers. `deliverDue()` corre una vez el job de reintentos.
+- Las entregas que agotan sus intentos quedan en FAILED: el staff las ve y las reintenta en `/v1/admin/event-deliveries`, con `events.manage` (`API_SPEC.md`, sección 22).
 
 Logs (ADR-0097):
 
