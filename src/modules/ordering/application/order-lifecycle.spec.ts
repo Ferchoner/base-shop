@@ -130,6 +130,14 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The life of an order finds it by its ID');
   }
 
+  dueForBlocking(): Promise<OrderId[]> {
+    throw new Error('This test never blocks orders');
+  }
+
+  dueForAnonymization(): Promise<OrderId[]> {
+    throw new Error('This test never anonymizes orders by their date');
+  }
+
   dueForExpiry(): Promise<OrderId[]> {
     throw new Error('The life of an order never looks for due orders');
   }

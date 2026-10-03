@@ -103,6 +103,14 @@ class InMemoryOrders extends OrderRepository {
     return Promise.resolve(code === CODE ? this.order : null);
   }
 
+  dueForBlocking(): Promise<OrderId[]> {
+    throw new Error('This test never blocks orders');
+  }
+
+  dueForAnonymization(): Promise<OrderId[]> {
+    throw new Error('This test never anonymizes orders by their date');
+  }
+
   dueForExpiry(): Promise<OrderId[]> {
     throw new Error('Paying never looks for due orders');
   }

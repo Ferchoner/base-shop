@@ -144,6 +144,7 @@ export function toAdminOrderSummaryDto(
     customerId: view.customerId,
     version: view.version,
     anonymizedAt: view.anonymizedAt,
+    blockedAt: view.blockedAt,
     shippingAddress: { ...view.shippingAddress },
   };
 }

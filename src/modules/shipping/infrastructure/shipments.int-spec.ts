@@ -154,6 +154,7 @@ describe('Shipping: shipments (T-195)', () => {
       failureNote: null,
       returnNote: null,
       anonymizedAt: null,
+      blockedAt: null,
       version: 1,
     });
     expect(await prisma.shipment.count()).toBe(1);

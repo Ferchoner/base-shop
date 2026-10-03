@@ -105,8 +105,21 @@ export class AdminShipmentDto {
   @ApiProperty({ enum: SHIPMENT_STATUSES })
   status: ShipmentStatus;
 
-  @ApiProperty({ type: () => ShipmentAddressDto })
+  @ApiProperty({
+    type: () => ShipmentAddressDto,
+    description:
+      'Sin quién recibe ni dónde exactamente cuando los datos de la orden están bloqueados o anonimizados (ADR-0070).',
+  })
   destination: ShipmentAddressDto;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Cuándo se bloquearon los datos personales de la orden, y con ellos el destino (ADR-0070).',
+  })
+  blockedAt: Date | null;
 
   @ApiProperty({
     type: () => [ShipmentItemDto],

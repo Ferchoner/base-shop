@@ -108,6 +108,30 @@ export class PrismaOrderRepository extends OrderRepository {
     return rows.map(({ id }) => toId<'Order'>(id));
   }
 
+  async dueForBlocking(cutoff: Date, limit: number): Promise<OrderId[]> {
+    const rows = await this.txHost.tx.order.findMany({
+      select: { id: true },
+      where: {
+        concludedAt: { lte: cutoff },
+        blockedAt: null,
+        anonymizedAt: null,
+      },
+      orderBy: [{ concludedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map(({ id }) => toId<'Order'>(id));
+  }
+
+  async dueForAnonymization(cutoff: Date, limit: number): Promise<OrderId[]> {
+    const rows = await this.txHost.tx.order.findMany({
+      select: { id: true },
+      where: { concludedAt: { lte: cutoff }, anonymizedAt: null },
+      orderBy: [{ concludedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map(({ id }) => toId<'Order'>(id));
+  }
+
   async lockByPublicCode(code: PublicCode): Promise<Order | null> {
     const [locked] = await this.txHost.tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM orders WHERE public_code = ${code} FOR UPDATE`;
@@ -146,6 +170,8 @@ export class PrismaOrderRepository extends OrderRepository {
         contactEmail: o.contactEmail,
         shippingAddress: o.shippingAddress as unknown as Prisma.InputJsonObject,
         anonymizedAt: o.anonymizedAt,
+        concludedAt: o.concludedAt,
+        blockedAt: o.blockedAt,
         reservationId: o.reservationId,
         paidAt: o.paidAt,
         shippedAt: o.shippedAt,
@@ -229,6 +255,8 @@ function toSnapshot(row: OrderRow) {
     expiredAt: row.expiredAt,
     refundedAt: row.refundedAt,
     anonymizedAt: row.anonymizedAt,
+    concludedAt: row.concludedAt,
+    blockedAt: row.blockedAt,
     version: row.version,
   };
 }

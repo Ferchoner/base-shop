@@ -312,6 +312,7 @@ describe('Shipments (e2e, T-195)', () => {
       cancelledAt: null,
       failureNote: null,
       returnNote: null,
+      blockedAt: null,
       version: 1,
       createdAt: expect.any(String),
     });

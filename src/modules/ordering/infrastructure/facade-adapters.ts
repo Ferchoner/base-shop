@@ -93,6 +93,10 @@ export class ShippingFacadeOrderShipments extends OrderShipments {
     return this.shipping.anonymizeShipmentsOf(orderIds, at);
   }
 
+  block(orderIds: readonly OrderId[], at: Date): Promise<void> {
+    return this.shipping.blockShipmentsOf(orderIds, at);
+  }
+
   shipmentsOf(
     orderIds: readonly OrderId[],
   ): Promise<ReadonlyMap<OrderId, OrderShipment>> {

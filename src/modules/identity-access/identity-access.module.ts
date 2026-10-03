@@ -17,7 +17,11 @@ import {
 import { ChangeEmail } from './application/change-email.use-case.js';
 import { ChangePassword } from './application/change-password.use-case.js';
 import { ConfirmEmail } from './application/confirm-email.use-case.js';
-import { SpentTokens, TokenCleanup } from './application/token-cleanup.js';
+import {
+  SPENT_REFRESH_TOKEN_RETENTION_DAYS,
+  SpentTokens,
+  TokenCleanup,
+} from './application/token-cleanup.js';
 import { CreateFirstSuperadmin } from './application/create-first-superadmin.use-case.js';
 import { CreateRole } from './application/create-role.use-case.js';
 import { CreateStaff } from './application/create-staff.use-case.js';
@@ -166,6 +170,12 @@ import { MeController } from './presentation/me.controller.js';
     { provide: SessionRepository, useClass: PrismaSessionRepository },
     TokenCleanup,
     TokenCleanupJob,
+    {
+      provide: SPENT_REFRESH_TOKEN_RETENTION_DAYS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        config.get('SPENT_REFRESH_TOKEN_RETENTION_DAYS', { infer: true }),
+    },
     { provide: SpentTokens, useClass: PrismaSpentTokens },
     {
       provide: EmailVerificationTokenRepository,

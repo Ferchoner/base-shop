@@ -57,7 +57,7 @@ describe('TokenCleanup (UC-SYS-01, ADR-0029, ADR-0144)', () => {
   it('deletes refresh tokens spent 30 days ago and links that no longer work now, in batches, and logs how many', async () => {
     const tokens = new SomeTokens({ refresh: 1_200, verify: 3, reset: 0 });
 
-    const report = await new TokenCleanup(tokens, { now: () => NOW }).run();
+    const report = await new TokenCleanup(tokens, { now: () => NOW }, 30).run();
 
     expect(report).toEqual({
       refreshTokens: 1_200,
@@ -81,7 +81,7 @@ describe('TokenCleanup (UC-SYS-01, ADR-0029, ADR-0144)', () => {
       'verify',
     );
 
-    const report = await new TokenCleanup(tokens, { now: () => NOW }).run();
+    const report = await new TokenCleanup(tokens, { now: () => NOW }, 30).run();
 
     expect(report).toEqual({
       refreshTokens: 2,

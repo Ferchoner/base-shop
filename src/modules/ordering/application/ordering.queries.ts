@@ -88,7 +88,9 @@ export interface AdminOrderSummaryView extends OrderSummaryView {
   readonly orderNumber: number;
   readonly version: number;
   readonly anonymizedAt: Date | null;
-  /** Whole until the order is anonymized (ADR-0067). */
+  /** When the data of its buyer was blocked (ADR-0070); its email and address show as anonymized then. */
+  readonly blockedAt: Date | null;
+  /** Whole until the order is blocked or anonymized (ADR-0067, ADR-0070). */
   readonly shippingAddress: OrderAddress;
 }
 
@@ -119,12 +121,12 @@ export type OrderSortField = 'placedAt' | 'orderNumber' | 'grandTotal';
  * the dependency injection token without depending on NestJS.
  */
 export abstract class OrderingQueries {
-  /** An order for its buyer; `null` if it does not exist or was anonymized. */
+  /** An order for its buyer; `null` if it does not exist, or was blocked or anonymized (ADR-0070). */
   abstract findOrder(id: OrderId): Promise<OrderView | null>;
 
   /**
-   * One of the customer's orders by its public code; another customer's order, or an anonymized one, is answered as
-   * missing.
+   * One of the customer's orders by its public code; another customer's order, or a blocked or anonymized one, is
+   * answered as missing (ADR-0070).
    */
   abstract findCustomerOrder(
     customerId: CustomerId,
@@ -133,7 +135,8 @@ export abstract class OrderingQueries {
 
   /**
    * A guest order by its public code and contact email, in a single query (UC-ORD-04, ADR-0138): `null` alike
-   * when no order has the code, the email is another one, or the order is a customer's (BR-ORD-11).
+   * when no order has the code, the email is another one, the order is a customer's (BR-ORD-11), or it was blocked
+   * (ADR-0070).
    */
   abstract findGuestOrder(
     publicCode: PublicCode,
@@ -162,7 +165,7 @@ export abstract class OrderingQueries {
     page: PageRequest,
   ): Promise<Page<AdminOrderSummaryView>>;
 
-  /** The customer's orders but the anonymized ones (UC-ORD-03); ties are broken by ID. */
+  /** The customer's orders but the blocked and anonymized ones (UC-ORD-03, ADR-0070); ties are broken by ID. */
   abstract listCustomerOrders(
     customerId: CustomerId,
     filter: CustomerOrderFilter,

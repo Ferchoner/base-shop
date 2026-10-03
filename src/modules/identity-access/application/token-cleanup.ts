@@ -1,12 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   Clock,
   daysBefore,
   deleteInBatches,
 } from '../../../shared-kernel/index.js';
 
-/** Days a refresh token is kept after it expired or was revoked (ADR-0029). */
-export const SPENT_REFRESH_TOKEN_DAYS = 30;
+/** Days a refresh token is kept after it expired or was revoked (`SPENT_REFRESH_TOKEN_RETENTION_DAYS`, ADR-0149). */
+export const SPENT_REFRESH_TOKEN_RETENTION_DAYS = Symbol(
+  'SPENT_REFRESH_TOKEN_RETENTION_DAYS',
+);
 
 /**
  * The stored tokens that no longer work, deleted in batches (ADR-0029, ADR-0144). Each call deletes at most
@@ -35,8 +37,8 @@ export interface TokenCleanupReport {
 }
 
 /**
- * The daily cleanup of Identity & Access (UC-SYS-01, ADR-0029, ADR-0144): refresh tokens 30 days after they
- * expired or were revoked, and the email verification and password recovery links that no longer work. A kind
+ * The daily cleanup of Identity & Access (UC-SYS-01, ADR-0029, ADR-0144): refresh tokens SPENT_REFRESH_TOKEN_RETENTION_DAYS
+ * (30 by default, ADR-0149) after they expired or were revoked, and the email verification and password recovery links that no longer work. A kind
  * that fails goes to the log and the others go on. A system task: not audited.
  */
 @Injectable()
@@ -46,11 +48,13 @@ export class TokenCleanup {
   constructor(
     private readonly tokens: SpentTokens,
     private readonly clock: Clock,
+    @Inject(SPENT_REFRESH_TOKEN_RETENTION_DAYS)
+    private readonly refreshTokenDays: number,
   ) {}
 
   async run(): Promise<TokenCleanupReport> {
     const now = this.clock.now();
-    const before = daysBefore(now, SPENT_REFRESH_TOKEN_DAYS);
+    const before = daysBefore(now, this.refreshTokenDays);
     const report = {
       refreshTokens: await this.delete('refresh tokens', (limit) =>
         this.tokens.deleteRefreshTokens(before, limit),

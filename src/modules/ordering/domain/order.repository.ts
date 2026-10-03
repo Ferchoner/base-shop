@@ -41,6 +41,18 @@ export abstract class OrderRepository {
   abstract dueForExpiry(at: Date, limit: number): Promise<OrderId[]>;
 
   /**
+   * Up to `limit` orders that concluded at `cutoff` or before and are neither blocked nor anonymized, the oldest
+   * concluded first (ADR-0151). They are not locked: whoever blocks one locks it and looks again.
+   */
+  abstract dueForBlocking(cutoff: Date, limit: number): Promise<OrderId[]>;
+
+  /**
+   * Up to `limit` orders that concluded at `cutoff` or before and were not anonymized, blocked or not, the oldest
+   * concluded first (ADR-0151). Not locked either.
+   */
+  abstract dueForAnonymization(cutoff: Date, limit: number): Promise<OrderId[]>;
+
+  /**
    * Writes what changed in a locked order and one history entry per status change, and counts one more
    * version.
    *

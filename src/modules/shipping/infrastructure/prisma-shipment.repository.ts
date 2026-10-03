@@ -89,6 +89,7 @@ export class PrismaShipmentRepository extends ShipmentRepository {
         returnNote: s.returnNote,
         destination: s.destination as unknown as Prisma.InputJsonObject,
         anonymizedAt: s.anonymizedAt,
+        blockedAt: s.blockedAt,
         version: { increment: 1 },
         updatedAt: now,
       },
@@ -131,6 +132,7 @@ export class PrismaShipmentRepository extends ShipmentRepository {
       failureNote: row.failureNote,
       returnNote: row.returnNote,
       anonymizedAt: row.anonymizedAt,
+      blockedAt: row.blockedAt,
       version: row.version,
     });
   }

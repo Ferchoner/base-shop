@@ -40,7 +40,8 @@ export class OrderReorders {
   /**
    * A customer buys one of their own orders again, in their active cart.
    *
-   * @throws NotFoundError for an order that does not exist or is another customer's; InvalidStateTransitionError.
+   * @throws NotFoundError for an order that does not exist, is another customer's, or was blocked or anonymized;
+   *   InvalidStateTransitionError.
    */
   forCustomer(input: {
     customerId: CustomerId;
@@ -48,7 +49,13 @@ export class OrderReorders {
   }): Promise<CartCopy> {
     return this.transactions.run(async () => {
       const order = await this.orders.lockByPublicCode(input.publicCode);
-      if (order === null || order.snapshot.customerId !== input.customerId) {
+      // Like the views of the customer: a blocked or anonymized order is not there (ADR-0070).
+      if (
+        order === null ||
+        order.snapshot.customerId !== input.customerId ||
+        order.isBlocked ||
+        order.isAnonymized
+      ) {
         throw new NotFoundError('Order', input.publicCode);
       }
       return this.carts.copyToCustomerCart(

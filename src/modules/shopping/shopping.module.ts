@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { EnvironmentVariables } from '../../platform/config/environment.js';
 import { CatalogModule } from '../catalog/index.js';
 import { InventoryModule } from '../inventory/index.js';
 import { PricingModule } from '../pricing/index.js';
@@ -26,6 +28,7 @@ import { GuestCartCleanupJob } from './infrastructure/guest-cart-cleanup.job.js'
 import { PrismaInactiveGuestCarts } from './infrastructure/prisma-inactive-guest-carts.js';
 import {
   GuestCartCleanup,
+  INACTIVE_GUEST_CART_RETENTION_DAYS,
   InactiveGuestCarts,
 } from './application/guest-cart-cleanup.js';
 import { CartsController } from './presentation/carts.controller.js';
@@ -47,6 +50,12 @@ import { MeCartController } from './presentation/me-cart.controller.js';
     CartViews,
     GuestCartCleanup,
     GuestCartCleanupJob,
+    {
+      provide: INACTIVE_GUEST_CART_RETENTION_DAYS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        config.get('INACTIVE_GUEST_CART_RETENTION_DAYS', { infer: true }),
+    },
     OrderExpiredHandler,
     ShoppingFacade,
     { provide: CartRepository, useClass: PrismaCartRepository },

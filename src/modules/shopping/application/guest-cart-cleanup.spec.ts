@@ -30,9 +30,9 @@ describe('GuestCartCleanup (UC-CRT-07, BR-CRT-06, ADR-0144)', () => {
       .mockImplementation(() => {});
     const carts = new SomeCarts(1_001);
 
-    expect(await new GuestCartCleanup(carts, { now: () => NOW }).run()).toBe(
-      1_001,
-    );
+    expect(
+      await new GuestCartCleanup(carts, { now: () => NOW }, 30).run(),
+    ).toBe(1_001);
 
     expect(carts.asked).toEqual([
       [new Date('2026-10-01T09:00:00.000Z'), 1_000],

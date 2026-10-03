@@ -100,6 +100,14 @@ class OneOrder extends OrderRepository {
     throw new Error('A restock finds the order by its ID');
   }
 
+  dueForBlocking(): Promise<OrderId[]> {
+    throw new Error('This test never blocks orders');
+  }
+
+  dueForAnonymization(): Promise<OrderId[]> {
+    throw new Error('This test never anonymizes orders by their date');
+  }
+
   dueForExpiry(): Promise<OrderId[]> {
     throw new Error('A restock never looks for due orders');
   }

@@ -39,6 +39,11 @@ model Order {
   sourceCartId            String      @map("source_cart_id") @db.Uuid
   privacyNoticeVersion    String?     @map("privacy_notice_version")
   anonymizedAt            DateTime?   @map("anonymized_at") @db.Timestamptz(3)
+  /// When the order concluded, the start of the retention of its personal data; `null` while it may still change
+  /// (ADR-0070, ADR-0145, ADR-0149).
+  concludedAt             DateTime?   @map("concluded_at") @db.Timestamptz(3)
+  /// When its personal data was blocked: hidden from the usual responses until it is anonymized (ADR-0070).
+  blockedAt               DateTime?   @map("blocked_at") @db.Timestamptz(3)
   placedAt                DateTime    @map("placed_at") @db.Timestamptz(3)
   /// When the reservation of the order ends: an unpaid order expires then (ADR-0132).
   paymentDueAt            DateTime    @map("payment_due_at") @db.Timestamptz(3)
@@ -58,6 +63,7 @@ model Order {
   @@index([customerId, placedAt(sort: Desc)])
   @@index([status, placedAt(sort: Desc)])
   @@index([contactEmail])
+  @@index([concludedAt], map: "orders_retention_idx", where: raw("anonymized_at IS NULL"))
   @@map("orders")
 }
 

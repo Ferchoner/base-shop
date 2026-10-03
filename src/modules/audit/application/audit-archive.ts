@@ -1,5 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Clock, TransactionManager } from '../../../shared-kernel/index.js';
+import {
+  Clock,
+  monthsBefore,
+  TransactionManager,
+} from '../../../shared-kernel/index.js';
 import type { AuditEntryView, AuditPosition } from './audit-entries.js';
 
 /** Records read and written at a time (ADR-0144). */
@@ -10,7 +14,7 @@ export const MAX_DAYS_PER_RUN = 31;
 
 /**
  * How long the audit trail is kept (ADR-0037), in calendar months: in the database, and then in the archive files.
- * Pending legal validation (P-61).
+ * Each operator validates them before operating (ADR-0149).
  */
 export interface AuditRetention {
   readonly databaseMonths: number;
@@ -183,18 +187,6 @@ export class AuditArchive {
     });
     return exported.length;
   }
-}
-
-/** The same instant `months` calendar months before; on the last day of the month when it is shorter. */
-export function monthsBefore(now: Date, months: number): Date {
-  const target = new Date(now.getTime());
-  target.setUTCDate(1);
-  target.setUTCMonth(target.getUTCMonth() - months);
-  const lastDay = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  target.setUTCDate(Math.min(now.getUTCDate(), lastDay));
-  return target;
 }
 
 /** The UTC day of an instant. */

@@ -41,6 +41,8 @@ model Shipment {
   status         ShipmentStatus
   destination    Json           @db.JsonB
   anonymizedAt   DateTime?      @map("anonymized_at") @db.Timestamptz(3)
+  /// When the personal data of its order was blocked, and so its destination (ADR-0070).
+  blockedAt      DateTime?      @map("blocked_at") @db.Timestamptz(3)
   carrierName    String?        @map("carrier_name")
   trackingNumber String?        @map("tracking_number")
   /// Delivered by the store itself, without carrier or tracking number (ADR-0078).

@@ -1,12 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   Clock,
   daysBefore,
   deleteInBatches,
 } from '../../../shared-kernel/index.js';
 
-/** Days a processed webhook event is kept, so a repeated delivery is still recognized (BR-PAY-06, ADR-0029). */
-export const PROCESSED_WEBHOOK_EVENT_DAYS = 30;
+/**
+ * Days a processed webhook event is kept, so a repeated delivery is still recognized (BR-PAY-06, ADR-0029):
+ * `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS`, 30 by default (ADR-0149).
+ */
+export const PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS = Symbol(
+  'PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS',
+);
 
 /**
  * Processed webhook events, deleted in batches (ADR-0029, ADR-0144). Each call deletes at most `limit` rows in one
@@ -19,8 +24,8 @@ export abstract class ProcessedWebhookEvents {
 }
 
 /**
- * The daily cleanup of Payments (UC-SYS-01, ADR-0029, ADR-0144): webhook events 30 days after they were
- * processed. None exist while PayPal is not enabled (ADR-0040). A system task: not audited.
+ * The daily cleanup of Payments (UC-SYS-01, ADR-0029, ADR-0144): webhook events PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS
+ * after they were processed. None exist while PayPal is not enabled (ADR-0040). A system task: not audited.
  */
 @Injectable()
 export class WebhookEventCleanup {
@@ -29,11 +34,13 @@ export class WebhookEventCleanup {
   constructor(
     private readonly events: ProcessedWebhookEvents,
     private readonly clock: Clock,
+    @Inject(PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS)
+    private readonly days: number,
   ) {}
 
   /** Answers how many events it deleted. */
   async run(): Promise<number> {
-    const before = daysBefore(this.clock.now(), PROCESSED_WEBHOOK_EVENT_DAYS);
+    const before = daysBefore(this.clock.now(), this.days);
     const deleted = await deleteInBatches((limit) =>
       this.events.delete(before, limit),
     );

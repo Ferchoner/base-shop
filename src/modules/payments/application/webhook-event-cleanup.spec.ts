@@ -28,7 +28,7 @@ describe('WebhookEventCleanup (UC-SYS-01, ADR-0029, ADR-0144)', () => {
     const events = new SomeEvents();
 
     expect(
-      await new WebhookEventCleanup(events, { now: () => NOW }).run(),
+      await new WebhookEventCleanup(events, { now: () => NOW }, 30).run(),
     ).toBe(2);
 
     expect(events.asked).toEqual([
