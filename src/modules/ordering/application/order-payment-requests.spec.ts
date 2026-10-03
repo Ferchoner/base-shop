@@ -107,6 +107,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('Paying never looks for due orders');
   }
 
+  lockOf(): Promise<Order[]> {
+    throw new Error('Paying never anonymizes orders');
+  }
+
   save(): Promise<void> {
     throw new Error('Paying never changes the order itself');
   }

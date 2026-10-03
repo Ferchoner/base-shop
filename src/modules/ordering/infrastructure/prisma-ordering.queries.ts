@@ -24,6 +24,7 @@ import {
 } from '../application/ordering.queries.js';
 import type {
   CustomerId,
+  OrderAddress,
   OrderId,
   ShippingAddress,
   VariantOptions,
@@ -97,9 +98,9 @@ export class PrismaOrderingQueries extends OrderingQueries {
   }
 
   async findOrder(id: OrderId): Promise<OrderView | null> {
-    const row = await this.txHost.tx.order.findUnique({
+    const row = await this.txHost.tx.order.findFirst({
       select: ORDER_FIELDS,
-      where: { id },
+      where: { id, anonymizedAt: null },
     });
     return row === null ? null : toOrderView(row);
   }
@@ -110,7 +111,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   ): Promise<OrderView | null> {
     const row = await this.txHost.tx.order.findFirst({
       select: ORDER_FIELDS,
-      where: { publicCode, customerId },
+      where: { publicCode, customerId, anonymizedAt: null },
     });
     return row === null ? null : toOrderView(row);
   }
@@ -185,6 +186,7 @@ export class PrismaOrderingQueries extends OrderingQueries {
   ): Promise<Page<OrderSummaryView>> {
     const where: Prisma.OrderWhereInput = {
       customerId,
+      anonymizedAt: null,
       ...(filter.status === undefined
         ? {}
         : { status: { in: [...filter.status] } }),
@@ -288,8 +290,8 @@ function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {
     orderNumber: Number(row.orderNumber),
     version: row.version,
     anonymizedAt: row.anonymizedAt,
-    // Written by PrismaOrderRepository from ShippingAddress.
-    shippingAddress: row.shippingAddress as unknown as ShippingAddress,
+    // Written by PrismaOrderRepository from ShippingAddress, and once anonymized.
+    shippingAddress: row.shippingAddress as unknown as OrderAddress,
   };
 }
 

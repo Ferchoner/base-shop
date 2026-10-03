@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { type Money, toId } from '../../../shared-kernel/index.js';
 import { formatPublicCode } from '../domain/public-code.js';
+import {
+  type AnonymizedBuyer,
+  OrderAnonymizations,
+} from './order-anonymizations.use-case.js';
 import { OrderingQueries } from './ordering.queries.js';
 
 /** A line of an order, as its emails show it. */
@@ -19,8 +23,7 @@ export interface OrderNotice {
   readonly orderId: string;
   /** With dash, as people see it. */
   readonly publicCode: string;
-  /** `null` once anonymized: it gets no email (ADR-0067). */
-  readonly contactEmail: string | null;
+  readonly contactEmail: string;
   readonly lines: readonly OrderNoticeLine[];
   readonly totals: {
     readonly subtotal: Money;
@@ -46,23 +49,58 @@ export interface OrderNotice {
   readonly deliveryMaxBusinessDays: number;
 }
 
+/** An anonymized order (ADR-0067): it gets no email, and keeps nothing of its buyer to show. */
+export interface AnonymizedOrderNotice {
+  readonly orderId: string;
+  /** With dash, as people see it. */
+  readonly publicCode: string;
+  readonly contactEmail: null;
+}
+
 /**
- * Public API of Ordering (ADR-0005, ADR-0143) for the emails of Notifications, which reacts to the events of the
- * order, its payment and its shipment and reads the order here. Ordering never uses Notifications.
+ * Public API of Ordering (ADR-0005): for the emails of Notifications, which reacts to the events of the order, its
+ * payment and its shipment and reads the order here (ADR-0143), and for the anonymizations of Privacy (ADR-0145).
+ * Ordering never uses either.
  */
 @Injectable()
 export class OrderingFacade {
-  constructor(private readonly queries: OrderingQueries) {}
+  constructor(
+    private readonly queries: OrderingQueries,
+    private readonly anonymizations: OrderAnonymizations,
+  ) {}
+
+  /**
+   * Anonymizes the orders of a buyer and their shipments (UC-IAM-19, ADR-0067), all or none, in the transaction of
+   * the caller. Each order must have concluded (ADR-0070, ADR-0145).
+   *
+   * @returns how many orders it anonymized.
+   * @throws NotFoundError for a guest when no guest order has the code and the email, the same as the lookup
+   *   (BR-ORD-11); ActiveOrdersExistError when an order has not concluded (E-31).
+   */
+  anonymizeOrders(input: {
+    buyer: AnonymizedBuyer;
+    reason: string;
+    at: Date;
+  }): Promise<number> {
+    return this.anonymizations.anonymize(input);
+  }
 
   /** The order for its emails; `null` when it does not exist. */
-  async orderNotice(orderId: string): Promise<OrderNotice | null> {
-    const view = await this.queries.findOrder(toId<'Order'>(orderId));
+  async orderNotice(
+    orderId: string,
+  ): Promise<OrderNotice | AnonymizedOrderNotice | null> {
+    const view = await this.queries.findAdminOrder(toId<'Order'>(orderId));
     if (view === null) return null;
-    const { totals, shippingAddress: address } = view;
+    const { contactEmail, totals, shippingAddress: address } = view;
+    const publicCode = formatPublicCode(view.publicCode);
+    // Both go with the anonymization (ADR-0067).
+    if (contactEmail === null || address.recipientName === null) {
+      return { orderId: view.id, publicCode, contactEmail: null };
+    }
     return {
       orderId: view.id,
-      publicCode: formatPublicCode(view.publicCode),
-      contactEmail: view.contactEmail,
+      publicCode,
+      contactEmail,
       lines: view.lines.map((line) => ({
         productName: line.productName,
         variantOptions: { ...line.variantOptions },

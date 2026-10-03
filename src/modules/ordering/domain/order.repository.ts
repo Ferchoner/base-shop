@@ -1,5 +1,9 @@
-import type { Order, OrderId } from './order.js';
+import type { CustomerId, Order, OrderId } from './order.js';
 import type { PublicCode } from './public-code.js';
+
+/** Whose orders: a customer's, or the guest orders with a contact email, already normalized (ADR-0067). */
+export type OrdersOf =
+  { readonly customerId: CustomerId } | { readonly guestEmail: string };
 
 /**
  * Persistence of orders (DATABASE.md §8). An abstract class rather than an interface, so it can be the
@@ -23,6 +27,12 @@ export abstract class OrderRepository {
 
   /** The order with this public code, locked like `lock`; `null` if no order has it. */
   abstract lockByPublicCode(code: PublicCode): Promise<Order | null>;
+
+  /**
+   * The orders of a buyer that were not anonymized, locked like `lock`, in the order of their IDs, so two
+   * anonymizations of the same buyer wait for each other (ADR-0145). The second finds none of them anymore.
+   */
+  abstract lockOf(buyer: OrdersOf): Promise<Order[]>;
 
   /**
    * Up to `limit` PENDING_PAYMENT orders whose payment was due at `at`, the oldest due first (UC-ORD-10). They

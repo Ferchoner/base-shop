@@ -31,20 +31,34 @@ import {
 // fields holding other DTOs, lists, dates, enums, objects or null declare their type with @ApiProperty
 // (DEVELOPMENT_GUIDE.md).
 
-/** Where a shipment goes: the shipping address of its order (API_SPEC.md §8.2). */
+const ANONYMIZED = {
+  type: String,
+  nullable: true,
+  description: '`null` cuando la orden está anonimizada (ADR-0067).',
+} as const;
+
+/**
+ * Where a shipment goes: the shipping address of its order (API_SPEC.md §8.2). Once the order is anonymized it keeps
+ * only the state, the municipality, the postal code and the country, and the rest is `null` (ADR-0067).
+ */
 export class ShipmentAddressDto {
-  recipientName: string;
+  @ApiProperty(ANONYMIZED)
+  recipientName: string | null;
 
-  phone: string;
+  @ApiProperty(ANONYMIZED)
+  phone: string | null;
 
-  street: string;
+  @ApiProperty(ANONYMIZED)
+  street: string | null;
 
-  exteriorNumber: string;
+  @ApiProperty(ANONYMIZED)
+  exteriorNumber: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   interiorNumber: string | null;
 
-  neighborhood: string;
+  @ApiProperty(ANONYMIZED)
+  neighborhood: string | null;
 
   postalCode: string;
 

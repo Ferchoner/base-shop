@@ -1,5 +1,6 @@
 import { Money, newId } from '../../../shared-kernel/index.js';
 import type { PublicCode } from '../domain/public-code.js';
+import type { OrderAnonymizations } from './order-anonymizations.use-case.js';
 import { OrderingFacade } from './ordering.facade.js';
 import type { OrderingQueries, OrderView } from './ordering.queries.js';
 
@@ -68,12 +69,15 @@ function view(id: string): OrderView {
 function facade(order: OrderView | null) {
   const asked: string[] = [];
   const queries = {
-    findOrder: (id: string) => {
+    findAdminOrder: (id: string) => {
       asked.push(id);
       return Promise.resolve(order);
     },
   } as unknown as OrderingQueries;
-  return { facade: new OrderingFacade(queries), asked };
+  return {
+    facade: new OrderingFacade(queries, {} as OrderAnonymizations),
+    asked,
+  };
 }
 
 describe('OrderingFacade (ADR-0074, ADR-0143)', () => {

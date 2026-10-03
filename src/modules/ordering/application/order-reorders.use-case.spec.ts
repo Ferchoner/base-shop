@@ -108,6 +108,10 @@ class OneOrder extends OrderRepository {
     throw new Error('Buying again never expires orders');
   }
 
+  lockOf(): Promise<Order[]> {
+    throw new Error('Buying again never anonymizes orders');
+  }
+
   save(): Promise<void> {
     throw new Error('Buying again never changes the order');
   }

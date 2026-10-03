@@ -49,6 +49,28 @@ export interface ShipmentAddress {
   readonly country: string;
 }
 
+/** The fields of a destination that tell who receives it and where exactly: anonymization removes them (ADR-0067). */
+type IdentifyingField =
+  | 'recipientName'
+  | 'phone'
+  | 'street'
+  | 'exteriorNumber'
+  | 'interiorNumber'
+  | 'neighborhood'
+  | 'city'
+  | 'references';
+
+/**
+ * The destination of a shipment whose order was anonymized (ADR-0067): it keeps the state, the municipality, the
+ * postal code and the country; the rest is `null`.
+ */
+export type AnonymizedDestination = Omit<ShipmentAddress, IdentifyingField> & {
+  readonly [Field in IdentifyingField]: null;
+};
+
+/** Where a shipment goes, whole until its order is anonymized. */
+export type ShipmentDestination = ShipmentAddress | AnonymizedDestination;
+
 /** What a shipment carries of a line of its order, with what the staff needs to pack it (ADR-0140). */
 export interface ShipmentItem {
   readonly orderLineId: OrderLineId;
@@ -64,7 +86,7 @@ export interface ShipmentSnapshot {
   readonly orderCode: string;
   readonly warehouseId: WarehouseId;
   readonly status: ShipmentStatus;
-  readonly destination: ShipmentAddress;
+  readonly destination: ShipmentDestination;
   readonly items: readonly ShipmentItem[];
   readonly carrierName: string | null;
   readonly trackingNumber: string | null;
@@ -79,6 +101,8 @@ export interface ShipmentSnapshot {
   readonly failureNote: string | null;
   /** What came back, as the staff wrote it (ADR-0141). */
   readonly returnNote: string | null;
+  /** When the data of who receives it was removed, with its order (ADR-0067); `null` until then. */
+  readonly anonymizedAt: Date | null;
   readonly version: number;
 }
 
@@ -162,6 +186,7 @@ export class Shipment {
       cancelledAt: null,
       failureNote: null,
       returnNote: null,
+      anonymizedAt: null,
       version: 1,
     });
     shipment.changed = true;
@@ -315,6 +340,36 @@ export class Shipment {
   cancel(now: Date): void {
     this.assertStatus('PENDING', 'cancel');
     this.state = { ...this.state, status: 'CANCELLED', cancelledAt: now };
+    this.changed = true;
+  }
+
+  /**
+   * Its order was anonymized (UC-IAM-19, ADR-0067): its destination keeps only the state, the municipality, the
+   * postal code and the country. Its status and dates stay. An anonymized order has concluded, so its shipment never
+   * moves again (ADR-0145).
+   */
+  anonymize(at: Date): void {
+    const destination = this.state.destination;
+    this.state = {
+      ...this.state,
+      destination: {
+        recipientName: null,
+        phone: null,
+        street: null,
+        exteriorNumber: null,
+        interiorNumber: null,
+        neighborhood: null,
+        postalCode: destination.postalCode,
+        stateCode: destination.stateCode,
+        stateName: destination.stateName,
+        municipalityCode: destination.municipalityCode,
+        municipalityName: destination.municipalityName,
+        city: null,
+        references: null,
+        country: destination.country,
+      },
+      anonymizedAt: this.state.anonymizedAt ?? at,
+    };
     this.changed = true;
   }
 

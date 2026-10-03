@@ -119,6 +119,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The checkout never expires orders');
   }
 
+  lockOf(): Promise<Order[]> {
+    throw new Error('The checkout never anonymizes orders');
+  }
+
   save(): Promise<void> {
     throw new Error('The checkout never saves a placed order again');
   }

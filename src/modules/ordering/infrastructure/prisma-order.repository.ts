@@ -10,11 +10,11 @@ import {
 } from '../../../shared-kernel/index.js';
 import {
   Order,
+  type OrderAddress,
   type OrderId,
-  type ShippingAddress,
   type VariantOptions,
 } from '../domain/order.js';
-import { OrderRepository } from '../domain/order.repository.js';
+import { OrderRepository, type OrdersOf } from '../domain/order.repository.js';
 import type { PublicCode } from '../domain/public-code.js';
 
 type OrderRow = Prisma.OrderGetPayload<{ include: { lines: true } }>;
@@ -114,6 +114,27 @@ export class PrismaOrderRepository extends OrderRepository {
     return locked === undefined ? null : this.lock(toId<'Order'>(locked.id));
   }
 
+  async lockOf(buyer: OrdersOf): Promise<Order[]> {
+    const tx = this.txHost.tx;
+    const locked =
+      'customerId' in buyer
+        ? await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM orders
+             WHERE customer_id = ${buyer.customerId}::uuid AND anonymized_at IS NULL
+             ORDER BY id FOR UPDATE`
+        : await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM orders
+             WHERE customer_id IS NULL AND contact_email = ${buyer.guestEmail}
+             ORDER BY id FOR UPDATE`;
+    if (locked.length === 0) return [];
+    const rows = await tx.order.findMany({
+      where: { id: { in: locked.map(({ id }) => id) } },
+      include: { lines: { orderBy: { lineNumber: 'asc' } } },
+      orderBy: { id: 'asc' },
+    });
+    return rows.map((row) => Order.restore(toSnapshot(row)));
+  }
+
   async save(order: Order, now: Date): Promise<void> {
     if (!order.hasChanges) return;
     const o = order.snapshot;
@@ -122,6 +143,9 @@ export class PrismaOrderRepository extends OrderRepository {
       where: { id: o.id, version: o.version },
       data: {
         status: o.status,
+        contactEmail: o.contactEmail,
+        shippingAddress: o.shippingAddress as unknown as Prisma.InputJsonObject,
+        anonymizedAt: o.anonymizedAt,
         reservationId: o.reservationId,
         paidAt: o.paidAt,
         shippedAt: o.shippedAt,
@@ -189,8 +213,8 @@ function toSnapshot(row: OrderRow) {
     shippingTaxRateBp: row.shippingTaxRateBp,
     deliveryMinBusinessDays: row.deliveryMinBusinessDays,
     deliveryMaxBusinessDays: row.deliveryMaxBusinessDays,
-    // Written by insert from ShippingAddress.
-    shippingAddress: row.shippingAddress as unknown as ShippingAddress,
+    // Written by insert from ShippingAddress, and by save once anonymized.
+    shippingAddress: row.shippingAddress as unknown as OrderAddress,
     reservationId:
       row.reservationId === null
         ? null
@@ -204,6 +228,7 @@ function toSnapshot(row: OrderRow) {
     cancelledAt: row.cancelledAt,
     expiredAt: row.expiredAt,
     refundedAt: row.refundedAt,
+    anonymizedAt: row.anonymizedAt,
     version: row.version,
   };
 }

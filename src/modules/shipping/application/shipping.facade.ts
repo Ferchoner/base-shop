@@ -116,6 +116,21 @@ export class ShippingFacade {
     });
   }
 
+  /**
+   * Anonymizes the shipments of these orders, which Ordering is anonymizing (UC-IAM-19, ADR-0067), in its
+   * transaction; an order without one is skipped (ADR-0145).
+   */
+  anonymizeShipmentsOf(orderIds: readonly OrderId[], at: Date): Promise<void> {
+    return this.transactions.run(async () => {
+      for (const orderId of orderIds) {
+        const shipment = await this.shipments.lockByOrder(orderId);
+        if (shipment === null) continue;
+        shipment.anonymize(at);
+        await this.shipments.save(shipment, at);
+      }
+    });
+  }
+
   /** The shipments of these orders, by order; an order without one is left out. */
   shipmentsOf(
     orderIds: readonly string[],

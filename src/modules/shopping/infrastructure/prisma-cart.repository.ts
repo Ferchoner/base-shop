@@ -12,7 +12,7 @@ import {
 import { CartRepository } from '../domain/cart.repository.js';
 
 /** Class of the advisory locks of customers' carts ("CART"), next to the category tree's "CATT" (ADR-0120). */
-const CUSTOMER_CART_LOCK = 0x43415254;
+export const CUSTOMER_CART_LOCK = 0x43415254;
 
 interface CartRow {
   id: string;

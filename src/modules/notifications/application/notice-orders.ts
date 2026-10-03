@@ -8,8 +8,7 @@ import type { Money } from '../../../shared-kernel/index.js';
 export interface NoticeOrder {
   /** With dash. */
   readonly publicCode: string;
-  /** `null` once anonymized: it gets no email (BR-NTF-03). */
-  readonly contactEmail: string | null;
+  readonly contactEmail: string;
   readonly lines: readonly {
     readonly productName: string;
     readonly variantOptions: Readonly<Record<string, string>>;
@@ -39,9 +38,17 @@ export interface NoticeOrder {
   readonly deliveryMaxBusinessDays: number;
 }
 
+/** An anonymized order: it gets no email (BR-NTF-03), and keeps nothing of its buyer to show (ADR-0067). */
+export interface AnonymizedNoticeOrder {
+  readonly publicCode: string;
+  readonly contactEmail: null;
+}
+
 export abstract class NoticeOrders {
   /** The order for its emails; `null` when it does not exist. */
-  abstract find(orderId: string): Promise<NoticeOrder | null>;
+  abstract find(
+    orderId: string,
+  ): Promise<NoticeOrder | AnonymizedNoticeOrder | null>;
 }
 
 /** Dependency injection token of whether the store takes payments in person (`MANUAL_PAYMENTS_ENABLED`, ADR-0040). */

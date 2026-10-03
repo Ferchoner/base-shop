@@ -142,6 +142,7 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       cancelledAt: null,
       expiredAt: null,
       refundedAt: null,
+      anonymizedAt: null,
       version: 1,
     });
   });

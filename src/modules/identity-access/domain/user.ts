@@ -40,8 +40,8 @@ export interface UserSnapshot {
 }
 
 /**
- * A customer or staff account (ADR-0043): its status, roles and sign-in (T-130, T-120), and the creation and
- * reactivation of staff (T-131). Anonymization comes with T-132.
+ * A customer or staff account (ADR-0043): its status, roles and sign-in (T-130, T-120), the creation and
+ * reactivation of staff (T-131), and the anonymization of customers (T-132, ADR-0067).
  */
 export class User {
   private constructor(private state: UserSnapshot) {}
@@ -301,6 +301,32 @@ export class User {
       ...this.state,
       firstNames: changes.firstNames ?? this.state.firstNames,
       lastNames: changes.lastNames ?? this.state.lastNames,
+    };
+  }
+
+  /**
+   * Anonymizes a customer, ACTIVE or SUSPENDED (UC-IAM-19, ADR-0067): ANONYMIZED for good, without email, names,
+   * password nor email verification, so the email is free for a new account. Staff is never anonymized
+   * (BR-USR-06).
+   *
+   * @throws InvalidStateTransitionError when it was already anonymized.
+   */
+  anonymize(at: Date): void {
+    if (this.state.type !== 'CUSTOMER') {
+      throw new Error('Staff is never anonymized');
+    }
+    if (this.state.status === 'ANONYMIZED') {
+      throw new InvalidStateTransitionError(this.state.status, 'anonymize');
+    }
+    this.state = {
+      ...this.state,
+      status: 'ANONYMIZED',
+      email: null,
+      firstNames: null,
+      lastNames: null,
+      emailVerifiedAt: null,
+      passwordHash: null,
+      anonymizedAt: at,
     };
   }
 

@@ -6,7 +6,7 @@ import type {
 } from '../../../shared-kernel/index.js';
 import type {
   OrderId,
-  ShipmentAddress,
+  ShipmentDestination,
   ShipmentId,
   ShipmentItem,
   ShipmentStatus,
@@ -48,7 +48,8 @@ export interface ShipmentView extends OrderShipmentView {
   /** Without dash. */
   readonly orderCode: string;
   readonly warehouseId: WarehouseId;
-  readonly destination: ShipmentAddress;
+  /** Whole until its order is anonymized (ADR-0067). */
+  readonly destination: ShipmentDestination;
   readonly items: readonly ShipmentItem[];
   readonly failedAt: Date | null;
   readonly returnedAt: Date | null;

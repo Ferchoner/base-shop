@@ -6,6 +6,7 @@ import type {
 } from '../../../shared-kernel/index.js';
 import type {
   CustomerId,
+  OrderAddress,
   OrderId,
   OrderLineId,
   OrderStatus,
@@ -54,6 +55,7 @@ export interface OrderSummaryView {
   readonly refundedAt: Date | null;
 }
 
+/** An order as its buyer sees it: never an anonymized one (ADR-0067). */
 export interface OrderView extends OrderSummaryView {
   readonly lines: readonly OrderLineView[];
   readonly shippingAddress: ShippingAddress;
@@ -86,7 +88,8 @@ export interface AdminOrderSummaryView extends OrderSummaryView {
   readonly orderNumber: number;
   readonly version: number;
   readonly anonymizedAt: Date | null;
-  readonly shippingAddress: ShippingAddress;
+  /** Whole until the order is anonymized (ADR-0067). */
+  readonly shippingAddress: OrderAddress;
 }
 
 /** An order as the staff sees it (UC-ORD-06), with its lines and its status history, oldest first. */
@@ -116,9 +119,13 @@ export type OrderSortField = 'placedAt' | 'orderNumber' | 'grandTotal';
  * the dependency injection token without depending on NestJS.
  */
 export abstract class OrderingQueries {
+  /** An order for its buyer; `null` if it does not exist or was anonymized. */
   abstract findOrder(id: OrderId): Promise<OrderView | null>;
 
-  /** One of the customer's orders by its public code; another customer's order is answered as missing. */
+  /**
+   * One of the customer's orders by its public code; another customer's order, or an anonymized one, is answered as
+   * missing.
+   */
   abstract findCustomerOrder(
     customerId: CustomerId,
     publicCode: PublicCode,
@@ -143,7 +150,7 @@ export abstract class OrderingQueries {
     page: PageRequest,
   ): Promise<Page<AdminOrderSummaryView>>;
 
-  /** The customer's orders (UC-ORD-03); ties are broken by ID. */
+  /** The customer's orders but the anonymized ones (UC-ORD-03); ties are broken by ID. */
   abstract listCustomerOrders(
     customerId: CustomerId,
     filter: CustomerOrderFilter,

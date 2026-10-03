@@ -70,12 +70,12 @@ export class ShippingFacadeOrderShipments extends OrderShipments {
   }
 
   async createFor(order: Order): Promise<void> {
-    const { id, publicCode, shippingAddress, lines } = order.snapshot;
+    const { id, publicCode, lines } = order.snapshot;
     await this.shipping.createShipment({
       orderId: id,
       orderCode: publicCode,
       warehouseId: await this.inventory.activeWarehouseId(),
-      destination: shippingAddress,
+      destination: order.deliveryAddress,
       items: lines.map(({ id: orderLineId, sku, productName, quantity }) => ({
         orderLineId,
         sku,
@@ -87,6 +87,10 @@ export class ShippingFacadeOrderShipments extends OrderShipments {
 
   cancel(orderId: OrderId): Promise<void> {
     return this.shipping.cancelShipmentOf(orderId);
+  }
+
+  anonymize(orderIds: readonly OrderId[], at: Date): Promise<void> {
+    return this.shipping.anonymizeShipmentsOf(orderIds, at);
   }
 
   shipmentsOf(

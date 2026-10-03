@@ -232,6 +232,21 @@ export class PrismaIdentityQueries extends IdentityQueries {
     return { items: rows.map(toCustomerView), totalItems };
   }
 
+  async lockCustomerContact(
+    id: UserId,
+  ): Promise<{ email: string; emailVerified: boolean } | null> {
+    // FOR SHARE, so an anonymization waits for the checkout that reads it, and the other way around (ADR-0145).
+    const [row] = await this.txHost.tx.$queryRaw<
+      { email: string; email_verified_at: Date | null }[]
+    >`
+      SELECT email, email_verified_at FROM users
+       WHERE id = ${id}::uuid AND type = 'CUSTOMER' AND status = 'ACTIVE'
+         FOR SHARE`;
+    return row === undefined
+      ? null
+      : { email: row.email, emailVerified: row.email_verified_at !== null };
+  }
+
   async findAccount(id: UserId): Promise<AccountView | null> {
     const row = await this.txHost.tx.user.findFirst({
       select: {

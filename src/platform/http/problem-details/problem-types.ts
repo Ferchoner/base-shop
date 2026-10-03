@@ -163,7 +163,8 @@ export const PROBLEM_TYPES = {
   'active-orders-exist': {
     status: 409,
     title: 'Órdenes sin concluir',
-    detail: 'La cuenta tiene órdenes sin concluir.',
+    detail:
+      'El comprador tiene órdenes sin concluir: la anonimización espera a que terminen.',
   },
   'field-locked': {
     status: 409,

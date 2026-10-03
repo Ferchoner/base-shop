@@ -127,6 +127,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('The life of an order never looks for due orders');
   }
 
+  lockOf(): Promise<Order[]> {
+    throw new Error('The life of an order never anonymizes it');
+  }
+
   save(order: Order, now: Date): Promise<void> {
     expect(now).toBe(NOW);
     this.saved.push(order);
