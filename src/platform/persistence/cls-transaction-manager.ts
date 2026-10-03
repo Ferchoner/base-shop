@@ -7,7 +7,11 @@ import {
 } from './transaction-scope.js';
 import type { PrismaTransactionAdapter } from './transactional-plugin.js';
 
-/** TransactionManager backed by nestjs-cls and Prisma interactive transactions (ADR-0093, ADR-0098). */
+/**
+ * TransactionManager backed by nestjs-cls and Prisma interactive transactions (ADR-0093, ADR-0098). Once the work of
+ * the outermost transaction succeeds, its scope writes what must commit with it, such as the domain events
+ * (ADR-0150); after the commit, it runs what must wait for it.
+ */
 @Injectable()
 export class ClsTransactionManager extends TransactionManager {
   /** Numbers the savepoints, whose names only need to be unique within a transaction. */
@@ -26,7 +30,11 @@ export class ClsTransactionManager extends TransactionManager {
       return work();
     }
     return withTransactionScope(async (scope) => {
-      const result = await this.txHost.withTransaction(work);
+      const result = await this.txHost.withTransaction(async () => {
+        const value = await work();
+        await scope.runBeforeCommitCallbacks();
+        return value;
+      });
       scope.runAfterCommitCallbacks();
       return result;
     });
@@ -40,7 +48,7 @@ export class ClsTransactionManager extends TransactionManager {
     if (!this.txHost.isTransactionActive()) return this.run(work);
     const savepoint = `nested_${(this.savepoints += 1)}`;
     const scope = currentTransactionScope();
-    const mark = scope?.mark() ?? 0;
+    const mark = scope?.mark();
     // The name is generated here, never received, so it can be part of the statement.
     await this.txHost.tx.$executeRawUnsafe(`SAVEPOINT ${savepoint}`);
     try {
@@ -51,7 +59,7 @@ export class ClsTransactionManager extends TransactionManager {
       await this.txHost.tx.$executeRawUnsafe(
         `ROLLBACK TO SAVEPOINT ${savepoint}`,
       );
-      scope?.discardSince(mark);
+      if (mark !== undefined) scope?.discardSince(mark);
       throw error;
     }
   }

@@ -1,4 +1,5 @@
-// Cross-cutting tables: technical audit, idempotency and the INEGI geographic catalog (DATABASE.md §11).
+// Cross-cutting tables: technical audit, idempotency, the outbox of domain events and the INEGI geographic catalog
+// (DATABASE.md §11).
 
 enum ActorType {
   USER
@@ -28,6 +29,14 @@ enum IdempotencyStatus {
   COMPLETED
 
   @@map("idempotency_status")
+}
+
+enum EventDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+
+  @@map("event_delivery_status")
 }
 
 /// Append-only; a trigger rejects UPDATE and only the retention job deletes rows (ADR-0037).
@@ -71,6 +80,45 @@ model IdempotencyKey {
   @@id([scopeType, scopeId, endpoint, key])
   @@index([expiresAt])
   @@map("idempotency_keys")
+}
+
+/// A domain event stored in the transaction of the change that published it: the outbox (ADR-0150). The payload is
+/// the whole event as JSON, with its dates tagged so they come back as dates.
+model StoredDomainEvent {
+  /// The `eventId` of the event.
+  id         String   @id @db.Uuid
+  eventType  String   @map("event_type")
+  payload    Json     @db.JsonB
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deliveries EventDelivery[]
+
+  @@map("domain_events")
+}
+
+/// The delivery of an event to one handler, so a retry repeats only the handler that failed (ADR-0150).
+model EventDelivery {
+  id            String              @id @db.Uuid
+  eventId       String              @map("event_id") @db.Uuid
+  /// `Class.method` of the handler.
+  handler       String
+  status        EventDeliveryStatus
+  /// Attempts started, counted when one takes the delivery.
+  attempts      Int                 @default(0)
+  nextAttemptAt DateTime            @map("next_attempt_at") @db.Timestamptz(3)
+  /// Until when whoever took it holds it; past it, an attempt that never finished can be taken again.
+  lockedUntil   DateTime?           @map("locked_until") @db.Timestamptz(3)
+  /// Class and message of the last failure, cut and redacted like the logs.
+  lastError     String?             @map("last_error")
+  deliveredAt   DateTime?           @map("delivered_at") @db.Timestamptz(3)
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  event StoredDomainEvent @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([eventId, handler])
+  @@index([nextAttemptAt], map: "event_deliveries_pending_idx", where: raw("status = 'PENDING'::event_delivery_status"))
+  @@map("event_deliveries")
 }
 
 /// INEGI states, loaded by a script and never deleted (ADR-0057).

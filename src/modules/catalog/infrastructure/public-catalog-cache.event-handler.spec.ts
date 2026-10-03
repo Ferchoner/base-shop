@@ -2,7 +2,9 @@ import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { AppCache } from '../../../platform/cache/app-cache.js';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
+import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { DomainEventDispatcher } from '../../../platform/events/domain-event-dispatcher.js';
+import { EventOutbox } from '../../../platform/events/event-outbox.js';
 import { EventsModule } from '../../../platform/events/events.module.js';
 import {
   DomainEventPublisher,
@@ -11,7 +13,10 @@ import {
 import { PUBLIC_CATALOG_CACHE } from '../application/public-catalog-cache.js';
 import { PublicCatalogCacheInvalidation } from './public-catalog-cache.event-handler.js';
 
-/** Invalidation of the public catalog cache by Catalog events (T-119, ADR-0104), with the real event bus. */
+/**
+ * Invalidation of the public catalog cache by Catalog events (T-119, ADR-0104), with the real event bus over an
+ * outbox in memory: every delivery is taken and settled (ADR-0150).
+ */
 describe('PublicCatalogCacheInvalidation', () => {
   let moduleRef: TestingModule;
   let cache: AppCache;
@@ -26,12 +31,20 @@ describe('PublicCatalogCacheInvalidation', () => {
           ignoreEnvFile: true,
           load: [() => ({ CACHE_TTL_SECONDS: 120 })],
         }),
+        ClockModule,
         EventsModule,
         AppCacheModule,
       ],
       // Only the handler: the rest of CatalogModule needs the database (ADR-0120).
       providers: [PublicCatalogCacheInvalidation],
-    }).compile();
+    })
+      .overrideProvider(EventOutbox)
+      .useValue({
+        saveAlone: () => Promise.resolve(),
+        claim: () => Promise.resolve({ id: 'delivery', attempts: 1 }),
+        markDelivered: () => Promise.resolve(),
+      })
+      .compile();
     await moduleRef.init();
     cache = moduleRef.get(AppCache);
     publisher = moduleRef.get(DomainEventPublisher);
