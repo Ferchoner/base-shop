@@ -115,11 +115,16 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .expect(200)
         .expect('Cache-Control', 'no-store');
 
-      expect(response.body.data).toHaveLength(15);
+      expect(response.body.data).toHaveLength(16);
       expect(response.body.data[0]).toEqual({
         code: 'catalog.read',
         description:
           'Ver el catálogo administrativo, incluidos borradores y archivados',
+      });
+      // The last one, of the platform (ADR-0150).
+      expect(response.body.data[15]).toEqual({
+        code: 'events.manage',
+        description: 'Ver y reintentar las entregas de eventos de dominio',
       });
       await http()
         .get('/v1/admin/identity/permissions')

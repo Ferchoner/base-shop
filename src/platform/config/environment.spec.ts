@@ -771,6 +771,32 @@ describe('PASSWORD_RESET_TTL (BR-USR-16, ADR-0118)', () => {
   });
 });
 
+describe('DELIVERED_EVENT_RETENTION_DAYS (ADR-0150)', () => {
+  it('defaults to 7 days', () => {
+    expect(validateEnvironment(REQUIRED).DELIVERED_EVENT_RETENTION_DAYS).toBe(
+      7,
+    );
+  });
+
+  it.each(['1', '90'])('accepts %p', (value) => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        DELIVERED_EVENT_RETENTION_DAYS: value,
+      }).DELIVERED_EVENT_RETENTION_DAYS,
+    ).toBe(Number(value));
+  });
+
+  it.each(['0', '91', '7.5', 'week'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        DELIVERED_EVENT_RETENTION_DAYS: value,
+      }),
+    ).toThrow(/DELIVERED_EVENT_RETENTION_DAYS/);
+  });
+});
+
 describe('ORDER_ACCESS_LINK_TTL (UC-ORD-05, ADR-0148)', () => {
   it('defaults to 30 minutes', () => {
     expect(validateEnvironment(REQUIRED).ORDER_ACCESS_LINK_TTL).toBe('30m');

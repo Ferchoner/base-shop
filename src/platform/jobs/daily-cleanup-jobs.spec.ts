@@ -3,6 +3,7 @@ import { TokenCleanupJob } from '../../modules/identity-access/infrastructure/to
 import { AccessTokenCleanupJob } from '../../modules/ordering/infrastructure/access-token-cleanup.job.js';
 import { WebhookEventCleanupJob } from '../../modules/payments/infrastructure/webhook-event-cleanup.job.js';
 import { GuestCartCleanupJob } from '../../modules/shopping/infrastructure/guest-cart-cleanup.job.js';
+import { DeliveredEventCleanupJob } from '../events/delivered-event-cleanup.job.js';
 import { IdempotencyCleanupJob } from '../http/idempotency/idempotency-cleanup.job.js';
 import type { IdempotencyStore } from '../http/idempotency/idempotency.store.js';
 import { JOBS_TIME_ZONE } from './scheduled-job.decorator.js';
@@ -18,6 +19,7 @@ describe('Daily cleanup jobs', () => {
     ['ordering.cleanup-access-tokens', AccessTokenCleanupJob.prototype.run],
     ['payments.cleanup-webhook-events', WebhookEventCleanupJob.prototype.run],
     ['platform.cleanup-idempotency-keys', IdempotencyCleanupJob.prototype.run],
+    ['platform.cleanup-events', DeliveredEventCleanupJob.prototype.run],
   ])('runs %s every day at 3:00, Mexico time', (name, run) => {
     expect(cronOf(run)).toMatchObject({
       cronTime: CronExpression.EVERY_DAY_AT_3AM,
@@ -46,6 +48,7 @@ describe('Daily cleanup jobs', () => {
       },
     } as unknown as IdempotencyStore;
     await new IdempotencyCleanupJob(store, { now: () => new Date() }).run();
+    await new DeliveredEventCleanupJob(cleanup('events') as never).run();
 
     expect(runs).toEqual([
       'tokens',
@@ -53,6 +56,7 @@ describe('Daily cleanup jobs', () => {
       'access links',
       'webhooks',
       'keys 1000',
+      'events',
     ]);
   });
 });
