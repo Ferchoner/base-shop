@@ -168,6 +168,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0148 | Enlace de acceso a los pedidos de invitado | Aceptada |
 | ADR-0149 | Plazos de conservación configurables, con valores por defecto | Aceptada |
 | ADR-0150 | Entrega garantizada de eventos (outbox transaccional) | Aceptada |
+| ADR-0151 | Ciclo de conservación: bloqueo y anonimización automáticos | Aceptada |
 
 ---
 
@@ -612,7 +613,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232). ADR-0150 agrega `platform.deliver-events`, cada minuto, que reintenta las entregas de eventos y funciona con varias instancias.
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232). ADR-0150 agrega `platform.deliver-events`, cada minuto, que reintenta las entregas de eventos y funciona con varias instancias. ADR-0151 vuelve configurables esos plazos de 30 días y suma `ordering.retention`, también a las 3:00, que bloquea y anonimiza los datos personales de las órdenes.
 
 ---
 
@@ -1444,7 +1445,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Además: validar los plazos de retención de la auditoría técnica (ADR-0037) y revisar este ADR cuando se publique el reglamento de la nueva ley.
 - **Alternativas consideradas:** Anonimizar directamente sin fase de bloqueo; conservar indefinidamente; implementar el ciclo en el MVP con plazos provisionales.
 - **Consecuencias:** P-61 queda abierta solo para los valores de los plazos y las respuestas del especialista. Cuando se validen, se implementa el ciclo (tarea T-232) y se actualiza el aviso de privacidad.
-- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso. Modificada por ADR-0149: los plazos tienen valores por defecto configurables (12 meses de fase operativa y 60 de bloqueo), el ciclo queda activo por defecto y la validación legal pasa a cada operador; P-61 se cierra y T-232 deja de estar diferida.
+- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso. Modificada por ADR-0149: los plazos tienen valores por defecto configurables (12 meses de fase operativa y 60 de bloqueo), el ciclo queda activo por defecto y la validación legal pasa a cada operador; P-61 se cierra y T-232 deja de estar diferida. Implementada en parte por ADR-0151 (T-232 parte a): la orden guarda cuándo concluyó, el bloqueo oculta sus datos al comprador y al staff, y un job diario bloquea y anonimiza; el permiso de consulta de los datos bloqueados llega en la parte b.
 
 ---
 
@@ -4231,7 +4232,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - la carrera con el checkout, en los dos órdenes;
     - un cambio del carrito en curso;
     - que no queda nada del comprador en sus tablas ni en las respuestas guardadas.
-- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones). ADR-0148: la anonimización del invitado borra también sus enlaces de acceso a los pedidos.
+- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones). ADR-0148: la anonimización del invitado borra también sus enlaces de acceso a los pedidos. ADR-0151 guarda en la orden cuándo concluyó (`concluded_at`), y su job anonimiza la orden y su envío juntos.
 
 ---
 
@@ -4433,7 +4434,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Quedan abiertas 8 decisiones.
   - Un operador que no valide los plazos opera con los valores por defecto; la lista "Antes de operar" se lo advierte.
 - **Revisar si:** se publica el reglamento de la ley de 2025, o un operador necesita plazos distintos por tipo de dato o de cliente.
-- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61. ADR-0150 suma `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto) a la política configurable; los eventos no llevan datos personales.
+- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61. ADR-0150 suma `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto) a la política configurable; los eventos no llevan datos personales. ADR-0151 fija los nombres y los rangos de las variables, e implementa la parte a de T-232.
 
 ---
 
@@ -4491,3 +4492,55 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tests de integración del bus controlan el reloj y vacían el outbox antes de cada prueba.
 - **Revisar si:** el volumen de eventos hace crecer las tablas más de lo que limpia la parte b, o se ejecuta más de una instancia de forma regular.
 - **Estado:** Aceptada (planes de T-109 partes a y b aprobados el 2026-10-03, con sus 4 recomendaciones cada uno). Reemplaza ADR-0014 y modifica ADR-0098.
+
+---
+
+## ADR-0151 — Ciclo de conservación: bloqueo y anonimización automáticos
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-232 parte a, Sprint 8. ADR-0070 diseñó las tres fases de los datos personales de órdenes y envíos, y ADR-0149 les dio plazos configurables con valores por defecto; el plan de T-232 debía fijar los nombres y los rangos. Faltaba decidir:
+  - **desde cuándo contar:** la orden no guardaba cuándo concluyó (ADR-0145), y una SHIPPED cuyo envío volvió concluye sin cambiar de estado (ADR-0053);
+  - **qué ve cada quien** de una orden bloqueada;
+  - **cuántas órdenes** procesa cada corrida.
+- **Decisión** (plan de T-232 parte a, con sus 4 recomendaciones):
+  - **Fecha de conclusión en la orden:** `orders.concluded_at`, que mantiene el dominio en cada transición:
+    - DELIVERED concluye con la fecha de entrega; EXPIRED, al vencer; REFUNDED, al completarse el reembolso; CANCELLED sin pago, al cancelarse. Una CANCELLED con pago concluye con su reembolso (ADR-0145);
+    - una SHIPPED concluye cuando vuelve su envío: Shipping publica ahora `ShipmentReturned`, y Ordering guarda esa fecha sin cambiar el estado;
+    - un pago tardío que reabre una orden vencida o cancelada sin pago (ADR-0012, ADR-0133) borra la conclusión y el bloqueo;
+    - la migración llena la fecha de las órdenes que ya concluyeron. Para las SHIPPED con su envío devuelto, la lee una sola vez de `shipments`.
+  - **Bloqueo:** `orders.blocked_at` y `shipments.blocked_at`. Los datos se quedan en la base, ocultos:
+    - el comprador deja de ver la orden, como una anonimizada (ADR-0145). No aparece en `/v1/me/orders`, ni en la consulta o el enlace de acceso del invitado, y no se recompra (404);
+    - el staff la ve con `blockedAt`, `contactEmail` en `null` y la dirección como la de una anonimizada; el destino de su envío, igual;
+    - la búsqueda del staff por email no la encuentra; por número interno o código público, sí;
+    - una restricción de la base impide bloquear una orden que no concluyó.
+  - **Job `ordering.retention`,** diario a las 3:00, hora de México (UC-SYS-02):
+    - bloquea las órdenes que concluyeron hace `PERSONAL_DATA_OPERATIONAL_MONTHS` meses calendario o más, con sus envíos;
+    - anonimiza, bloqueadas o no, las que concluyeron hace la suma de los dos plazos, con el procedimiento de ADR-0067: la orden, su envío y los enlaces de acceso del email de un invitado. Las respuestas guardadas por idempotencia duran 24 horas (ADR-0063), así que para entonces ya no existen;
+    - cada corrida hace hasta 1,000 bloqueos y hasta 1,000 anonimizaciones, empezando por la orden que concluyó primero; el resto espera al día siguiente;
+    - cada orden va en su propia transacción: se bloquea con `SELECT … FOR UPDATE` y se revisa otra vez. La que falla queda en el log, y las demás siguen;
+    - audita `orders.block` y `orders.anonymize` con actor SYSTEM y sin los valores (BR-PRIV-04). La anonimización lleva como motivo el vencimiento del plazo;
+    - con `PERSONAL_DATA_RETENTION_ENABLED=false` no hace nada.
+  - **Nombres y rangos definitivos de ADR-0149:**
+
+    | Variable | Por defecto | Rango |
+    |---|---|---|
+    | `PERSONAL_DATA_RETENTION_ENABLED` | `true` | — |
+    | `PERSONAL_DATA_OPERATIONAL_MONTHS` | 12 | 1 a 120 |
+    | `PERSONAL_DATA_BLOCKED_MONTHS` | 60 | 0 a 240; con 0 se anonimiza al terminar la fase operativa |
+    | `SPENT_REFRESH_TOKEN_RETENTION_DAYS` | 30 | 1 a 365 |
+    | `INACTIVE_GUEST_CART_RETENTION_DAYS` | 30 | 1 a 365 |
+    | `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS` | 30 | 7 a 365, para cubrir los reintentos del proveedor de pagos |
+
+    Al arrancar, el log `RetentionPolicy` escribe en una línea la política vigente, sin datos personales.
+- **Alternativas consideradas:**
+  - **Calcular la conclusión en cada corrida** con las fechas de cada estado: la fecha de una SHIPPED devuelta está en Shipping, que Ordering no lee, y la consulta no tendría índice.
+  - **Contar desde que se colocó la orden:** más simple, pero una orden que tardó en concluir perdería parte de su fase operativa.
+  - **Ocultar al staff la orden entera:** el staff la necesita para operar, por ejemplo por sus montos, su pago y su envío. Ver los datos del comprador con un permiso propio llega en la parte b.
+  - **Un solo tope para bloquear y anonimizar:** muchos bloqueos pendientes retrasarían las anonimizaciones.
+- **Consecuencias:**
+  - El ciclo corre por defecto desde el despliegue: la primera corrida bloquea las órdenes que concluyeron hace más de 12 meses, hasta 1,000 por día.
+  - Ordering suma un manejador de `ShipmentReturned`, y Shipping publica tres eventos.
+  - El modelo de datos suma `orders.concluded_at`, `orders.blocked_at` y `shipments.blocked_at` (migración `20261004120000_ordering_retention`), con un índice parcial de las órdenes sin anonimizar por fecha de conclusión.
+  - Quedan para la parte b: el permiso auditado para consultar los datos bloqueados, las cuentas inactivas y la ruta pública con la política vigente.
+- **Revisar si:** un operador necesita bloquear antes de que la orden concluya, o las órdenes que concluyen cada día superan el tope de la corrida.
+- **Estado:** Aceptada (plan de T-232 parte a aprobado el 2026-10-03, con sus 4 recomendaciones). Implementa en parte ADR-0070 y ADR-0149.

@@ -386,7 +386,7 @@ Los esquemas se escriben como ejemplos JSON; en OpenAPI se generan desde los DTO
 
 Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `municipalityName` y `country: "MX"`; en la libreta también `id`, `isDefault`, `createdAt` y `updatedAt`.
 
-La dirección de una orden anonimizada, y el destino de su envío, conservan `postalCode`, `stateCode`, `stateName`, `municipalityCode`, `municipalityName` y `country`; los demás campos son `null` (ADR-0067, ADR-0145). Solo el staff ve órdenes anonimizadas: en `AdminOrder` y en `AdminShipment`.
+La dirección de una orden anonimizada, y el destino de su envío, conservan `postalCode`, `stateCode`, `stateName`, `municipalityCode`, `municipalityName` y `country`; los demás campos son `null` (ADR-0067, ADR-0145). Solo el staff ve órdenes anonimizadas: en `AdminOrder` y en `AdminShipment`. Una orden bloqueada (ADR-0070, ADR-0151) y su envío se muestran igual, aunque la base conserva los datos.
 
 ### 8.3 `Image`
 
@@ -523,12 +523,15 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - Nunca incluye `orderNumber` interno ni `id` (ADR-0049).
 - `payment` y `shipment` son `null` si no existen.
 - `contactEmail` es `null` solo en órdenes anonimizadas (ADR-0067), que el comprador ya no ve: solo el staff, en `AdminOrder` (ADR-0145).
+- Una orden bloqueada (ADR-0151) tampoco la ve el comprador: no aparece en `GET /v1/me/orders` ni en el enlace de acceso, y su detalle, la consulta de invitado y la recompra responden 404, como una orden que no existe.
 - `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
 - `paymentDueAt`: vencimiento de la reserva mientras la orden está en PENDING_PAYMENT; `null` en otros estados.
 
 ### 8.9 `AdminOrder`
 
 `Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
+
+`blockedAt` dice cuándo se bloquearon los datos personales de la orden (ADR-0151). Desde entonces, `contactEmail` es `null` y `shippingAddress` sigue §8.2, como en una anonimizada, también en el listado.
 
 ### 8.10 `Account` (`GET /v1/me`)
 
@@ -1378,7 +1381,7 @@ Implementado en T-230 (ADR-0136): cada minuto vencen, por lotes de 100, las órd
 
 Implementado en T-180 parte b (ADR-0133):
 
-- **Listado:** `q` busca el número interno o el código público exactos (con o sin guion, sin distinguir mayúsculas) o una parte del email de contacto; `guest=false` deja solo las órdenes de clientes; `hasPendingRefund=true` son las CANCELLED con `paidAt`. Cada orden va sin líneas ni historial, pero con la dirección.
+- **Listado:** `q` busca el número interno o el código público exactos (con o sin guion, sin distinguir mayúsculas) o una parte del email de contacto, que no encuentra órdenes bloqueadas (ADR-0151); `guest=false` deja solo las órdenes de clientes; `hasPendingRefund=true` son las CANCELLED con `paidAt`. Cada orden va sin líneas ni historial, pero con la dirección.
 - **Detalle:** `AdminOrder` con `statusHistory` del más antiguo al más reciente. `payment` llegó con T-190 y `shipment` con T-195 (ADR-0140).
 - **Cancelar:** `restock: true` sin `inventory.write` responde 403, y en un estado que no es PAID, 409 `restock-not-allowed` con `currentStatus`. Se audita `orders.cancel` con el motivo. Desde T-190 parte b (ADR-0135):
   - desde PAID o AWAITING_MANUAL_FULFILLMENT, inicia en la misma operación el reembolso total, que aparece PENDING en `payment.refunds`; el pago sigue CAPTURED y el stock no cambia;
@@ -1499,7 +1502,7 @@ Implementado en T-190 parte b (ADR-0135):
   - Cada cambio se audita como `shipping-method.update`; sin cambios no se guarda ni se audita.
   - El método inicial lo crea una migración con los valores de ADR-0092.
 
-**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, failureNote, returnNote, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140). El destino del envío de una orden anonimizada sigue §8.2 (ADR-0145).
+**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, failureNote, returnNote, blockedAt, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140). El destino del envío de una orden anonimizada sigue §8.2 (ADR-0145), y también el de una bloqueada desde `blockedAt` (ADR-0151).
 
 | Endpoint | Detalle |
 |---|---|
