@@ -162,6 +162,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0142 | Reintegro de stock: Ordering bloquea la orden, Inventory pone el tope y el reembolso ya no reintegra | Aceptada |
 | ADR-0143 | Correos de la orden: módulo de notificaciones, eventos de Ordering y su fachada | Aceptada |
 | ADR-0144 | Limpieza diaria: un job por dueño de cada tabla y borrados por lotes | Aceptada |
+| ADR-0145 | Anonimización: módulo de privacidad, órdenes concluidas y bloqueo del cliente en el checkout | Aceptada |
 
 ---
 
@@ -319,7 +320,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Decisión:** Si llega un pago capturado para una orden expirada, se intenta reservar stock y procesar la orden. Si no hay stock, la orden pasa a AwaitingManualFulfillment para resolución manual por el staff (conseguir stock y pasar a Paid, o cancelar con reembolso).
 - **Alternativas consideradas:** Reembolso automático; reembolso siempre.
 - **Consecuencias:** Requiere una vista administrativa de órdenes en AwaitingManualFulfillment. Con captura inmediata (ADR-0013), una cancelación en este estado implica reembolso.
-- **Estado:** Aceptada. Ordering reserva y confirma en la misma transacción con la fachada de Inventory, que permite abrir una reserva nueva para la orden (ADR-0128). Implementada en T-180 parte b (ADR-0133): sin stock, la orden pasa a AWAITING_MANUAL_FULFILLMENT sin apartar nada.
+- **Estado:** Aceptada. Ordering reserva y confirma en la misma transacción con la fachada de Inventory, que permite abrir una reserva nueva para la orden (ADR-0128). Implementada en T-180 parte b (ADR-0133): sin stock, la orden pasa a AWAITING_MANUAL_FULFILLMENT sin apartar nada. Una orden anonimizada pasa a AWAITING_MANUAL_FULFILLMENT sin reservar, y el staff solo puede cancelarla con su reembolso (ADR-0145).
 
 ---
 
@@ -1371,7 +1372,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Retención de datos personales en órdenes:** se conservan mientras sean necesarios y después se anonimizan con el mismo procedimiento. El plazo queda pendiente de validación legal (P-61); el mecanismo (job con plazo configurable) se prevé, pero no se implementa en el MVP.
 - **Alternativas consideradas:** Autoservicio de eliminación de cuenta; borrado físico de órdenes; conservar indefinidamente los datos personales en órdenes.
 - **Consecuencias:** Ajustes en el modelo de datos propuesto (ADR-0066): versión del aviso en `users` y `orders`; marca de anonimización en `orders` y `shipments`; email de contacto de `orders` vacío solo en órdenes anonimizadas.
-- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117.
+- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117. La anonimización se implementó en T-132 (ADR-0145), que también borra las respuestas guardadas por idempotencia.
 
 ---
 
@@ -1437,7 +1438,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Además: validar los plazos de retención de la auditoría técnica (ADR-0037) y revisar este ADR cuando se publique el reglamento de la nueva ley.
 - **Alternativas consideradas:** Anonimizar directamente sin fase de bloqueo; conservar indefinidamente; implementar el ciclo en el MVP con plazos provisionales.
 - **Consecuencias:** P-61 queda abierta solo para los valores de los plazos y las respuestas del especialista. Cuando se validen, se implementa el ciclo (tarea T-232) y se actualiza el aviso de privacidad.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso.
 
 ---
 
@@ -3652,7 +3653,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La migración agrega `payment_due_at` `NOT NULL` sin valor predeterminado, porque `orders` estaba vacía.
   - Pruebas de concurrencia contra PostgreSQL: dos órdenes del mismo carrito, dos carritos por la última unidad, dos órdenes del mismo cliente y una orden que espera un cambio del carrito en curso.
   - Hasta T-230, las órdenes sin pago no vencen y mantienen su stock apartado (ADR-0128).
-- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`. El reintegro de P-73 se implementó en T-161 (ADR-0142).
+- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`. El reintegro de P-73 se implementó en T-161 (ADR-0142). La anonimización, que necesita a Identity y a Ordering, la orquesta el módulo `privacy` (ADR-0145).
 
 ---
 
@@ -4152,3 +4153,76 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Con T-231 se terminan las tareas del Sprint 5.
   - Prueba contra PostgreSQL: un carrito usado mientras corre la limpieza no se borra.
 - **Estado:** Aceptada (plan de T-231 aprobado el 2026-10-02, con sus 2 recomendaciones).
+
+---
+
+## ADR-0145 — Anonimización: módulo de privacidad, órdenes concluidas y bloqueo del cliente en el checkout
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-132 (UC-IAM-19, BR-PRIV-03). ADR-0067 fija qué se anonimiza. Quedaban abiertos:
+  - **quién la orquesta:** toca Identity & Access, Ordering, Shipping y Shopping, e Identity no puede usar a Ordering (ADR-0132);
+  - **qué responde la del cliente:** el contrato pedía `AdminCustomer`, que solo Identity puede construir;
+  - **qué orden no concluyó:** ADR-0070 dice que una orden concluye en DELIVERED, CANCELLED, REFUNDED o EXPIRED. Pero una orden cuyo envío volvió se queda en SHIPPED (ADR-0053), y una cancelada con pago espera su reembolso;
+  - **la carrera con un checkout del mismo cliente**, que lee su email para la orden;
+  - **el pago tardío de una orden vencida** (ADR-0012), que la revive;
+  - **las respuestas guardadas por idempotencia** (ADR-0063), posteriores a ADR-0067, que repiten 24 horas el email y la dirección de la orden colocada.
+- **Decisión:**
+  - **Módulo `privacy`:** capacidad transversal sin dominio propio, como Notifications (ADR-0143):
+    - atiende las dos rutas, bajo `/v1/admin/identity`;
+    - llama, en una transacción y con la misma fecha, a las fachadas de Identity (`anonymizeCustomer`), Ordering (`anonymizeOrders`) y Shopping (`deleteCartsOf`);
+    - ningún módulo lo usa.
+  - **Ordering anonimiza los envíos de sus órdenes**, como los cancela, porque Shipping no lee Ordering. Así, el job de conservación (T-232) anonimizará la orden y su envío juntos.
+  - **Qué cambia en cada lugar:**
+
+    | Dónde | Cambio |
+    |---|---|
+    | Identity & Access | Email, nombres, apellidos, hash y verificación del email en `NULL`; estado ANONYMIZED con `anonymized_at`. Se borran los refresh tokens, los enlaces de verificación y recuperación, y las direcciones. Se audita `customers.anonymize` |
+    | Ordering | `contact_email` en `NULL`; la dirección conserva estado, municipio, código postal y país, y los demás campos quedan en `null`; `anonymized_at`; una versión más. Se audita `orders.anonymize` por orden |
+    | Shipping | El destino se reduce igual; `anonymized_at`; una versión más |
+    | Shopping | Se borran los carritos del cliente, en cualquier estado, con sus líneas y los carritos de invitado fusionados en ellos. Antes se toma el bloqueo de sus carritos (ADR-0131) |
+    | Idempotencia | Se borran las respuestas completadas de quien colocó cada orden: el cliente, o el carrito de la orden de invitado. Las que siguen en curso no guardan respuesta todavía |
+
+    Los montos, líneas, estados, pagos y notas del staff no cambian.
+  - **Respuesta del cliente:** `200 { userId, anonymizedAt, anonymizedOrderCount }`, en línea con la del invitado. El staff consulta al cliente con su `GET`, como en la recompra (ADR-0139).
+  - **Orden concluida, para anonimizar:**
+    - DELIVERED, EXPIRED y REFUNDED;
+    - CANCELLED sin pago; con pago espera su reembolso, y pasa a REFUNDED cuando termina;
+    - SHIPPED con su envío RETURNED.
+
+    Con una orden que no concluyó responde 409 `active-orders-exist` y no anonimiza nada.
+  - **Validaciones del cliente, en orden:** 404 si no es un cliente; 409 `version-conflict`; 409 `invalid-state-transition` si ya está anonimizado; 409 `active-orders-exist`.
+  - **Invitado:**
+    - se identifica con email y código, como en la consulta (ADR-0138), con el mismo 404;
+    - se anonimizan todas las órdenes de invitado con ese email; las de una cuenta con el mismo email no cambian;
+    - repetirlo responde 404, porque el email ya no está;
+    - sus carritos de invitado se van con la limpieza diaria (BR-CRT-06).
+  - **Carrera con el checkout:** el checkout lee al cliente con `SELECT … FOR SHARE`, que choca con el `UPDATE` de la cuenta al anonimizar:
+    - si el checkout va primero, la anonimización lo espera y responde 409 por la orden nueva;
+    - si la anonimización va primero, el checkout la espera y ya no encuentra al cliente (404).
+  - **Pago tardío de una orden anonimizada:**
+    - una orden EXPIRED anonimizada que recibe un pago pasa a AWAITING_MANUAL_FULFILLMENT sin reservar stock, porque no tiene dirección;
+    - el staff no puede reintentar su surtido (409 `invalid-state-transition`) y solo puede cancelarla con su reembolso;
+    - el dominio rechaza pagar o surtir una orden anonimizada.
+  - **Vistas:**
+    - el comprador nunca ve una orden anonimizada: sus consultas la excluyen;
+    - el staff la ve con `contactEmail` y los campos de la dirección en `null`;
+    - la fachada de Ordering entrega a Notifications una orden anonimizada sin email ni dirección, y no se envía correo.
+  - **Respuestas de idempotencia:** el almacén de la plataforma no trabaja en la transacción de la anonimización (ADR-0099). Ordering las borra al final: si la anonimización falla después, solo se pierde la repetición de una solicitud dentro de las 24 horas.
+- **Alternativas consideradas:**
+  - **Orquestar en Ordering**, como el pago manual (ADR-0134): ya usa a Identity y a Shopping, pero metería datos de cuentas en el contexto de pedidos.
+  - **Eventos:** Identity anonimiza y publica un evento que los demás escuchan después del commit (ADR-0098). No podría responder 409 por las órdenes antes de vaciar la cuenta, y una falla dejaría la anonimización a medias.
+  - **Duplicar `AdminCustomer` en Privacy:** dos representaciones del mismo recurso que mantener al día.
+  - **ADR-0070 al pie de la letra:** una orden con su envío devuelto bloquearía la anonimización para siempre, y una cancelada con su reembolso pendiente perdería el correo del reembolso.
+  - **Dejar las respuestas de idempotencia hasta que venzan:** guardarían el email y la dirección hasta 24 horas, más lo que tarde la limpieza siguiente.
+- **Consecuencias:**
+  - El contrato de la anonimización del cliente cambia de `AdminCustomer` a `{ userId, anonymizedAt, anonymizedOrderCount }`.
+  - `AdminOrder.contactEmail`, `AdminOrder.shippingAddress` y `AdminShipment.destination` admiten `null` en los campos anonimizados.
+  - Las notas del staff no cambian: motivos del historial, notas del envío, del pago y de los reintegros. Son texto libre en el que la API pide no escribir datos personales (ADR-0112).
+  - Una orden anonimizada no recibe correo, tampoco el de un reembolso posterior.
+  - Sin migración: el esquema ya tenía las columnas y las restricciones (ADR-0067).
+  - Pruebas contra PostgreSQL:
+    - la anonimización en todos los módulos;
+    - la carrera con el checkout, en los dos órdenes;
+    - un cambio del carrito en curso;
+    - que no queda nada del comprador en sus tablas ni en las respuestas guardadas.
+- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones).
