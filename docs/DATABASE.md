@@ -662,6 +662,11 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 - **Índices:** `(occurred_at, id)` (paginación por cursor y exportación diaria); `(resource_type, resource_id)`; `(actor_id, occurred_at)`.
 - **Integridad:** trigger que rechaza `UPDATE`; solo el job de retención borra registros (ADR-0037).
 - **Uso (ADR-0100):** `changes` guarda `{ "campo": { "from", "to" } }` para cada campo modificado, o `{ "campo": { "changed": true } }` si es personal o sensible. Actor: el indicado por quien registra; si no, el usuario autenticado de la solicitud; ANONYMOUS en una solicitud sin usuario; SYSTEM fuera de una solicitud. `action` sigue el formato `<área>.<acción>` en minúsculas.
+- **Implementado en T-220 (ADR-0146):**
+  - la consulta del staff recorre `(occurred_at, id)` hacia atrás, con el cursor en `occurred_at` e `id`;
+  - el job `audit.archive` lee cada día UTC hacia adelante con el mismo índice, por lotes de 1,000;
+  - borra el día con un solo `DELETE … RETURNING id` en una transacción, que se revierte si los IDs no son los del archivo. El trigger solo rechaza `UPDATE`;
+  - sin migración.
 
 ### 11.2 `idempotency_keys`
 
@@ -750,7 +755,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
 
 | Tabla | Retención | Fuente |
 |---|---|---|
-| `audit_logs` | 3 meses en base; 2 años en archivos | ADR-0037 |
+| `audit_logs` | 3 meses en base; 2 años en archivos, por día UTC (configurables) | ADR-0037, ADR-0146 |
 | `refresh_tokens` | 30 días tras vencer o revocarse | ADR-0029 |
 | `email_verification_tokens`, `password_reset_tokens` | Hasta vencer o usarse | ADR-0056 |
 | `idempotency_keys` | 24 horas | ADR-0063 |

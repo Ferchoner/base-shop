@@ -143,7 +143,7 @@ Ver ADR-0005.
 - Expiración de reservas y de órdenes impagas.
 - Conciliación de pagos.
 - Limpieza diaria: un job por dueño de cada tabla (ADR-0144).
-- Archivo de la auditoría (T-220).
+- Archivo de la auditoría: `audit.archive` (ADR-0146).
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
@@ -153,7 +153,8 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 |---|---|---|
 | Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011. Un solo job de Ordering, `ordering.expire-orders`, vence cada orden con su reserva, por lotes de 100 (ADR-0136) |
 | Conciliación de pagos | Cada 5 minutos | Pagos con más de 10 minutos sin resolver (ADR-0014) |
-| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días); exporta a archivos comprimidos los registros de auditoría de más de 3 meses, los borra de la base y elimina los archivos de más de 2 años |
+| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días) |
+| Archivo de la auditoría | Diaria, 3:00 (America/Mexico_City) | `audit.archive` exporta a un archivo comprimido cada día UTC con más de 3 meses, lo relee y compara, y solo entonces borra sus registros de la base; elimina los archivos de más de 2 años. Un archivo nunca se sobrescribe (ADR-0146) |
 
 ## Integraciones externas
 

@@ -34,8 +34,9 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 # The common password list, read at startup relative to /app (ADR-0115).
 COPY --from=build --chown=node:node /app/data/passwords ./data/passwords
-# Folder of the product images (IMAGE_STORAGE_DIR), owned by node; mount a persistent volume on it (ADR-0121).
-RUN mkdir -p storage/images && chown -R node:node storage
+# Folders of the product images (IMAGE_STORAGE_DIR, ADR-0121) and of the private audit archive (AUDIT_ARCHIVE_DIR,
+# ADR-0146), owned by node; mount a persistent volume on /app/storage.
+RUN mkdir -p storage/images storage/audit && chmod 700 storage/audit && chown -R node:node storage
 USER node
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
