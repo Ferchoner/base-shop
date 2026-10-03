@@ -1,5 +1,6 @@
 // class-transformer's @Type reads decorator metadata; load the polyfill here so this module works on its own.
 import 'reflect-metadata';
+import path from 'node:path';
 import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
 import {
   buildMessage,
@@ -244,6 +245,34 @@ export class EnvironmentVariables {
   IMAGE_MAX_BYTES: number = 5_242_880;
 
   /**
+   * Folder of the archive files of the audit trail on the server's disk, absolute or relative to the working
+   * directory (ADR-0037, ADR-0146). Private: never IMAGE_STORAGE_DIR nor a folder inside it, which the API serves.
+   * In Docker it must be a persistent volume, and it belongs in the backups.
+   */
+  @Expose()
+  @IsNotEmpty({ message: '$property must not be empty' })
+  AUDIT_ARCHIVE_DIR: string = 'storage/audit';
+
+  /** Months the audit trail stays in the database before it is archived: from 1 to 24 (ADR-0037, P-61). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  AUDIT_RETENTION_MONTHS: number = 3;
+
+  /**
+   * Months an archive file of the audit trail is kept, counted from its day: from 2 to 240, and more than
+   * AUDIT_RETENTION_MONTHS, so no file is deleted before its records would have left the database (ADR-0037, P-61).
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(240)
+  AUDIT_ARCHIVE_RETENTION_MONTHS: number = 24;
+
+  /**
    * Key that signs the access tokens with HS256 (ADR-0023, ADR-0114): at least 32 characters. Required in
    * production; without it, development and test sign with a random key generated at startup.
    */
@@ -340,6 +369,7 @@ export function validateEnvironment(
   const problems = validateSync(environment).map(
     (error) => `- ${Object.values(error.constraints ?? {}).join('; ')}`,
   );
+  problems.push(...auditArchiveProblems(environment));
   if (environment.NODE_ENV === 'production') {
     for (const name of REQUIRED_IN_PRODUCTION) {
       if (raw[name] === undefined || raw[name] === '') {
@@ -351,6 +381,46 @@ export function validateEnvironment(
     throw new Error(`Invalid environment variables:\n${problems.join('\n')}`);
   }
   return environment;
+}
+
+/**
+ * The audit archive stays private, out of the folder the API serves at /media, and keeps its files longer than the
+ * database keeps the records (ADR-0146). An empty folder, or a number that is not one, already has its own problem.
+ */
+function auditArchiveProblems(environment: EnvironmentVariables): string[] {
+  const problems: string[] = [];
+  const { IMAGE_STORAGE_DIR: images, AUDIT_ARCHIVE_DIR: archive } = environment;
+  if (
+    images !== '' &&
+    archive !== '' &&
+    isSameOrInside(path.resolve(archive), path.resolve(images))
+  ) {
+    problems.push(
+      '- AUDIT_ARCHIVE_DIR must not be IMAGE_STORAGE_DIR nor a folder inside it, which the API serves at /media',
+    );
+  }
+  const {
+    AUDIT_RETENTION_MONTHS: database,
+    AUDIT_ARCHIVE_RETENTION_MONTHS: files,
+  } = environment;
+  // A number that is not one never compares, so it adds nothing to its own problem.
+  if (files <= database) {
+    problems.push(
+      '- AUDIT_ARCHIVE_RETENTION_MONTHS must be more than AUDIT_RETENTION_MONTHS',
+    );
+  }
+  return problems;
+}
+
+/** Whether `folder` is `parent` or inside it. */
+function isSameOrInside(folder: string, parent: string): boolean {
+  const relative = path.relative(parent, folder);
+  // The same folder is '', which neither goes up nor is absolute.
+  return (
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 /** `true` or `false` as text; anything else is left as is, so validation rejects it. */
