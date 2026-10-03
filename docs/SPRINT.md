@@ -54,6 +54,15 @@ Detalle en `docs/TASKS.md`, sección "Fundaciones técnicas". Orden por dependen
   - quitar o limitar los mutantes que pueden no terminar.
 - **T-109** agregada a `TASKS.md`, con sus dos partes.
 
+### Resultado del paso 1
+
+- **T-109 parte a (ADR-0150, reemplaza ADR-0014):**
+  - **Outbox:** `domain_events` y una entrega por handler en `event_deliveries`, escritos en la transacción del cambio justo antes del commit, sin cambiar a quien publica.
+  - **Despacho inmediato,** como antes; si un handler falla o la API se cae, el job `platform.deliver-events` lo reintenta cada minuto, hasta 8 intentos en unas 22 horas, con una sola instancia por entrega.
+  - **Sin datos personales:** `OrderAccessRequested` pasa a `publishVolatile`; una e2e comprueba que ningún evento guardado tiene un email.
+  - **Correos de la orden:** un fallo del servidor de correo ya no se pierde; se reintenta, y en un caso raro uno puede llegar dos veces (BR-NTF-04).
+- **Migración:** `20261003200000_events_outbox`, dos tablas nuevas.
+
 ## Risks
 
 - **Cambia una decisión de arquitectura** (ADR-0014, ADR-0098): todo efecto en segundo plano pasará por la base. Un error en la entrega afectaría a todos los contextos. El despacho inmediato después del commit se conserva, así que lo que ve el cliente no cambia.

@@ -88,12 +88,14 @@ Idempotencia (ADR-0063, ADR-0099):
 - El caso de uso no hace nada especial: el interceptor repite la respuesta guardada y libera la llave si la operación no llegó a ejecutarse. Las reglas del dominio deben impedir duplicados por sí mismas, porque una llave abandonada puede volver a ejecutarse.
 - Solo se repiten los errores de negocio (`DomainError`); cualquier otro error libera la llave.
 
-Eventos de dominio (ADR-0098):
+Eventos de dominio (ADR-0098, ADR-0150):
 
-- **Publicar:** el caso de uso inyecta `DomainEventPublisher` y llama a `publish(evento)` dentro de `transactions.run(...)`, así el evento sale solo si la transacción confirma. El tipo del evento se declara en el contexto que lo produce y se exporta desde su `index.ts`.
-- **Consumir:** un handler es un provider en `infrastructure` del contexto que consume, en un archivo `*.event-handler.ts`, con un método `@OnDomainEvent('NombreDelEvento')` que llama a un caso de uso de su contexto. Debe ser idempotente y no puede asumir el orden respecto de otras solicitudes.
+- **Publicar:** el caso de uso inyecta `DomainEventPublisher` y llama a `publish(evento)` dentro de `transactions.run(...)`, así el evento se guarda con el cambio y sale solo si la transacción confirma. El tipo del evento se declara en el contexto que lo produce y se exporta desde su `index.ts`.
+- **Sin datos personales:** un evento guardado lleva IDs, montos y fechas, nunca un email ni una dirección. Si necesita uno y perderlo no hace daño, se publica con `publishVolatile`, que no guarda ni reintenta (`OrderAccessRequested`).
+- **Contenido:** el evento se guarda como JSON. Las fechas vuelven como fechas; `Money` y otros valores con `toJSON` vuelven como su JSON, así que el handler declara `{ amount, currency }` y no `Money`.
+- **Consumir:** un handler es un provider en `infrastructure` del contexto que consume, en un archivo `*.event-handler.ts`, con un método `@OnDomainEvent('NombreDelEvento')` que llama a un caso de uso de su contexto. Debe ser idempotente, porque la entrega es al menos una vez, y no puede asumir el orden respecto de otras solicitudes ni de otros eventos: un reintento llega más tarde. Para que se reintente, deja que el error suba.
 - Los handlers corren en segundo plano: quien publica no espera su resultado ni se entera de sus errores. Todo efecto nuevo que el cliente vea con demora se agrega a `API_SPEC.md` (sección 2.5).
-- En tests de integración, `DomainEventDispatcher.whenIdle()` espera a que terminen los handlers, incluidos los de eventos publicados por otros handlers.
+- En tests de integración, `DomainEventDispatcher.whenIdle()` espera a que terminen los handlers, incluidos los de eventos publicados por otros handlers. `deliverDue()` corre una vez el job de reintentos.
 
 Logs (ADR-0097):
 
@@ -138,7 +140,7 @@ Usar otro módulo (ADR-0005, ADR-0113):
 Correos y enlaces al frontend (ADR-0045, ADR-0110):
 
 - **Cómo enviar:** el caso de uso inyecta `EmailSender` (shared kernel) y envía `{ to, subject, text, html? }`. Siempre fuera de la transacción: después del commit, normalmente desde un handler de eventos.
-- **Si falla:** `send` rechaza con `EmailDeliveryError` y el correo no se reintenta (ADR-0014). El que llama decide si el fallo cambia la respuesta.
+- **Si falla:** `send` rechaza con `EmailDeliveryError`. Desde un handler de eventos, el error sube y la entrega del evento reintenta el correo (ADR-0150); fuera de uno, el que llama decide si el fallo cambia la respuesta, y no se reintenta.
 - **Enlaces:** se arman con `FrontendLinks.link('/ruta', { token })`, nunca concatenando `FRONTEND_BASE_URL` a mano, para que los parámetros vayan codificados.
 - **Enlaces con token (ADR-0117):** el token sale de `newLinkToken()` y se guarda solo su hash. Las páginas son `/verify-email` y `/reset-password` (ADR-0118); `isUsableLink` decide si un enlace sirve. En local, el enlace se lee en Mailpit (`http://localhost:8025`) y su token se envía directamente a la API.
 - **Avisos de la cuenta:** los avisos de cambio (contraseña, email) atrapan el fallo del envío y lo registran sin la dirección, porque el cambio ya ocurrió.

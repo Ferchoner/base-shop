@@ -97,7 +97,7 @@ CORS (ADR-0085): solo los orígenes de `CORS_ALLOWED_ORIGINS` (vacía por defect
 
 ### 2.5 Efectos en segundo plano (consistencia eventual)
 
-Algunos efectos de una operación ocurren en otro contexto, por medio de un evento de dominio que se procesa en segundo plano después de confirmar la operación (ADR-0014, ADR-0098). **La respuesta llega antes de que esos efectos ocurran.** Normalmente tardan fracciones de segundo, pero no hay un tiempo garantizado. El cliente debe advertir al usuario de la posible demora (por ejemplo, "El estado de la orden puede tardar unos segundos en actualizarse") y volver a consultar el recurso en lugar de suponer el estado.
+Algunos efectos de una operación ocurren en otro contexto, por medio de un evento de dominio que se procesa en segundo plano después de confirmar la operación (ADR-0098, ADR-0150). **La respuesta llega antes de que esos efectos ocurran.** Normalmente tardan fracciones de segundo, pero no hay un tiempo garantizado. El cliente debe advertir al usuario de la posible demora (por ejemplo, "El estado de la orden puede tardar unos segundos en actualizarse") y volver a consultar el recurso en lugar de suponer el estado.
 
 | Operación que lo origina | Evento | Efecto en segundo plano | Dónde se nota |
 |---|---|---|---|
@@ -113,7 +113,8 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
 - Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva, el inicio del reembolso y la cancelación del envío (ADR-0140).
-- Si el procesamiento de un evento falla, su efecto no ocurre y el fallo queda en el log. Para `PaymentCaptured`, el job de conciliación de pagos vuelve a ejecutar la confirmación (ADR-0014); los demás casos requieren revisión.
+- Si el procesamiento de un evento falla, o la API se detiene después de confirmar, el efecto se reintenta hasta 8 veces en unas 22 horas, así que puede tardar más (ADR-0150). Un efecto puede ocurrir dos veces en un caso raro; los cambios de estado lo toleran, y un correo podría llegar duplicado. Lo que agota sus intentos queda registrado para el staff (T-109 parte b).
+- La solicitud de un enlace de acceso a los pedidos (`OrderAccessRequested`) no se reintenta, porque lleva el email: si se pierde, el invitado pide otro.
 - Todo efecto nuevo en segundo plano se agrega a esta tabla.
 
 Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`, y no lleva `X-Powered-By`. Swagger UI, solo en local, tiene una CSP más permisiva en su ruta.
