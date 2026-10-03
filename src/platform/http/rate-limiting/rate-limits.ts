@@ -18,6 +18,11 @@ export const RATE_LIMITS = {
     key: 'user-or-email',
   },
   'guest-order': { variable: 'RATE_LIMIT_GUEST_ORDER', key: 'ip' },
+  'order-access-email': {
+    variable: 'RATE_LIMIT_ORDER_ACCESS_EMAIL',
+    key: 'contact-email',
+  },
+  'order-access-ip': { variable: 'RATE_LIMIT_ORDER_ACCESS_IP', key: 'ip' },
   'place-order': { variable: 'RATE_LIMIT_PLACE_ORDER', key: 'user-or-cart' },
 } as const satisfies Record<
   string,

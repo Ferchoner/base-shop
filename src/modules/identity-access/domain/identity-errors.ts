@@ -111,16 +111,3 @@ export class SameEmailError extends DomainError {
     });
   }
 }
-
-/**
- * A verification or recovery link that was used, expired, or replaced by a newer one (E-20, ADR-0046,
- * ADR-0056). The answer never says which.
- */
-export class InvalidOrExpiredTokenError extends DomainError {
-  readonly code = 'invalid-or-expired-token';
-  readonly category = 'invalid';
-
-  constructor() {
-    super('The link was used, expired or replaced');
-  }
-}

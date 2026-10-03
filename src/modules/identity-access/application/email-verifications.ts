@@ -2,12 +2,12 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   EmailSender,
   FrontendLinks,
+  lifetimeInWords,
   newId,
+  newLinkToken,
 } from '../../../shared-kernel/index.js';
 import { EmailVerificationTokenRepository } from '../domain/email-verification.js';
 import type { UserId } from '../domain/user.js';
-import { lifetimeInWords } from './lifetime-in-words.js';
-import { newLinkToken } from './link-tokens.js';
 
 /** Seconds a verification link lives (`EMAIL_VERIFICATION_TTL`, BR-USR-11). */
 export const EMAIL_VERIFICATION_TTL_SECONDS = Symbol(

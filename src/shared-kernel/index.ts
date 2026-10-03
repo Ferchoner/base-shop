@@ -32,6 +32,13 @@ export {
 } from './email-sender.js';
 export { DomainEventPublisher } from './domain-event-publisher.js';
 export { FrontendLinks } from './frontend-links.js';
+export { lifetimeInWords } from './lifetime-in-words.js';
+export { hashLinkToken, newLinkToken } from './link-tokens.js';
+export {
+  InvalidOrExpiredTokenError,
+  isUsableLink,
+  type OneTimeLink,
+} from './one-time-link.js';
 export {
   CLEANUP_BATCH_SIZE,
   CLEANUP_MAX_BATCHES,

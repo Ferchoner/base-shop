@@ -13,6 +13,7 @@ import {
   type OrderStatus,
   priceLine,
 } from '../domain/order.js';
+import type { OrderAccessTokenRepository } from '../domain/order-access-token.js';
 import { OrderRepository, type OrdersOf } from '../domain/order.repository.js';
 import { ActiveOrdersExistError } from '../domain/ordering-errors.js';
 import type { PublicCode } from '../domain/public-code.js';
@@ -143,6 +144,9 @@ function setUp(orders: Order[], shipmentStatuses: Record<string, string> = {}) {
       return Promise.resolve();
     },
   } as unknown as OrderShipments;
+  const accessTokens = {
+    deleteOf: () => Promise.resolve(),
+  } as unknown as OrderAccessTokenRepository;
   const responses = {
     forgetOf: (forgotten: readonly Order[]) => {
       calls.push(`forgetOf ${forgotten.map(({ id }) => id).join(',')}`);
@@ -163,6 +167,7 @@ function setUp(orders: Order[], shipmentStatuses: Record<string, string> = {}) {
     anonymizations: new OrderAnonymizations(
       repository,
       shipments,
+      accessTokens,
       responses,
       inline,
       audit,

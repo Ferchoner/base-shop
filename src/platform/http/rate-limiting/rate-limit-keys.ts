@@ -7,7 +7,8 @@ interface KeyedRequest {
 }
 
 /** What a limit counts by: the IP, an email of the body, the signed-in user, or a guest cart. */
-export type RateLimitKey = 'ip' | 'email' | 'user-or-email' | 'user-or-cart';
+export type RateLimitKey =
+  'ip' | 'email' | 'contact-email' | 'user-or-email' | 'user-or-cart';
 
 /**
  * The counter key of a request for a kind of limit (ADR-0102). Emails are kept only as SHA-256 hashes, so
@@ -21,12 +22,15 @@ export function rateLimitKey(
   const ip = `ip:${request.ip ?? 'unknown'}`;
   const userId = stringField(request.user, 'id');
   const email = stringField(request.body, 'email');
+  const contactEmail = stringField(request.body, 'contactEmail');
   const cartId = stringField(request.body, 'cartId');
   switch (kind) {
     case 'ip':
       return ip;
     case 'email':
       return email ? `email:${hashEmail(email)}` : ip;
+    case 'contact-email':
+      return contactEmail ? `email:${hashEmail(contactEmail)}` : ip;
     case 'user-or-email':
       if (userId) return `user:${userId}`;
       return email ? `email:${hashEmail(email)}` : ip;

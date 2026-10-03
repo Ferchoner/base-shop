@@ -3,14 +3,14 @@ import {
   AuditTrail,
   changesBetween,
   Clock,
+  hashLinkToken,
+  InvalidOrExpiredTokenError,
+  isUsableLink,
   TransactionManager,
 } from '../../../shared-kernel/index.js';
-import { InvalidOrExpiredTokenError } from '../domain/identity-errors.js';
-import { isUsableLink } from '../domain/one-time-link.js';
 import { PasswordResetTokenRepository } from '../domain/password-reset.js';
 import { SessionRepository } from '../domain/session.repository.js';
 import { UserRepository } from '../domain/user.repository.js';
-import { hashLinkToken } from './link-tokens.js';
 import { PasswordChangeNotice } from './password-change-notice.js';
 import { PasswordHasher } from './password-hasher.js';
 import { PasswordPolicy } from './password-policy.js';

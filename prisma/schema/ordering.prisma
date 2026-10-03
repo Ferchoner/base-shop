@@ -98,3 +98,19 @@ model OrderStatusHistory {
   @@index([orderId, occurredAt])
   @@map("order_status_history")
 }
+
+/// A link that gives access to the guest orders of an email, sent to that email (UC-ORD-05, ADR-0148). Only the
+/// SHA-256 of its token is stored, as in `password_reset_tokens`.
+model OrderAccessToken {
+  id            String    @id @db.Uuid
+  /// Normalized like `orders.contact_email`; deleted with the anonymization of the guest (ADR-0067).
+  contactEmail  String    @map("contact_email")
+  tokenHash     String    @unique @map("token_hash")
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(3)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([contactEmail])
+  @@map("order_access_tokens")
+}

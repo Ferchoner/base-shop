@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -119,6 +120,30 @@ export class GuestReorderDto extends GuestOrderLookupDto {
   @IsOptional()
   @IsUUID('all')
   cartId?: string;
+}
+
+/**
+ * Request of `POST /v1/orders/access-links` (UC-ORD-05, API_SPEC.md §15.6): the email alone, in the body so it stays
+ * out of logs and histories (ADR-0071, ADR-0148).
+ */
+export class OrderAccessLinkRequestDto {
+  /**
+   * Email de contacto de las órdenes de invitado, sin distinguir mayúsculas y minúsculas.
+   * @example 'cliente@example.com'
+   */
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail: string;
+}
+
+/** Request of `POST /v1/orders/access` (UC-ORD-05, API_SPEC.md §15.6). */
+export class OrderAccessRequestDto {
+  /** El token del enlace. */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(256)
+  token: string;
 }
 
 /** Answer of the three reorder routes (UC-CRT-09, ADR-0139): read the cart with the routes of the cart. */
@@ -405,6 +430,22 @@ export class OrderListDto {
 
   @ApiProperty({ type: () => PageMetaDto })
   meta: PageMetaDto;
+}
+
+/** Answer of `POST /v1/orders/access` (UC-ORD-05, API_SPEC.md §15.6): the guest orders of the email of the link. */
+export class OrderAccessDto {
+  /**
+   * El email del enlace, para consultar el detalle de cada orden con su código.
+   * @example 'cliente@example.com'
+   */
+  contactEmail: string;
+
+  @ApiProperty({
+    type: () => [OrderSummaryDto],
+    description:
+      'Las 50 órdenes de invitado más recientes del email, de la más nueva a la más antigua, sin líneas ni dirección.',
+  })
+  orders: OrderSummaryDto[];
 }
 
 /** Query of `GET /v1/me/orders` (UC-ORD-03, API_SPEC.md §15.4). */

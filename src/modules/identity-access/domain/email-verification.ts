@@ -1,5 +1,4 @@
-import type { Id } from '../../../shared-kernel/index.js';
-import type { OneTimeLink } from './one-time-link.js';
+import type { Id, OneTimeLink } from '../../../shared-kernel/index.js';
 import type { UserId } from './user.js';
 
 export type EmailVerificationTokenId = Id<'EmailVerificationToken'>;

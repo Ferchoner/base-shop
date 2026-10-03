@@ -173,12 +173,26 @@ export class EnvironmentVariables {
   })
   RATE_LIMIT_EMAIL_VERIFICATION: string = '3/1h';
 
-  /** Guest order lookups and reorders per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  /** Guest order lookups, reorders and uses of an access link, per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
   @Matches(RATE_LIMIT_PATTERN, {
     message: '$property must look like 5/15m (count / duration in s, m or h)',
   })
   RATE_LIMIT_GUEST_ORDER: string = '10/15m';
+
+  /** Requests of an access link to the guest orders, per email. Format `<count>/<duration>` (ADR-0065, ADR-0148). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_ORDER_ACCESS_EMAIL: string = '3/1h';
+
+  /** Requests of an access link to the guest orders, per IP. Format `<count>/<duration>` (ADR-0065, ADR-0148). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_ORDER_ACCESS_IP: string = '10/1h';
 
   /** Orders placed per user or cart. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
@@ -303,6 +317,11 @@ export class EnvironmentVariables {
   @Expose()
   @IsDurationWithin(300, 7_200, 'from 5m to 2h')
   PASSWORD_RESET_TTL: string = '30m';
+
+  /** Lifetime of an access link to the guest orders of an email, from 5 minutes to 2 hours (UC-ORD-05, ADR-0148). */
+  @Expose()
+  @IsDurationWithin(300, 7_200, 'from 5m to 2h')
+  ORDER_ACCESS_LINK_TTL: string = '30m';
 
   /**
    * Email of the first superadmin, read only by the script that creates it (UC-IAM-20, ADR-0116). Optional:

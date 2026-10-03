@@ -12,20 +12,18 @@ import {
   DuplicateValueError,
   type EmailMessage,
   EmailSender,
+  hashLinkToken,
+  InvalidOrExpiredTokenError,
   newId,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { ChangeEmail } from '../application/change-email.use-case.js';
 import { ConfirmEmail } from '../application/confirm-email.use-case.js';
-import { hashLinkToken } from '../application/link-tokens.js';
 import { PasswordHasher } from '../application/password-hasher.js';
 import { RectifyCustomer } from '../application/rectify-customer.use-case.js';
 import { RegisterCustomer } from '../application/register-customer.use-case.js';
 import { ResendEmailVerification } from '../application/resend-email-verification.use-case.js';
-import {
-  InvalidOrExpiredTokenError,
-  SameEmailError,
-} from '../domain/identity-errors.js';
+import { SameEmailError } from '../domain/identity-errors.js';
 import { PasswordPolicyViolationError } from '../domain/password.js';
 import type { UserId } from '../domain/user.js';
 import { IdentityAccessModule } from '../identity-access.module.js';
