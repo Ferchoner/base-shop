@@ -287,7 +287,7 @@ Criterios de aceptación:
 | UC-ORD-02 | Colocar orden | Público o Cliente | BR-ORD-01 a BR-ORD-06, BR-USR-05, BR-USR-08 |
 | UC-ORD-03 | Consultar mis pedidos | Cliente | ADR-0036 |
 | UC-ORD-04 | Consultar pedido de invitado | Público | BR-ORD-10, ADR-0020 |
-| UC-ORD-05 | Acceder al pedido con enlace por correo | Fuera del MVP | ADR-0020, ADR-0077 |
+| UC-ORD-05 | Acceder a los pedidos de invitado con enlace por correo | Público | ADR-0020, ADR-0077, ADR-0148 |
 | UC-ORD-06 | Listar y ver pedidos | Staff (`orders.read`) | — |
 | UC-ORD-07 | Cancelar pedido | Staff (`orders.manage`) | BR-CAN-01 a BR-CAN-03, ADR-0051 |
 | UC-ORD-08 | Resolver pedido en AwaitingManualFulfillment | Staff (`orders.manage`) | ADR-0012 |
@@ -307,6 +307,7 @@ Criterios de aceptación:
   - La orden recibe un número interno consecutivo y un código público aleatorio único; la respuesta al cliente incluye solo el código público (ADR-0049).
 - **UC-ORD-04:** requiere email y código público de la orden (ADR-0049); acepta el código sin distinguir mayúsculas y minúsculas; el error es idéntico si la orden no existe o el email no coincide; tiene rate limiting obligatorio.
 - **UC-ORD-04 (implementación, ADR-0138):** una sola consulta por código, email normalizado y orden de invitado, así que todo fallo responde igual y tarda igual; el staff puede consultar.
+- **UC-ORD-05 (ADR-0148):** el invitado que perdió su código pide el enlace con su email de contacto. La respuesta es la misma, y llega antes de emitir el enlace, tenga o no órdenes de invitado el email; solo se envía si las tiene. El enlace sirve una vez, dentro de su vigencia (30 minutos por defecto) y mientras no se pida otro, y muestra las 50 órdenes de invitado más recientes del email; el detalle se consulta con UC-ORD-04. Tiene límite por email y por IP.
 - **UC-ORD-07:** rechazada desde Shipped o posterior; en PendingPayment pasa a Cancelled (terminal) y libera la reserva; en Paid o AwaitingManualFulfillment pasa a Cancelled e inicia el reembolso total (UC-PAY-03); en Paid, el staff con `inventory.write` puede elegir reintegrar el stock completo en la misma operación (ADR-0052); se audita.
 - **UC-ORD-08:** si hay stock, reserva, confirma y pasa a Paid; si se decide no surtir, se cancela según UC-ORD-07.
 - **UC-ORD-09:** con reserva vigente, la confirma y pasa a Paid; si la orden está Expired, aplica BR-ORD-09; idempotente ante eventos duplicados.
@@ -469,7 +470,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-17 | Cuenta suspendida al renovar sesión | 401, igual que E-19 (en el login se responde como E-16, ADR-0062) | UC-IAM-05 |
 | E-18 | Cambio de contraseña obligatorio | 403 | UC-IAM-04 |
 | E-19 | Refresh token inválido, vencido o reutilizado | 401 | UC-IAM-05 |
-| E-20 | Enlace de verificación o de recuperación usado, vencido o invalidado | 400 | UC-IAM-02, UC-IAM-08 |
+| E-20 | Enlace de verificación, de recuperación o de acceso a los pedidos usado, vencido o invalidado | 400 | UC-IAM-02, UC-IAM-08, UC-ORD-05 |
 | E-21 | Contraseña fuera de política o común | 400 | UC-IAM-01, 08, 09 |
 | E-22 | Imagen con formato o tamaño no permitido | 413 (tamaño) / 415 (formato) | UC-CAT-11 |
 | E-23 | Pago manual deshabilitado | 403 | UC-PAY-02 |
@@ -576,7 +577,7 @@ Cada punto está registrado en `PROGRESS.md` con lo que bloquea.
 | ~~P-53~~ | Resuelta en ADR-0064 (códigos, `type` y extensiones) y ADR-0065 (rate limiting) |
 | ~~P-54~~ | Resuelta en ADR-0062: el login solo indica credenciales no válidas |
 | ~~P-55~~ | Resuelta en ADR-0062: el registro indica que el email ya existe |
-| ~~P-56~~ | Resuelta en ADR-0077: no se implementa en el MVP; el contrato provisional duplicaba la consulta con email y código |
+| ~~P-56~~ | Resuelta en ADR-0077: no se implementa en el MVP; el contrato provisional duplicaba la consulta con email y código. Implementada después con el diseño previsto (ADR-0148) |
 | ~~P-57~~ | Resuelta en ADR-0078: entrega propia en el MVP, marcada explícitamente al despachar; recoger en tienda fuera del MVP |
 | ~~P-58~~ | Resuelta en ADR-0079: el costo de envío incluye IVA; el umbral se compara con el subtotal con IVA menos el descuento |
 | ~~P-59~~ | Resuelta en ADR-0058: opcionales, en gramos y centímetros |

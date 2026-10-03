@@ -66,6 +66,7 @@ Mecanismo (ADR-0023):
 - Los enlaces de verificación y recuperación usan la URL base del frontend configurada por variable de entorno (ADR-0056).
 - Verificación de email (ADR-0046): enlace de un solo uso vigente 24 horas; reenvío limitado que invalida el anterior; nueva verificación al cambiar de email.
   - Implementada en ADR-0117: el token del enlace (256 bits) se guarda solo como hash, y verifica únicamente la dirección a la que se envió.
+- Enlace de acceso a los pedidos de invitado (ADR-0148): el mismo token de 256 bits guardado solo como hash, de un solo uso, vigente 30 minutos (configurable), que invalida los anteriores del email. Se emite en segundo plano, para que ni la respuesta ni su tiempo revelen si el email tiene órdenes, y la anonimización del invitado lo borra.
   - El reenvío responde igual en todos los casos y solo envía a clientes activos sin verificar.
   - Cambiar el email pide la contraseña actual, se audita y avisa al email anterior, sin mostrarle el nuevo.
 - La clave de firma de los JWT se gestiona como secreto (ADR-0032).
@@ -76,7 +77,7 @@ Ya definido:
 
 - Un usuario suspendido no puede autenticarse (BR-USR-02). Al reactivarlo, el staff recibe una contraseña temporal nueva con cambio obligatorio, porque la suspensión pudo deberse a una contraseña comprometida; la reactivación se audita como evento de seguridad (ADR-0076).
 - El hash de contraseña, los tokens y los intentos de login nunca salen del contexto Identity & Access.
-- Se permite compra como invitado (ADR-0010): los endpoints de checkout y carrito deben funcionar sin usuario autenticado, y el invitado consulta su orden con email de contacto y el código público aleatorio de la orden (ADR-0020, ADR-0049); el número interno consecutivo nunca se expone a clientes. Ese endpoint requiere rate limiting y respuestas de error que no revelen si la orden existe. El enlace de acceso por correo queda fuera del MVP (ADR-0077).
+- Se permite compra como invitado (ADR-0010): los endpoints de checkout y carrito deben funcionar sin usuario autenticado, y el invitado consulta su orden con email de contacto y el código público aleatorio de la orden (ADR-0020, ADR-0049); el número interno consecutivo nunca se expone a clientes. Ese endpoint requiere rate limiting y respuestas de error que no revelen si la orden existe. Si perdió el código, pide con su email un enlace de un solo uso que llega a ese buzón; la respuesta es la misma, y sale antes de emitir el enlace, tenga o no órdenes el email (ADR-0148).
 
 ## Autorización
 
@@ -161,7 +162,8 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 | Recuperación de contraseña | 3 por email y 10 por IP por hora |
 | Reenvío de verificación | 3 por email por hora |
 | Cambio de email | 3 por hora (ADR-0071) |
-| Consulta de pedido y recompra de invitado | 10 por IP en 15 minutos (ADR-0071) |
+| Consulta de pedido, recompra de invitado y uso del enlace de acceso | 10 por IP en 15 minutos (ADR-0071, ADR-0148) |
+| Enlace de acceso a los pedidos de invitado | 3 por email y 10 por IP por hora (ADR-0148) |
 | Colocar orden | 10 por usuario o carrito en 10 minutos |
 | Resto de endpoints | 100 solicitudes por minuto por IP |
 
@@ -178,7 +180,7 @@ ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Par
 
 - Se guarda la versión del aviso de privacidad presentada en el registro y en el checkout de invitado.
 - Derechos ARCO por canal externo; el staff ejecuta las acciones en el sistema.
-- Anonimización de clientes y compradores invitados, implementada en T-132 (ADR-0145): no deja datos personales del comprador en sus tablas ni en las respuestas guardadas por idempotencia, y se audita sin valores.
+- Anonimización de clientes y compradores invitados, implementada en T-132 (ADR-0145): no deja datos personales del comprador en sus tablas, en las respuestas guardadas por idempotencia ni en los enlaces de acceso a sus pedidos (ADR-0148), y se audita sin valores.
 - Logs y auditoría sin valores de datos personales.
 - Logs (ADR-0097): nunca se registran cuerpos, encabezados, tokens ni cadenas de consulta. Como red de seguridad, el logger reemplaza por `[redacted]` los correos, los JWT y los tokens `Bearer` que aparezcan en mensajes o stack traces, y en formato texto escapa los saltos de línea para que nadie pueda inyectar líneas falsas.
 - Ciclo de conservación de datos personales en órdenes (operativa, bloqueo y anonimización) diseñado en ADR-0070, fuera del MVP; plazos y preguntas pendientes de validación legal con un especialista (P-61).

@@ -21,13 +21,14 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
 | 1 | T-132 (anonimización de clientes y de compradores invitados; UC-IAM-19) |
 | 2 | T-220 (consulta de la auditoría, exportación y depuración; UC-AUD-02 y 03) |
 | 3 | Reducir la imagen de producción (920 MB en la última medición, por el CLI de Prisma, ADR-0093) |
+| 4 | T-186 (enlace de acceso a los pedidos de invitado; UC-ORD-05), agregada a pedido del usuario antes de cerrar el sprint |
 
 - **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
 - **Pospuesto al Sprint 7 o después:**
   - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
   - T-191 (bloqueada);
   - T-330 (despliegue, sin hosting);
-  - las tareas diferidas: T-186, T-193, T-200 y T-232.
+  - las tareas diferidas: T-193, T-200 y T-232 (T-186 se agregó como paso 4).
 - **Flujo de trabajo:**
   - cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
   - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
@@ -88,6 +89,17 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - migra un PostgreSQL 18 vacío con `migrate`, arranca `production` y comprueba el catálogo (200) y el login (401, con `argon2`);
   - falla si a la imagen le falta un paquete (comprobado quitando `pg`).
 - **Base sin cambios:** sigue `node:24-bookworm-slim`.
+
+### Resultado del paso 4
+
+- **T-186 en DONE (ADR-0148)**, agregada a pedido del usuario con el diseño previsto en ADR-0077:
+  - **Pedir el enlace:** `POST /v1/orders/access-links` con el email solo responde 202 igual, y antes de emitirlo. El enlace sale en segundo plano, por un evento que Ordering atiende, solo si el email tiene órdenes de invitado.
+  - **Abrirlo:** `POST /v1/orders/access` sirve una vez y responde las 50 órdenes de invitado más recientes del email; el detalle, con la consulta de siempre.
+  - **Datos personales:** la tabla nueva `order_access_tokens` guarda el email; la anonimización del invitado borra sus enlaces, y la limpieza diaria los gastados.
+  - **Concurrencia:** un bloqueo advisory del email ordena la emisión y la anonimización; probado en los dos órdenes contra PostgreSQL.
+  - **Límites:** 3 por email y 10 por IP por hora al pedirlo; abrirlo comparte el límite de la consulta.
+- **Shared kernel:** los enlaces de un solo uso pasan de Identity al shared kernel, sin cambiar su comportamiento.
+- **Migración:** `20261003120000_ordering_access_tokens`, una tabla nueva.
 
 ## Risks
 

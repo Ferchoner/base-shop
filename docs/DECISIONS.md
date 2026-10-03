@@ -94,7 +94,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0074 | Notificaciones por correo del ciclo de la orden | Aceptada |
 | ADR-0075 | Permiso para configurar el costo de envío | Aceptada |
 | ADR-0076 | Reactivación de entidades suspendidas, archivadas o desactivadas | Aceptada |
-| ADR-0077 | Enlace de acceso al pedido por correo | Aceptada |
+| ADR-0077 | Enlace de acceso al pedido por correo | Reemplazada parcialmente por ADR-0148 |
 | ADR-0078 | Envíos sin paquetería | Aceptada |
 | ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
 | ADR-0080 | Efecto de desactivar categorías y marcas en la tienda | Aceptada |
@@ -165,6 +165,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0145 | Anonimización: módulo de privacidad, órdenes concluidas y bloqueo del cliente en el checkout | Aceptada |
 | ADR-0146 | Auditoría: consulta por cursor y archivo diario verificado, por día UTC | Aceptada |
 | ADR-0147 | Imagen de producción sin el CLI de Prisma, e imagen de migración aparte | Aceptada |
+| ADR-0148 | Enlace de acceso a los pedidos de invitado | Aceptada |
 
 ---
 
@@ -427,7 +428,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El identificador que usa el invitado no es adivinable (código aleatorio, ADR-0049); junto con el email y el rate limiting, impide la enumeración.
   - La respuesta de error no debe revelar si existe una orden con ese número o ese email.
   - El enlace por correo depende del proveedor de correo (P-24).
-- **Estado:** Aceptada. El enlace por correo queda fuera del MVP (ADR-0077). Implementada en T-185 (ADR-0138).
+- **Estado:** Aceptada. Implementada en T-185 (ADR-0138). El enlace por correo quedó fuera del MVP (ADR-0077) y se implementó después en ADR-0148, con un token aleatorio guardado como hash en lugar de un token firmado.
 
 ---
 
@@ -609,7 +610,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia.
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`).
 
 ---
 
@@ -1352,7 +1353,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Varias protecciones requieren SQL manual en las migraciones (extensiones, `CHECK`, exclusión, índices parciales y de expresión, secuencia, trigger). En T-110 hay que comprobar que la verificación de migraciones de la CI no los detecte como diferencias. Comprobado en T-110: Prisma no los detecta (ADR-0091).
   - Si algún monto pudiera superar 21.4 millones de pesos, habrá que migrar ese campo a `bigint`.
 - **Pendientes que afectan al modelo, sin bloquearlo:** P-57 (envíos sin paquetería), P-58 (IVA del envío). Los ajustes por datos personales ya se incorporaron (ADR-0067).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`). Implementada en T-110 con los detalles de ADR-0091 (`order_number` como `BIGSERIAL`, forma del índice de almacén activo y borrado de carritos fusionados).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Los pendientes P-57 y P-58 no la bloquean. Modificada por ADR-0076 (la unicidad de opciones de `product_variants` cuenta solo variantes activas), ADR-0078 (columna `own_delivery` en `shipments`), ADR-0079 (IVA del envío en `orders`), ADR-0081 (a lo sumo un almacén activo) y ADR-0083 (plazo de entrega estimado en `shipping_methods` y `orders`). Implementada en T-110 con los detalles de ADR-0091 (`order_number` como `BIGSERIAL`, forma del índice de almacén activo y borrado de carritos fusionados). ADR-0148 agrega `order_access_tokens` en Ordering: 39 tablas.
 
 ---
 
@@ -1621,7 +1622,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se actualizan ADR-0020 (el enlace queda fuera del MVP), BR-ORD-10 y ADR-0074 (sin enlaces en los correos).
   - El modelo de datos aprobado (ADR-0066) no cambia.
 - **Revisar si:** el staff recibe solicitudes frecuentes de invitados que perdieron su código, o existe frontend y proveedor de correo real (P-24).
-- **Estado:** Aceptada (aprobación formal 2026-09-25).
+- **Estado:** Aceptada (aprobación formal 2026-09-25). Reemplazada parcialmente por ADR-0148 (2026-10-03): a pedido del usuario, el enlace se implementa con el diseño previsto, y el invitado que perdió su código lo pide con su email en lugar de acudir al staff. Siguen vigentes el retiro del contrato provisional y los correos de la orden sin enlaces.
 
 ---
 
@@ -2167,7 +2168,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los tests de integración esperan a los handlers con `DomainEventDispatcher.whenIdle()`.
   - Corregido `DOMAIN_MODEL.md`: Shopping no reacciona a `OrderPlaced`; el checkout marca el carrito dentro de su transacción (ADR-0019).
 - **Revisar si:** los logs muestran fallos frecuentes de handlers, un efecto en segundo plano necesita garantía de entrega, o se ejecuta más de una instancia.
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0133: el publicador registra un callback por publicación, así que un paso deshecho con `runNested` descarta sus eventos.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0133: el publicador registra un callback por publicación, así que un paso deshecho con `runNested` descarta sus eventos. ADR-0148: un contexto también publica un evento para sí mismo cuando la respuesta no debe esperar el efecto (`OrderAccessRequested`).
 
 ---
 
@@ -2904,7 +2905,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-123 reutiliza los tokens de enlace (`link-tokens.ts`) y la hora de México de los avisos.
   - El pedido del cliente verificado lo exige Ordering (BR-USR-05) con el `emailVerified` de la cuenta.
   - Los tokens vencidos o usados los borrará la limpieza diaria (T-231).
-- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29). ADR-0118: el cambio de email también invalida los enlaces de recuperación pendientes.
+- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29). ADR-0118: el cambio de email también invalida los enlaces de recuperación pendientes. ADR-0148 agrega la página `/order-access` para el enlace de acceso a los pedidos de invitado.
 
 ---
 
@@ -3893,7 +3894,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Las e2e suben `RATE_LIMIT_GUEST_ORDER` a 1000 en 15 minutos, como ya hacían con el límite general; una suite propia lo baja a 2 para comprobar el 429 en la ruta real.
   - T-181 parte b reutiliza la búsqueda para `POST /v1/orders/reorder`.
-- **Estado:** Aceptada (plan de T-185 aprobado el 2026-10-01, con sus 3 recomendaciones). La recompra de invitado usa la misma búsqueda (ADR-0139).
+- **Estado:** Aceptada (plan de T-185 aprobado el 2026-10-01, con sus 3 recomendaciones). La recompra de invitado usa la misma búsqueda (ADR-0139). El uso de un enlace de acceso a los pedidos comparte su límite (ADR-0148).
 
 ---
 
@@ -4227,7 +4228,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - la carrera con el checkout, en los dos órdenes;
     - un cambio del carrito en curso;
     - que no queda nada del comprador en sus tablas ni en las respuestas guardadas.
-- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones).
+- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones). ADR-0148: la anonimización del invitado borra también sus enlaces de acceso a los pedidos.
 
 ---
 
@@ -4320,3 +4321,57 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - si una base con TLS lo exige al decidir P-05, ese motor tendrá que descargarse al construir la imagen.
   - Los `overrides` de ADR-0091 siguen: el CLI se instala en desarrollo, y `npm audit` revisa todo el árbol.
 - **Estado:** Aceptada (plan del paso 3 del Sprint 6 aprobado el 2026-10-02, con sus 3 recomendaciones). Modifica ADR-0093.
+
+---
+
+## ADR-0148 — Enlace de acceso a los pedidos de invitado
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-186 (UC-ORD-05), que ADR-0077 dejó fuera del MVP con un diseño previsto: recuperación solo con el email, para el invitado que perdió el código de su pedido. El usuario pidió desarrollarla antes de planear el Sprint 7, como paso 4 del Sprint 6.
+  - Sigue sin haber frontend ni proveedor de correo real (P-24): el token se toma del correo en el capturador local, como en la recuperación de contraseña (ADR-0056).
+  - Ordering no puede importar los enlaces de un solo uso de Identity & Access (ADR-0005).
+- **Decisión:**
+  - **Contrato:**
+    - `POST /v1/orders/access-links` con `{ contactEmail }` responde siempre 202 sin cuerpo.
+    - `POST /v1/orders/access` con `{ token }` responde 200 con `{ contactEmail, orders }`.
+    - El staff puede usar los dos, como la consulta (ADR-0138).
+  - **La respuesta no espera el enlace:**
+    - la solicitud publica `OrderAccessRequested` fuera de una transacción, y su manejador en Ordering emite y envía el enlace en segundo plano (ADR-0098);
+    - así, ni la respuesta ni su tiempo dicen si el email tiene órdenes. Hoy nada más lo revela, a diferencia de las cuentas, que el registro expone (ADR-0062);
+    - el evento lleva el email solo en memoria; el bus registra en el log el tipo y el `eventId`, nunca el contenido.
+  - **Emisión, solo para un email con órdenes de invitado:**
+    - una orden anonimizada ya no tiene el email, y una orden de cliente con el mismo email no cuenta;
+    - invalida los enlaces pendientes del email y guarda el SHA-256 de un token de 256 bits, vigente `ORDER_ACCESS_LINK_TTL` (30 minutos por defecto, de 5 minutos a 2 horas);
+    - después del commit envía "Consulta tus pedidos" con `FRONTEND_BASE_URL/order-access?token=…`, una página nueva del frontend, como las de ADR-0117;
+    - sin órdenes no se guarda ni se envía nada, y un correo que falla queda en el log sin la dirección y no se reintenta (ADR-0110).
+  - **Uso, una sola vez:**
+    - dentro de su vigencia y mientras no se pida otro; si no, 400 `invalid-or-expired-token`, el error de los enlaces de Identity & Access;
+    - responde las 50 órdenes de invitado más recientes del email como `OrderSummary`, sin líneas ni dirección y con su pago y su envío; el detalle se consulta con el email y cada código (§15.5);
+    - las órdenes se leen en la misma transacción que marca el enlace como usado, así que un fallo lo deja usable;
+    - la fila del enlace se bloquea (`SELECT … FOR UPDATE`), así que dos usos simultáneos corren en serie y el segundo falla.
+  - **Tabla `order_access_tokens` en Ordering:** `id`, `contact_email` normalizado, `token_hash` único, `expires_at`, `used_at`, `invalidated_at` y `created_at`, con un índice por email. No tiene FK: el email no es una entidad.
+  - **Bloqueo advisory del email:**
+    - clase "ORDA" (`0x4F524441`) con el `hashtext` del email, en la emisión y en la anonimización del invitado;
+    - la emisión nunca deja un enlace para las órdenes de un invitado ya anonimizado, y dos solicitudes simultáneas nunca dejan dos enlaces vigentes.
+  - **Datos personales:**
+    - la tabla guarda el email, así que la anonimización del invitado borra sus enlaces en la misma transacción (ADR-0145);
+    - la limpieza diaria `ordering.cleanup-access-tokens`, a las 3:00, borra por lotes los enlaces vencidos, usados o reemplazados (ADR-0144).
+  - **Límites (ADR-0065, ADR-0102):**
+    - la solicitud, 3 por email y 10 por IP por hora (`RATE_LIMIT_ORDER_ACCESS_EMAIL` y `RATE_LIMIT_ORDER_ACCESS_IP`), con una clave nueva que cuenta el `contactEmail` del cuerpo por su huella;
+    - el uso comparte el presupuesto `guest-order` de la consulta y la recompra: 10 por IP en 15 minutos.
+  - **Shared kernel:** `OneTimeLink`, `isUsableLink`, `InvalidOrExpiredTokenError`, `newLinkToken`, `hashLinkToken` y `lifetimeInWords` pasan de Identity & Access al shared kernel, para que los dos contextos usen las mismas reglas de enlace.
+- **Alternativas consideradas:**
+  - **Un correo con la lista de códigos públicos:** sin tabla, token ni página, y con la misma seguridad, porque el correo de orden recibida ya lleva el código; pero no es un enlace de acceso.
+  - **Emitir y enviar antes de responder,** como la recuperación de contraseña: el tiempo de respuesta revelaría si el email tiene órdenes.
+  - **Guardar un enlace también para emails sin órdenes,** para igualar el trabajo: llenaría la tabla con emails de personas que no compraron.
+  - **Un enlace reutilizable durante su vigencia:** permitiría recargar la página, pero los demás enlaces del sistema son de un solo uso.
+  - **Una respuesta paginada:** un enlace de un solo uso no sirve para pedir más páginas.
+  - **Guardar solo la huella del email:** el uso necesita el email para buscar sus órdenes.
+- **Consecuencias:**
+  - UC-ORD-05 entra al MVP y T-186 pasa a DONE.
+  - ADR-0077 queda reemplazada en su decisión de no implementar el enlace; se implementa su diseño previsto con estos detalles. Siguen vigentes el retiro del contrato provisional y los correos de la orden sin enlaces (ADR-0074).
+  - El modelo de datos (ADR-0066) suma `order_access_tokens`: 39 tablas.
+  - Nuevo efecto en segundo plano en `API_SPEC.md` §2.5: si la API se cae antes de enviarlo, el invitado pide otro enlace.
+  - Un email con más de 50 órdenes de invitado ve las 50 más recientes; las demás las atiende el staff, que busca por email (ADR-0133).
+- **Revisar si:** existe frontend, que debe servir `/order-access` con `Referrer-Policy: no-referrer` (ADR-0117), o hay proveedor de correo real (P-24).
+- **Estado:** Aceptada (plan de T-186 aprobado el 2026-10-03, con sus 4 recomendaciones). Reemplaza parcialmente a ADR-0077 y modifica ADR-0066.

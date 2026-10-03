@@ -108,6 +108,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED, con `refundedAt` igual a la fecha del reembolso, y deja de tener `hasPendingRefund` (ADR-0051, ADR-0135), y se envía el correo "Reembolso completado" (ADR-0143) | Estado de la orden; correo del cliente |
 | Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida", con las instrucciones de pago en tienda si el pago manual está habilitado (ADR-0143) | Correo del cliente |
 | Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada", que dice si el reembolso está en proceso (ADR-0143) | Correo del cliente |
+| Pedir un enlace de acceso a los pedidos de invitado (`POST /v1/orders/access-links`, ADR-0148) | `OrderAccessRequested` | Si el email tiene órdenes de invitado, se emite el enlace, que invalida los anteriores del email, y se envía el correo "Consulta tus pedidos"; si no, nada | Correo del invitado |
 | Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054, ADR-0137): el invitado, o el cliente sin carrito activo, recupera el carrito de la orden activo otra vez; el cliente con carrito activo recibe en él las líneas | Carrito del cliente o del invitado |
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
@@ -261,7 +262,7 @@ Error de validación:
 |---|---|---|---|---|
 | `validation-error` | 400 | E-01, E-11 | Campos, parámetros, cantidades o filtros inválidos | `errors` |
 | `password-policy-violation` | 400 | E-21 | Contraseña fuera de 15–64 caracteres, con caracteres no permitidos, común o igual a la actual; `errors[].code` dice cuál (ADR-0115) | `errors` |
-| `invalid-or-expired-token` | 400 | E-20 | Enlace de verificación o recuperación usado, vencido o invalidado | — |
+| `invalid-or-expired-token` | 400 | E-20 | Enlace de verificación, recuperación o acceso a los pedidos usado, vencido o invalidado | — |
 | `idempotency-key-missing` | 400 | E-25 | Falta `Idempotency-Key` | — |
 | `unauthenticated` | 401 | E-02 | Sin token, token inválido o vencido | — |
 | `invalid-credentials` | 401 | E-16 | Login fallido (incluye cuenta suspendida, ADR-0062) | — |
@@ -320,7 +321,8 @@ Cada endpoint lista solo sus errores específicos.
 | 5 por IP por hora | `POST /v1/auth/register` |
 | 3 por email y 10 por IP por hora | `POST /v1/auth/password-reset/request` |
 | 3 por email por hora | `POST /v1/auth/email-verification/resend`, `POST /v1/me/email` |
-| 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder` |
+| 3 por email y 10 por IP por hora | `POST /v1/orders/access-links` |
+| 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder`, `POST /v1/orders/access` |
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 100 por minuto por IP | Resto de endpoints |
 
@@ -329,11 +331,11 @@ Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`.
 Detalles del mecanismo (ADR-0102):
 
 - En el login solo cuentan los intentos **fallidos**; un login correcto no gasta el límite.
-- Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: la consulta y la recompra de invitado comparten el mismo contador por IP.
-- Claves: IP; correo (por su huella, nunca el correo); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden).
+- Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: la consulta, la recompra de invitado y el uso del enlace de acceso comparten el mismo contador por IP.
+- Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden).
 - El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
 - Una ruta inexistente responde 404 sin gastar el límite general.
-- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_EMAIL`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER` y `RATE_LIMIT_PLACE_ORDER`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_EMAIL`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP` y `RATE_LIMIT_PLACE_ORDER`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
 
 ---
 
@@ -1209,6 +1211,8 @@ Implementado en T-181 parte b (ADR-0139):
 | GET | `/v1/me/orders` | Solo cliente | UC-ORD-03 |
 | GET | `/v1/me/orders/{publicCode}` | Solo cliente | UC-ORD-03 |
 | POST | `/v1/orders/lookup` | Público | UC-ORD-04 |
+| POST | `/v1/orders/access-links` | Público | UC-ORD-05 |
+| POST | `/v1/orders/access` | Público | UC-ORD-05 |
 | GET | `/v1/admin/orders` | `orders.read` | UC-ORD-06 |
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
@@ -1295,9 +1299,33 @@ Implementado en T-180 parte a (ADR-0132):
   - una cuenta de staff puede consultar, pero no colocar ni pagar una orden de invitado;
   - cada consulta gasta el límite, encuentre o no la orden.
 
-### 15.6 Enlace de acceso por correo (UC-ORD-05) — fuera del MVP
+### 15.6 Enlace de acceso por correo (UC-ORD-05, ADR-0148)
 
-No se implementa en el MVP (ADR-0077). El invitado consulta su pedido con email y código público (15.5); si perdió el código, lo atiende el staff por un canal externo. El diseño previsto para implementarlo después (recuperación solo con email) está en ADR-0077.
+Para el invitado que perdió el código de su pedido (ADR-0077). Implementado en T-186.
+
+**`POST /v1/orders/access-links`** — Request `{ "contactEmail" }`, en el cuerpo (ADR-0071).
+
+- Response 202 sin cuerpo, siempre, en cuanto se recibe la solicitud: el enlace se emite y se envía después (§2.5). Ni la respuesta ni su tiempo dicen si el email tiene órdenes.
+- Solo se envía si el email, sin distinguir mayúsculas, minúsculas ni espacios alrededor, tiene órdenes de invitado. Una orden de cliente con ese email no cuenta.
+- El correo "Consulta tus pedidos" lleva `FRONTEND_BASE_URL/order-access?token=…`. El token vence según `ORDER_ACCESS_LINK_TTL` (30 minutos por defecto), sirve una vez, y pedir otro invalida los anteriores.
+- Errores: 400 `validation-error` sin email o con uno mal formado; 429 `rate-limit-exceeded`.
+- Rate limit: 3 por email y 10 por IP por hora.
+
+**`POST /v1/orders/access`** — Request `{ "token" }`.
+
+- Response 200:
+
+  ```json
+  {
+    "contactEmail": "cliente@example.com",
+    "orders": [{ "publicCode": "K7M4-Q9XA", "status": "DELIVERED", "…": "OrderSummary" }]
+  }
+  ```
+
+- `orders`: las 50 órdenes de invitado más recientes del email, de la más nueva a la más antigua, con la forma de `GET /v1/me/orders` (sin líneas ni dirección; con pago y envío). El detalle de cada una se consulta con el email y su código (§15.5).
+- Errores: 400 `invalid-or-expired-token` si el enlace no existe, ya se usó, venció o se pidió otro; 400 `validation-error` sin token o con uno de más de 256 caracteres; 429 `rate-limit-exceeded`.
+- Rate limit: comparte con la consulta y la recompra de invitado 10 por IP en 15 minutos.
+- El staff puede usar las dos rutas, como la consulta.
 
 ### 15.7 Administración de órdenes (UC-ORD-06 a 08)
 
@@ -1565,8 +1593,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
-| UC-ORD-01 a 04, 06 a 08 | Sección 15 |
-| UC-ORD-05 | Fuera del MVP (ADR-0077) |
+| UC-ORD-01 a 08 | Sección 15 |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
 | UC-PAY-01, 02, 04, 06, 07 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |
