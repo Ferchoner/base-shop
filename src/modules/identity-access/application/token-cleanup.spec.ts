@@ -75,6 +75,18 @@ describe('TokenCleanup (UC-SYS-01, ADR-0029, ADR-0144)', () => {
     );
   });
 
+  it('keeps spent refresh tokens the days of SPENT_REFRESH_TOKEN_RETENTION_DAYS (ADR-0149)', async () => {
+    const tokens = new SomeTokens({ refresh: 0, verify: 0, reset: 0 });
+
+    await new TokenCleanup(tokens, { now: () => NOW }, 90).run();
+
+    expect(tokens.asked[0]).toEqual([
+      'refresh',
+      new Date('2026-08-02T09:00:00.000Z'),
+      1_000,
+    ]);
+  });
+
   it('goes on with the other kinds when one fails, which the log tells', async () => {
     const tokens = new SomeTokens(
       { refresh: 2, verify: 1, reset: 1 },

@@ -1,0 +1,58 @@
+import { jest } from '@jest/globals';
+import { Logger } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { EnvironmentVariables } from './environment.js';
+import {
+  describeRetentionPolicy,
+  RetentionPolicyLog,
+} from './retention-policy.js';
+
+const POLICY = {
+  PERSONAL_DATA_RETENTION_ENABLED: true,
+  PERSONAL_DATA_OPERATIONAL_MONTHS: 12,
+  PERSONAL_DATA_BLOCKED_MONTHS: 60,
+  AUDIT_RETENTION_MONTHS: 3,
+  AUDIT_ARCHIVE_RETENTION_MONTHS: 24,
+  SPENT_REFRESH_TOKEN_RETENTION_DAYS: 30,
+  INACTIVE_GUEST_CART_RETENTION_DAYS: 14,
+  PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS: 45,
+  DELIVERED_EVENT_RETENTION_DAYS: 7,
+};
+
+describe('Retention policy (ADR-0149)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('describes every period in force, in one line', () => {
+    expect(describeRetentionPolicy(POLICY)).toBe(
+      'Retention policy (ADR-0149): personal data of orders blocked 12 months after the order concludes and anonymized 60 months later; ' +
+        'audit trail 3 months in the database and 24 in files; spent refresh tokens 30 days; inactive guest carts 14 days; ' +
+        'processed webhook events 45 days; delivered domain events 7 days',
+    );
+  });
+
+  it('says the personal data is kept while the cycle is disabled', () => {
+    expect(
+      describeRetentionPolicy({
+        ...POLICY,
+        PERSONAL_DATA_RETENTION_ENABLED: false,
+      }),
+    ).toMatch(
+      /^Retention policy \(ADR-0149\): personal data of orders kept, since the retention cycle is disabled; audit trail 3 months/,
+    );
+  });
+
+  it('logs the policy of the configuration when the application starts', () => {
+    const log = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+    const config = {
+      get: (key: keyof typeof POLICY) => POLICY[key],
+    } as unknown as ConfigService<EnvironmentVariables, true>;
+
+    new RetentionPolicyLog(config).onApplicationBootstrap();
+
+    expect(log).toHaveBeenCalledWith(describeRetentionPolicy(POLICY));
+  });
+});

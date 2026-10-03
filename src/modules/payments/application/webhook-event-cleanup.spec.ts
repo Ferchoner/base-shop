@@ -36,4 +36,15 @@ describe('WebhookEventCleanup (UC-SYS-01, ADR-0029, ADR-0144)', () => {
     ]);
     expect(log).toHaveBeenCalledWith('Deleted 2 processed webhook events');
   });
+
+  it('keeps them the days of PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS (ADR-0149)', async () => {
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const events = new SomeEvents();
+
+    await new WebhookEventCleanup(events, { now: () => NOW }, 7).run();
+
+    expect(events.asked).toEqual([
+      [new Date('2026-10-24T09:00:00.000Z'), 1_000],
+    ]);
+  });
 });

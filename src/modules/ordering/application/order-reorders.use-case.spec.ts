@@ -215,6 +215,21 @@ describe('OrderReorders (UC-CRT-09, ADR-0139)', () => {
     }
   });
 
+  it('answers 404 to a customer for their order once blocked or anonymized, as their views do (ADR-0070, ADR-0149)', async () => {
+    const cancelled = ofCustomer('CANCELLED').snapshot;
+    for (const order of [
+      Order.restore({ ...cancelled, concludedAt: PLACED, blockedAt: PLACED }),
+      Order.restore({ ...cancelled, contactEmail: null, anonymizedAt: PLACED }),
+    ]) {
+      const { reorders, calls } = setUp(order);
+
+      await expect(
+        reorders.forCustomer({ customerId: customer, publicCode: CODE }),
+      ).rejects.toThrow(new NotFoundError('Order', CODE));
+      expect(calls).toEqual([]);
+    }
+  });
+
   it('copies nothing of an order that is not cancelled nor refunded (BR-CRT-11)', async () => {
     for (const status of [
       'PENDING_PAYMENT',
