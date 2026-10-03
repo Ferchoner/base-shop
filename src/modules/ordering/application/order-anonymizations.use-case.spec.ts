@@ -145,7 +145,10 @@ function setUp(orders: Order[], shipmentStatuses: Record<string, string> = {}) {
     },
   } as unknown as OrderShipments;
   const accessTokens = {
-    deleteOf: () => Promise.resolve(),
+    deleteOf: (contactEmail: string) => {
+      calls.push(`deleteOf ${contactEmail}`);
+      return Promise.resolve();
+    },
   } as unknown as OrderAccessTokenRepository;
   const responses = {
     forgetOf: (forgotten: readonly Order[]) => {
@@ -254,7 +257,7 @@ describe('OrderAnonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
     expect([calls, audited]).toEqual([[], []]);
   });
 
-  it('anonymizes the guest orders with the email, normalized, when the code is of one of them, with or without dash', async () => {
+  it('anonymizes the guest orders with the email, normalized, when the code is of one of them, with or without dash, and deletes the access links of the email (ADR-0148)', async () => {
     const first = saved('DELIVERED', 'K7M4Q9XA', PAID);
     const second = saved('CANCELLED', 'H3N8P2WB');
     const { anonymizations, repository, calls } = setUp([first, second], {
@@ -273,6 +276,7 @@ describe('OrderAnonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
     expect(calls).toEqual([
       'shipmentsOf 2',
       `anonymize ${first.id},${second.id}`,
+      'deleteOf cliente@example.com',
       `forgetOf ${first.id},${second.id}`,
     ]);
   });

@@ -1,5 +1,6 @@
 import { CronExpression } from '@nestjs/schedule';
 import { TokenCleanupJob } from '../../modules/identity-access/infrastructure/token-cleanup.job.js';
+import { AccessTokenCleanupJob } from '../../modules/ordering/infrastructure/access-token-cleanup.job.js';
 import { WebhookEventCleanupJob } from '../../modules/payments/infrastructure/webhook-event-cleanup.job.js';
 import { GuestCartCleanupJob } from '../../modules/shopping/infrastructure/guest-cart-cleanup.job.js';
 import { IdempotencyCleanupJob } from '../http/idempotency/idempotency-cleanup.job.js';
@@ -14,6 +15,7 @@ describe('Daily cleanup jobs', () => {
   it.each([
     ['identity.cleanup-tokens', TokenCleanupJob.prototype.run],
     ['shopping.cleanup-guest-carts', GuestCartCleanupJob.prototype.run],
+    ['ordering.cleanup-access-tokens', AccessTokenCleanupJob.prototype.run],
     ['payments.cleanup-webhook-events', WebhookEventCleanupJob.prototype.run],
     ['platform.cleanup-idempotency-keys', IdempotencyCleanupJob.prototype.run],
   ])('runs %s every day at 3:00, Mexico time', (name, run) => {
@@ -35,6 +37,7 @@ describe('Daily cleanup jobs', () => {
 
     await new TokenCleanupJob(cleanup('tokens') as never).run();
     await new GuestCartCleanupJob(cleanup('carts') as never).run();
+    await new AccessTokenCleanupJob(cleanup('access links') as never).run();
     await new WebhookEventCleanupJob(cleanup('webhooks') as never).run();
     const store = {
       deleteExpired: (now: Date, limit: number) => {
@@ -44,6 +47,12 @@ describe('Daily cleanup jobs', () => {
     } as unknown as IdempotencyStore;
     await new IdempotencyCleanupJob(store, { now: () => new Date() }).run();
 
-    expect(runs).toEqual(['tokens', 'carts', 'webhooks', 'keys 1000']);
+    expect(runs).toEqual([
+      'tokens',
+      'carts',
+      'access links',
+      'webhooks',
+      'keys 1000',
+    ]);
   });
 });

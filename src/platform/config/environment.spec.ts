@@ -231,6 +231,8 @@ describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
       RATE_LIMIT_PASSWORD_RESET_IP: '10/1h',
       RATE_LIMIT_EMAIL_VERIFICATION: '3/1h',
       RATE_LIMIT_GUEST_ORDER: '10/15m',
+      RATE_LIMIT_ORDER_ACCESS_EMAIL: '3/1h',
+      RATE_LIMIT_ORDER_ACCESS_IP: '10/1h',
       RATE_LIMIT_PLACE_ORDER: '10/10m',
     });
   });
@@ -765,6 +767,27 @@ describe('PASSWORD_RESET_TTL (BR-USR-16, ADR-0118)', () => {
       validateEnvironment({ ...REQUIRED, PASSWORD_RESET_TTL: value }),
     ).toThrow(
       'PASSWORD_RESET_TTL must be a duration such as 15m or 7d (s, m, h or d), from 5m to 2h',
+    );
+  });
+});
+
+describe('ORDER_ACCESS_LINK_TTL (UC-ORD-05, ADR-0148)', () => {
+  it('defaults to 30 minutes', () => {
+    expect(validateEnvironment(REQUIRED).ORDER_ACCESS_LINK_TTL).toBe('30m');
+  });
+
+  it.each(['5m', '1h', '2h'])('accepts %p', (value) => {
+    expect(
+      validateEnvironment({ ...REQUIRED, ORDER_ACCESS_LINK_TTL: value })
+        .ORDER_ACCESS_LINK_TTL,
+    ).toBe(value);
+  });
+
+  it.each(['4m', '121m', '1d'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, ORDER_ACCESS_LINK_TTL: value }),
+    ).toThrow(
+      'ORDER_ACCESS_LINK_TTL must be a duration such as 15m or 7d (s, m, h or d), from 5m to 2h',
     );
   });
 });
