@@ -199,6 +199,8 @@ describe('Sessions (T-120)', () => {
         where: { id: customer.id },
       });
       expect(stored.lastLoginAt).not.toBeNull();
+      // Signing in is activity (ADR-0152).
+      expect(stored.lastActiveAt).toEqual(stored.lastLoginAt);
       expect(stored.version).toBe(1);
       expect(await auditOf('auth.login')).toEqual([
         expect.objectContaining({
@@ -281,6 +283,56 @@ describe('Sessions (T-120)', () => {
         }),
       ).toMatchObject({ replacedById: next.id, revokedAt: expect.any(Date) });
       expect(await resolve(customer.id, sessionId)).not.toBeNull();
+    });
+
+    it('records the renewal as activity once a day at most, without changing the account version (ADR-0152)', async () => {
+      const customer = await insertUser();
+      const { refreshToken } = await startSession(customer.email);
+      const activityOf = async () =>
+        (
+          await prisma.user.findUniqueOrThrow({
+            where: { id: customer.id },
+            select: { lastActiveAt: true, version: true },
+          })
+        ).lastActiveAt;
+      const dayAgo = new Date(Date.now() - 86_400_000);
+      await prisma.user.update({
+        where: { id: customer.id },
+        data: { lastActiveAt: dayAgo },
+      });
+
+      const renewed = await refresh(refreshToken);
+
+      const active = await activityOf();
+      expect(active.getTime()).toBeGreaterThan(dayAgo.getTime());
+      if (renewed.outcome !== 'RENEWED') throw new Error(renewed.outcome);
+      const recently = new Date(Date.now() - 86_000_000);
+      await prisma.user.update({
+        where: { id: customer.id },
+        data: { lastActiveAt: recently },
+      });
+      await refresh(renewed.tokens.refreshToken);
+      expect(await activityOf()).toEqual(recently);
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: customer.id } }))
+          .version,
+      ).toBe(1);
+    });
+
+    it('records no activity for a token that is not renewed', async () => {
+      const customer = await insertUser();
+      const { refreshToken } = await startSession(customer.email);
+      const longAgo = new Date('2026-01-01T00:00:00.000Z');
+      await prisma.user.update({
+        where: { id: customer.id },
+        data: { lastActiveAt: longAgo, status: 'SUSPENDED' },
+      });
+
+      expect((await refresh(refreshToken)).outcome).not.toBe('RENEWED');
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: customer.id } }))
+          .lastActiveAt,
+      ).toEqual(longAgo);
     });
 
     it('revokes the whole session when a rotated token comes back, and audits the reuse', async () => {

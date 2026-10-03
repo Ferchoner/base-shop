@@ -126,6 +126,12 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         code: 'events.manage',
         description: 'Ver y reintentar las entregas de eventos de dominio',
       });
+      // For the blocked data of an order (ADR-0152).
+      expect(response.body.data).toContainEqual({
+        code: 'orders.read-blocked',
+        description:
+          'Consultar los datos personales bloqueados de un pedido, con motivo y auditado',
+      });
       await http()
         .get('/v1/admin/identity/permissions')
         .set(staffWith('customers.manage'))
