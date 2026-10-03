@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (privacidad y operación) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Sprint 8 — Ciclo de conservación de datos personales (desde el 2026-10-03). El Sprint 7 (entrega garantizada de eventos) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
 
 ## Completed
 
@@ -159,8 +159,8 @@ Sprint 7 — Entrega garantizada de eventos (desde el 2026-10-03). El Sprint 6 (
 
 ## Next
 
-- [ ] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes); plan en `SPRINT.md`
-- [ ] T-232: ciclo de conservación de datos personales con plazos configurables (ADR-0149), propuesta para el Sprint 8
+- [x] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes, y P-61 cerrada), cerrado el 2026-10-03
+- [ ] Sprint 8: ciclo de conservación de datos personales (paso 0 y T-232 en dos partes); plan en `SPRINT.md`
 - [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked

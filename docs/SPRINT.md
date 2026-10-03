@@ -2,38 +2,126 @@
 
 ## Sprint actual
 
-7 — Entrega garantizada de eventos (outbox transaccional). Inicio: 2026-10-03 (propuesta aprobada después del cierre del Sprint 6).
+8 — Ciclo de conservación de datos personales. Inicio: 2026-10-03 (propuesta aprobada en el Sprint Review del Sprint 7).
 
 ## Goal
 
-Que ningún efecto de un evento se pierda:
-- los eventos se guardan en la misma transacción que el cambio que los origina;
-- se reintentan hasta entregarse, y los que fallan una y otra vez quedan a la vista del staff.
-
-Motivo: si el manejador de `PaymentCaptured` falla o la API se cae después del commit, el pago queda capturado y la orden sigue en PENDING_PAYMENT hasta expirar. La conciliación que ADR-0014 tomaba como red de seguridad está en T-192, bloqueada (P-31). Lo mismo pasa, con menos gravedad, con el despacho y la entrega de los envíos, los correos, el reembolso completado y el enlace de acceso a los pedidos. ADR-0014 pide revisarse "si el negocio pasa a depender de una notificación".
+Los datos personales de órdenes y envíos siguen el ciclo de ADR-0070 con los plazos configurables de ADR-0149:
+- se ocultan al vencer la fase operativa, y solo se consultan con un permiso propio y auditado;
+- se anonimizan al vencer el bloqueo;
+- cada operador ajusta los plazos, y ve la política vigente, sin cambiar código.
 
 ## Tasks
 
-Detalle en `docs/TASKS.md`, sección "Fundaciones técnicas". Orden por dependencias:
+Detalle en `docs/TASKS.md`, sección "Contextos de negocio". Orden por dependencias:
 
 | Paso | Tareas |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); prácticas de la review del Sprint 6 en la guía de desarrollo; plan del Sprint 7 en este documento |
-| 1 | T-109 parte a (eventos guardados en la transacción, entrega por manejador, despacho inmediato y job de reintentos) |
-| 2 | T-109 parte b (eventos fallidos a la vista del staff, con consulta y reintento, y limpieza diaria de los entregados) |
+| 0 | Revisión del repositorio contra los ADR, extendida a `PROJECT.md` y `README.md`; pull request agrupado de Dependabot (lunes 5 de octubre); prácticas de la review del Sprint 7 en la guía de desarrollo |
+| 1 | T-232 parte a: plazos configurables, incluidos los 30 días fijos de la limpieza diaria; job que bloquea y después anonimiza; ocultamiento de los datos bloqueados en la API |
+| 2 | T-232 parte b: permiso para consultar los datos bloqueados, auditado; anonimización opcional de cuentas inactivas; ruta pública con la política vigente |
 
-- **Criterio de cierre:** criterios de aceptación de T-109 en `TASKS.md`, el ADR que reemplaza a ADR-0014 aceptado, y CI en verde en `main`.
-- **Pospuesto al Sprint 8 o después:**
+- **Criterio de cierre:** criterios de aceptación de T-232 en `TASKS.md` y CI en verde en `main`.
+- **Pospuesto al Sprint 9 o después:**
   - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
   - T-191 (bloqueada);
   - T-330 (despliegue, sin hosting);
-  - las tareas diferidas: T-193 y T-200;
-  - T-232 (ciclo de conservación de datos personales), sin bloqueo desde ADR-0149, propuesta para el Sprint 8.
+  - las tareas diferidas: T-193 y T-200.
 - **Flujo de trabajo:**
   - cada parte se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
   - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
 
-### Resultado del paso 0
+## Risks
+
+- **Borrado irreversible y automático:** con los valores por defecto, la anonimización empieza 6 años después de que concluye la orden, pero un plazo mal configurado podría adelantarla. Aplican las salvaguardas de ADR-0149: rangos al arrancar, lotes con tope por corrida y auditoría sin valores.
+- **Ocultar en todas partes:** los datos bloqueados deben desaparecer de todas las respuestas, como las órdenes y los envíos del staff, la consulta del invitado, su enlace de acceso y los correos, sin romper la operación, porque una orden bloqueada ya concluyó.
+- **Copias de los datos:** el plan lista todas, como las direcciones de órdenes y envíos, los enlaces de acceso y las respuestas guardadas por idempotencia (práctica del Sprint 6).
+- **Cuentas inactivas:** el plan define qué cuenta como actividad y qué pasa con las órdenes de esas cuentas; la anonimización queda desactivada por defecto.
+- **Riesgos heredados del Sprint 7:** ver su review en el historial.
+
+## Sprint Review
+
+PENDIENTE.
+
+---
+
+## Historial
+
+### Sprint 7 — Entrega garantizada de eventos (2026-10-03)
+
+**Goal:** que ningún efecto de un evento se pierda: los eventos se guardan con el cambio que los origina, se reintentan hasta entregarse, y los que fallan una y otra vez quedan a la vista del staff. **Tareas:** T-109 en dos partes, en DONE, precedida por un paso 0. Además se cerró P-61 con ADR-0149, a pedido del usuario.
+
+**Fecha:** 2026-10-03. **Resultado:** objetivo cumplido. T-109 está en DONE y el pipeline de CI está en verde en `main`.
+- Un `PaymentCaptured` perdido ya no deja un pago capturado en una orden que expira, ni se pierden el despacho, la entrega, el reembolso o los correos: si un manejador falla o la API se cae, el efecto se reintenta.
+- El staff ve las entregas que agotaron sus intentos y las reintenta.
+- Los plazos de conservación de datos personales son configurables, y T-232 dejó de estar diferida.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Revisión contra los ADR, con el estado de ADR-0077 y los módulos transversales de `ARCHITECTURE.md` corregidos, y prácticas de la review del Sprint 6 en la guía | DONE | Paso 0 |
+| Plazos de conservación configurables con valores por defecto; la validación legal pasa a la lista "Antes de operar" de cada operador; P-61 cerrada y T-232 a TODO | DONE | ADR-0149 |
+| Outbox transaccional: los eventos se guardan con el cambio, con una entrega por manejador, y el job `platform.deliver-events` reintenta 8 veces; `publishVolatile` para el evento con un email; los correos de la orden se reintentan | DONE | T-109 parte a, ADR-0150 |
+| Consulta y reintento de las entregas fallidas con el permiso nuevo `events.manage`, y limpieza diaria de los eventos entregados | DONE | T-109 parte b, ADR-0150 |
+| 2,207 tests (1,272 unitarios, 429 de integración y 506 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 150 ADR: 147 aceptados, 2 reemplazados parcialmente (ADR-0001 y ADR-0077) y 1 reemplazado (ADR-0014); 2 nuevos en este sprint (ADR-0149 y ADR-0150) | — | `DECISIONS.md` |
+| Quedan abiertas 8 decisiones: P-61 se cerró | — | `PROGRESS.md` |
+
+El trabajo se integró en 4 pull requests a `main` (del #83 al #86). La CI pasó a la primera en todos, y también en `main` después de cada fusión. En el #84 hubo además una corrida cancelada al actualizar la rama con `main`, no una falla.
+
+#### Decisiones abiertas que pasan al siguiente sprint
+
+Ninguna bloquea el ciclo de conservación: desde ADR-0149, sus plazos son configurables y cada operador los valida antes de operar.
+
+| Grupo | Decisiones |
+|---|---|
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
+
+#### Riesgos que pasan al siguiente sprint
+
+- **Resueltos en este sprint:**
+  - los efectos que dependían de un evento se perdían si su manejador fallaba o la API se caía (riesgo de ADR-0014 y ADR-0098, abierto desde el Sprint 2);
+  - un `PaymentCaptured` perdido no tenía red, porque la conciliación está en T-192;
+  - los correos no se reintentaban;
+  - P-61 bloqueaba el ciclo de conservación (T-232).
+- **Heredados, siguen vigentes:** ver las reviews de los sprints 2 a 6 en el historial. Entre ellos están:
+  - el estado en memoria de una sola instancia, y los contadores del rate limit en memoria;
+  - el adaptador de PayPal sin verificar, y pagar dos veces;
+  - los jobs, que con varias instancias correrían en cada una, salvo `platform.deliver-events`, que ya toma cada entrega una sola vez.
+- **Nuevos:**
+  - **Al menos una vez (ADR-0150):** si la API se cae entre un manejador y la marca de entregado, el manejador corre otra vez; un correo puede llegar dos veces.
+  - **Entregas fallidas:** se conservan hasta que alguien las reintente; nadie avisa de ellas fuera de la consulta del staff, hasta tener observabilidad (P-07).
+  - **`OrderAccessRequested`** sigue siendo volátil: si la API se cae, el invitado pide otro enlace.
+  - **Prisma 8** está en versión candidata (8.0.0-rc.19), publicada como `latest` en npm: se revisa cuando sea estable.
+  - **Descripción desactualizada** en el listado administrativo de pedidos: dice que `payment` y `shipment` son `null` hasta T-190 y T-195. Quedó como tarea aparte.
+
+#### Qué funcionó
+
+- **Guardar los eventos antes del commit,** dentro del `TransactionScope`: `publish` siguió siendo síncrono y no hubo que tocar las 11 llamadas que publican.
+- **Una entrega por manejador:** un reintento repite solo el que falló, y los manejadores de estado ya toleraban repeticiones y eventos tardíos.
+- **Eventos volátiles:** la tabla de eventos nunca guarda datos personales, y una e2e lo comprueba.
+- **Decidir P-61 como configuración:** la propuesta del usuario de hacer configurables los plazos, con valores por defecto, quitó un bloqueo legal que no dependía del proyecto.
+- **Pruebas de mutación:**
+
+  | Tarea | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-109 parte a | 1 de 33 | Eventos guardados y volátiles publicados juntos, sin prueba |
+  | T-109 parte b | 2 de 19 | Una comprobación redundante en la limpieza, que se quitó del código |
+
+- **Verificar el commit feat por separado,** y **CI a la primera** en los 4 pull requests.
+
+#### Qué mejorar
+
+- **Errores de los consumidores:** al cambiar un mecanismo transversal, el plan revisa cómo maneja los errores cada consumidor. Que los correos atrapaban la falla del servidor de correo apareció a mitad de T-109.
+- **Tablas que comparten todas las suites:** el outbox recibe eventos de todas las pruebas, así que las que lo cuentan lo vacían antes de cada prueba.
+- **No renumerar secciones de la documentación** que el código cita: la sección nueva de `DATABASE.md` fue la §11.4, y la de `API_SPEC.md` la §22.
+- **La revisión del paso 0 no cubría `PROJECT.md` ni `README.md`:** el estado de `PROJECT.md` seguía en el Sprint 6 y su alcance no tenía el enlace de acceso; se encontró a mano.
+
+#### Resultado del paso 0
 
 - **Revisión contra los ADR:**
   - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y siguen abiertas las mismas 9 decisiones;
@@ -54,39 +142,9 @@ Detalle en `docs/TASKS.md`, sección "Fundaciones técnicas". Orden por dependen
   - quitar o limitar los mutantes que pueden no terminar.
 - **T-109** agregada a `TASKS.md`, con sus dos partes.
 
-### Resultado del paso 1
+#### Siguiente sprint
 
-- **T-109 parte a (ADR-0150, reemplaza ADR-0014):**
-  - **Outbox:** `domain_events` y una entrega por handler en `event_deliveries`, escritos en la transacción del cambio justo antes del commit, sin cambiar a quien publica.
-  - **Despacho inmediato,** como antes; si un handler falla o la API se cae, el job `platform.deliver-events` lo reintenta cada minuto, hasta 8 intentos en unas 22 horas, con una sola instancia por entrega.
-  - **Sin datos personales:** `OrderAccessRequested` pasa a `publishVolatile`; una e2e comprueba que ningún evento guardado tiene un email.
-  - **Correos de la orden:** un fallo del servidor de correo ya no se pierde; se reintenta, y en un caso raro uno puede llegar dos veces (BR-NTF-04).
-- **Migración:** `20261003200000_events_outbox`, dos tablas nuevas.
-
-### Resultado del paso 2
-
-- **T-109 parte b (ADR-0150):** T-109 queda en DONE.
-  - **Para el staff:** `GET /v1/admin/event-deliveries` lista las entregas fallidas por defecto, con su evento; `POST …/{deliveryId}/retry` y `POST …/retry` las reintentan, una o en bloque por tipo de evento o manejador, auditado.
-  - **Permiso nuevo `events.manage`:** Administrador y Superadministrador; la migración `20261003220000_events_manage_permission` se lo asigna al Administrador.
-  - **Limpieza diaria `platform.cleanup-events`:** borra los eventos entregados hace más de `DELIVERED_EVENT_RETENTION_DAYS` (7 días); los pendientes y fallidos se quedan.
-  - **Dónde vive:** en la plataforma, en un módulo aparte del bus, porque las tablas son suyas.
-
-## Risks
-
-- **Cambia una decisión de arquitectura** (ADR-0014, ADR-0098): todo efecto en segundo plano pasará por la base. Un error en la entrega afectaría a todos los contextos. El despacho inmediato después del commit se conserva, así que lo que ve el cliente no cambia.
-- **Entregas repetidas:** con reintentos, un manejador puede correr más de una vez. Hay que revisar que cada uno sea idempotente, sobre todo los correos, que podrían llegar dos veces.
-- **Datos personales en el contenido de los eventos:** `OrderAccessRequested` lleva un email. Guardar los eventos crea otra copia, que la anonimización y la limpieza deben cubrir.
-- **Concurrencia:** el despacho inmediato y el job pueden tomar la misma entrega; hace falta que cada una la tome una sola vez, también con varias instancias.
-- **Volumen:** cada evento y cada entrega son filas nuevas; la limpieza diaria debe borrarlas.
-- **Riesgos heredados del Sprint 6:** ver su review en el historial.
-
-## Sprint Review
-
-PENDIENTE.
-
----
-
-## Historial
+La propuesta del Sprint 8 se aprobó el 2026-10-03; ver "Sprint actual".
 
 ### Sprint 6 — Privacidad y operación (2026-10-02 a 2026-10-03)
 

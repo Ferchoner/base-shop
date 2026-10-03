@@ -201,3 +201,4 @@
   - permiso nuevo `events.manage` para el Administrador (migración `20261003220000_events_manage_permission`) y el Superadministrador;
   - limpieza diaria `platform.cleanup-events` de los eventos entregados hace más de `DELIVERED_EVENT_RETENTION_DAYS` (7 días, de 1 a 90);
   - nueva sección 22 de `API_SPEC.md`.
+- Sprint 7 cerrado (2026-10-03) con el objetivo cumplido: T-109 en dos partes y P-61 cerrada (ADR-0149), en 4 pull requests (#83 a #86) con la CI verde a la primera; 2,207 tests y 2 ADR nuevos (ADR-0149 y ADR-0150). Review en el historial de `SPRINT.md`. Sprint 8 aprobado: ciclo de conservación de datos personales (T-232 en dos partes).
