@@ -2,38 +2,131 @@
 
 ## Sprint actual
 
-6 — Privacidad y operación (anonimización, auditoría e imagen de producción). Inicio: 2026-10-02 (propuesta aprobada en el Sprint Review del Sprint 5).
+Ninguno. El Sprint 6 (privacidad y operación) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial. El Sprint 7 está PENDIENTE DE DECISIÓN: su objetivo y sus tareas se proponen y se aprueban antes de empezar.
 
 ## Goal
 
-Privacidad y operación:
-- un cliente o un comprador invitado se anonimiza sin romper sus órdenes ni sus envíos;
-- el staff consulta la auditoría de los últimos 3 meses, y los registros más viejos se archivan;
-- la imagen de producción se reduce.
+PENDIENTE DE DECISIÓN.
 
 ## Tasks
 
-Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de aceptación son los de sus casos de uso en `REQUIREMENTS.md`. Orden por dependencias:
+PENDIENTE DE DECISIÓN. Las tareas sin hacer, en `docs/TASKS.md`:
 
-| Paso | Tareas |
+| Tarea | Estado | Qué la detiene |
+|---|---|---|
+| T-192 (PayPal y conciliación de pagos) | TODO | Sin cuenta ni sandbox no se puede verificar (P-31) |
+| T-191 (verificación de PayPal) | BLOCKED | T-192 y P-31 |
+| T-330 (despliegue) | Pospuesta | Sin hosting (P-06, ADR-0031) |
+| T-193 (Mercado Pago y Stripe) | DEFERRED | ADR-0040 |
+| T-200 (promociones) | DEFERRED | Fuera del MVP (ADR-0018) |
+| T-232 (ciclo de conservación de datos personales) | DEFERRED | Validación legal (P-61) |
+
+## Risks
+
+Los que dejó el Sprint 6, en su review del historial.
+
+## Sprint Review
+
+PENDIENTE.
+
+---
+
+## Historial
+
+### Sprint 6 — Privacidad y operación (2026-10-02 a 2026-10-03)
+
+**Goal:** privacidad y operación: un cliente o un comprador invitado se anonimiza sin romper sus órdenes ni sus envíos; el staff consulta la auditoría de los últimos 3 meses, y los registros más viejos se archivan; la imagen de producción se reduce. **Tareas:** T-132, T-220 y la reducción de la imagen (paso 3), precedidas por un paso 0. A pedido del usuario se agregó T-186 como paso 4. Todas en DONE.
+
+**Fecha:** 2026-10-03. **Resultado:** objetivo cumplido. Las tareas están en DONE y el pipeline de CI está en verde en `main`.
+- Un cliente o un comprador invitado se anonimiza en una sola operación, sin romper sus órdenes ni sus envíos.
+- El staff consulta la auditoría, y cada noche lo que tiene más de 3 meses pasa a archivos verificados.
+- La imagen de producción pesa 557 MB y la CI la arranca contra una base migrada.
+- Un invitado que perdió el código de su pedido recibe un enlace a sus órdenes por correo.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Revisión contra los ADR, documento OpenAPI construido y revisado en cada corrida, y prácticas de la review del Sprint 5 en la guía | DONE | Paso 0, ADR-0096 |
+| Anonimización de clientes y de compradores invitados en una transacción: cuenta, sesiones, enlaces, direcciones, carritos, órdenes, envíos y respuestas guardadas por idempotencia; espera a que las órdenes concluyan | DONE | T-132, ADR-0145 |
+| Consulta de la auditoría por cursor con filtros, y archivo diario por día UTC, verificado antes de borrar y sin sobrescribir nunca un archivo | DONE | T-220, ADR-0146 |
+| Imagen de producción de 924 MB a 557 MB sin el CLI de Prisma, imagen `migrate` y prueba de arranque en la CI | DONE | Paso 3, ADR-0147 |
+| Enlace de acceso a los pedidos de invitado por correo, de un solo uso | DONE | T-186, ADR-0148 |
+| 2,158 tests (1,255 unitarios, 404 de integración y 499 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 148 ADR: 146 aceptados y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 4 nuevos en este sprint (ADR-0145 a ADR-0148) | — | `DECISIONS.md` |
+| Siguen abiertas las 9 decisiones de siempre | — | `PROGRESS.md` |
+
+El trabajo se integró en 5 pull requests a `main` (del #77 al #81). La CI pasó a la primera en todos, y también en `main` después de cada fusión.
+
+#### Decisiones abiertas que pasan al siguiente sprint
+
+Las mismas 9. P-24 (proveedor de correo) afecta ahora también al enlace de acceso a los pedidos, que mientras tanto se prueba con el capturador local.
+
+| Grupo | Decisiones |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); prueba que construye y valida el documento OpenAPI en cada corrida; prácticas de la review del Sprint 5 en la guía de desarrollo |
-| 1 | T-132 (anonimización de clientes y de compradores invitados; UC-IAM-19) |
-| 2 | T-220 (consulta de la auditoría, exportación y depuración; UC-AUD-02 y 03) |
-| 3 | Reducir la imagen de producción (920 MB en la última medición, por el CLI de Prisma, ADR-0093) |
-| 4 | T-186 (enlace de acceso a los pedidos de invitado; UC-ORD-05), agregada a pedido del usuario antes de cerrar el sprint |
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-61 (legal; difiere T-232), P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
 
-- **Criterio de cierre:** criterios de aceptación de los casos de uso de cada tarea en `REQUIREMENTS.md` y CI en verde en `main`.
-- **Pospuesto al Sprint 7 o después:**
-  - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
-  - T-191 (bloqueada);
-  - T-330 (despliegue, sin hosting);
-  - las tareas diferidas: T-193, T-200 y T-232 (T-186 se agregó como paso 4).
-- **Flujo de trabajo:**
-  - cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
-  - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
+#### Riesgos que pasan al siguiente sprint
 
-### Resultado del paso 0
+- **Resueltos en este sprint:**
+  - la imagen de producción de 920 MB: pesa 557 MB y la CI la arranca (paso 3);
+  - el documento OpenAPI que solo se construía en algunas suites (paso 0);
+  - un cliente que pide eliminar sus datos ya se anonimiza desde la API (T-132).
+- **Heredados, siguen vigentes:** ver las reviews de los sprints 2 a 5 en el historial. Entre ellos están:
+  - el estado en memoria de una sola instancia, y los contadores del rate limit en memoria;
+  - el adaptador de PayPal sin verificar, y pagar dos veces;
+  - los efectos que dependen de un evento: si su manejador falla o la API se cae, se pierden. T-186 suma uno, el envío del enlace de acceso;
+  - los jobs, que con varias instancias correrían en cada una.
+- **Nuevos:**
+  - **Anonimización (ADR-0145):**
+    - las notas del staff (historial, envíos, pagos y reintegros) no se anonimizan: son texto libre en el que la API pide no escribir datos personales;
+    - las respuestas guardadas por idempotencia se borran fuera de la transacción: si la anonimización falla después, solo se pierde la repetición de una solicitud de las últimas 24 horas.
+  - **Archivo de la auditoría (ADR-0146):**
+    - con varias instancias, el job necesitará un candado;
+    - en Windows la carpeta no se fuerza a disco;
+    - los archivos se leen a mano, con `gunzip -c`.
+  - **Imágenes (ADR-0147):**
+    - una dependencia de ejecución que llegue solo como dependencia par de otra debe declararse en `dependencies`, o la prueba de arranque falla;
+    - la imagen `migrate` pesa 1.43 GB, aunque solo corre como paso único;
+    - las migraciones contra una base con TLS se revisan al decidir P-05: Prisma pediría otro motor.
+  - **Enlace de acceso (ADR-0148):** sin frontend ni proveedor de correo real; un email con más de 50 órdenes de invitado ve solo las 50 más recientes.
+  - **Cambios de contrato:**
+    - rutas nuevas: `POST /v1/admin/identity/customers/{userId}/anonymize`, `POST /v1/admin/identity/guest-anonymizations`, `GET /v1/admin/audit`, `POST /v1/orders/access-links` y `POST /v1/orders/access`;
+    - en una orden anonimizada, `AdminOrder` tiene `contactEmail` en `null` y la dirección sin datos personales, y el envío, su destino igual (ADR-0145);
+    - un pago tardío de una orden vencida y anonimizada la deja esperando al staff, que solo puede cancelarla con su reembolso (ADR-0145).
+
+#### Qué funcionó
+
+- **La propuesta del usuario de nunca sobrescribir un archivo de auditoría:** un día que vuelve a tener registros va a un archivo nuevo, y no se pierde historia después de una falla (T-220).
+- **Probar cada carrera nueva en los dos órdenes contra PostgreSQL:**
+  - el checkout y la anonimización del mismo cliente (T-132);
+  - emitir un enlace de acceso y anonimizar al invitado (T-186).
+- **Medir antes de planear:** la imagen reducida se construyó y se arrancó antes de proponer el paso 3, y la prueba de arranque se comprobó quitando `pg`.
+- **Sacar del diferido una tarea ya diseñada:** T-186 partió del diseño de ADR-0077, así que el plan solo cerró detalles.
+- **Pruebas de mutación:**
+
+  | Tarea | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-132 | 0 de 55 | — |
+  | T-220 | 5 de 57 | Filtros probados juntos, la zona horaria, y una comprobación redundante que se quitó del código |
+  | T-186 | 1 de 31 | Un enlace usado que quedaba marcado como reemplazado, sin efecto en el comportamiento |
+
+- **Verificar el commit feat por separado,** con versiones feat de las specs que cambian en los dos commits.
+- **CI a la primera** en los 5 pull requests.
+
+#### Qué mejorar
+
+- **Listar en el plan todas las copias de un dato personal:** las respuestas guardadas por idempotencia aparecieron durante la implementación de T-132. T-186 ya lo aplicó desde el plan.
+- **Probar cada filtro por separado, con datos que difieran:** `resourceType` y `resourceId` se probaban juntos y dejaron pasar dos mutaciones (T-220).
+- **Fechas:** usar instantes que caigan en días distintos en UTC y en México (T-220).
+- **Mutantes que pueden no terminar,** como cambiar el orden de una lectura por lotes: quitarlos de la lista o ponerles un límite (T-220).
+- **Límites por email en las e2e:** el contador dura lo que la aplicación de la suite, así que cada prueba usa su propio email (T-186).
+- **Correos en las e2e:** los de la orden llegan al mismo capturador; las pruebas filtran por asunto (T-186).
+
+#### Resultado del paso 0
 
 - **Revisión contra los ADR, sin contradicciones:**
   - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y el índice de ADR coincide con sus secciones; siguen abiertas las mismas 9 decisiones;
@@ -55,76 +148,9 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - `set -o pipefail` si se filtra la salida del escaneo de secretos;
   - que un DTO no redeclara con decorador un campo de su clase base.
 
-### Resultado del paso 1
+#### Siguiente sprint
 
-- **T-132 en DONE (ADR-0145):**
-  - **Quién la orquesta:** el módulo nuevo `privacy`, con las fachadas de Identity, Ordering y Shopping, en una transacción. Ordering anonimiza también los envíos de sus órdenes.
-  - **Contrato:** la anonimización del cliente responde `{ userId, anonymizedAt, anonymizedOrderCount }`.
-  - **Orden concluida:** una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso.
-  - **Sin datos personales:** se probó contra PostgreSQL que no queda nada del comprador en la cuenta, los tokens, las direcciones, los carritos, las órdenes, los envíos ni las respuestas guardadas por idempotencia.
-  - **Concurrencia:** el checkout bloquea al cliente para compartir, así que la orden y la anonimización del mismo cliente se esperan; probado en los dos órdenes.
-  - **Pago tardío:** una orden vencida y anonimizada que recibe un pago espera al staff, que solo puede cancelarla con su reembolso.
-- **Sin cambios de esquema.** Las notas del staff (historial, envíos, pagos y reintegros) no se tocan: son texto libre en el que la API pide no escribir datos personales.
-
-### Resultado del paso 2
-
-- **T-220 en DONE (ADR-0146):**
-  - **Consulta:** `GET /v1/admin/audit` con `audit.read`, por cursor, con los filtros del contrato y el motivo del staff en cada registro.
-  - **Dónde quedan los archivos:** en `AUDIT_ARCHIVE_DIR` (`storage/audit`), una carpeta privada que la API nunca sirve y que la imagen de producción crea. La API no arranca si queda dentro de la carpeta de imágenes.
-  - **Por día UTC:** los registros guardan UTC, así que el nombre de cada archivo dice exactamente qué contiene.
-  - **Verificación:** cada archivo se fuerza a disco y se relee comparando cada ID; después se borran exactamente esos registros, o ninguno.
-  - **Nunca se sobrescribe un archivo** (propuesta del usuario en el plan): un día que vuelve a tener registros va a un archivo nuevo.
-  - **Retenciones configurables:** `AUDIT_RETENTION_MONTHS` y `AUDIT_ARCHIVE_RETENTION_MONTHS`, y la de archivos debe ser mayor.
-- **Sin cambios de esquema.** El paso 3 (reducir la imagen de producción) debe conservar `/app/storage/audit`.
-
-### Resultado del paso 3
-
-- **Imagen de producción de 924 MB a 557 MB (ADR-0147):**
-  - el CLI de Prisma vuelve a `devDependencies`;
-  - la etapa `prod-deps` instala sin dependencias par ni scripts;
-  - `node_modules` baja de 450 MB a 170 MB;
-  - conserva `/app/storage/images` y `/app/storage/audit`.
-- **Imagen `migrate`:** aplica las migraciones como paso único antes de cada despliegue, la candidata de P-05.
-- **Prueba de arranque en la CI:**
-  - migra un PostgreSQL 18 vacío con `migrate`, arranca `production` y comprueba el catálogo (200) y el login (401, con `argon2`);
-  - falla si a la imagen le falta un paquete (comprobado quitando `pg`).
-- **Base sin cambios:** sigue `node:24-bookworm-slim`.
-
-### Resultado del paso 4
-
-- **T-186 en DONE (ADR-0148)**, agregada a pedido del usuario con el diseño previsto en ADR-0077:
-  - **Pedir el enlace:** `POST /v1/orders/access-links` con el email solo responde 202 igual, y antes de emitirlo. El enlace sale en segundo plano, por un evento que Ordering atiende, solo si el email tiene órdenes de invitado.
-  - **Abrirlo:** `POST /v1/orders/access` sirve una vez y responde las 50 órdenes de invitado más recientes del email; el detalle, con la consulta de siempre.
-  - **Datos personales:** la tabla nueva `order_access_tokens` guarda el email; la anonimización del invitado borra sus enlaces, y la limpieza diaria los gastados.
-  - **Concurrencia:** un bloqueo advisory del email ordena la emisión y la anonimización; probado en los dos órdenes contra PostgreSQL.
-  - **Límites:** 3 por email y 10 por IP por hora al pedirlo; abrirlo comparte el límite de la consulta.
-- **Shared kernel:** los enlaces de un solo uso pasan de Identity al shared kernel, sin cambiar su comportamiento.
-- **Migración:** `20261003120000_ordering_access_tokens`, una tabla nueva.
-
-## Risks
-
-- **T-132 cruza contextos:** anonimiza o borra datos de cuatro módulos, y debe esperar a que concluyan las órdenes (ADR-0067):
-
-  | Módulo | Datos |
-  |---|---|
-  | Identity & Access | Cuenta, tokens y direcciones |
-  | Shopping | Carritos |
-  | Ordering | Contacto y dirección de las órdenes |
-  | Shipping | Destino de los envíos |
-
-  Identity no puede usar a Ordering (ADR-0132), así que el plan decide si se hace con eventos o con una orquestación fuera de Identity.
-- **Borrado irreversible:** la anonimización no se puede deshacer. Debe ser idempotente, auditarse sin datos personales y probar que no deja datos personales en ninguna tabla.
-- **T-220 escribe archivos:** exporta a JSON Lines con gzip los registros de más de 3 meses, y los borra solo si la exportación se verificó (ADR-0037). Dónde se guardan los archivos, sin hosting todavía, se decide en el plan (ADR-0031).
-- **Imagen de producción:** cambiar el Dockerfile puede romper el arranque (cliente de Prisma generado, migraciones, `node_modules`). Se verifica construyendo y arrancando la imagen.
-- **Riesgos heredados del Sprint 5:** ver su review en el historial.
-
-## Sprint Review
-
-PENDIENTE.
-
----
-
-## Historial
+PENDIENTE DE DECISIÓN. Al cerrar, el usuario pidió solo la review; el Sprint 7 se propone después. Las prácticas de "Qué mejorar" pasan a la guía en su paso 0.
 
 ### Sprint 5 — Entrega del pedido (2026-10-02)
 

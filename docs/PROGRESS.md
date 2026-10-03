@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 6 — Privacidad y operación: anonimización, auditoría e imagen de producción (desde el 2026-10-02). El Sprint 5 (entrega del pedido) se cerró el 2026-10-02 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Entre sprints. El Sprint 6 (privacidad y operación: anonimización, auditoría, imagen de producción y enlace de acceso a los pedidos de invitado) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`. El Sprint 7 está PENDIENTE DE DECISIÓN.
 
 ## Completed
 
@@ -151,11 +151,12 @@ Sprint 6 — Privacidad y operación: anonimización, auditoría e imagen de pro
 - [x] Sprint 3: catálogo vendible (paso 0, T-150, T-141, T-196, T-140, T-145 y T-160), cerrado el 2026-10-01
 - [x] Sprint 4: compra con pago en tienda (paso 0, T-170, T-180, T-190, T-230 sin la conciliación, T-185 y T-181), cerrado el 2026-10-02
 - [x] Sprint 5: entrega del pedido (paso 0, T-195, T-161, T-215 y T-231), cerrado el 2026-10-02
-- [ ] Sprint 6: privacidad y operación (paso 0, T-132, T-220, reducir la imagen de producción y T-186); plan en `SPRINT.md`
+- [x] Sprint 6: privacidad y operación (paso 0, T-132, T-220, reducir la imagen de producción y T-186), cerrado el 2026-10-03
 
 ## Next
 
-- [ ] Después del Sprint 6: PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
+- [ ] Sprint 7: PENDIENTE DE DECISIÓN (objetivo y tareas por proponer)
+- [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked
 
