@@ -18,6 +18,25 @@ export abstract class CustomerAccounts {
     version: number;
     at: Date;
   }): Promise<void>;
+
+  /**
+   * Up to `limit` customers without activity since `before`, the least recently active first (ADR-0152); not
+   * locked.
+   */
+  abstract inactiveSince(before: Date, limit: number): Promise<string[]>;
+
+  /**
+   * Anonymizes the account of a customer still without activity since `inactiveSince`, locked and looked at again,
+   * audited as `customers.anonymize` by the system (ADR-0152).
+   *
+   * @returns whether it anonymized it: false for one that is not a customer's, anonymized or active meanwhile.
+   */
+  abstract anonymizeIfInactive(input: {
+    customerId: string;
+    inactiveSince: Date;
+    reason: string;
+    at: Date;
+  }): Promise<boolean>;
 }
 
 /** Whose orders: a customer's, or a guest's, who shows the email and the public code of one of them. */
@@ -39,6 +58,9 @@ export abstract class BuyerOrders {
     reason: string;
     at: Date;
   }): Promise<number>;
+
+  /** Whether the customer has an order that has not concluded: one on its way, or with its refund pending. */
+  abstract hasOpenOrders(customerId: string): Promise<boolean>;
 }
 
 /** The carts of a customer, in Shopping. */

@@ -85,6 +85,14 @@ export class OrderingFacade {
     return this.anonymizations.anonymize(input);
   }
 
+  /**
+   * Whether the customer has an order that has not concluded (ADR-0152), which keeps an inactive customer from being
+   * anonymized; in the transaction of the caller.
+   */
+  hasOpenOrders(customerId: string): Promise<boolean> {
+    return this.queries.hasOpenOrders(toId<'User'>(customerId));
+  }
+
   /** The order for its emails; `null` when it does not exist. */
   async orderNotice(
     orderId: string,

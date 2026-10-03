@@ -149,6 +149,12 @@ export abstract class OrderingQueries {
    */
   abstract hasGuestOrders(contactEmail: string): Promise<boolean>;
 
+  /**
+   * Whether the customer has an order that has not concluded (ADR-0145, ADR-0152): one on its way, or cancelled with
+   * its refund pending. An inactive customer with one is not anonymized.
+   */
+  abstract hasOpenOrders(customerId: CustomerId): Promise<boolean>;
+
   /** The newest `limit` guest orders of the email, newest first; ties are broken by ID (UC-ORD-05, ADR-0148). */
   abstract listGuestOrders(
     contactEmail: string,

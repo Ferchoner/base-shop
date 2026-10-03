@@ -33,6 +33,7 @@ import {
   PERSONAL_DATA_RETENTION,
   PersonalDataRetention,
 } from './application/personal-data-retention.js';
+import { BlockedOrderData } from './application/blocked-order-data.js';
 import { OrderExpiry } from './application/order-expiry.use-case.js';
 import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from './application/order-payment-requests.use-case.js';
@@ -138,6 +139,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderReader,
     OrderReorders,
     OrderRestocks,
+    BlockedOrderData,
     OrderAnonymizations,
     OrderAccessLinks,
     OrderAccessRequestedHandler,

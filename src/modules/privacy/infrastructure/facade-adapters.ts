@@ -34,6 +34,24 @@ export class IdentityFacadeCustomerAccounts extends CustomerAccounts {
       at: input.at,
     });
   }
+
+  inactiveSince(before: Date, limit: number): Promise<string[]> {
+    return this.identity.inactiveCustomers(before, limit);
+  }
+
+  anonymizeIfInactive(input: {
+    customerId: string;
+    inactiveSince: Date;
+    reason: string;
+    at: Date;
+  }): Promise<boolean> {
+    return this.identity.anonymizeInactiveCustomer({
+      userId: toId<'User'>(input.customerId),
+      inactiveSince: input.inactiveSince,
+      reason: input.reason,
+      at: input.at,
+    });
+  }
 }
 
 @Injectable()
@@ -56,6 +74,10 @@ export class OrderingFacadeBuyerOrders extends BuyerOrders {
       reason: input.reason,
       at: input.at,
     });
+  }
+
+  hasOpenOrders(customerId: string): Promise<boolean> {
+    return this.ordering.hasOpenOrders(customerId);
   }
 }
 

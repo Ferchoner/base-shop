@@ -72,6 +72,17 @@ export class PrismaShippingQueries extends ShippingQueries {
     );
   }
 
+  async destinationOf(orderId: OrderId): Promise<ShipmentDestination | null> {
+    const row = await this.txHost.tx.shipment.findUnique({
+      select: { destination: true },
+      where: { orderId },
+    });
+    // Written by PrismaShipmentRepository from ShipmentDestination.
+    return row === null
+      ? null
+      : (row.destination as unknown as ShipmentDestination);
+  }
+
   async findShipment(id: ShipmentId): Promise<ShipmentView | null> {
     const row = await this.txHost.tx.shipment.findUnique({
       ...SHIPMENT_ROW,

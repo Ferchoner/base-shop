@@ -62,6 +62,50 @@ export class AnonymizeCustomer {
   }
 }
 
+/**
+ * Anonymizes the account of a customer without activity since a date (ADR-0149, ADR-0152), in the transaction of the
+ * caller: Privacy deletes their carts in the same one, and their orders follow their own retention cycle. The account
+ * is locked and looked at again, so a customer active meanwhile is skipped. Audited as `customers.anonymize`, by the
+ * system, without the values (BR-PRIV-04).
+ */
+@Injectable()
+export class AnonymizeInactiveCustomer {
+  constructor(
+    private readonly users: UserRepository,
+    private readonly traces: CustomerTraces,
+    private readonly transactions: TransactionManager,
+    private readonly audit: AuditTrail,
+  ) {}
+
+  /** @returns whether it anonymized the account: false when it is not a customer's, or not inactive any more. */
+  execute(input: {
+    userId: UserId;
+    inactiveSince: Date;
+    reason: string;
+    at: Date;
+  }): Promise<boolean> {
+    return this.transactions.run(async () => {
+      const user = await this.users.lockInactiveCustomer(
+        input.userId,
+        input.inactiveSince,
+      );
+      if (user === null) return false;
+      const before = auditedFields(user);
+      user.anonymize(input.at);
+      await this.users.save(user, null);
+      await this.traces.deleteOf(user.id);
+      await this.audit.record({
+        action: 'customers.anonymize',
+        actor: { type: 'SYSTEM' },
+        resource: { type: 'user', id: user.id },
+        changes: changesBetween(before, auditedFields(user)),
+        reason: input.reason,
+      });
+      return true;
+    });
+  }
+}
+
 /** The status, and the personal fields, which the audit trail records only as changed (BR-PRIV-04). */
 function auditedFields(user: User): Record<string, unknown> {
   const { status, email, firstNames, lastNames, passwordHash } =

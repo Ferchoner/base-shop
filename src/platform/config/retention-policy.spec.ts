@@ -5,6 +5,7 @@ import type { EnvironmentVariables } from './environment.js';
 import {
   describeRetentionPolicy,
   RetentionPolicyLog,
+  RetentionPolicyReader,
 } from './retention-policy.js';
 
 const POLICY = {
@@ -27,7 +28,7 @@ describe('Retention policy (ADR-0149)', () => {
   it('describes every period in force, in one line', () => {
     expect(describeRetentionPolicy(POLICY)).toBe(
       'Retention policy (ADR-0149): personal data of orders blocked 12 months after the order concludes and anonymized 60 months later; ' +
-        'audit trail 3 months in the database and 24 in files; spent refresh tokens 30 days; inactive guest carts 14 days; ' +
+        'accounts of inactive customers never anonymized; audit trail 3 months in the database and 24 in files; spent refresh tokens 30 days; inactive guest carts 14 days; ' +
         'processed webhook events 45 days; delivered domain events 7 days',
     );
   });
@@ -39,7 +40,7 @@ describe('Retention policy (ADR-0149)', () => {
         PERSONAL_DATA_RETENTION_ENABLED: false,
       }),
     ).toMatch(
-      /^Retention policy \(ADR-0149\): personal data of orders kept, since the retention cycle is disabled; audit trail 3 months/,
+      /^Retention policy \(ADR-0149\): personal data of orders kept, since the retention cycle is disabled; accounts of inactive customers never anonymized; audit trail 3 months/,
     );
   });
 
@@ -51,7 +52,9 @@ describe('Retention policy (ADR-0149)', () => {
       get: (key: keyof typeof POLICY) => POLICY[key],
     } as unknown as ConfigService<EnvironmentVariables, true>;
 
-    new RetentionPolicyLog(config).onApplicationBootstrap();
+    new RetentionPolicyLog(
+      new RetentionPolicyReader(config),
+    ).onApplicationBootstrap();
 
     expect(log).toHaveBeenCalledWith(describeRetentionPolicy(POLICY));
   });

@@ -63,6 +63,8 @@ export class RefreshSession {
       if (state !== 'usable') return INVALID;
       const user = await this.users.findById(token.userId);
       if (user === null || !user.canSignIn) return INVALID;
+      // Renewing the session is activity, so an account in use is never anonymized as inactive (ADR-0152).
+      await this.users.recordActivity(user.id, now);
 
       const next = this.tokens.newRefreshToken(user.id, token.sessionId, now);
       await this.sessions.rotate(token, next.record, now);

@@ -137,6 +137,15 @@ export class PrismaOrderingQueries extends OrderingQueries {
     return row !== null;
   }
 
+  async hasOpenOrders(customerId: CustomerId): Promise<boolean> {
+    const row = await this.txHost.tx.order.findFirst({
+      select: { id: true },
+      // An anonymized order always concluded first (ADR-0145).
+      where: { customerId, concludedAt: null },
+    });
+    return row !== null;
+  }
+
   async listGuestOrders(
     contactEmail: string,
     limit: number,
