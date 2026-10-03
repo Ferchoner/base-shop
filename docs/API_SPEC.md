@@ -113,7 +113,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
 - Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva, el inicio del reembolso y la cancelación del envío (ADR-0140).
-- Si el procesamiento de un evento falla, o la API se detiene después de confirmar, el efecto se reintenta hasta 8 veces en unas 22 horas, así que puede tardar más (ADR-0150). Un efecto puede ocurrir dos veces en un caso raro; los cambios de estado lo toleran, y un correo podría llegar duplicado. Lo que agota sus intentos queda registrado para el staff (T-109 parte b).
+- Si el procesamiento de un evento falla, o la API se detiene después de confirmar, el efecto se reintenta hasta 8 veces en unas 22 horas, así que puede tardar más (ADR-0150). Un efecto puede ocurrir dos veces en un caso raro; los cambios de estado lo toleran, y un correo podría llegar duplicado. Lo que agota sus intentos lo consulta y lo reintenta el staff (sección 22).
 - La solicitud de un enlace de acceso a los pedidos (`OrderAccessRequested`) no se reintenta, porque lleva el email: si se pierde, el invitado pide otro.
 - Todo efecto nuevo en segundo plano se agrega a esta tabla.
 
@@ -152,7 +152,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, y `events.manage` de ADR-0150). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -1603,6 +1603,52 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-SHI-01, 03 | Dentro de la cotización; dentro del pago de la orden (ADR-0140) |
 | UC-AUD-02 | Sección 18 |
 | UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 | Sin API: transversales y jobs |
+
+Las entregas de eventos (sección 22) son una herramienta de operación, sin caso de uso propio.
+
+---
+
+## 22. Endpoints — Entregas de eventos (ADR-0150)
+
+Las entregas de los eventos de dominio a sus manejadores (sección 2.5), para diagnosticar y reintentar las que agotaron sus 8 intentos. Implementado en T-109 parte b.
+
+### 22.1 `GET /v1/admin/event-deliveries` — `events.manage`
+
+Paginado (ADR-0036). Filtros: `status` (uno o más de `PENDING`, `DELIVERED` y `FAILED`; por defecto, `FAILED`), `eventType` (como `PaymentCaptured`) y `handler` (como `PaymentCapturedHandler.onPaymentCaptured`). Orden: `occurredAt` (defecto `-occurredAt`) o `nextAttemptAt`, con desempate por ID.
+
+Representación `EventDelivery`:
+
+```json
+{
+  "id": "0192…",
+  "eventId": "0192…",
+  "eventType": "OrderPaid",
+  "occurredAt": "2026-10-03T11:00:00.000Z",
+  "handler": "OrderEmails.onOrderPaid",
+  "status": "FAILED",
+  "attempts": 8,
+  "nextAttemptAt": "2026-10-03T23:21:00.000Z",
+  "lastError": "EmailDeliveryError: connection refused",
+  "deliveredAt": null,
+  "event": { "eventId": "0192…", "eventType": "OrderPaid", "occurredAt": "2026-10-03T11:00:00.000Z", "orderId": "0192…" }
+}
+```
+
+- `event` es el evento completo, como lo recibe el manejador; nunca lleva datos personales.
+- `lastError`: clase y mensaje del último fallo, redactados como los logs, hasta 500 caracteres.
+- Errores: 400 `validation-error` con un estado, un orden, un tipo de evento o un manejador que no pueden existir.
+
+### 22.2 `POST /v1/admin/event-deliveries/{deliveryId}/retry` — `events.manage`
+
+- Una entrega `FAILED` vuelve a `PENDING` con 0 intentos, así que tiene otros 8, y el job la toma en el siguiente minuto. Response 202 sin cuerpo.
+- Errores: 404 `not-found`; 409 `invalid-state-transition` (con `currentStatus`) si no está en `FAILED`.
+- Se audita `events.retry-delivery`.
+
+### 22.3 `POST /v1/admin/event-deliveries/retry` — `events.manage`
+
+- Request `{ "eventType"?, "handler"? }`: reintenta todas las `FAILED` de ese tipo de evento o de ese manejador, o todas si no se da ninguno, después de corregir lo que las hizo fallar.
+- Response 200 `{ "retried": 3 }`.
+- Se audita una vez `events.retry-deliveries`, con el filtro y cuántas reactivó; si fueron cero, no se audita.
 
 ---
 

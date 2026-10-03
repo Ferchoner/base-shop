@@ -63,6 +63,14 @@ Detalle en `docs/TASKS.md`, sección "Fundaciones técnicas". Orden por dependen
   - **Correos de la orden:** un fallo del servidor de correo ya no se pierde; se reintenta, y en un caso raro uno puede llegar dos veces (BR-NTF-04).
 - **Migración:** `20261003200000_events_outbox`, dos tablas nuevas.
 
+### Resultado del paso 2
+
+- **T-109 parte b (ADR-0150):** T-109 queda en DONE.
+  - **Para el staff:** `GET /v1/admin/event-deliveries` lista las entregas fallidas por defecto, con su evento; `POST …/{deliveryId}/retry` y `POST …/retry` las reintentan, una o en bloque por tipo de evento o manejador, auditado.
+  - **Permiso nuevo `events.manage`:** Administrador y Superadministrador; la migración `20261003220000_events_manage_permission` se lo asigna al Administrador.
+  - **Limpieza diaria `platform.cleanup-events`:** borra los eventos entregados hace más de `DELIVERED_EVENT_RETENTION_DAYS` (7 días); los pendientes y fallidos se quedan.
+  - **Dónde vive:** en la plataforma, en un módulo aparte del bus, porque las tablas son suyas.
+
 ## Risks
 
 - **Cambia una decisión de arquitectura** (ADR-0014, ADR-0098): todo efecto en segundo plano pasará por la base. Un error en la entrega afectaría a todos los contextos. El despacho inmediato después del commit se conserva, así que lo que ve el cliente no cambia.

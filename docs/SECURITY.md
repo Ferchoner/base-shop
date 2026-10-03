@@ -182,7 +182,7 @@ ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Par
 - Derechos ARCO por canal externo; el staff ejecuta las acciones en el sistema.
 - Anonimización de clientes y compradores invitados, implementada en T-132 (ADR-0145): no deja datos personales del comprador en sus tablas, en las respuestas guardadas por idempotencia ni en los enlaces de acceso a sus pedidos (ADR-0148), y se audita sin valores.
 - Logs y auditoría sin valores de datos personales.
-- Eventos de dominio guardados (ADR-0150) sin datos personales: el que lleva uno se publica como volátil y no se guarda (`OrderAccessRequested`), y el último error de cada entrega se guarda redactado como los logs.
+- Eventos de dominio guardados (ADR-0150) sin datos personales: el que lleva uno se publica como volátil y no se guarda (`OrderAccessRequested`), y el último error de cada entrega se guarda redactado como los logs. El staff las consulta y las reintenta con `events.manage`, auditado.
 - Logs (ADR-0097): nunca se registran cuerpos, encabezados, tokens ni cadenas de consulta. Como red de seguridad, el logger reemplaza por `[redacted]` los correos, los JWT y los tokens `Bearer` que aparezcan en mensajes o stack traces, y en formato texto escapa los saltos de línea para que nadie pueda inyectar líneas falsas.
 - Ciclo de conservación de datos personales en órdenes (operativa, bloqueo y anonimización) diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149); se implementa en T-232. Cada operador valida los plazos con su especialista antes de operar (`PROJECT.md`).
 

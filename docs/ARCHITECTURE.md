@@ -41,7 +41,7 @@ src/
 │   ├── files/                 lector CSV (RFC 4180) con la línea de cada registro, para la importación del catálogo geográfico y la carga masiva de precios (T-124, T-145; ADR-0109, ADR-0126)
 │   ├── http/                  CORS, encabezados de seguridad, errores como Problem Details, validación de entrada, identificador de correlación, versionado, Swagger, idempotencia, rate limiting, paginación de listados por página y por cursor, IDs de la URL, `MoneyDto`, los DTO de dirección e imágenes servidas en `/media` (T-100, T-113, T-114, T-115, T-126, T-130, T-141, T-150, T-160, T-196)
 │   ├── jobs/                  scheduler y decorador @ScheduledJob (T-117, ADR-0101)
-│   ├── events/                bus de eventos en proceso con outbox: publicador, despachador, @OnDomainEvent y reintentos (T-116, T-109; ADR-0098, ADR-0150)
+│   ├── events/                bus de eventos en proceso con outbox: publicador, despachador, @OnDomainEvent, reintentos, y la consulta y el reintento del staff con su limpieza diaria (T-116, T-109; ADR-0098, ADR-0150)
 │   ├── mail/                  envío de correos por SMTP (nodemailer) y enlaces al frontend (T-122, ADR-0110)
 │   ├── logging/               AppLogger, redacción de datos sensibles y línea de log por solicitud (T-118, ADR-0097)
 │   └── persistence/           PrismaService, cliente generado de Prisma y contexto transaccional (T-110, T-111; ADR-0091, ADR-0093)
@@ -148,6 +148,7 @@ Ver ADR-0005.
 - Limpieza diaria: un job por dueño de cada tabla (ADR-0144).
 - Archivo de la auditoría: `audit.archive` (ADR-0146).
 - Reintento de entregas de eventos: `platform.deliver-events` (ADR-0150).
+- Limpieza de eventos entregados: `platform.cleanup-events` (ADR-0150).
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
@@ -158,7 +159,7 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 | Expiración de reservas y órdenes impagas | Cada minuto | ADR-0011. Un solo job de Ordering, `ordering.expire-orders`, vence cada orden con su reserva, por lotes de 100 (ADR-0136) |
 | Conciliación de pagos | Cada 5 minutos | Pagos con más de 10 minutos sin resolver (ADR-0014) |
 | Reintento de entregas de eventos | Cada minuto | `platform.deliver-events` toma hasta 100 entregas vencidas, cada una en una sola instancia (`FOR UPDATE SKIP LOCKED`), y las reintenta con esperas de 1 minuto a 12 horas, hasta 8 intentos (ADR-0150) |
-| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días) |
+| Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días), eventos de dominio entregados (7 días, `platform.cleanup-events`, ADR-0150) |
 | Archivo de la auditoría | Diaria, 3:00 (America/Mexico_City) | `audit.archive` exporta a un archivo comprimido cada día UTC con más de 3 meses, lo relee y compara, y solo entonces borra sus registros de la base; elimina los archivos de más de 2 años. Un archivo nunca se sobrescribe (ADR-0146) |
 
 ## Integraciones externas
