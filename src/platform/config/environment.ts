@@ -267,6 +267,17 @@ export class EnvironmentVariables {
   @IsNotEmpty({ message: '$property must not be empty' })
   AUDIT_ARCHIVE_DIR: string = 'storage/audit';
 
+  /**
+   * Days a domain event stays after all its deliveries succeeded, for diagnosis: from 1 to 90 (ADR-0149, ADR-0150).
+   * Events with a delivery pending or failed stay until it is delivered.
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  DELIVERED_EVENT_RETENTION_DAYS: number = 7;
+
   /** Months the audit trail stays in the database before it is archived: from 1 to 24 (ADR-0037, P-61). */
   @Expose()
   @Type(() => Number)
