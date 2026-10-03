@@ -410,6 +410,142 @@ describe('Product images (ADR-0024, ADR-0121)', () => {
   });
 });
 
+describe('Audit archive (ADR-0037, ADR-0146)', () => {
+  const ARCHIVE_INSIDE =
+    'AUDIT_ARCHIVE_DIR must not be IMAGE_STORAGE_DIR nor a folder inside it, which the API serves at /media';
+
+  it('defaults to a private folder next to the images, 3 months in the database and 24 in files', () => {
+    expect(validateEnvironment(REQUIRED)).toMatchObject({
+      AUDIT_ARCHIVE_DIR: 'storage/audit',
+      AUDIT_RETENTION_MONTHS: 3,
+      AUDIT_ARCHIVE_RETENTION_MONTHS: 24,
+    });
+  });
+
+  it('accepts another folder and other retentions', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        AUDIT_ARCHIVE_DIR: '/var/lib/base-shop/audit',
+        AUDIT_RETENTION_MONTHS: '6',
+        AUDIT_ARCHIVE_RETENTION_MONTHS: '120',
+      }),
+    ).toMatchObject({
+      AUDIT_ARCHIVE_DIR: '/var/lib/base-shop/audit',
+      AUDIT_RETENTION_MONTHS: 6,
+      AUDIT_ARCHIVE_RETENTION_MONTHS: 120,
+    });
+  });
+
+  it.each([
+    ['storage/images', 'storage/images'],
+    ['storage/images', './storage/images/'],
+    ['storage/images', 'storage/images/audit'],
+    ['storage/images', 'storage/images/..audit'],
+    ['storage', 'storage/audit'],
+  ])(
+    'rejects an archive in the folder the API serves: images %p, archive %p',
+    (images, archive) => {
+      expect(() =>
+        validateEnvironment({
+          ...REQUIRED,
+          IMAGE_STORAGE_DIR: images,
+          AUDIT_ARCHIVE_DIR: archive,
+        }),
+      ).toThrow(ARCHIVE_INSIDE);
+    },
+  );
+
+  it.each([
+    ['storage/images', 'storage/images-audit'],
+    ['storage/images', 'storage/..audit'],
+    ['storage/images/public', 'storage/images'],
+  ])(
+    'accepts an archive out of the folder the API serves: images %p, archive %p',
+    (images, archive) => {
+      expect(
+        validateEnvironment({
+          ...REQUIRED,
+          IMAGE_STORAGE_DIR: images,
+          AUDIT_ARCHIVE_DIR: archive,
+        }).AUDIT_ARCHIVE_DIR,
+      ).toBe(archive);
+    },
+  );
+
+  (process.platform === 'win32' ? it : it.skip)(
+    'accepts an archive on another drive than the images',
+    () => {
+      expect(
+        validateEnvironment({
+          ...REQUIRED,
+          IMAGE_STORAGE_DIR: 'C:\\base-shop\\images',
+          AUDIT_ARCHIVE_DIR: 'D:\\base-shop\\audit',
+        }).AUDIT_ARCHIVE_DIR,
+      ).toBe('D:\\base-shop\\audit');
+    },
+  );
+
+  it('rejects an empty folder without comparing it with the images', () => {
+    const validate = () =>
+      validateEnvironment({ ...REQUIRED, AUDIT_ARCHIVE_DIR: '' });
+
+    expect(validate).toThrow('AUDIT_ARCHIVE_DIR must not be empty');
+    expect(validate).not.toThrow(ARCHIVE_INSIDE);
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, IMAGE_STORAGE_DIR: '' }),
+    ).not.toThrow(ARCHIVE_INSIDE);
+    // An empty folder resolves to the working directory, which here is the images.
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        IMAGE_STORAGE_DIR: '.',
+        AUDIT_ARCHIVE_DIR: '',
+      }),
+    ).not.toThrow(ARCHIVE_INSIDE);
+  });
+
+  it.each([
+    ['AUDIT_RETENTION_MONTHS', '0'],
+    ['AUDIT_RETENTION_MONTHS', '25'],
+    ['AUDIT_RETENTION_MONTHS', '1.5'],
+    ['AUDIT_ARCHIVE_RETENTION_MONTHS', '1'],
+    ['AUDIT_ARCHIVE_RETENTION_MONTHS', '241'],
+  ])('rejects %s %p', (name, value) => {
+    expect(() => validateEnvironment({ ...REQUIRED, [name]: value })).toThrow(
+      name,
+    );
+  });
+
+  it('keeps the files longer than the database keeps the records', () => {
+    const shorter =
+      'AUDIT_ARCHIVE_RETENTION_MONTHS must be more than AUDIT_RETENTION_MONTHS';
+    for (const files of ['6', '4']) {
+      expect(() =>
+        validateEnvironment({
+          ...REQUIRED,
+          AUDIT_RETENTION_MONTHS: '6',
+          AUDIT_ARCHIVE_RETENTION_MONTHS: files,
+        }),
+      ).toThrow(shorter);
+    }
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        AUDIT_RETENTION_MONTHS: '6',
+        AUDIT_ARCHIVE_RETENTION_MONTHS: '7',
+      }).AUDIT_ARCHIVE_RETENTION_MONTHS,
+    ).toBe(7);
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        AUDIT_RETENTION_MONTHS: 'tres',
+        AUDIT_ARCHIVE_RETENTION_MONTHS: '2',
+      }),
+    ).not.toThrow(shorter);
+  });
+});
+
 describe('isBaseUrl', () => {
   it.each([
     'https://shop.example.com',
