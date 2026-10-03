@@ -50,7 +50,7 @@ src/
 └── modules/
     ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail (T-127, ADR-0100), y la consulta y el archivo diario de la auditoría (T-220, ADR-0146); aplicación, infraestructura y presentación
     ├── notifications/         módulo transversal: los correos de la vida de la orden, por eventos y con la fachada de Ordering (T-215, ADR-0143); aplicación e infraestructura
-    ├── privacy/               módulo transversal: la anonimización de clientes y compradores invitados, con las fachadas de Identity & Access, Ordering y Shopping (T-132, ADR-0145); aplicación, infraestructura y presentación
+    ├── privacy/               módulo transversal: la anonimización de clientes y compradores invitados, con las fachadas de Identity & Access, Ordering y Shopping (T-132, ADR-0145), la de clientes inactivos y la política de conservación pública (ADR-0152); aplicación, infraestructura y presentación
     ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
         ├── domain/
@@ -88,7 +88,7 @@ Capacidades transversales:
 
 - Auditoría técnica: tabla append-only alimentada desde la capa de aplicación, en la misma transacción que el cambio; los registros con más de 3 meses se exportan a archivos comprimidos (ADR-0037). Application registra con el puerto `AuditTrail` del shared kernel, implementado en `src/modules/audit/` (ADR-0100); es la única integración transversal con un puerto compartido en lugar de un puerto por contexto (ADR-0005), porque los ocho contextos lo necesitan con la misma forma.
 - Notificaciones: módulo que reacciona a eventos, sin dominio propio.
-- Privacidad: módulo sin dominio propio que anonimiza clientes y compradores invitados (ADR-0067) con las fachadas de Identity & Access, Ordering y Shopping, en una transacción (ADR-0145).
+- Privacidad: módulo sin dominio propio que anonimiza clientes y compradores invitados (ADR-0067) con las fachadas de Identity & Access, Ordering y Shopping, en una transacción (ADR-0145). También anonimiza las cuentas de clientes inactivos y publica la política de conservación vigente (ADR-0152).
 - Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock`, `TransactionManager`, `DomainEventPublisher`, `AuditTrail`, `EmailSender` y `FrontendLinks` (ADR-0094, ADR-0098, ADR-0100, ADR-0110).
 
 ## Reglas de integración entre módulos
@@ -150,6 +150,7 @@ Ver ADR-0005.
 - Reintento de entregas de eventos: `platform.deliver-events` (ADR-0150).
 - Limpieza de eventos entregados: `platform.cleanup-events` (ADR-0150).
 - Ciclo de conservación de datos personales: `ordering.retention` (ADR-0151).
+- Anonimización de clientes inactivos: `privacy.anonymize-inactive-customers` (ADR-0152).
 
 Mecanismo: `@nestjs/schedule` dentro del proceso de la API (ADR-0029). Los jobs llaman casos de uso, no se superponen, procesan por lotes con una transacción por elemento y son idempotentes.
 
@@ -162,6 +163,7 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 | Reintento de entregas de eventos | Cada minuto | `platform.deliver-events` toma hasta 100 entregas vencidas, cada una en una sola instancia (`FOR UPDATE SKIP LOCKED`), y las reintenta con esperas de 1 minuto a 12 horas, hasta 8 intentos (ADR-0150) |
 | Limpieza | Diaria, 3:00 (America/Mexico_City) | Refresh tokens vencidos o revocados (30 días), tokens de verificación y recuperación vencidos o usados (ADR-0056), llaves de idempotencia (24 horas), eventos de webhooks (30 días), carritos de invitado inactivos (30 días), eventos de dominio entregados (7 días, `platform.cleanup-events`, ADR-0150). Los plazos en días son configurables (ADR-0149, ADR-0151) |
 | Conservación de datos personales | Diaria, 3:00 (America/Mexico_City) | `ordering.retention` bloquea las órdenes que concluyeron hace 12 meses y anonimiza las de hace 72, con sus envíos; hasta 1,000 de cada una por corrida, cada orden en su transacción (ADR-0151) |
+| Clientes inactivos | Diaria, 3:00 (America/Mexico_City); apagado por defecto | `privacy.anonymize-inactive-customers` anonimiza la cuenta de los clientes sin actividad durante `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS`, hasta 1,000 por corrida; sus órdenes siguen su ciclo (ADR-0152) |
 | Archivo de la auditoría | Diaria, 3:00 (America/Mexico_City) | `audit.archive` exporta a un archivo comprimido cada día UTC con más de 3 meses, lo relee y compara, y solo entonces borra sus registros de la base; elimina los archivos de más de 2 años. Un archivo nunca se sobrescribe (ADR-0146) |
 
 ## Integraciones externas

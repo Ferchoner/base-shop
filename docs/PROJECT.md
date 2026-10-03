@@ -102,7 +102,7 @@ base-shop no tiene una entidad vendedora definida: cada operador resuelve esta l
 - **Datos personales (ADR-0149), con un especialista legal:**
   - los plazos de conservación: fase operativa y de bloqueo, cuentas inactivas, auditoría, eventos de webhooks, refresh tokens y carritos de invitado. Todos son variables de `.env.example`, con valores por defecto que no son asesoría legal;
   - las preguntas de ADR-0070, entre ellas qué datos exigen conservar las obligaciones fiscales y mercantiles, y el plazo de prescripción que aplica;
-  - el texto del aviso de privacidad, con su versión y los plazos vigentes (ADR-0067);
+  - el texto del aviso de privacidad, con su versión y los plazos vigentes, que publica `GET /v1/privacy/retention-policy` (ADR-0067, ADR-0152);
   - la presentación del plazo de entrega estimado (ADR-0083);
   - una nueva revisión cuando se publique el reglamento de la ley de 2025.
 - **Impuestos y envíos, con el contador y el administrador (P-69):** el IVA del costo de envío, el modo de redondeo del IVA y los valores del método de envío con costos reales (ADR-0079, ADR-0092, ADR-0094).

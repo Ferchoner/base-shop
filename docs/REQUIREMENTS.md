@@ -154,6 +154,7 @@ Columna **Acceso**: Público, Cliente (registrado autenticado), Staff (`permiso`
 | UC-IAM-20 | Crear el primer superadministrador | Operador técnico (script, sin API) | ADR-0043 |
 | UC-IAM-21 | Cargar o actualizar el catálogo de estados y municipios | Operador técnico (script, sin API) | BR-ADR-03, ADR-0057 |
 | UC-IAM-22 | Consultar estados y municipios | Público | ADR-0057 |
+| UC-IAM-23 | Consultar la política de conservación vigente | Público | ADR-0149, ADR-0152 |
 
 Criterios de aceptación:
 
@@ -176,6 +177,7 @@ Criterios de aceptación:
 - **UC-IAM-19:** si hay órdenes sin concluir, no se ejecuta hasta que terminen; vacía email, nombres, apellidos y hash de contraseña (estado ANONYMIZED, email liberado); revoca y borra tokens; borra direcciones y carritos; elimina email de contacto y datos de identificación de las direcciones de órdenes y envíos, conservando estado, municipio y código postal; se audita sin valores personales.
 - **UC-IAM-20:** crea un superadministrador con datos de variables de entorno; no existe ningún usuario predeterminado en el repositorio ni en migraciones.
 - **UC-IAM-21:** importa el catálogo del INEGI desde un archivo descargado; es idempotente; los municipios que ya no aparecen se marcan inactivos, sin borrarse.
+- **UC-IAM-23 (ADR-0152):** responde los plazos vigentes que conservan o borran datos personales, como los configuró el operador, para el aviso de privacidad; no pide sesión y se puede guardar en cache una hora.
 
 ### 5.2 Catalog
 
@@ -294,6 +296,7 @@ Criterios de aceptación:
 | UC-ORD-08 | Resolver pedido en AwaitingManualFulfillment | Staff (`orders.manage`) | ADR-0012 |
 | UC-ORD-09 | Marcar orden pagada | Sistema (`PaymentCaptured`) | BR-ORD-08, BR-ORD-09 |
 | UC-ORD-10 | Expirar órdenes impagas | Sistema (job cada minuto) | BR-ORD-07 |
+| UC-ORD-11 | Consultar los datos bloqueados de un pedido | Staff (`orders.read-blocked`) | BR-PRIV-05, ADR-0070, ADR-0152 |
 
 Criterios de aceptación:
 
@@ -313,6 +316,7 @@ Criterios de aceptación:
 - **UC-ORD-08:** si hay stock, reserva, confirma y pasa a Paid; si se decide no surtir, se cancela según UC-ORD-07.
 - **UC-ORD-09:** con reserva vigente, la confirma y pasa a Paid; si la orden está Expired, aplica BR-ORD-09; idempotente ante eventos duplicados.
 - **UC-ORD-10:** una orden en PendingPayment pasa a Expired junto con su reserva, y sus líneas regresan al carrito del cliente (UC-CRT-08).
+- **UC-ORD-11 (ADR-0152):** exige un motivo, la reclamación o el requerimiento que se atiende; responde el email, la dirección y el destino del envío de una orden bloqueada, como se guardaron; rechaza una orden que no está bloqueada o que se anonimizó; cada consulta se audita con su motivo y sin los datos, y sin auditoría no hay respuesta.
 - **UC-ORD-01 a 03 (implementación, ADR-0132):**
   - la cotización marca las líneas que no se pueden vender y suma solo las demás;
   - colocar la orden bloquea el carrito y revisa, en este orden, al comprador, el carrito, la dirección, que todo sea vendible, el total y el stock;
@@ -401,6 +405,7 @@ Criterios de aceptación:
 | UC-NTF-01 | Enviar notificaciones por correo | Sistema | ADR-0045, ADR-0074, BR-NTF-01 a 04 |
 | UC-SYS-01 | Limpieza diaria | Sistema (3:00, hora de México) | ADR-0029 |
 | UC-SYS-02 | Ciclo de conservación de datos personales | Sistema (3:00, hora de México) | ADR-0070, ADR-0149, ADR-0151, BR-PRIV-05 |
+| UC-SYS-03 | Anonimizar cuentas de clientes inactivos | Sistema (3:00, hora de México; apagado por defecto) | ADR-0149, ADR-0152, BR-PRIV-06 |
 
 Criterios de aceptación:
 
@@ -413,6 +418,7 @@ Criterios de aceptación:
 - **UC-SYS-01 y UC-CRT-07 (implementación, ADR-0144):** un job por dueño de cada tabla, a las 3:00, hora de México; borra por lotes de 1,000 filas, hasta 100 lotes por día; un carrito usado mientras corre la limpieza no se borra; los carritos de clientes se conservan.
 - **UC-SYS-01 (plazos, ADR-0151):** los 30 días de los refresh tokens, los carritos de invitado y los eventos de webhooks son configurables con `SPENT_REFRESH_TOKEN_RETENTION_DAYS`, `INACTIVE_GUEST_CART_RETENTION_DAYS` y `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS`.
 - **UC-SYS-02 (ADR-0151):** cada día bloquea los datos personales de las órdenes que concluyeron hace 12 meses o más, con sus envíos, y anonimiza los de las que concluyeron hace 72 meses o más (plazos configurables); hasta 1,000 de cada uno por corrida, de la orden más antigua a la más nueva; cada orden en su propia transacción, auditada como sistema y sin valores; una orden que falla no detiene a las demás. Una orden bloqueada desaparece de las vistas del comprador, y el staff la ve sin el email ni la dirección exacta.
+- **UC-SYS-03 (ADR-0152):** con `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` configurada, cada día anonimiza la cuenta de los clientes sin actividad (registrarse, iniciar sesión o renovar la sesión) durante ese plazo, como UC-IAM-19 pero sin sus órdenes, que siguen UC-SYS-02; hasta 1,000 por corrida; omite a quien tenga una orden sin concluir o haya vuelto a tener actividad; se audita como sistema y sin valores.
 
 ---
 
@@ -542,7 +548,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 
 - Disponibilidad, tiempos de respuesta y volumen esperado: PENDIENTE DE DECISIÓN (P-14).
 - Métricas, trazas y seguimiento de errores: PENDIENTE DE DECISIÓN (P-07).
-- Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149). El bloqueo y la anonimización automáticos están implementados (UC-SYS-02, ADR-0151); la consulta auditada de los datos bloqueados llega en T-232 parte b. Cada operador valida los plazos antes de operar.
+- Ciclo de conservación de datos personales en órdenes y envíos (operativa, bloqueo, anonimización): diseñado en ADR-0070, con plazos configurables y valores por defecto (ADR-0149). Implementado completo: el bloqueo y la anonimización automáticos (UC-SYS-02, ADR-0151), la consulta auditada de los datos bloqueados (UC-ORD-11), las cuentas inactivas (UC-SYS-03) y la política pública (UC-IAM-23, ADR-0152). Cada operador valida los plazos antes de operar.
 
 ---
 

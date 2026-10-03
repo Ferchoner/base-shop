@@ -88,18 +88,23 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | must_change_password | boolean | No | Default false; true al crear o reactivar staff con contraseña temporal (ADR-0076) |
 | password_changed_at | timestamptz(3) | Sí | — |
 | last_login_at | timestamptz(3) | Sí | — |
+| last_active_at | timestamptz(3) | No | Default `now()`. Registrarse, iniciar sesión o renovar la sesión, a lo más una vez al día (ADR-0152) |
 | suspended_at, anonymized_at | timestamptz(3) | Sí | — |
 | privacy_notice_version | text | Sí | Versión del aviso de privacidad presentada al registrarse (ADR-0067); `NULL` en staff |
 | version | integer | No | Bloqueo optimista |
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** `UNIQUE (email)` (los `NULL` no chocan, lo que libera el email de un anonimizado, ADR-0038). `CHECK (status = 'ANONYMIZED' OR (email IS NOT NULL AND password_hash IS NOT NULL AND first_names IS NOT NULL AND last_names IS NOT NULL))`. `CHECK (type = 'CUSTOMER' OR status <> 'ANONYMIZED')` (el staff nunca se anonimiza, BR-USR-06).
-- **Índices:** único por `email`; `(type, status)` para listados administrativos.
+- **Índices:** único por `email`; `(type, status)` para listados administrativos; `(type, last_active_at)` para las cuentas inactivas (ADR-0152).
 - **Integridad:** nunca se borra (ADR-0038). "Clientes sin roles" y "no quitar el último superadministrador" se validan en la aplicación (BR-USR-03, BR-USR-08).
 - **Implementado en T-132 (ADR-0145):**
   - la anonimización deja en `NULL` email, nombres, apellidos, `password_hash` y `email_verified_at`, y pone `anonymized_at`, en un `UPDATE … WHERE version = …`;
   - en la misma transacción borra los `refresh_tokens`, `email_verification_tokens`, `password_reset_tokens` y `customer_addresses` del cliente;
   - el checkout lee al cliente con `SELECT … FOR SHARE`, que choca con ese `UPDATE`: la orden y la anonimización del mismo cliente se esperan.
+- **Implementado en T-232 parte b (ADR-0152):**
+  - la migración `20261004210000_identity_last_active_at` agrega `last_active_at`, la llena con `GREATEST(last_login_at, created_at)` y crea su índice;
+  - renovar la sesión la actualiza con `UPDATE … WHERE last_active_at <= ahora - 1 día`, sin cambiar `version`;
+  - el job busca hasta 1,000 clientes sin anonimizar con `last_active_at <= corte`, por `last_active_at` y luego `id`, y bloquea cada uno con `SELECT … FOR UPDATE` que repite las condiciones: un cliente activo mientras tanto ya no las cumple.
 
 ### 3.2 `roles`
 
@@ -807,6 +812,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 | `carts` de invitado inactivos | 30 días (`INACTIVE_GUEST_CART_RETENTION_DAYS`) | ADR-0029, ADR-0151 |
 | Órdenes, pagos, envíos, movimientos | Nunca se borran | ADR-0038 |
 | Datos personales en órdenes y envíos | Fases operativa, bloqueo y anonimización con plazos configurables: 12 y 60 meses por defecto, desde `orders.concluded_at`. El job `ordering.retention` pone `blocked_at` en `orders` y `shipments`, y después anonimiza | ADR-0067, ADR-0070, ADR-0149, ADR-0151 |
+| Cuentas de clientes inactivos (`users`) | Se anonimizan tras `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` sin actividad (`last_active_at`); por defecto, nunca | ADR-0149, ADR-0152 |
 
 ---
 
