@@ -42,7 +42,8 @@ describe('Dependency install scripts (ADR-0108)', () => {
 
   it('applies the same policy when Docker installs dependencies', () => {
     const dockerfile = read('Dockerfile');
-    const installs = [...dockerfile.matchAll(/^RUN npm ci$/gm)].length;
+    // Every `npm ci` of an image, with options or without (ADR-0147).
+    const installs = [...dockerfile.matchAll(/^RUN npm ci\b/gm)].length;
     const copies = [...dockerfile.matchAll(/^COPY [^\n]*\.npmrc[^\n]*$/gm)]
       .length;
 
