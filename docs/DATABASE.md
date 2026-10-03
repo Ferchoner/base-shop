@@ -782,7 +782,7 @@ Se cargan con el script de UC-IAM-21 (`npm run geo:import`, ADR-0109) a partir d
 | `processed_webhook_events` | 30 días | ADR-0029 |
 | `carts` de invitado inactivos | 30 días | ADR-0029 |
 | Órdenes, pagos, envíos, movimientos | Nunca se borran | ADR-0038 |
-| Datos personales en órdenes y envíos | Fases operativa, bloqueo y anonimización con plazos pendientes de validación legal (P-61); fuera del MVP. Al implementarse se agregará una marca de bloqueo en `orders` y `shipments` | ADR-0067, ADR-0070 |
+| Datos personales en órdenes y envíos | Fases operativa, bloqueo y anonimización con plazos configurables: 12 y 60 meses por defecto, desde que la orden concluye. T-232 agregará una marca de bloqueo en `orders` y `shipments` | ADR-0067, ADR-0070, ADR-0149 |
 
 ---
 

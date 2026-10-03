@@ -82,7 +82,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRIV-02. Las solicitudes de derechos ARCO, incluida la eliminación de cuenta, se reciben por un canal externo publicado en el aviso de privacidad, y el staff las ejecuta en el sistema.
 - BR-PRIV-03. Anonimizar a un cliente vacía sus datos de cuenta, borra tokens, direcciones y carritos, y elimina los identificadores directos de sus órdenes y envíos, conservando estado, municipio y código postal. Si tiene órdenes sin concluir, espera a que terminen. Los compradores invitados también pueden solicitarla.
 - BR-PRIV-04. La auditoría registra que un campo personal cambió, sin su valor.
-- BR-PRIV-05. Los datos personales de órdenes y envíos pasan por tres fases: operativa, bloqueo (ocultos, consulta solo con permiso específico y auditada) y anonimización. Los plazos de cada fase están PENDIENTES DE VALIDACIÓN LEGAL (P-61); el ciclo no se implementa en el MVP y no hay anonimización automática hasta entonces (ADR-0070).
+- BR-PRIV-05. Los datos personales de órdenes y envíos pasan por tres fases: operativa, bloqueo (ocultos, consulta solo con permiso específico y auditada) y anonimización. Los plazos de cada fase son configurables, contados desde que la orden concluye, con valores por defecto de 12 meses de fase operativa y 60 de bloqueo; cada operador los valida antes de operar (ADR-0070, ADR-0149). Hasta que se implemente el ciclo (T-232) no hay anonimización automática.
 
 ## Direcciones
 

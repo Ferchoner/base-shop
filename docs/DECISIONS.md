@@ -166,6 +166,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0146 | Auditoría: consulta por cursor y archivo diario verificado, por día UTC | Aceptada |
 | ADR-0147 | Imagen de producción sin el CLI de Prisma, e imagen de migración aparte | Aceptada |
 | ADR-0148 | Enlace de acceso a los pedidos de invitado | Aceptada |
+| ADR-0149 | Plazos de conservación configurables, con valores por defecto | Aceptada |
 
 ---
 
@@ -610,7 +611,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`).
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232).
 
 ---
 
@@ -1375,7 +1376,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Retención de datos personales en órdenes:** se conservan mientras sean necesarios y después se anonimizan con el mismo procedimiento. El plazo queda pendiente de validación legal (P-61); el mecanismo (job con plazo configurable) se prevé, pero no se implementa en el MVP.
 - **Alternativas consideradas:** Autoservicio de eliminación de cuenta; borrado físico de órdenes; conservar indefinidamente los datos personales en órdenes.
 - **Consecuencias:** Ajustes en el modelo de datos propuesto (ADR-0066): versión del aviso en `users` y `orders`; marca de anonimización en `orders` y `shipments`; email de contacto de `orders` vacío solo en órdenes anonimizadas.
-- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117. La anonimización se implementó en T-132 (ADR-0145), que también borra las respuestas guardadas por idempotencia.
+- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117. La anonimización se implementó en T-132 (ADR-0145), que también borra las respuestas guardadas por idempotencia. ADR-0149 fija los plazos de conservación como variables con valores por defecto.
 
 ---
 
@@ -1441,7 +1442,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Además: validar los plazos de retención de la auditoría técnica (ADR-0037) y revisar este ADR cuando se publique el reglamento de la nueva ley.
 - **Alternativas consideradas:** Anonimizar directamente sin fase de bloqueo; conservar indefinidamente; implementar el ciclo en el MVP con plazos provisionales.
 - **Consecuencias:** P-61 queda abierta solo para los valores de los plazos y las respuestas del especialista. Cuando se validen, se implementa el ciclo (tarea T-232) y se actualiza el aviso de privacidad.
-- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso.
+- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso. Modificada por ADR-0149: los plazos tienen valores por defecto configurables (12 meses de fase operativa y 60 de bloqueo), el ciclo queda activo por defecto y la validación legal pasa a cada operador; P-61 se cierra y T-232 deja de estar diferida.
 
 ---
 
@@ -4281,7 +4282,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Si la API se escala a varias instancias, el job necesitará un candado: hoy sus corridas no se superponen dentro de un proceso (ADR-0101).
   - En Windows no se fuerza la carpeta a disco, porque no se puede abrir; en Linux sí.
   - Sin migración: el índice `(occurred_at, id)` ya existía.
-- **Estado:** Aceptada (plan de T-220 aprobado el 2026-10-02, con sus 2 recomendaciones y 5 ajustes).
+- **Estado:** Aceptada (plan de T-220 aprobado el 2026-10-02, con sus 2 recomendaciones y 5 ajustes). ADR-0149 incluye estas retenciones en la política de conservación configurable, que valida cada operador.
 
 ---
 
@@ -4375,3 +4376,59 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un email con más de 50 órdenes de invitado ve las 50 más recientes; las demás las atiende el staff, que busca por email (ADR-0133).
 - **Revisar si:** existe frontend, que debe servir `/order-access` con `Referrer-Policy: no-referrer` (ADR-0117), o hay proveedor de correo real (P-24).
 - **Estado:** Aceptada (plan de T-186 aprobado el 2026-10-03, con sus 4 recomendaciones). Reemplaza parcialmente a ADR-0077 y modifica ADR-0066.
+
+---
+
+## ADR-0149 — Plazos de conservación configurables, con valores por defecto
+
+- **Fecha:** 2026-10-03
+- **Contexto:** Revisa P-61 y ADR-0070. ADR-0070 diseñó el ciclo de los datos personales de órdenes y envíos con plazos configurables, pero "sin valor por defecto hasta su validación legal", y por eso T-232 quedó diferida.
+  - base-shop es una base sin entidad vendedora definida: cada operador tendrá su propia validación legal.
+  - Los plazos pueden cambiar con la ley (el reglamento de la ley de 2025 sigue pendiente) y pueden definirse después de empezar a operar.
+  - Hoy hay plazos fijos en el código: 30 días para los eventos de webhooks, los refresh tokens gastados y los carritos de invitado (ADR-0029). Solo la retención de la auditoría es configurable (ADR-0146).
+- **Decisión:**
+  - **Política de conservación configurable:** cada plazo que conserva o borra datos personales es una variable de entorno, validada al arrancar dentro de un rango, con valor por defecto y declarada en `.env.example`. Al arrancar, el log registra la política vigente.
+  - **Valores por defecto,** una elección técnica conservadora, no asesoría legal:
+
+    | Plazo | Variable propuesta | Por defecto |
+    |---|---|---|
+    | Fase operativa de los datos personales de órdenes y envíos, desde que la orden concluye (ADR-0145) | `PERSONAL_DATA_OPERATIONAL_MONTHS` | 12 meses |
+    | Fase de bloqueo, al terminar la operativa | `PERSONAL_DATA_BLOCKED_MONTHS` | 60 meses: los 5 años del Código Fiscal que cita ADR-0070 |
+    | Ciclo de conservación activo | `PERSONAL_DATA_RETENTION_ENABLED` | `true` |
+    | Anonimización de cuentas de clientes sin actividad | `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` | Vacía: desactivada |
+    | Auditoría en la base y en archivos | `AUDIT_RETENTION_MONTHS`, `AUDIT_ARCHIVE_RETENTION_MONTHS` | 3 y 24 meses, ya configurables (ADR-0146) |
+    | Eventos de webhooks procesados | `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS` | 30 días |
+    | Refresh tokens vencidos o revocados | `SPENT_REFRESH_TOKEN_RETENTION_DAYS` | 30 días |
+    | Carritos de invitado sin actividad | `INACTIVE_GUEST_CART_RETENTION_DAYS` | 30 días |
+
+    El plan de T-232 fija los nombres y los rangos definitivos.
+  - **Plazos que se quedan como están:**
+    - las 24 horas de las respuestas guardadas por idempotencia, que son una regla del protocolo (ADR-0063) y no un plazo legal;
+    - las vigencias de los enlaces por correo, que ya son configurables (ADR-0117, ADR-0118, ADR-0148).
+  - **Con los valores por defecto:**
+    - el bloqueo empieza 12 meses después de que la orden concluye; solo oculta datos, así que se puede revertir;
+    - la anonimización automática, que es irreversible, empieza 6 años después.
+  - **Plazos calculados en cada corrida,** a partir de la fecha en que concluyó la orden. Si la ley cambia, el operador cambia la variable, y el plazo nuevo se aplica también a las órdenes existentes.
+  - **Salvaguardas:**
+    - un plazo fuera de su rango impide arrancar la API;
+    - el job procesa por lotes con un tope por corrida (ADR-0144), así que acortar un plazo por error no anonimiza todo en una sola corrida;
+    - cada transición se audita sin los valores (BR-PRIV-04).
+  - **Política visible:** T-232 agrega una ruta pública con la política vigente, para que el frontend muestre los plazos reales en el aviso de privacidad.
+  - **Validación legal por operador:** P-61 se cierra. Pasan a la lista "Antes de operar con clientes reales" de `PROJECT.md`, que cada operador resuelve con su especialista:
+    - las preguntas de ADR-0070;
+    - el texto del aviso de privacidad con los plazos;
+    - la presentación del plazo de entrega estimado (ADR-0083).
+- **Alternativas consideradas:**
+  - **Plazos sin valor por defecto (ADR-0070):** el ciclo queda sin implementar hasta que exista un operador.
+  - **Ciclo apagado por defecto:** más prudente ante un operador que no revisa nada, pero sin minimización de datos hasta que alguien lo encienda.
+  - **Una tabla de configuración que el staff edita desde la API:** permite cambiar sin desplegar, pero agrega endpoints, un permiso y auditoría de la configuración. Un cambio legal es raro, y conviene que pase por un despliegue deliberado.
+  - **Configurar también qué campos son datos personales:** los fija ADR-0067; cambiarlos es un cambio del modelo, no de un plazo.
+- **Consecuencias:**
+  - T-232 deja de estar diferida (TODO) y se propone para el Sprint 8. Incluye también:
+    - la anonimización de cuentas inactivas, desactivada por defecto;
+    - volver configurables los plazos fijos de ADR-0029.
+  - ADR-0070 queda modificada: los plazos tienen valores por defecto.
+  - Quedan abiertas 8 decisiones.
+  - Un operador que no valide los plazos opera con los valores por defecto; la lista "Antes de operar" se lo advierte.
+- **Revisar si:** se publica el reglamento de la ley de 2025, o un operador necesita plazos distintos por tipo de dato o de cliente.
+- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61.
