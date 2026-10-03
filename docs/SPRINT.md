@@ -76,6 +76,19 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - **Retenciones configurables:** `AUDIT_RETENTION_MONTHS` y `AUDIT_ARCHIVE_RETENTION_MONTHS`, y la de archivos debe ser mayor.
 - **Sin cambios de esquema.** El paso 3 (reducir la imagen de producción) debe conservar `/app/storage/audit`.
 
+### Resultado del paso 3
+
+- **Imagen de producción de 924 MB a 557 MB (ADR-0147):**
+  - el CLI de Prisma vuelve a `devDependencies`;
+  - la etapa `prod-deps` instala sin dependencias par ni scripts;
+  - `node_modules` baja de 450 MB a 170 MB;
+  - conserva `/app/storage/images` y `/app/storage/audit`.
+- **Imagen `migrate`:** aplica las migraciones como paso único antes de cada despliegue, la candidata de P-05.
+- **Prueba de arranque en la CI:**
+  - migra un PostgreSQL 18 vacío con `migrate`, arranca `production` y comprueba el catálogo (200) y el login (401, con `argon2`);
+  - falla si a la imagen le falta un paquete (comprobado quitando `pg`).
+- **Base sin cambios:** sigue `node:24-bookworm-slim`.
+
 ## Risks
 
 - **T-132 cruza contextos:** anonimiza o borra datos de cuatro módulos, y debe esperar a que concluyan las órdenes (ADR-0067):

@@ -176,3 +176,8 @@
   - el job `audit.archive` exporta cada día UTC de más de 3 meses a `AUDIT_ARCHIVE_DIR` (JSON Lines con gzip, carpeta privada), relee el archivo y compara cada ID antes de borrar exactamente esos registros. Nunca sobrescribe un archivo, y borra los de más de 2 años;
   - variables nuevas: `AUDIT_ARCHIVE_DIR`, `AUDIT_RETENTION_MONTHS` y `AUDIT_ARCHIVE_RETENTION_MONTHS`; la imagen de producción crea `/app/storage/audit`;
   - sin migraciones.
+- Paso 3 del Sprint 6: la imagen de producción pasa de 924 MB a 557 MB (ADR-0147):
+  - `prisma` vuelve a `devDependencies`, y la imagen instala sus dependencias sin dependencias par ni scripts;
+  - el nuevo target `migrate` del `Dockerfile` aplica las migraciones con el CLI de Prisma, como paso único antes de arrancar la API;
+  - el paso 10 de la CI construye las dos imágenes, migra un PostgreSQL 18 vacío con una y arranca la otra contra él (`.github/scripts/smoke-test-images.sh`);
+  - sin cambios de API ni migraciones.

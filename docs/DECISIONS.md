@@ -164,6 +164,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0144 | Limpieza diaria: un job por dueño de cada tabla y borrados por lotes | Aceptada |
 | ADR-0145 | Anonimización: módulo de privacidad, órdenes concluidas y bloqueo del cliente en el checkout | Aceptada |
 | ADR-0146 | Auditoría: consulta por cursor y archivo diario verificado, por día UTC | Aceptada |
+| ADR-0147 | Imagen de producción sin el CLI de Prisma, e imagen de migración aparte | Aceptada |
 
 ---
 
@@ -1885,7 +1886,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-106 construye la etapa `production`; pesaba unos 400 MB, con el cliente de Prisma pesó unos 510 MB (ADR-0091) y con el CLI de Prisma pesa unos 880 MB (ADR-0093). Se puede reducir más adelante.
   - La API todavía no usa Mailpit: la configuración SMTP llega con T-122. PostgreSQL se usa desde T-110 (`DATABASE_URL`, ADR-0091).
   - `docker compose down -v` borra los datos locales de PostgreSQL.
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). ADR-0147 agrega el target `migrate` y reduce la imagen de producción a 557 MB.
 
 ---
 
@@ -1960,7 +1961,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La base local de Docker Compose se migra con `npm run db:migrate:deploy` cada vez que llegan migraciones nuevas.
   - T-106 puede usar `npm run db:diff` en el paso de verificación de migraciones (ADR-0030).
   - Queda pendiente P-72: los valores iniciales del costo fijo de envío y del monto mínimo para envío gratis, necesarios para el método de envío de T-196. Cerrada por ADR-0092.
-- **Estado:** Aceptada (plan de T-110 aprobado el 2026-09-27; los detalles derivados del modelo se revisan en el pull request). Modificada por ADR-0093 (la imagen de producción incluye el CLI de Prisma).
+- **Estado:** Aceptada (plan de T-110 aprobado el 2026-09-27; los detalles derivados del modelo se revisan en el pull request). Modificada por ADR-0093 (la imagen de producción incluye el CLI de Prisma). Desde ADR-0147, la imagen de producción ya no lo incluye, y las migraciones corren con la imagen `migrate`.
 
 ---
 
@@ -2012,7 +2013,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-116 (despacho de eventos después del commit) amplía este mecanismo. Hecho en ADR-0098: la transacción más externa ejecuta acciones después de confirmar.
   - La imagen de producción pesa unos 880 MB e incluye el CLI de Prisma y sus dependencias; `npm audit` sigue sin vulnerabilidades gracias a los `overrides` de ADR-0091.
 - **Revisar si:** el adaptador deja de exigir el CLI (la imagen podría volver a 510 MB), un caso necesita savepoints o el límite de 5 s resulta corto.
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0116: una ejecución anidada corre en la transacción de afuera sin volver a pedirla a `nestjs-cls`. ADR-0133 agrega `runNested`, un paso que deshace solo lo suyo con un `SAVEPOINT`.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0116: una ejecución anidada corre en la transacción de afuera sin volver a pedirla a `nestjs-cls`. ADR-0133 agrega `runNested`, un paso que deshace solo lo suyo con un `SAVEPOINT`. Modificada por ADR-0147: el CLI pasa a `devDependencies`, y la imagen de producción no lo instala aunque el adaptador lo declare como dependencia par.
 
 ---
 
@@ -2395,7 +2396,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una vulnerabilidad alta publicada en una dependencia hace fallar la CI aunque el pull request no la toque. Se actualiza la dependencia, o se registra la decisión si no hay arreglo.
   - Un commit con otro formato hace fallar `Commit messages`: se corrige reescribiendo los commits de la rama antes de fusionar. Dependabot (T-107) debe usar el prefijo `chore`.
   - Dependabot puede actualizar las actions fijadas por SHA. La imagen de gitleaks, por estar en una variable del workflow, se actualiza a mano.
-- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28). Modificada por ADR-0119: el paso 9 corre `npm run secrets:scan`, que también revisa los cambios preparados, y la imagen de gitleaks se fija en `package.json`, no en el workflow.
+- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28). Modificada por ADR-0119: el paso 9 corre `npm run secrets:scan`, que también revisa los cambios preparados, y la imagen de gitleaks se fija en `package.json`, no en el workflow. ADR-0147: el paso 10 construye también la imagen `migrate` y prueba que las dos arranquen contra un PostgreSQL 18.
 
 ---
 
@@ -4280,3 +4281,42 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - En Windows no se fuerza la carpeta a disco, porque no se puede abrir; en Linux sí.
   - Sin migración: el índice `(occurred_at, id)` ya existía.
 - **Estado:** Aceptada (plan de T-220 aprobado el 2026-10-02, con sus 2 recomendaciones y 5 ajustes).
+
+---
+
+## ADR-0147 — Imagen de producción sin el CLI de Prisma, e imagen de migración aparte
+
+- **Fecha:** 2026-10-02
+- **Contexto:** Paso 3 del Sprint 6. La imagen de producción pesaba 924 MB, y unos 300 MB eran del CLI de Prisma y lo que trae: Prisma Studio, `@prisma/dev`, `effect`, `@electric-sql` y `typescript`.
+  - ADR-0093 lo incluyó porque el adaptador transaccional de `nestjs-cls` lo declara como dependencia par (*peer dependency*) obligatoria, aunque su código nunca lo importa.
+  - npm instala por su cuenta las dependencias par de las dependencias de producción, así que ni `npm prune --omit=dev --omit=peer` lo quita.
+- **Decisión:**
+  - **`prisma` vuelve a `devDependencies`:** genera el cliente, aplica migraciones y corre los scripts `db:*`; la API no lo usa al ejecutarse.
+  - **Etapa `prod-deps`:** instala con `npm ci --omit=dev --legacy-peer-deps --ignore-scripts`, sin dependencias par por su cuenta ni scripts:
+    - el cliente de Prisma ya está compilado en `dist`;
+    - `argon2` trae sus binarios precompilados.
+
+    La imagen `production` copia ese `node_modules` y el `dist` de la etapa `build`, y conserva `/app/storage/images` y `/app/storage/audit`.
+  - **Imagen `migrate`:** un target del mismo `Dockerfile`, a partir de la etapa `build`, con `prisma/`, `prisma.config.ts` y el CLI.
+    - Solo ejecuta `prisma migrate deploy` contra el `DATABASE_URL` que recibe, y corre como `node`.
+    - Es la candidata de P-05: un paso único antes de arrancar cada versión de la API, con un usuario de PostgreSQL que puede cambiar el esquema (`DATABASE.md` §13).
+  - **Prueba de arranque en la CI** (paso 10, `.github/scripts/smoke-test-images.sh`):
+    - construye las dos imágenes, levanta un PostgreSQL 18 vacío, lo migra con `migrate` y arranca `production`;
+    - comprueba que el catálogo responde 200 y que el login de un email desconocido responde 401, porque pasa por `argon2`;
+    - si falta un paquete que la API solo recibía como dependencia par, la API no arranca y la prueba falla. Se comprobó quitando `pg` de la imagen.
+  - **Imagen base:** sigue siendo `node:24-bookworm-slim`.
+- **Alternativas consideradas:**
+  - **Conservar el CLI en la imagen de producción:** casi no se reduce.
+  - **Borrar a mano carpetas de `node_modules` después de podar:** frágil con cada versión de Prisma.
+  - **Un adaptador transaccional propio, sin la dependencia par:** descartado en ADR-0093.
+  - **Alpine o distroless:** ahorrarían algo más, pero en Alpine `argon2` necesita su binario para musl, y distroless no tiene shell para los scripts de operador.
+  - **Solo construir las imágenes en la CI, sin arrancarlas:** no detectaría una dependencia faltante.
+- **Consecuencias:**
+  - La imagen de producción pasa de 924 MB a 557 MB, y su `node_modules` de 450 MB a 170 MB. La de migración pesa 1.43 GB, pero solo corre como paso único.
+  - Una dependencia de ejecución que llegue solo como dependencia par de otra debe declararse en `dependencies`; si no, la prueba de arranque falla.
+  - **OpenSSL en `migrate`:**
+    - el aviso de Prisma sigue, y la imagen migra sin errores contra una base sin TLS;
+    - si se instala `openssl`, Prisma busca otro motor de migraciones al ejecutarse y falla por permisos;
+    - si una base con TLS lo exige al decidir P-05, ese motor tendrá que descargarse al construir la imagen.
+  - Los `overrides` de ADR-0091 siguen: el CLI se instala en desarrollo, y `npm audit` revisa todo el árbol.
+- **Estado:** Aceptada (plan del paso 3 del Sprint 6 aprobado el 2026-10-02, con sus 3 recomendaciones). Modifica ADR-0093.

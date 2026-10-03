@@ -248,7 +248,8 @@ npx tsc --noEmit
 npm test && npm run test:int && npm run test:e2e
 npm audit --audit-level=high
 npm run secrets:scan
-docker build --target production -t base-shop .
+docker build --target production -t base-shop:ci . && docker build --target migrate -t base-shop-migrate:ci .
+bash .github/scripts/smoke-test-images.sh base-shop:ci base-shop-migrate:ci
 git log --no-merges --format=%s origin/main..HEAD | bash .github/scripts/check-commit-messages.sh
 ```
 
@@ -314,7 +315,7 @@ Comandos:
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
 - **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
-- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13). Crea `/app/storage/images` y la carpeta privada `/app/storage/audit` con dueño `node`: al desplegar se monta un volumen persistente en `/app/storage`, que debe ir en los respaldos (ADR-0024, ADR-0121, ADR-0146).
+- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` No trae el CLI de Prisma (ADR-0147), y sus dependencias se instalan sin dependencias par: una dependencia de ejecución nueva se declara en `dependencies`. Las migraciones se aplican con otra imagen, `docker build --target migrate -t base-shop-migrate .`, como paso único antes de arrancar la API; P-05 decide cómo se ejecuta al desplegar (`DATABASE.md`, sección 13). `.github/scripts/smoke-test-images.sh` migra un PostgreSQL 18 desechable con una y arranca la otra contra él; necesita Docker y funciona en Git Bash y Linux. Crea `/app/storage/images` y la carpeta privada `/app/storage/audit` con dueño `node`: al desplegar se monta un volumen persistente en `/app/storage`, que debe ir en los respaldos (ADR-0024, ADR-0121, ADR-0146).
 
 ## Migraciones
 
