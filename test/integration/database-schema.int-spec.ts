@@ -27,14 +27,14 @@ describe('Database schema (T-110)', () => {
     await client.query('ROLLBACK');
   });
 
-  it('creates the 39 tables of the data model, with order_access_tokens of ADR-0148', async () => {
+  it('creates the 41 tables of the data model, with order_access_tokens of ADR-0148 and the outbox of ADR-0150', async () => {
     const { rows } = await client.query<{ tables: string }>(
       `SELECT count(*) AS tables
          FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name <> '_prisma_migrations'`,
     );
 
-    expect(Number(rows[0].tables)).toBe(39);
+    expect(Number(rows[0].tables)).toBe(41);
   });
 
   it('matches the Prisma schema, so Prisma will not try to drop the manual SQL objects (DATABASE.md §13)', () => {
@@ -73,6 +73,30 @@ describe('Database schema (T-110)', () => {
         [randomUUID(), randomUUID(), warehouseId],
       ),
     ).rejects.toThrow(/stock_items_reserved_check/);
+  });
+
+  it('rejects an event delivery marked delivered without its date, or with fewer than zero attempts (ADR-0150)', async () => {
+    const eventId = randomUUID();
+    await client.query(
+      `INSERT INTO domain_events (id, event_type, payload, occurred_at)
+       VALUES ($1, 'BrandCreated', '{}', now())`,
+      [eventId],
+    );
+    const insertDelivery = (status: string, attempts: number) =>
+      client.query(
+        `INSERT INTO event_deliveries (id, event_id, handler, status, attempts, next_attempt_at)
+         VALUES ($1, $2, 'Handlers.first', $3, $4, now())`,
+        [randomUUID(), eventId, status, attempts],
+      );
+
+    await client.query('SAVEPOINT delivered');
+    await expect(insertDelivery('DELIVERED', 1)).rejects.toThrow(
+      /event_deliveries_delivered_at_check/,
+    );
+    await client.query('ROLLBACK TO SAVEPOINT delivered');
+    await expect(insertDelivery('PENDING', -1)).rejects.toThrow(
+      /event_deliveries_attempts_check/,
+    );
   });
 
   it('rejects overlapping price periods with the exclusion constraint (BR-PRC-01)', async () => {
