@@ -1622,7 +1622,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se actualizan ADR-0020 (el enlace queda fuera del MVP), BR-ORD-10 y ADR-0074 (sin enlaces en los correos).
   - El modelo de datos aprobado (ADR-0066) no cambia.
 - **Revisar si:** el staff recibe solicitudes frecuentes de invitados que perdieron su código, o existe frontend y proveedor de correo real (P-24).
-- **Estado:** Aceptada (aprobación formal 2026-09-25). Reemplazada parcialmente por ADR-0148 (2026-10-03): a pedido del usuario, el enlace se implementa con el diseño previsto, y el invitado que perdió su código lo pide con su email en lugar de acudir al staff. Siguen vigentes el retiro del contrato provisional y los correos de la orden sin enlaces.
+- **Estado:** Reemplazada parcialmente por ADR-0148 (2026-10-03); aceptada con aprobación formal el 2026-09-25. A pedido del usuario, el enlace se implementa con el diseño previsto, y el invitado que perdió su código lo pide con su email en lugar de acudir al staff. Siguen vigentes el retiro del contrato provisional y los correos de la orden sin enlaces.
 
 ---
 

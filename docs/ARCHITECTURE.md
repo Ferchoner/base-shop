@@ -48,7 +48,9 @@ src/
 ├── scripts/                   scripts de operación con un contexto de aplicación de Nest, como la importación del catálogo geográfico (ADR-0109) y la creación del primer superadministrador (ADR-0116), y de mantenimiento, como la generación de la lista de contraseñas comunes (ADR-0115)
 ├── shared-kernel/             Money, IDs, error de dominio, eventos, Clock (T-112), los puertos TransactionManager, DomainEventPublisher, AuditTrail, EmailSender y FrontendLinks (T-111, T-116, T-127, T-122), el catálogo de permisos, la paginación, los errores de versión y de estado (T-130) y los enlaces por correo de un solo uso (T-186); sin NestJS
 └── modules/
-    ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail; solo infraestructura (T-127, ADR-0100)
+    ├── audit/                 módulo transversal, no un contexto: implementación global del puerto AuditTrail (T-127, ADR-0100), y la consulta y el archivo diario de la auditoría (T-220, ADR-0146); aplicación, infraestructura y presentación
+    ├── notifications/         módulo transversal: los correos de la vida de la orden, por eventos y con la fachada de Ordering (T-215, ADR-0143); aplicación e infraestructura
+    ├── privacy/               módulo transversal: la anonimización de clientes y compradores invitados, con las fachadas de Identity & Access, Ordering y Shopping (T-132, ADR-0145); aplicación, infraestructura y presentación
     ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)
     └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
         ├── domain/

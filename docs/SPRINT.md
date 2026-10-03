@@ -2,28 +2,65 @@
 
 ## Sprint actual
 
-Ninguno. El Sprint 6 (privacidad y operación) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial. El Sprint 7 está PENDIENTE DE DECISIÓN: su objetivo y sus tareas se proponen y se aprueban antes de empezar.
+7 — Entrega garantizada de eventos (outbox transaccional). Inicio: 2026-10-03 (propuesta aprobada después del cierre del Sprint 6).
 
 ## Goal
 
-PENDIENTE DE DECISIÓN.
+Que ningún efecto de un evento se pierda:
+- los eventos se guardan en la misma transacción que el cambio que los origina;
+- se reintentan hasta entregarse, y los que fallan una y otra vez quedan a la vista del staff.
+
+Motivo: si el manejador de `PaymentCaptured` falla o la API se cae después del commit, el pago queda capturado y la orden sigue en PENDING_PAYMENT hasta expirar. La conciliación que ADR-0014 tomaba como red de seguridad está en T-192, bloqueada (P-31). Lo mismo pasa, con menos gravedad, con el despacho y la entrega de los envíos, los correos, el reembolso completado y el enlace de acceso a los pedidos. ADR-0014 pide revisarse "si el negocio pasa a depender de una notificación".
 
 ## Tasks
 
-PENDIENTE DE DECISIÓN. Las tareas sin hacer, en `docs/TASKS.md`:
+Detalle en `docs/TASKS.md`, sección "Fundaciones técnicas". Orden por dependencias:
 
-| Tarea | Estado | Qué la detiene |
-|---|---|---|
-| T-192 (PayPal y conciliación de pagos) | TODO | Sin cuenta ni sandbox no se puede verificar (P-31) |
-| T-191 (verificación de PayPal) | BLOCKED | T-192 y P-31 |
-| T-330 (despliegue) | Pospuesta | Sin hosting (P-06, ADR-0031) |
-| T-193 (Mercado Pago y Stripe) | DEFERRED | ADR-0040 |
-| T-200 (promociones) | DEFERRED | Fuera del MVP (ADR-0018) |
-| T-232 (ciclo de conservación de datos personales) | DEFERRED | Validación legal (P-61) |
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión del repositorio contra los ADR; pull request agrupado de Dependabot (lunes 5 de octubre); prácticas de la review del Sprint 6 en la guía de desarrollo; plan del Sprint 7 en este documento |
+| 1 | T-109 parte a (eventos guardados en la transacción, entrega por manejador, despacho inmediato y job de reintentos) |
+| 2 | T-109 parte b (eventos fallidos a la vista del staff, con consulta y reintento, y limpieza diaria de los entregados) |
+
+- **Criterio de cierre:** criterios de aceptación de T-109 en `TASKS.md`, el ADR que reemplaza a ADR-0014 aceptado, y CI en verde en `main`.
+- **Pospuesto al Sprint 8 o después:**
+  - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
+  - T-191 (bloqueada);
+  - T-330 (despliegue, sin hosting);
+  - las tareas diferidas: T-193, T-200 y T-232.
+- **Flujo de trabajo:**
+  - cada parte se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
+  - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y siguen abiertas las mismas 9 decisiones;
+  - dos desajustes corregidos:
+    - el estado de ADR-0077 no empezaba como su índice ("Reemplazada parcialmente por ADR-0148");
+    - `ARCHITECTURE.md` decía que `audit` solo tiene infraestructura, cuando desde T-220 tiene aplicación, infraestructura y presentación, y no listaba `notifications` ni `privacy`;
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - cada contexto tiene sus cuatro capas, y los módulos transversales las que dice `ARCHITECTURE.md`;
+  - los `overrides` de ADR-0091 siguen siendo necesarios: Prisma 7.10.0, la última versión estable, fija `mysql2` 3.15.3, y `@prisma/config` fija `deepmerge-ts` 7.1.5. Prisma 8 está en versión candidata (8.0.0-rc.19); se revisa cuando sea estable;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 6:
+  - listar en el plan todas las copias de un dato personal que se borra o anonimiza;
+  - probar cada filtro por separado, con datos que solo ese filtro distingue;
+  - instantes que caen en días distintos en UTC y en México;
+  - un email propio por prueba cuando hay límites por email, y filtrar los correos por asunto;
+  - quitar o limitar los mutantes que pueden no terminar.
+- **T-109** agregada a `TASKS.md`, con sus dos partes.
 
 ## Risks
 
-Los que dejó el Sprint 6, en su review del historial.
+- **Cambia una decisión de arquitectura** (ADR-0014, ADR-0098): todo efecto en segundo plano pasará por la base. Un error en la entrega afectaría a todos los contextos. El despacho inmediato después del commit se conserva, así que lo que ve el cliente no cambia.
+- **Entregas repetidas:** con reintentos, un manejador puede correr más de una vez. Hay que revisar que cada uno sea idempotente, sobre todo los correos, que podrían llegar dos veces.
+- **Datos personales en el contenido de los eventos:** `OrderAccessRequested` lleva un email. Guardar los eventos crea otra copia, que la anonimización y la limpieza deben cubrir.
+- **Concurrencia:** el despacho inmediato y el job pueden tomar la misma entrega; hace falta que cada una la tome una sola vez, también con varias instancias.
+- **Volumen:** cada evento y cada entrega son filas nuevas; la limpieza diaria debe borrarlas.
+- **Riesgos heredados del Sprint 6:** ver su review en el historial.
 
 ## Sprint Review
 
@@ -150,7 +187,7 @@ Las mismas 9. P-24 (proveedor de correo) afecta ahora también al enlace de acce
 
 #### Siguiente sprint
 
-PENDIENTE DE DECISIÓN. Al cerrar, el usuario pidió solo la review; el Sprint 7 se propone después. Las prácticas de "Qué mejorar" pasan a la guía en su paso 0.
+Al cerrar, el usuario pidió solo la review. La propuesta del Sprint 7 se aprobó después, el 2026-10-03; ver "Sprint actual".
 
 ### Sprint 5 — Entrega del pedido (2026-10-02)
 

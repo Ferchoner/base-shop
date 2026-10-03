@@ -4,7 +4,7 @@
 
 1. Leer `CLAUDE.md`.
 2. Revisar documentación relacionada.
-3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161).
+3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161). Si la tarea borra o anonimiza datos personales, el plan lista todas sus copias (tokens, enlaces, respuestas guardadas por idempotencia, archivos, contenido de eventos): en T-132 las respuestas guardadas aparecieron durante la implementación.
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
@@ -202,6 +202,10 @@ Tests (Jest):
 - Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
 - Un error de dominio con `details` se compara con `rejects.toMatchObject({ code, details })`. `toThrow(new Error(…))` solo compara el mensaje: la prueba del tope del reintegro pasaba con otras líneas en el error (T-161).
 - Los datos de prueba usan valores distintos donde el código elige entre ellos (T-215). Un reembolso igual al total de la orden, una dirección sin número interior o un solo tipo de despacho dejaron pasar mutaciones.
+- Cada filtro de un listado se prueba por separado, con datos que solo ese filtro distingue: `resourceType` y `resourceId` probados juntos dejaron pasar dos mutaciones (T-220).
+- Si el código agrupa o corta por día, las pruebas usan instantes que caen en días distintos en UTC y en México, como las 03:00 UTC (T-220).
+- En las e2e, un límite por email cuenta durante toda la suite, así que cada prueba usa su propio email. Los correos de la orden llegan al mismo `EmailSender` falso que los demás: una prueba de otro correo lo filtra por su asunto (T-186).
+- Las pruebas de mutación de cada tarea quitan o limitan los mutantes que pueden no terminar, como cambiar el orden de una lectura por lotes (T-220).
 - `npx tsc --noEmit` compila también las specs de integración y e2e: al quitar un campo de una firma, se busca en ellas antes del commit. En T-161, el commit feat no compilaba por sí solo.
 - `configureHttp` construye y revisa el documento OpenAPI fuera de producción (paso 0 del Sprint 6): construirlo falla con un DTO que no puede describir, y cada `$ref` debe tener su esquema. Así, toda suite e2e lo construye con el plugin de Swagger, y un DTO que lo rompe falla en su propia suite. Aun así, antes de cada commit se corre la suite e2e completa.
   - Una propiedad que es un arreglo de valores simples declara `@ApiProperty({ type: [String] })`: el plugin de Swagger no infiere su tipo, y sin él la construcción del documento falla (T-181).
