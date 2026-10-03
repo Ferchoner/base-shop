@@ -407,3 +407,51 @@ describe('User.resetPassword (UC-IAM-08, BR-USR-16)', () => {
     },
   );
 });
+
+describe('User.anonymize (UC-IAM-19, ADR-0067)', () => {
+  it.each(['ACTIVE', 'SUSPENDED'] as const)(
+    'empties the email, the names, the password and the verification of a %s customer, for good',
+    (status) => {
+      const before = User.restore({
+        ...user('CUSTOMER', status).snapshot(),
+        emailVerifiedAt: new Date('2026-08-02T00:00:00Z'),
+        lastLoginAt: new Date('2026-09-20T00:00:00Z'),
+      }).snapshot();
+      const customer = User.restore(before);
+
+      customer.anonymize(NOW);
+
+      expect(customer.snapshot()).toEqual({
+        ...before,
+        status: 'ANONYMIZED',
+        email: null,
+        firstNames: null,
+        lastNames: null,
+        emailVerifiedAt: null,
+        passwordHash: null,
+        anonymizedAt: NOW,
+      });
+      expect(customer.canSignIn).toBe(false);
+    },
+  );
+
+  it('anonymizes a customer only once, answering with the current status', () => {
+    const customer = user('CUSTOMER');
+    customer.anonymize(NOW);
+
+    expect(() => customer.anonymize(new Date('2026-09-29T00:00:00Z'))).toThrow(
+      new InvalidStateTransitionError('ANONYMIZED', 'anonymize'),
+    );
+    expect(customer.snapshot().anonymizedAt).toBe(NOW);
+  });
+
+  it.each(['ACTIVE', 'SUSPENDED'] as const)(
+    'never anonymizes a %s staff member (BR-USR-06)',
+    (status) => {
+      const staff = user('STAFF', status);
+
+      expect(() => staff.anonymize(NOW)).toThrow('Staff is never anonymized');
+      expect(staff.snapshot().status).toBe(status);
+    },
+  );
+});

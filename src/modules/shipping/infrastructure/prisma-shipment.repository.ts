@@ -6,7 +6,7 @@ import { toId, VersionConflictError } from '../../../shared-kernel/index.js';
 import {
   type OrderId,
   Shipment,
-  type ShipmentAddress,
+  type ShipmentDestination,
   type ShipmentId,
 } from '../domain/shipment.js';
 import { ShipmentRepository } from '../domain/shipment.repository.js';
@@ -87,6 +87,8 @@ export class PrismaShipmentRepository extends ShipmentRepository {
         cancelledAt: s.cancelledAt,
         failureNote: s.failureNote,
         returnNote: s.returnNote,
+        destination: s.destination as unknown as Prisma.InputJsonObject,
+        anonymizedAt: s.anonymizedAt,
         version: { increment: 1 },
         updatedAt: now,
       },
@@ -111,7 +113,7 @@ export class PrismaShipmentRepository extends ShipmentRepository {
       orderCode: row.orderCode,
       warehouseId: toId<'Warehouse'>(row.warehouseId),
       status: row.status,
-      destination: row.destination as unknown as ShipmentAddress,
+      destination: row.destination as unknown as ShipmentDestination,
       items: row.items.map((item) => ({
         orderLineId: toId<'OrderLine'>(item.orderLineId),
         sku: item.sku,
@@ -128,6 +130,7 @@ export class PrismaShipmentRepository extends ShipmentRepository {
       cancelledAt: row.cancelledAt,
       failureNote: row.failureNote,
       returnNote: row.returnNote,
+      anonymizedAt: row.anonymizedAt,
       version: row.version,
     });
   }

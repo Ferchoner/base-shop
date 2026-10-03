@@ -7,6 +7,10 @@ import type { EnvironmentVariables } from '../../platform/config/environment.js'
 import { GeoModule } from '../geo/index.js';
 import { AddAddress } from './application/add-address.use-case.js';
 import {
+  AnonymizeCustomer,
+  CustomerTraces,
+} from './application/anonymize-customer.use-case.js';
+import {
   AddressLocations,
   MAX_ADDRESSES,
 } from './application/address-locations.js';
@@ -73,6 +77,7 @@ import { GeoAddressLocations } from './infrastructure/geo-address-locations.js';
 import { JwtAccessTokens } from './infrastructure/jwt-access-tokens.js';
 import { JwtStrategy } from './infrastructure/jwt.strategy.js';
 import { PrismaAddressBookRepository } from './infrastructure/prisma-address-book.repository.js';
+import { PrismaCustomerTraces } from './infrastructure/prisma-customer-traces.js';
 import { PrismaEmailVerificationTokenRepository } from './infrastructure/prisma-email-verification-token.repository.js';
 import { PrismaIdentityQueries } from './infrastructure/prisma-identity.queries.js';
 import { PrismaPasswordResetTokenRepository } from './infrastructure/prisma-password-reset-token.repository.js';
@@ -183,6 +188,8 @@ import { MeController } from './presentation/me.controller.js';
     ReactivateStaff,
     SuspendCustomer,
     ReactivateCustomer,
+    AnonymizeCustomer,
+    { provide: CustomerTraces, useClass: PrismaCustomerTraces },
     AddAddress,
     UpdateAddress,
     RemoveAddress,

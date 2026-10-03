@@ -13,7 +13,11 @@ import {
   priceLine,
   type ShippingAddress,
 } from './order.js';
-import { EmptyCartError, UnknownOrderLineError } from './ordering-errors.js';
+import {
+  ActiveOrdersExistError,
+  EmptyCartError,
+  UnknownOrderLineError,
+} from './ordering-errors.js';
 import type { PublicCode } from './public-code.js';
 
 const NOW = new Date('2026-10-01T12:00:00.000Z');
@@ -142,6 +146,7 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       cancelledAt: null,
       expiredAt: null,
       refundedAt: null,
+      anonymizedAt: null,
       version: 1,
     });
   });
@@ -559,5 +564,159 @@ describe('Restock of an order (UC-INV-09, ADR-0052, ADR-0142)', () => {
         }),
       ],
     });
+  });
+});
+
+describe('Anonymization of an order (UC-IAM-19, ADR-0067, ADR-0145)', () => {
+  const AT = new Date('2026-10-02T15:00:00.000Z');
+  const LATER = new Date('2026-10-02T16:00:00.000Z');
+  const PAID = new Date('2026-10-01T12:30:00.000Z');
+  const staff = newId<'User'>();
+  const FULL: ShippingAddress = {
+    ...ADDRESS,
+    interiorNumber: '4B',
+    city: 'Morelia',
+    references: 'Frente a la catedral',
+  };
+
+  /** A saved order in `status`, to the whole address, at version 4. */
+  const saved = (status: OrderStatus, paidAt: Date | null = null) =>
+    Order.restore({
+      ...place({ shippingAddress: FULL }).snapshot,
+      status,
+      paidAt,
+      version: 4,
+    });
+
+  it('concludes an order DELIVERED, EXPIRED or REFUNDED, CANCELLED without a payment, or SHIPPED once its shipment came back (ADR-0070)', () => {
+    expect([
+      saved('DELIVERED', PAID).isConcluded('DELIVERED'),
+      saved('EXPIRED').isConcluded(null),
+      saved('REFUNDED', PAID).isConcluded('CANCELLED'),
+      saved('CANCELLED').isConcluded(null),
+      saved('SHIPPED', PAID).isConcluded('RETURNED'),
+    ]).toEqual([true, true, true, true, true]);
+  });
+
+  it('does not conclude an order on its way, nor one cancelled that waits for its refund', () => {
+    for (const status of [
+      'PENDING_PAYMENT',
+      'PAID',
+      'AWAITING_MANUAL_FULFILLMENT',
+    ] as const) {
+      expect(saved(status).isConcluded('RETURNED')).toBe(false);
+    }
+    expect(saved('CANCELLED', PAID).isConcluded('CANCELLED')).toBe(false);
+    for (const shipment of [
+      'PENDING',
+      'DISPATCHED',
+      'DELIVERED',
+      'DELIVERY_FAILED',
+      null,
+    ]) {
+      expect(saved('SHIPPED', PAID).isConcluded(shipment)).toBe(false);
+    }
+  });
+
+  it('removes the contact email, and from the address all but the state, the municipality, the postal code and the country', () => {
+    const order = saved('DELIVERED', PAID);
+    const before = order.snapshot;
+
+    order.anonymize('DELIVERED', AT);
+
+    expect(order.snapshot).toEqual({
+      ...before,
+      contactEmail: null,
+      shippingAddress: {
+        recipientName: null,
+        phone: null,
+        street: null,
+        exteriorNumber: null,
+        interiorNumber: null,
+        neighborhood: null,
+        postalCode: '58000',
+        stateCode: '16',
+        stateName: 'Michoacán de Ocampo',
+        municipalityCode: '16053',
+        municipalityName: 'Morelia',
+        city: null,
+        references: null,
+        country: 'MX',
+      },
+      anonymizedAt: AT,
+    });
+    expect([order.isAnonymized, order.hasChanges, order.statusChanges]).toEqual(
+      [true, true, []],
+    );
+  });
+
+  it('keeps when it was anonymized first', () => {
+    const order = saved('EXPIRED');
+    order.anonymize(null, AT);
+
+    order.anonymize(null, LATER);
+
+    expect(order.snapshot.anonymizedAt).toBe(AT);
+  });
+
+  it('anonymizes no order that has not concluded, changing nothing (E-31)', () => {
+    const order = saved('SHIPPED', PAID);
+
+    expect(() => order.anonymize('DELIVERY_FAILED', AT)).toThrow(
+      ActiveOrdersExistError,
+    );
+    expect(new ActiveOrdersExistError()).toMatchObject({
+      code: 'active-orders-exist',
+      category: 'conflict',
+    });
+    expect([order.isAnonymized, order.hasChanges]).toEqual([false, false]);
+    expect(order.snapshot).toMatchObject({
+      contactEmail: 'cliente@example.com',
+      shippingAddress: FULL,
+      anonymizedAt: null,
+    });
+  });
+
+  it('ships to its whole address, and never once anonymized', () => {
+    expect(saved('PAID', PAID).deliveryAddress).toEqual(FULL);
+
+    const order = saved('EXPIRED');
+    order.anonymize(null, AT);
+
+    expect(() => order.deliveryAddress).toThrow(
+      'An anonymized order has no address to ship to',
+    );
+  });
+
+  it('is never paid nor fulfilled once anonymized: a late payment waits, and the staff can only cancel it with its refund', () => {
+    const order = saved('EXPIRED');
+    order.anonymize(null, AT);
+
+    expect(() => order.markPaid(PAID, LATER)).toThrow(
+      new InvalidStateTransitionError('EXPIRED', 'pay an anonymized order'),
+    );
+    order.awaitManualFulfillment(PAID, LATER);
+    const fulfill = new InvalidStateTransitionError(
+      'AWAITING_MANUAL_FULFILLMENT',
+      'fulfill an anonymized order',
+    );
+    expect(() => order.assertFulfillable()).toThrow(fulfill);
+    expect(() =>
+      order.fulfillManually(staff, newId<'Reservation'>(), LATER),
+    ).toThrow(fulfill);
+    order.cancel(staff, 'Pago tardío de una orden anonimizada', LATER);
+    expect(order.snapshot).toMatchObject({
+      status: 'CANCELLED',
+      paidAt: PAID,
+    });
+  });
+
+  it('lets the staff retry the fulfillment of an order that was not anonymized', () => {
+    const order = saved('AWAITING_MANUAL_FULFILLMENT', PAID);
+
+    expect(() => order.assertFulfillable()).not.toThrow();
+    expect(() => saved('PAID', PAID).assertFulfillable()).toThrow(
+      new InvalidStateTransitionError('PAID', 'retry fulfillment'),
+    );
   });
 });

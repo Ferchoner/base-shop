@@ -357,3 +357,54 @@ describe('Shipment on its way (UC-SHI-05 to 07 and 09, BR-SHP-03, 04 and 09, ADR
     }
   });
 });
+
+describe('Shipment.anonymize (UC-IAM-19, ADR-0067)', () => {
+  const WHOLE: ShipmentAddress = {
+    ...ADDRESS,
+    interiorNumber: '4B',
+    city: 'Morelia',
+    references: 'Frente a la catedral',
+  };
+
+  it('keeps of its destination the state, the municipality, the postal code and the country, and the rest as it was', () => {
+    const shipment = Shipment.restore({
+      ...saved('RETURNED', { carrierName: 'Estafeta' }).snapshot,
+      destination: WHOLE,
+      returnNote: 'Paquete completo',
+    });
+    const before = shipment.snapshot;
+
+    shipment.anonymize(LATER);
+
+    expect(shipment.snapshot).toEqual({
+      ...before,
+      destination: {
+        recipientName: null,
+        phone: null,
+        street: null,
+        exteriorNumber: null,
+        interiorNumber: null,
+        neighborhood: null,
+        postalCode: '58000',
+        stateCode: '16',
+        stateName: 'Michoacán de Ocampo',
+        municipalityCode: '16053',
+        municipalityName: 'Morelia',
+        city: null,
+        references: null,
+        country: 'MX',
+      },
+      anonymizedAt: LATER,
+    });
+    expect(shipment.hasChanges).toBe(true);
+  });
+
+  it('keeps when it was anonymized first', () => {
+    const shipment = saved('DELIVERED');
+    shipment.anonymize(NOW);
+
+    shipment.anonymize(LATER);
+
+    expect(shipment.snapshot.anonymizedAt).toBe(NOW);
+  });
+});

@@ -54,6 +54,17 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - `set -o pipefail` si se filtra la salida del escaneo de secretos;
   - que un DTO no redeclara con decorador un campo de su clase base.
 
+### Resultado del paso 1
+
+- **T-132 en DONE (ADR-0145):**
+  - **Quién la orquesta:** el módulo nuevo `privacy`, con las fachadas de Identity, Ordering y Shopping, en una transacción. Ordering anonimiza también los envíos de sus órdenes.
+  - **Contrato:** la anonimización del cliente responde `{ userId, anonymizedAt, anonymizedOrderCount }`.
+  - **Orden concluida:** una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso.
+  - **Sin datos personales:** se probó contra PostgreSQL que no queda nada del comprador en la cuenta, los tokens, las direcciones, los carritos, las órdenes, los envíos ni las respuestas guardadas por idempotencia.
+  - **Concurrencia:** el checkout bloquea al cliente para compartir, así que la orden y la anonimización del mismo cliente se esperan; probado en los dos órdenes.
+  - **Pago tardío:** una orden vencida y anonimizada que recibe un pago espera al staff, que solo puede cancelarla con su reembolso.
+- **Sin cambios de esquema.** Las notas del staff (historial, envíos, pagos y reintegros) no se tocan: son texto libre en el que la API pide no escribir datos personales.
+
 ## Risks
 
 - **T-132 cruza contextos:** anonimiza o borra datos de cuatro módulos, y debe esperar a que concluyan las órdenes (ADR-0067):

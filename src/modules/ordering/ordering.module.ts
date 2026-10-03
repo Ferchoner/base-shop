@@ -19,6 +19,7 @@ import {
   ShippingLocations,
 } from './application/checkout-ports.js';
 import { Checkout } from './application/checkout.use-case.js';
+import { OrderAnonymizations } from './application/order-anonymizations.use-case.js';
 import { OrderExpiry } from './application/order-expiry.use-case.js';
 import { OrderLifecycle } from './application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from './application/order-payment-requests.use-case.js';
@@ -29,6 +30,7 @@ import { OrderingFacade } from './application/ordering.facade.js';
 import { OrderingQueries } from './application/ordering.queries.js';
 import { OrderPayments } from './application/payment-ports.js';
 import { ReorderCarts } from './application/reorder-ports.js';
+import { PlacementResponses } from './application/placement-responses.js';
 import { OrderShipments } from './application/shipment-ports.js';
 import { VAT_RATE_BP } from './application/vat-rate.js';
 import { OrderRepository } from './domain/order.repository.js';
@@ -44,6 +46,7 @@ import {
   ShoppingFacadeCheckoutCarts,
   ShoppingFacadeReorderCarts,
 } from './infrastructure/facade-adapters.js';
+import { IdempotencyPlacementResponses } from './infrastructure/idempotency-placement-responses.js';
 import { OrderExpiryJob } from './infrastructure/order-expiry.job.js';
 import { PaymentCapturedHandler } from './infrastructure/payment-captured.event-handler.js';
 import { PrismaOrderRepository } from './infrastructure/prisma-order.repository.js';
@@ -61,7 +64,7 @@ import { OrdersController } from './presentation/orders.controller.js';
  * Ordering bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. It uses Shopping, Catalog,
  * Pricing, Inventory, Shipping, Identity & Access, Geo and Payments through their facades, and none of them uses
  * Ordering, so they never form a cycle (ADR-0132, ADR-0134). Its own facade is for Notifications, which only reads
- * the order for its emails (ADR-0143).
+ * the order for its emails (ADR-0143), and for Privacy, which anonymizes the orders of a buyer (ADR-0145).
  */
 @Module({
   imports: [
@@ -96,6 +99,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderReader,
     OrderReorders,
     OrderRestocks,
+    OrderAnonymizations,
     OrderingFacade,
     PaymentCapturedHandler,
     RefundCompletedHandler,
@@ -113,6 +117,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: OrderPayments, useClass: PaymentsFacadeOrderPayments },
     { provide: ReorderCarts, useClass: ShoppingFacadeReorderCarts },
     { provide: OrderShipments, useClass: ShippingFacadeOrderShipments },
+    { provide: PlacementResponses, useClass: IdempotencyPlacementResponses },
   ],
   exports: [OrderingFacade],
 })

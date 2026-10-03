@@ -13,6 +13,19 @@ export class SourceCartUnavailableError extends DomainError {
   }
 }
 
+/**
+ * The buyer has orders that have not concluded, so their data cannot be anonymized yet: the anonymization waits for
+ * them to end (ADR-0067, ADR-0145, E-31). Answered 409 `active-orders-exist`.
+ */
+export class ActiveOrdersExistError extends DomainError {
+  readonly code = 'active-orders-exist';
+  readonly category = 'conflict';
+
+  constructor() {
+    super('The buyer has orders that have not concluded');
+  }
+}
+
 /** An order needs at least one line (BR-ORD-01, E-33). Answered 409 `empty-cart`. */
 export class EmptyCartError extends DomainError {
   readonly code = 'empty-cart';

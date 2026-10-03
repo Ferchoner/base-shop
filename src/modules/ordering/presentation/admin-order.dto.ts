@@ -19,7 +19,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PostalAddressDto } from '../../../platform/http/address.dto.js';
 import {
   PageMetaDto,
   PageQueryDto,
@@ -76,6 +75,64 @@ export class StatusHistoryEntryDto {
   occurredAt: Date;
 }
 
+const ANONYMIZED = {
+  type: String,
+  nullable: true,
+  description: '`null` cuando la orden está anonimizada (ADR-0067).',
+} as const;
+
+/**
+ * The shipping address of `AdminOrder` (API_SPEC.md §8.2 and §8.9): once the order is anonymized it keeps only the
+ * state, the municipality, the postal code and the country, and the rest is `null` (ADR-0067).
+ */
+export class AdminOrderAddressDto {
+  @ApiProperty({ ...ANONYMIZED, example: 'María López Hernández' })
+  recipientName: string | null;
+
+  @ApiProperty({ ...ANONYMIZED, example: '4431234567' })
+  phone: string | null;
+
+  @ApiProperty({ ...ANONYMIZED, example: 'Av. Madero Poniente' })
+  street: string | null;
+
+  @ApiProperty({ ...ANONYMIZED, example: '123' })
+  exteriorNumber: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '4B' })
+  interiorNumber: string | null;
+
+  @ApiProperty({ ...ANONYMIZED, example: 'Centro' })
+  neighborhood: string | null;
+
+  /** @example '58000' */
+  postalCode: string;
+
+  /** @example '16' */
+  stateCode: string;
+
+  /** @example 'Michoacán de Ocampo' */
+  stateName: string;
+
+  /** @example '16053' */
+  municipalityCode: string;
+
+  /** @example 'Morelia' */
+  municipalityName: string;
+
+  @ApiProperty({ type: String, nullable: true, example: 'Morelia' })
+  city: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'Entre Galeana e Hidalgo',
+  })
+  references: string | null;
+
+  /** @example 'MX' */
+  country: string;
+}
+
 /** `AdminOrder` in a listing (API_SPEC.md §15.7): without lines nor history. */
 export class AdminOrderSummaryDto extends OrderFieldsDto {
   id: string;
@@ -110,8 +167,8 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   anonymizedAt: Date | null;
 
-  @ApiProperty({ type: () => PostalAddressDto })
-  shippingAddress: PostalAddressDto;
+  @ApiProperty({ type: () => AdminOrderAddressDto })
+  shippingAddress: AdminOrderAddressDto;
 }
 
 /** A line of `AdminOrder`: with its ID, which a restock names (ADR-0142). */

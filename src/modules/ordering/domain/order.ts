@@ -5,7 +5,11 @@ import {
   Money,
   newId,
 } from '../../../shared-kernel/index.js';
-import { EmptyCartError, UnknownOrderLineError } from './ordering-errors.js';
+import {
+  ActiveOrdersExistError,
+  EmptyCartError,
+  UnknownOrderLineError,
+} from './ordering-errors.js';
 import type { PublicCode } from './public-code.js';
 
 export type OrderId = Id<'Order'>;
@@ -126,6 +130,28 @@ export interface ShippingAddress {
   readonly country: 'MX';
 }
 
+/** The fields of an address that tell who receives it and where exactly: anonymization removes them (ADR-0067). */
+type IdentifyingField =
+  | 'recipientName'
+  | 'phone'
+  | 'street'
+  | 'exteriorNumber'
+  | 'interiorNumber'
+  | 'neighborhood'
+  | 'city'
+  | 'references';
+
+/**
+ * The address of an anonymized order (ADR-0067): it keeps the state, the municipality and the postal code, and the
+ * country, which is always Mexico; the rest is `null`.
+ */
+export type AnonymizedAddress = Omit<ShippingAddress, IdentifyingField> & {
+  readonly [Field in IdentifyingField]: null;
+};
+
+/** The address an order keeps: whole, until the order is anonymized. */
+export type OrderAddress = ShippingAddress | AnonymizedAddress;
+
 export type OrderLineId = Id<'OrderLine'>;
 
 export interface OrderLine extends PricedLine {
@@ -198,7 +224,7 @@ export interface OrderSnapshot {
   readonly shippingTaxRateBp: number;
   readonly deliveryMinBusinessDays: number;
   readonly deliveryMaxBusinessDays: number;
-  readonly shippingAddress: ShippingAddress;
+  readonly shippingAddress: OrderAddress;
   /** The reservation that holds or held its stock; a late payment opens another (ADR-0012). */
   readonly reservationId: ReservationId | null;
   /** When the first reservation ends: the order expires then if it is not paid (BR-ORD-07). */
@@ -215,6 +241,8 @@ export interface OrderSnapshot {
   readonly expiredAt: Date | null;
   /** When its refund completed: the money went back (ADR-0051). */
   readonly refundedAt: Date | null;
+  /** When the data of its buyer was removed (ADR-0067); `null` until then. */
+  readonly anonymizedAt: Date | null;
   readonly version: number;
 }
 
@@ -288,6 +316,7 @@ export class Order {
       cancelledAt: null,
       expiredAt: null,
       refundedAt: null,
+      anonymizedAt: null,
       version: 1,
     });
   }
@@ -315,6 +344,24 @@ export class Order {
 
   get grandTotal(): Money {
     return this.state.totals.grandTotal;
+  }
+
+  /** Whether the data of its buyer was removed (ADR-0067). */
+  get isAnonymized(): boolean {
+    return this.state.anonymizedAt !== null;
+  }
+
+  /**
+   * Where it ships (UC-SHI-03).
+   *
+   * @throws Error for an anonymized order: it is never paid, so it never ships (ADR-0145).
+   */
+  get deliveryAddress(): ShippingAddress {
+    const address = this.state.shippingAddress;
+    if (address.recipientName === null) {
+      throw new Error('An anonymized order has no address to ship to');
+    }
+    return address;
   }
 
   get snapshot(): OrderSnapshot {
@@ -351,7 +398,8 @@ export class Order {
    * The payment was captured and the stock is the order's (UC-ORD-09, BR-ORD-08 and 09): PAID, paid when the
    * payment was captured. A late payment brings the reservation it opened.
    *
-   * @throws InvalidStateTransitionError unless the order is PENDING_PAYMENT or EXPIRED.
+   * @throws InvalidStateTransitionError unless the order is PENDING_PAYMENT or EXPIRED, or when it was anonymized:
+   *   it has no address to ship to (ADR-0145).
    */
   markPaid(
     capturedAt: Date,
@@ -359,6 +407,7 @@ export class Order {
     reservationId: ReservationId | null = null,
   ): void {
     this.assertStatus(['PENDING_PAYMENT', 'EXPIRED'], 'mark paid');
+    this.assertNotAnonymized('pay an anonymized order');
     this.move('PAID', null, null, now);
     this.state = {
       ...this.state,
@@ -383,17 +432,28 @@ export class Order {
   }
 
   /**
+   * Whether the staff can retry the fulfillment of the order (UC-ORD-08), checked before looking for its stock.
+   *
+   * @throws InvalidStateTransitionError unless the order is AWAITING_MANUAL_FULFILLMENT, or when it was anonymized:
+   *   the staff can only cancel it, with its refund (ADR-0145).
+   */
+  assertFulfillable(): void {
+    this.assertStatus(['AWAITING_MANUAL_FULFILLMENT'], 'retry fulfillment');
+    this.assertNotAnonymized('fulfill an anonymized order');
+  }
+
+  /**
    * The staff got the stock of an order that waited for it (UC-ORD-08, ADR-0012): PAID, still paid when its
    * payment was captured.
    *
-   * @throws InvalidStateTransitionError unless the order is AWAITING_MANUAL_FULFILLMENT.
+   * @throws InvalidStateTransitionError as `assertFulfillable`.
    */
   fulfillManually(
     actorId: StaffId,
     reservationId: ReservationId,
     now: Date,
   ): void {
-    this.assertStatus(['AWAITING_MANUAL_FULFILLMENT'], 'retry fulfillment');
+    this.assertFulfillable();
     this.move('PAID', actorId, null, now);
     this.state = { ...this.state, reservationId };
   }
@@ -510,6 +570,66 @@ export class Order {
       if (line === undefined) throw new UnknownOrderLineError(index);
       return toRestock(line, quantity);
     });
+  }
+
+  /**
+   * Whether the order concluded, so the data of its buyer can be anonymized (ADR-0070, ADR-0145): DELIVERED, EXPIRED,
+   * REFUNDED, or CANCELLED without a payment to refund; and SHIPPED once its shipment came back, because the order
+   * stays SHIPPED then (ADR-0053).
+   */
+  isConcluded(shipmentStatus: string | null): boolean {
+    switch (this.state.status) {
+      case 'DELIVERED':
+      case 'EXPIRED':
+      case 'REFUNDED':
+        return true;
+      case 'CANCELLED':
+        return this.state.paidAt === null;
+      case 'SHIPPED':
+        return shipmentStatus === 'RETURNED';
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Removes the data of its buyer (UC-IAM-19, ADR-0067): the contact email, and from its address everything but the
+   * state, the municipality and the postal code. Its amounts, lines and status stay. A late payment of an anonymized
+   * order that had expired leaves it waiting for the staff, who can only cancel it with its refund (ADR-0145).
+   *
+   * @throws ActiveOrdersExistError unless it concluded (`isConcluded`).
+   */
+  anonymize(shipmentStatus: string | null, at: Date): void {
+    if (!this.isConcluded(shipmentStatus)) throw new ActiveOrdersExistError();
+    const address = this.state.shippingAddress;
+    this.state = {
+      ...this.state,
+      contactEmail: null,
+      shippingAddress: {
+        recipientName: null,
+        phone: null,
+        street: null,
+        exteriorNumber: null,
+        interiorNumber: null,
+        neighborhood: null,
+        postalCode: address.postalCode,
+        stateCode: address.stateCode,
+        stateName: address.stateName,
+        municipalityCode: address.municipalityCode,
+        municipalityName: address.municipalityName,
+        city: null,
+        references: null,
+        country: address.country,
+      },
+      anonymizedAt: this.state.anonymizedAt ?? at,
+    };
+    this.changed = true;
+  }
+
+  private assertNotAnonymized(action: string): void {
+    if (this.isAnonymized) {
+      throw new InvalidStateTransitionError(this.state.status, action);
+    }
   }
 
   private assertStatus(allowed: readonly OrderStatus[], action: string): void {

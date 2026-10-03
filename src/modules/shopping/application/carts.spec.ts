@@ -25,6 +25,7 @@ import {
 import type { CartCopies } from './cart-copies.js';
 import { CartViews, EMPTY_CART } from './cart-views.js';
 import { Carts } from './carts.use-case.js';
+import type { CustomerCarts } from './customer-carts.js';
 import { ShoppingFacade } from './shopping.facade.js';
 
 // Test doubles of the unit tests of Shopping's application layer.
@@ -532,6 +533,7 @@ describe('ShoppingFacade, for the checkout (UC-ORD-01 and 02, ADR-0132)', () => 
         {} as unknown as CartCopies,
         inline,
         clock,
+        {} as unknown as CustomerCarts,
       ),
     };
   }

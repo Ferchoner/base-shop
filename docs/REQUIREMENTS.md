@@ -521,7 +521,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Listados | Paginación por página, 20 por defecto, máximo 100 | ADR-0036 |
 | Tiempos de negocio | Reserva de 20 minutos; expiración cada minuto; conciliación cada 5 minutos | ADR-0011, ADR-0029 |
 | Retención | Auditoría 3 meses en base y 2 años en archivos; carritos de invitado 30 días; refresh tokens 30 días tras vencer; tokens de verificación y recuperación hasta vencer o usarse | ADR-0029, ADR-0037, ADR-0056 |
-| Datos personales | Aviso de privacidad versionado; derechos ARCO por canal externo; anonimización definida; auditoría sin valores personales | ADR-0067 |
+| Datos personales | Aviso de privacidad versionado; derechos ARCO por canal externo; anonimización implementada; auditoría sin valores personales | ADR-0067, ADR-0145 |
 | Archivos | Imágenes JPEG, PNG, WebP de hasta 5 MB | ADR-0024 |
 | Mantenibilidad | Monolito modular con límites verificados en CI | ADR-0003, ADR-0005, ADR-0030 |
 | Testabilidad | Dominio sin dependencias de framework; reloj inyectable | ADR-0003 |

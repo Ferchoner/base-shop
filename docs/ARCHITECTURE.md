@@ -61,7 +61,7 @@ src/
 
 - `platform` puede ser usado por `infrastructure` y `presentation`; `shared-kernel`, por todas las capas.
 - Un módulo solo importa de otro a través de su `index.ts`; lo verifica `npm run lint:boundaries` (ADR-0103).
-- Las capacidades transversales (auditoría, notificaciones y catálogo geográfico) son módulos bajo `modules/`, con solo las capas que necesitan (T-127, T-215, T-124).
+- Las capacidades transversales (auditoría, notificaciones, privacidad y catálogo geográfico) son módulos bajo `modules/`, con solo las capas que necesitan (T-127, T-215, T-132, T-124).
 
 ## Módulos (bounded contexts)
 
@@ -86,6 +86,7 @@ Capacidades transversales:
 
 - Auditoría técnica: tabla append-only alimentada desde la capa de aplicación, en la misma transacción que el cambio; los registros con más de 3 meses se exportan a archivos comprimidos (ADR-0037). Application registra con el puerto `AuditTrail` del shared kernel, implementado en `src/modules/audit/` (ADR-0100); es la única integración transversal con un puerto compartido en lugar de un puerto por contexto (ADR-0005), porque los ocho contextos lo necesitan con la misma forma.
 - Notificaciones: módulo que reacciona a eventos, sin dominio propio.
+- Privacidad: módulo sin dominio propio que anonimiza clientes y compradores invitados (ADR-0067) con las fachadas de Identity & Access, Ordering y Shopping, en una transacción (ADR-0145).
 - Shared kernel mínimo: `Money`, tipos de ID, error de dominio base, forma de domain event, y los puertos `Clock`, `TransactionManager`, `DomainEventPublisher`, `AuditTrail`, `EmailSender` y `FrontendLinks` (ADR-0094, ADR-0098, ADR-0100, ADR-0110).
 
 ## Reglas de integración entre módulos
@@ -94,7 +95,7 @@ Ver ADR-0005.
 
 - Cada módulo expone una fachada pública; nunca exporta entidades, aggregates ni repositorios.
 - El consumidor define su propio puerto y un adaptador en su infraestructura. Primer caso: Identity declara `AddressLocations` y lo responde con la fachada `GeoCatalog` del módulo `geo` (ADR-0113). Pricing e Inventory declaran su `CatalogVariants` y lo responden con `CatalogFacade` (ADR-0125, ADR-0127); Inventory también declara `WarehouseLocations` para la fachada de Geo. Ordering declara un puerto por cada módulo que usa en el checkout (ADR-0132).
-- Dos módulos nunca se usan mutuamente: la regla `no-circular` lo rechaza. Pricing e Inventory usan a Catalog, y Catalog no usa a ninguno (ADR-0125, ADR-0127). Shopping usa a Catalog, Pricing e Inventory, y ninguno usa a Shopping (ADR-0131). Ordering usa a Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access, Geo y Payments, y ninguno de ellos usa a Ordering (ADR-0132, ADR-0134): Payments y Shipping le avisan con eventos. Notificaciones usa la fachada de Ordering para leer la orden de sus correos, y ningún módulo usa a Notificaciones (ADR-0143). Un módulo que reacciona a eventos de otro se suscribe por el nombre del evento y declara su propio tipo, sin importar el del otro.
+- Dos módulos nunca se usan mutuamente: la regla `no-circular` lo rechaza. Pricing e Inventory usan a Catalog, y Catalog no usa a ninguno (ADR-0125, ADR-0127). Shopping usa a Catalog, Pricing e Inventory, y ninguno usa a Shopping (ADR-0131). Ordering usa a Shopping, Catalog, Pricing, Inventory, Shipping, Identity & Access, Geo y Payments, y ninguno de ellos usa a Ordering (ADR-0132, ADR-0134): Payments y Shipping le avisan con eventos. Notificaciones usa la fachada de Ordering para leer la orden de sus correos, y ningún módulo usa a Notificaciones (ADR-0143). Privacidad usa las fachadas de Identity & Access, Ordering y Shopping para anonimizar, y ningún módulo usa a Privacidad (ADR-0145). Un módulo que reacciona a eventos de otro se suscribe por el nombre del evento y declara su propio tipo, sin importar el del otro.
 - Entre contextos solo se comparten IDs, snapshots y eventos. Sin relaciones de Prisma ni llaves foráneas entre contextos.
 - Los límites se verifican automáticamente con `dependency-cruiser` (`npm run lint:boundaries`, reglas en `.dependency-cruiser.cjs`, ADR-0103): capas según la tabla de "Estructura", módulos solo por su `index.ts`, Prisma solo en `platform` e `infrastructure`, shared kernel sin frameworks, `platform` sin módulos y sin dependencias circulares. La excepción de ADR-0060 (lectura de tablas de otros contextos en el catálogo público) no se ve en los imports.
 - Única excepción: el servicio de consultas del catálogo público (`PrismaStorefrontQueries`) lee tablas de Catalog, Pricing e Inventory, solo para lectura (ADR-0060). `test/boundaries/table-ownership.spec.ts` verifica que ningún otro archivo de un módulo use tablas o modelos de Prisma de otro contexto (ADR-0129).

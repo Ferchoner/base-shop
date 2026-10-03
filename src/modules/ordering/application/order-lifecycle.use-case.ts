@@ -5,7 +5,6 @@ import {
   changesBetween,
   Clock,
   DomainEventPublisher,
-  InvalidStateTransitionError,
   type Money,
   NotFoundError,
   TransactionManager,
@@ -135,7 +134,7 @@ export class OrderLifecycle {
    * ADR-0012). Without stock nothing changes, and the staff can cancel it instead.
    *
    * @throws NotFoundError; VersionConflictError; InvalidStateTransitionError unless the order is
-   *   AWAITING_MANUAL_FULFILLMENT; InsufficientStockError.
+   *   AWAITING_MANUAL_FULFILLMENT, or for an anonymized one (ADR-0145); InsufficientStockError.
    */
   retryFulfillment(input: {
     orderId: OrderId;
@@ -146,12 +145,7 @@ export class OrderLifecycle {
       const order = await this.found(input.orderId);
       assertVersion(order.version, input.version);
       // Checked before reserving, so another status never answers about the stock.
-      if (order.status !== 'AWAITING_MANUAL_FULFILLMENT') {
-        throw new InvalidStateTransitionError(
-          order.status,
-          'retry fulfillment',
-        );
-      }
+      order.assertFulfillable();
       const reservation = await this.stock.reserve(order.id, linesOf(order));
       await this.stock.commit(order.id);
       const before = order.status;
@@ -289,12 +283,19 @@ export class OrderLifecycle {
     });
   }
 
-  /** A payment whose reservation ended: reserve again, or wait for the staff (BR-ORD-09, ADR-0012). */
+  /**
+   * A payment whose reservation ended: reserve again, or wait for the staff (BR-ORD-09, ADR-0012). An anonymized
+   * order has no address to ship to, so it waits for the staff, who can only cancel it with its refund (ADR-0145).
+   */
   private async latePayment(
     order: Order,
     capturedAt: Date,
     now: Date,
   ): Promise<PaymentOutcome> {
+    if (order.isAnonymized) {
+      order.awaitManualFulfillment(capturedAt, now);
+      return 'awaiting-manual-fulfillment';
+    }
     const reservation = await this.stock.reserveIfAvailable(
       order.id,
       linesOf(order),

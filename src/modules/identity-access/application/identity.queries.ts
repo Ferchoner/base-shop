@@ -144,6 +144,14 @@ export abstract class IdentityQueries {
   /** An account that can sign in: ACTIVE and not anonymized. */
   abstract findAccount(id: UserId): Promise<AccountView | null>;
 
+  /**
+   * The email of an ACTIVE customer and whether it is verified, with the account locked for share until the
+   * transaction ends (`SELECT … FOR SHARE`, ADR-0145); `null` for staff, other statuses and unknown IDs.
+   */
+  abstract lockCustomerContact(
+    id: UserId,
+  ): Promise<{ email: string; emailVerified: boolean } | null>;
+
   /** The customer's addresses, the default first and then the newest (API_SPEC.md §9.14). */
   abstract listAddresses(customerId: UserId): Promise<AddressView[]>;
 

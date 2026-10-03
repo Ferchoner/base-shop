@@ -6,7 +6,11 @@ import {
   type EmailSender,
   Money,
 } from '../../../shared-kernel/index.js';
-import { type NoticeOrder, NoticeOrders } from './notice-orders.js';
+import {
+  type AnonymizedNoticeOrder,
+  type NoticeOrder,
+  NoticeOrders,
+} from './notice-orders.js';
 import { OrderNotices } from './order-notices.js';
 
 const mxn = (amount: number) => Money.of(amount, 'MXN');
@@ -44,18 +48,20 @@ const ORDER: NoticeOrder = {
   deliveryMaxBusinessDays: 7,
 };
 
+type SomeOrder = NoticeOrder | AnonymizedNoticeOrder;
+
 class SomeOrders extends NoticeOrders {
-  constructor(private readonly orders: Record<string, NoticeOrder>) {
+  constructor(private readonly orders: Record<string, SomeOrder>) {
     super();
   }
 
-  find(orderId: string): Promise<NoticeOrder | null> {
+  find(orderId: string): Promise<SomeOrder | null> {
     return Promise.resolve(this.orders[orderId] ?? null);
   }
 }
 
 function setUp(
-  orders: Record<string, NoticeOrder> = { order: ORDER },
+  orders: Record<string, SomeOrder> = { order: ORDER },
   options: { inStore?: boolean; failing?: boolean } = {},
 ) {
   const sent: EmailMessage[] = [];
@@ -130,7 +136,7 @@ describe('OrderNotices (UC-NTF-01, BR-NTF-01 to 04, ADR-0143)', () => {
 
   it('emails no anonymized order (BR-NTF-03)', async () => {
     const { notices, sent } = setUp({
-      order: { ...ORDER, contactEmail: null },
+      order: { publicCode: ORDER.publicCode, contactEmail: null },
     });
 
     await notices.orderCancelled('order', false);

@@ -383,6 +383,8 @@ Los esquemas se escriben como ejemplos JSON; en OpenAPI se generan desde los DTO
 
 Los límites de longitud se fijan en ADR-0071. `Address` agrega `stateName`, `municipalityName` y `country: "MX"`; en la libreta también `id`, `isDefault`, `createdAt` y `updatedAt`.
 
+La dirección de una orden anonimizada, y el destino de su envío, conservan `postalCode`, `stateCode`, `stateName`, `municipalityCode`, `municipalityName` y `country`; los demás campos son `null` (ADR-0067, ADR-0145). Solo el staff ve órdenes anonimizadas: en `AdminOrder` y en `AdminShipment`.
+
 ### 8.3 `Image`
 
 ```json
@@ -517,13 +519,13 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 - Nunca incluye `orderNumber` interno ni `id` (ADR-0049).
 - `payment` y `shipment` son `null` si no existen.
-- `contactEmail` es `null` solo en órdenes anonimizadas (ADR-0067).
+- `contactEmail` es `null` solo en órdenes anonimizadas (ADR-0067), que el comprador ya no ve: solo el staff, en `AdminOrder` (ADR-0145).
 - `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
 - `paymentDueAt`: vencimiento de la reserva mientras la orden está en PENDING_PAYMENT; `null` en otros estados.
 
 ### 8.9 `AdminOrder`
 
-`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142).
+`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
 
 ### 8.10 `Account` (`GET /v1/me`)
 
@@ -755,7 +757,7 @@ La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitació
 
 ### 9.18 Clientes (UC-IAM-17, 18, 19)
 
-`reason` sigue las mismas reglas que en §9.17. En `createdTo`, una fecha sola (`2026-09-30`) incluye todo el día. La anonimización llega con T-132 (ADR-0111).
+`reason` sigue las mismas reglas que en §9.17. En `createdTo`, una fecha sola (`2026-09-30`) incluye todo el día.
 
 Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "status", "emailVerified", "addresses": [Address], "createdAt", "lastLoginAt", "anonymizedAt", "version" }` (`addresses` solo en el detalle). Sus pedidos están en `GET /v1/admin/orders?customerId=…`, y `meta.totalItems` dice cuántos son: `orderCount` se quitó en T-180 parte b, porque Ordering usa a Identity y Identity no puede contar órdenes (ADR-0132, ADR-0133).
 
@@ -765,8 +767,20 @@ Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "s
 | `GET /v1/admin/identity/customers/{userId}` | `customers.read`. 200 `AdminCustomer` |
 | `POST /v1/admin/identity/customers/{userId}/suspend` | `customers.manage`. Request `{ "reason", "version" }`. Revoca sesiones. 200. Errores: 409 `invalid-state-transition` |
 | `POST /v1/admin/identity/customers/{userId}/reactivate` | `customers.manage`. Request `{ "reason", "version" }`. Desde SUSPENDED; conserva contraseña y verificación de email (ADR-0076). 200 `AdminCustomer`. Errores: 409 `invalid-state-transition` (no está SUSPENDED, incluido un cliente anonimizado) |
-| `POST /v1/admin/identity/customers/{userId}/anonymize` | `customers.manage`. Request `{ "reason", "version" }` (`reason`: referencia de la solicitud ARCO, 1–250 caracteres). 200 `AdminCustomer` anonimizado. Irreversible. Errores: 409 `active-orders-exist`; 409 `invalid-state-transition` si ya está anonimizado |
-| `POST /v1/admin/identity/guest-anonymizations` | `customers.manage`. Request `{ "contactEmail", "publicCode", "reason" }`. Anonimiza todas las órdenes de invitado con ese email (ADR-0067). 200 `{ "anonymizedOrderCount": 3 }`. Errores: 404 `not-found` si el par email–código no coincide; 409 `active-orders-exist` |
+| `POST /v1/admin/identity/customers/{userId}/anonymize` | `customers.manage`. Request `{ "reason", "version" }` (`reason`: referencia de la solicitud ARCO, 1–250 caracteres). 200 `{ "userId", "anonymizedAt", "anonymizedOrderCount": 3 }` (ADR-0145). Irreversible. Errores, en este orden: 404 `not-found` si no es un cliente; 409 `version-conflict`; 409 `invalid-state-transition` si ya está anonimizado; 409 `active-orders-exist` |
+| `POST /v1/admin/identity/guest-anonymizations` | `customers.manage`. Request `{ "contactEmail", "publicCode", "reason" }`. Anonimiza todas las órdenes de invitado con ese email (ADR-0067); las de una cuenta con el mismo email no cambian. 200 `{ "anonymizedOrderCount": 3 }`. Errores: 404 `not-found` si el par email–código no coincide, igual que la consulta de invitado, también una vez anonimizadas; 409 `active-orders-exist` |
+
+Implementado en T-132 (ADR-0145):
+
+- **Quién atiende:** el módulo `privacy`, porque la anonimización llega a las órdenes, los envíos y los carritos, e Identity no puede usar a Ordering (ADR-0132). Todo ocurre en una transacción.
+- **Cliente:**
+  - la cuenta queda sin email, nombres, apellidos, contraseña ni verificación de email, en ANONYMIZED, y su email queda libre para otra cuenta;
+  - se borran sus sesiones, sus enlaces de verificación y de recuperación, sus direcciones y sus carritos;
+  - el staff la sigue consultando en `GET /v1/admin/identity/customers/{userId}`.
+- **Órdenes y envíos:** pierden el email de contacto y los datos de quien recibe (§8.2), y suman una versión. Los montos, líneas, estados y pagos no cambian. También se borran las respuestas guardadas por idempotencia de quien las colocó.
+- **Orden concluida:** DELIVERED, EXPIRED, REFUNDED, CANCELLED sin pago, o SHIPPED con su envío RETURNED. Una CANCELLED con pago espera su reembolso.
+- **Checkout simultáneo del mismo cliente:** se esperan. Si la orden se coloca primero, la anonimización responde 409 `active-orders-exist`; si la anonimización va primero, el checkout responde 404.
+- **Auditoría:** `customers.anonymize` y un `orders.anonymize` por orden, con la referencia como motivo y sin los valores (BR-PRIV-04).
 
 ---
 
@@ -1327,7 +1341,7 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 **`POST /v1/admin/orders/{orderId}/retry-fulfillment`** — `orders.manage`.
 
 - Request: `{ "version" }`. Solo en AWAITING_MANUAL_FULFILLMENT: intenta reservar y confirmar el stock; si lo logra, pasa a PAID (ADR-0012). Si se decide no surtir, se usa `/cancel`.
-- 200 `AdminOrder`. Errores: 409 `insufficient-stock` (con `lines`); 409 `invalid-state-transition`.
+- 200 `AdminOrder`. Errores: 409 `insufficient-stock` (con `lines`); 409 `invalid-state-transition`, también en una orden anonimizada, que no tiene dirección y solo se cancela (ADR-0145).
 
 UC-ORD-09 y UC-ORD-10 no tienen API: los ejecutan eventos y jobs.
 
@@ -1346,7 +1360,7 @@ Implementado en T-180 parte b (ADR-0133):
   - cancelar una orden PAID cancela su envío en la misma operación. Si el envío ya salió, responde 409 `invalid-state-transition` con el estado del envío en `currentStatus`, y no cambia nada;
   - `Order.shipment` y `AdminOrder.shipment` lo muestran en el detalle y en los listados, con `id` y `version` solo para el staff.
 - **Reintentar el surtido:** el estado se revisa antes de reservar; se audita `orders.retry-fulfillment`.
-- **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED; desde T-190 parte b se inicia además su reembolso (ADR-0135). `paidAt` es el momento de la captura.
+- **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED; desde T-190 parte b se inicia además su reembolso (ADR-0135). `paidAt` es el momento de la captura. El pago tardío de una orden anonimizada la deja en AWAITING_MANUAL_FULFILLMENT sin reservar (ADR-0145).
 - **Concurrencia:** cada cambio bloquea la orden; una `version` desactualizada responde 409 `version-conflict` con `currentVersion`.
 
 ---
@@ -1456,7 +1470,7 @@ Implementado en T-190 parte b (ADR-0135):
   - Cada cambio se audita como `shipping-method.update`; sin cambios no se guarda ni se audita.
   - El método inicial lo crea una migración con los valores de ADR-0092.
 
-**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, failureNote, returnNote, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140).
+**Envíos** (`AdminShipment { id, orderId, orderCode, warehouseId, status, destination: Address, items: [ { orderLineId, sku, productName, quantity } ], carrierName, trackingNumber, ownDelivery, dispatchedAt, deliveredAt, failedAt, returnedAt, cancelledAt, failureNote, returnNote, version, createdAt }`). `status`: PENDING, DISPATCHED, DELIVERED, DELIVERY_FAILED, RETURNED o CANCELLED (ADR-0140). El destino del envío de una orden anonimizada sigue §8.2 (ADR-0145).
 
 | Endpoint | Detalle |
 |---|---|

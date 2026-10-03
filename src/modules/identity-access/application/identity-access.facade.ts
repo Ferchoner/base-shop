@@ -4,6 +4,7 @@ import type { AddressFields } from '../domain/address-book.js';
 import { RoleRepository } from '../domain/role.repository.js';
 import type { UserId } from '../domain/user.js';
 import { UserRepository } from '../domain/user.repository.js';
+import { AnonymizeCustomer } from './anonymize-customer.use-case.js';
 import { effectivePermissions } from './effective-permissions.js';
 import { IdentityQueries } from './identity.queries.js';
 
@@ -20,8 +21,8 @@ export interface CustomerAddress extends AddressFields {
 }
 
 /**
- * Public, read-only operations of Identity & Access for the rest of the application (ADR-0005). Ordering
- * uses it for the checkout, so Identity can never use Ordering (ADR-0132).
+ * Public operations of Identity & Access for the rest of the application (ADR-0005). Ordering uses it for the
+ * checkout, and Privacy to anonymize customers, so Identity can never use either (ADR-0132, ADR-0145).
  */
 @Injectable()
 export class IdentityAccessFacade {
@@ -29,6 +30,7 @@ export class IdentityAccessFacade {
     private readonly users: UserRepository,
     private readonly roles: RoleRepository,
     private readonly queries: IdentityQueries,
+    private readonly anonymization: AnonymizeCustomer,
   ) {}
 
   /**
@@ -41,12 +43,30 @@ export class IdentityAccessFacade {
     return user === null ? [] : effectivePermissions(user, this.roles);
   }
 
-  /** The contact of an ACTIVE customer for an order; `null` for staff, other statuses and unknown ids. */
-  async customerContact(userId: UserId): Promise<CustomerContact | null> {
-    const account = await this.queries.findAccount(userId);
-    return account?.type === 'CUSTOMER'
-      ? { email: account.email, emailVerified: account.emailVerified }
-      : null;
+  /**
+   * The contact of an ACTIVE customer for an order; `null` for staff, other statuses and unknown ids. The account
+   * stays locked for share until the transaction of the checkout ends, so an anonymization waits for the order, or
+   * the order finds the customer anonymized (ADR-0145).
+   */
+  customerContact(userId: UserId): Promise<CustomerContact | null> {
+    return this.queries.lockCustomerContact(userId);
+  }
+
+  /**
+   * Anonymizes the account of a customer (UC-IAM-19, ADR-0067), in the transaction of the caller: Privacy
+   * anonymizes their orders and deletes their carts in the same one (ADR-0145).
+   *
+   * @throws NotFoundError for an ID that is not a customer's; VersionConflictError; InvalidStateTransitionError when
+   *   the customer was already anonymized.
+   */
+  anonymizeCustomer(input: {
+    actorId: UserId;
+    userId: UserId;
+    reason: string;
+    version: number;
+    at: Date;
+  }): Promise<void> {
+    return this.anonymization.execute(input);
   }
 
   /** One of the customer's saved addresses (UC-IAM-11); `null` when it does not exist or is another's. */

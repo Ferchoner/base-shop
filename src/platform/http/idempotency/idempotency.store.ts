@@ -100,6 +100,21 @@ export class IdempotencyStore {
          AND expires_at <= ${now}`;
   }
 
+  /**
+   * Deletes the responses kept for these scopes, which can repeat the data of a buyer being anonymized (ADR-0145),
+   * and answers how many. A key still in progress stays: it keeps no response yet.
+   */
+  async forget(scopes: readonly IdempotencyScope[]): Promise<number> {
+    if (scopes.length === 0) return 0;
+    const { count } = await this.prisma.idempotencyKey.deleteMany({
+      where: {
+        status: 'COMPLETED',
+        OR: scopes.map(({ type, id }) => ({ scopeType: type, scopeId: id })),
+      },
+    });
+    return count;
+  }
+
   /** Frees the key of an attempt whose result is not kept, so the client can retry with it. */
   async release(attempt: IdempotencyAttempt): Promise<void> {
     await this.prisma.$executeRaw`

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrderingFacade } from '../../ordering/index.js';
 import {
+  type AnonymizedNoticeOrder,
   type NoticeOrder,
   NoticeOrders,
 } from '../application/notice-orders.js';
@@ -12,7 +13,7 @@ export class OrderingFacadeNoticeOrders extends NoticeOrders {
     super();
   }
 
-  find(orderId: string): Promise<NoticeOrder | null> {
+  find(orderId: string): Promise<NoticeOrder | AnonymizedNoticeOrder | null> {
     return this.ordering.orderNotice(orderId);
   }
 }

@@ -117,6 +117,10 @@ class InMemoryOrders extends OrderRepository {
     throw new Error('Expiring finds orders by their ID');
   }
 
+  lockOf(): Promise<Order[]> {
+    throw new Error('Expiring never anonymizes orders');
+  }
+
   dueForExpiry(at: Date, limit: number): Promise<OrderId[]> {
     this.asked.push([at, limit]);
     return Promise.resolve(this.due);

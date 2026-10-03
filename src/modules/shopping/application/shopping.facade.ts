@@ -15,6 +15,7 @@ import { CartNotActiveError } from '../domain/cart-errors.js';
 import { CartRepository } from '../domain/cart.repository.js';
 import { CartCopies, type CartCopy } from './cart-copies.js';
 import type { CartTarget } from './carts.use-case.js';
+import { CustomerCarts } from './customer-carts.js';
 
 /** The content of an active cart, as the checkout needs it: no prices, which the order works out itself. */
 export interface CheckoutCart {
@@ -27,10 +28,10 @@ export interface CheckoutCart {
 }
 
 /**
- * Public API of Shopping for Ordering (ADR-0005): the checkout (T-180) and buying an order again (T-181, ADR-0139).
- * Ordering uses Shopping, and Shopping never uses Ordering, so they never form a cycle. Every operation joins the
- * transaction of its caller, so the checkout locks the cart, creates the order and marks the cart all at once
- * (ADR-0019).
+ * Public API of Shopping (ADR-0005): for Ordering, the checkout (T-180) and buying an order again (T-181, ADR-0139);
+ * for Privacy, deleting the carts of a customer being anonymized (ADR-0145). Neither is used by Shopping, so they
+ * never form a cycle. Every operation joins the transaction of its caller, so the checkout locks the cart, creates
+ * the order and marks the cart all at once (ADR-0019).
  */
 @Injectable()
 export class ShoppingFacade {
@@ -39,6 +40,7 @@ export class ShoppingFacade {
     private readonly copies: CartCopies,
     private readonly transactions: TransactionManager,
     private readonly clock: Clock,
+    private readonly customerCarts: CustomerCarts,
   ) {}
 
   /**
@@ -103,6 +105,14 @@ export class ShoppingFacade {
     lines: readonly CartItem[],
   ): Promise<CartCopy> {
     return this.copies.toGuestCart(cartId, lines);
+  }
+
+  /**
+   * Deletes every cart of a customer being anonymized, with their lines and the guest carts merged into them
+   * (UC-IAM-19, ADR-0067), in the transaction of the caller.
+   */
+  deleteCartsOf(customer: CustomerId): Promise<void> {
+    return this.customerCarts.deleteOf(customer);
   }
 
   /**

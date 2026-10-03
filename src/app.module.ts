@@ -10,6 +10,7 @@ import { NotificationsModule } from './modules/notifications/index.js';
 import { OrderingModule } from './modules/ordering/index.js';
 import { PaymentsModule } from './modules/payments/index.js';
 import { PricingModule } from './modules/pricing/index.js';
+import { PrivacyModule } from './modules/privacy/index.js';
 import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
 import { AuthorizationModule } from './platform/auth/authorization.module.js';
@@ -61,6 +62,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     PaymentsModule,
     ShippingModule,
     NotificationsModule,
+    PrivacyModule,
   ],
 })
 export class AppModule {}

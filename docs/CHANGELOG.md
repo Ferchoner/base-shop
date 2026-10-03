@@ -164,3 +164,10 @@
   Borra por lotes de 1,000 filas, cada uno en su propia sentencia y hasta 100 por día, con `deleteInBatches` del shared kernel. Cada `DELETE` vuelve a revisar su condición. Sin cambios de API ni migraciones.
 - Sprint Review del Sprint 5 en `SPRINT.md`: objetivo cumplido (4 tareas en DONE en 6 pull requests, CI en verde a la primera en todos), entregables, decisiones abiertas, riesgos que pasan al siguiente sprint, qué funcionó y qué mejorar. Propuesta del Sprint 6 (privacidad y operación: T-132, T-220 y reducir la imagen de producción, con un paso 0 que construye el documento OpenAPI en cada corrida; T-192 pospuesta por P-31) aprobada el 2026-10-02.
 - Paso 0 del Sprint 6: revisión contra los ADR sin contradicciones. `configureHttp` construye y revisa el documento OpenAPI en todo entorno salvo producción: falla si un DTO no se puede describir o si un `$ref` no tiene su esquema. Lo sigue sirviendo solo en desarrollo (ADR-0096). `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 5.
+- T-132: anonimización de clientes (`POST /v1/admin/identity/customers/{userId}/anonymize`) y de compradores invitados (`POST /v1/admin/identity/guest-anonymizations`), desde el nuevo módulo `privacy` (ADR-0145):
+  - en una transacción: la cuenta, con sus sesiones, enlaces, direcciones y carritos; el email de contacto y los datos de quien recibe de las órdenes y sus envíos; y las respuestas guardadas por idempotencia;
+  - espera a que las órdenes concluyan: 409 `active-orders-exist`;
+  - el checkout bloquea al cliente para compartir;
+  - una orden anonimizada no se paga ni se surte, y el comprador ya no la ve;
+  - **cambio de contrato:** la del cliente responde `{ userId, anonymizedAt, anonymizedOrderCount }` en lugar de `AdminCustomer`. `AdminOrder` y `AdminShipment` admiten `null` en los campos anonimizados de la dirección;
+  - sin migraciones.

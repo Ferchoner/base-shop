@@ -94,6 +94,7 @@ export class PrismaUserRepository extends UserRepository {
           firstNames: state.firstNames,
           lastNames: state.lastNames,
           suspendedAt: state.suspendedAt,
+          anonymizedAt: state.anonymizedAt,
           passwordHash: state.passwordHash,
           passwordChangedAt: state.passwordChangedAt,
           mustChangePassword: state.mustChangePassword,

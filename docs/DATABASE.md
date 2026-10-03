@@ -96,6 +96,10 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 - **Restricciones:** `UNIQUE (email)` (los `NULL` no chocan, lo que libera el email de un anonimizado, ADR-0038). `CHECK (status = 'ANONYMIZED' OR (email IS NOT NULL AND password_hash IS NOT NULL AND first_names IS NOT NULL AND last_names IS NOT NULL))`. `CHECK (type = 'CUSTOMER' OR status <> 'ANONYMIZED')` (el staff nunca se anonimiza, BR-USR-06).
 - **Índices:** único por `email`; `(type, status)` para listados administrativos.
 - **Integridad:** nunca se borra (ADR-0038). "Clientes sin roles" y "no quitar el último superadministrador" se validan en la aplicación (BR-USR-03, BR-USR-08).
+- **Implementado en T-132 (ADR-0145):**
+  - la anonimización deja en `NULL` email, nombres, apellidos, `password_hash` y `email_verified_at`, y pone `anonymized_at`, en un `UPDATE … WHERE version = …`;
+  - en la misma transacción borra los `refresh_tokens`, `email_verification_tokens`, `password_reset_tokens` y `customer_addresses` del cliente;
+  - el checkout lee al cliente con `SELECT … FOR SHARE`, que choca con ese `UPDATE`: la orden y la anonimización del mismo cliente se esperan.
 
 ### 3.2 `roles`
 
@@ -415,6 +419,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 - **Restricciones:** único parcial `(owner_user_id) WHERE status = 'ACTIVE' AND owner_user_id IS NOT NULL` (un carrito activo por cliente, BR-CRT-03); `CHECK (status <> 'MERGED' OR merged_into_cart_id IS NOT NULL)`.
 - **Índices:** `(last_activity_at) WHERE owner_user_id IS NULL` (limpieza de invitados).
 - **Limpieza (T-231, ADR-0144):** los carritos de invitado sin actividad en 30 días se borran por lotes, los más antiguos primero, con sus líneas por cascada; el `DELETE` vuelve a revisar el dueño y la actividad.
+- **Anonimización (T-132, ADR-0145):** se borran los carritos del cliente en cualquier estado, con sus líneas y los carritos de invitado fusionados en ellos por cascada, después de tomar el bloqueo advisory del cliente.
 
 ### 7.2 `cart_lines` (cart_items)
 
@@ -473,6 +478,10 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
   - la primera entrada de `order_status_history` lleva como actor al cliente, o `NULL` para un invitado.
 - **Implementado en T-180 parte b (ADR-0133):** cada cambio lee la orden con `SELECT … FOR UPDATE` y guarda con `UPDATE … WHERE version = …`, más una entrada de `order_status_history` por cambio de estado, con el staff y el motivo, o `NULL` cuando es el sistema. Un pago tardío cambia `reservation_id` a la reserva nueva.
 - **Implementado en T-230 (ADR-0136):** el job lee hasta 100 órdenes con `status = 'PENDING_PAYMENT' AND payment_due_at <= ahora`, por `payment_due_at` y luego `id`, con el índice `(status, placed_at)`; cada una se vence después con `SELECT … FOR UPDATE`.
+- **Implementado en T-132 (ADR-0145):**
+  - anonimizar bloquea las órdenes del comprador con `SELECT … FOR UPDATE`, ordenadas por `id`: las del cliente sin `anonymized_at`, o las de invitado con ese `contact_email`, con su índice;
+  - cada orden queda con `contact_email` en `NULL` y `anonymized_at`, y en `shipping_address` solo estado, municipio, código postal y país, con los demás campos en `null`; suma una versión;
+  - sin migración: las columnas y `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)` ya existían.
 
 ### 8.2 `order_lines` (order_items)
 
@@ -616,6 +625,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
   - `20261002200100_shipping_order_snapshot` agrega `order_code`, `cancelled_at`, `sku` y `product_name`, las columnas obligatorias sin valor predeterminado porque las tablas estaban vacías, y rehace las dos primeras restricciones para admitir CANCELLED;
   - el envío se crea con `ON CONFLICT DO NOTHING` sobre el único de `order_id`; cada cambio bloquea el envío y compara `version`.
 - **Implementado en T-195 parte b (ADR-0141):** la migración `20261002220000_shipping_delivery_notes` agrega las notas y las restricciones de las fechas de DELIVERED, DELIVERY_FAILED y RETURNED. Las fechas de despacho y de entrega pasan a `orders.shipped_at` y `orders.delivered_at` en segundo plano.
+- **Implementado en T-132 (ADR-0145):** el envío de una orden anonimizada se bloquea, reduce su `destination` como la orden y pone `anonymized_at`; las notas no cambian.
 
 ### 10.3 `shipment_items`
 
@@ -669,6 +679,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | expires_at | timestamptz(3) | No | +24 horas |
 
 - **Índices:** `(expires_at)` para la limpieza, que borra las llaves vencidas cada día por lotes (ADR-0144).
+- **Anonimización (T-132, ADR-0145):** se borran las llaves COMPLETED del cliente (`USER`) o del carrito de cada orden de invitado (`CART`), porque su `response_body` repite el email y la dirección de la orden.
 - **Uso (ADR-0099):** `created_at` marca el inicio del intento actual; una fila IN_PROGRESS con más de 60 segundos se considera abandonada y la toma la siguiente solicitud con la misma huella. Una fila vencida (`expires_at` pasado) se reutiliza como nueva. `response_body` guarda `{ "kind": "success", "status", "body", "location" }` o, para un error de negocio, `{ "kind": "problem", "code", "extensions" }`.
 
 ### 11.3 `geo_states` y `geo_municipalities`

@@ -104,6 +104,10 @@ class OneOrder extends OrderRepository {
     throw new Error('A restock never looks for due orders');
   }
 
+  lockOf(): Promise<Order[]> {
+    throw new Error('A restock never anonymizes orders');
+  }
+
   save(): Promise<void> {
     throw new Error('A restock never changes the order');
   }

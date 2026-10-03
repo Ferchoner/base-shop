@@ -20,7 +20,7 @@ import {
 } from '../application/shipping.queries.js';
 import type {
   OrderId,
-  ShipmentAddress,
+  ShipmentDestination,
   ShipmentId,
 } from '../domain/shipment.js';
 import {
@@ -140,7 +140,7 @@ function toShipmentView(row: ShipmentRow): ShipmentView {
     orderId: toId<'Order'>(row.orderId),
     orderCode: row.orderCode,
     warehouseId: toId<'Warehouse'>(row.warehouseId),
-    destination: row.destination as unknown as ShipmentAddress,
+    destination: row.destination as unknown as ShipmentDestination,
     items: row.items.map((item) => ({
       orderLineId: toId<'OrderLine'>(item.orderLineId),
       sku: item.sku,
