@@ -171,3 +171,8 @@
   - una orden anonimizada no se paga ni se surte, y el comprador ya no la ve;
   - **cambio de contrato:** la del cliente responde `{ userId, anonymizedAt, anonymizedOrderCount }` en lugar de `AdminCustomer`. `AdminOrder` y `AdminShipment` admiten `null` en los campos anonimizados de la dirección;
   - sin migraciones.
+- T-220: consulta de la auditoría (`GET /v1/admin/audit`, `audit.read`) y su archivo diario (ADR-0146):
+  - la consulta va del más reciente al más antiguo, por cursor, con filtros por actor, acción o prefijo (`orders.*`), recurso, resultado y fechas; `AuditEntry` suma `reason`;
+  - el job `audit.archive` exporta cada día UTC de más de 3 meses a `AUDIT_ARCHIVE_DIR` (JSON Lines con gzip, carpeta privada), relee el archivo y compara cada ID antes de borrar exactamente esos registros. Nunca sobrescribe un archivo, y borra los de más de 2 años;
+  - variables nuevas: `AUDIT_ARCHIVE_DIR`, `AUDIT_RETENTION_MONTHS` y `AUDIT_ARCHIVE_RETENTION_MONTHS`; la imagen de producción crea `/app/storage/audit`;
+  - sin migraciones.

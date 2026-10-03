@@ -163,6 +163,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0143 | Correos de la orden: módulo de notificaciones, eventos de Ordering y su fachada | Aceptada |
 | ADR-0144 | Limpieza diaria: un job por dueño de cada tabla y borrados por lotes | Aceptada |
 | ADR-0145 | Anonimización: módulo de privacidad, órdenes concluidas y bloqueo del cliente en el checkout | Aceptada |
+| ADR-0146 | Auditoría: consulta por cursor y archivo diario verificado, por día UTC | Aceptada |
 
 ---
 
@@ -770,7 +771,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los archivos deben incluirse en los respaldos del servidor, igual que las imágenes (ADR-0024).
   - Si se adopta un almacenamiento externo (por ejemplo, junto con el CDN), los archivos pueden moverse ahí.
   - Plazos sujetos a validación legal (P-61).
-- **Estado:** Aceptada. El registro (UC-AUD-01) se implementa en ADR-0100.
+- **Estado:** Aceptada. El registro (UC-AUD-01) se implementa en ADR-0100. La consulta y el archivo se implementaron en T-220 (ADR-0146): un archivo por día UTC, verificado registro por registro, que nunca se sobrescribe.
 
 ---
 
@@ -4226,3 +4227,56 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - un cambio del carrito en curso;
     - que no queda nada del comprador en sus tablas ni en las respuestas guardadas.
 - **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones).
+
+---
+
+## ADR-0146 — Auditoría: consulta por cursor y archivo diario verificado, por día UTC
+
+- **Fecha:** 2026-10-02
+- **Contexto:** T-220 (UC-AUD-02 y 03). ADR-0037 fijó:
+  - la consulta con `audit.read`;
+  - el archivo en JSON Lines con gzip, un archivo por día, en un directorio privado;
+  - borrar solo después de verificar la exportación;
+  - las retenciones de 3 meses y 2 años, configurables.
+
+  Quedaban abiertos dónde se guardan los archivos sin hosting (ADR-0031), en qué día cae un registro, cómo se verifica, y qué pasa si una corrida falla a la mitad.
+- **Decisión:**
+  - **Consulta:** `GET /v1/admin/audit`, del más reciente al más antiguo, paginada por cursor (`occurredAt` e `id`) con el índice `(occurred_at, id)`:
+    - los filtros del contrato; `actorType` y `result` aceptan varios valores separados por comas;
+    - `action` es un código exacto o un prefijo terminado en `.*`;
+    - `to` con solo fecha incluye todo el día, y un `from` anterior a la retención no se rechaza;
+    - `AuditEntry` suma `reason` (ADR-0112);
+    - leer la auditoría no se audita.
+  - **Archivos:**
+    - viven en `AUDIT_ARCHIVE_DIR` (por defecto `storage/audit`): una carpeta privada (0700, con archivos 0600) que la API nunca sirve. La API no arranca si queda dentro de `IMAGE_STORAGE_DIR`, que se sirve en `/media`;
+    - la imagen de producción crea `/app/storage/audit`, y `/app/storage` va en un volumen persistente y en los respaldos;
+    - un archivo por día UTC, `audit-AAAA-MM-DD.jsonl.gz`: los registros guardan UTC (ADR-0037), así que el nombre dice exactamente qué instantes contiene;
+    - cada línea es un registro como lo muestra la API.
+  - **Retenciones configurables,** en meses calendario y sujetas a P-61:
+    - `AUDIT_RETENTION_MONTHS`: 3 por defecto, de 1 a 24;
+    - `AUDIT_ARCHIVE_RETENTION_MONTHS`: 24 por defecto, de 2 a 240, y mayor que la anterior, para no borrar un archivo antes de que sus registros salgan de la base.
+  - **Job `audit.archive`,** diario a las 3:00, hora de México:
+    1. borra lo que una corrida anterior dejó a medio escribir en `.writing/`;
+    2. toma los días UTC con registros anteriores al inicio del día de hace 3 meses, del más antiguo al más reciente, hasta 31 por corrida;
+    3. exporta cada día por lotes de 1,000 a un temporal; lo cierra y lo fuerza a disco (`fsync`); lo relee descomprimido y compara cada ID, en orden;
+    4. si coinciden, le da su nombre con un enlace que falla si el nombre ya existe, y fuerza la carpeta a disco;
+    5. borra los registros del día en un solo `DELETE … RETURNING id`, dentro de una transacción. Si los IDs no son exactamente los exportados, la transacción se revierte y no se borra nada;
+    6. un día que falla queda en el log y en la base, y la corrida sigue con el siguiente;
+    7. al final borra los archivos de días anteriores a hace 24 meses, por la fecha de su nombre.
+  - **Nunca se sobrescribe un archivo** (propuesta del usuario en el plan):
+    - qué días archivar lo decide la base, no los archivos;
+    - un día que vuelve a tener registros, por un borrado fallido o un respaldo restaurado, va a `audit-AAAA-MM-DD.2.jsonl.gz`, luego `.3`, y así;
+    - después de una falla, un registro puede quedar en dos archivos; se reconoce por su `id`.
+- **Alternativas consideradas:**
+  - **Días de México:** más cercanos a como el staff piensa las fechas, pero los registros guardan UTC.
+  - **Reemplazar el archivo de un día al exportarlo de nuevo:** perdería los registros que solo estuvieran en el anterior.
+  - **Verificar solo el conteo,** como dice ADR-0037: no detecta un archivo con otros registros.
+  - **Borrar el día completo sin comparar:** borraría un registro que llegara después de exportar.
+  - **Almacenamiento externo (tipo S3):** cuando haya hosting (ADR-0031).
+- **Consecuencias:**
+  - La base guarda entre 3 meses y 3 meses y un día de auditoría.
+  - Para leer un archivo: `gunzip -c audit-AAAA-MM-DD*.jsonl.gz`; si hay más de uno del día, los repetidos tienen el mismo `id`.
+  - Si la API se escala a varias instancias, el job necesitará un candado: hoy sus corridas no se superponen dentro de un proceso (ADR-0101).
+  - En Windows no se fuerza la carpeta a disco, porque no se puede abrir; en Linux sí.
+  - Sin migración: el índice `(occurred_at, id)` ya existía.
+- **Estado:** Aceptada (plan de T-220 aprobado el 2026-10-02, con sus 2 recomendaciones y 5 ajustes).

@@ -1513,8 +1513,19 @@ Implementado en T-195 parte b (ADR-0141):
 
 - Paginación por cursor (sección 5.2); orden fijo, más reciente primero.
 - Filtros: `actorId`, `actorType`, `action` (código exacto o prefijo con `*`, por ejemplo `orders.*`), `resourceType`, `resourceId`, `result`, `from`, `to` (máximo 3 meses atrás; los registros anteriores están en archivos fuera de la API).
-- `AuditEntry { id, occurredAt, actorType, actorId, action, resourceType, resourceId, result, correlationId, ip, userAgent, changes }`. `changes` nunca contiene valores sensibles ni personales (ADR-0067).
+- `AuditEntry { id, occurredAt, actorType, actorId, action, resourceType, resourceId, result, correlationId, ip, userAgent, changes, reason }`. `changes` nunca contiene valores sensibles ni personales (ADR-0067).
 - No existen endpoints para modificar ni borrar registros.
+
+Implementado en T-220 (ADR-0146):
+
+- **Filtros:**
+  - `actorType` y `result` aceptan varios valores separados por comas;
+  - `action` es un código exacto o un prefijo terminado en `.*`; otra forma responde 400;
+  - `from` y `to` incluyen sus extremos, y un `to` con solo fecha incluye todo el día;
+  - un `from` anterior a la retención no se rechaza: no hay registros tan antiguos.
+- **`reason`:** el motivo que dio el staff, cuando la acción lo pide (ADR-0112); `null` si no.
+- **Retención:** la base guarda `AUDIT_RETENTION_MONTHS` meses (3 por defecto). Después, el job diario `audit.archive` los pasa a archivos comprimidos, un archivo o más por día UTC, que se leen a mano.
+- Leer la auditoría no se audita.
 
 ---
 

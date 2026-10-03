@@ -192,5 +192,9 @@ ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Par
   - Lectura exclusiva con el permiso `audit.read`; ningún endpoint modifica ni borra registros.
   - Mecanismo (ADR-0100): el actor, la IP, el agente de usuario y el identificador de correlación se toman de la solicitud; los cambios guardan solo los campos modificados, y los personales o sensibles quedan como `{ "changed": true }`, con una lista fija de nombres (contraseña, hash, token, secreto, correo, teléfono, nombres, apellidos, dirección) que se ocultan aunque no se declaren.
   - Todo 403 en `/v1/admin` se registra automáticamente como `http.access-denied` con resultado DENIED; los 401 no se auditan (sin actor conocido; los cubren el rate limiting y los logs).
-  - Retención: 3 meses en la base de datos; después, archivos comprimidos hasta 2 años (configurables), sujeto a validación legal (P-61).
-  - Los archivos comprimidos se guardan en un directorio privado, nunca servido públicamente y separado del de imágenes, e incluido en los respaldos.
+  - Retención: 3 meses en la base de datos; después, archivos comprimidos hasta 2 años (configurables con `AUDIT_RETENTION_MONTHS` y `AUDIT_ARCHIVE_RETENTION_MONTHS`), sujeto a validación legal (P-61).
+  - Los archivos comprimidos se guardan en un directorio privado, nunca servido públicamente y separado del de imágenes, e incluido en los respaldos. Implementado en T-220 (ADR-0146):
+    - `AUDIT_ARCHIVE_DIR`, con permisos 0700, y sus archivos 0600;
+    - la API no arranca si esa carpeta queda dentro de la de imágenes, que se sirve en `/media`;
+    - los registros salen de la base solo después de releer su archivo y comparar cada ID;
+    - ningún archivo se sobrescribe.

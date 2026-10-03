@@ -65,6 +65,17 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio"; los criterios de ac
   - **Pago tardío:** una orden vencida y anonimizada que recibe un pago espera al staff, que solo puede cancelarla con su reembolso.
 - **Sin cambios de esquema.** Las notas del staff (historial, envíos, pagos y reintegros) no se tocan: son texto libre en el que la API pide no escribir datos personales.
 
+### Resultado del paso 2
+
+- **T-220 en DONE (ADR-0146):**
+  - **Consulta:** `GET /v1/admin/audit` con `audit.read`, por cursor, con los filtros del contrato y el motivo del staff en cada registro.
+  - **Dónde quedan los archivos:** en `AUDIT_ARCHIVE_DIR` (`storage/audit`), una carpeta privada que la API nunca sirve y que la imagen de producción crea. La API no arranca si queda dentro de la carpeta de imágenes.
+  - **Por día UTC:** los registros guardan UTC, así que el nombre de cada archivo dice exactamente qué contiene.
+  - **Verificación:** cada archivo se fuerza a disco y se relee comparando cada ID; después se borran exactamente esos registros, o ninguno.
+  - **Nunca se sobrescribe un archivo** (propuesta del usuario en el plan): un día que vuelve a tener registros va a un archivo nuevo.
+  - **Retenciones configurables:** `AUDIT_RETENTION_MONTHS` y `AUDIT_ARCHIVE_RETENTION_MONTHS`, y la de archivos debe ser mayor.
+- **Sin cambios de esquema.** El paso 3 (reducir la imagen de producción) debe conservar `/app/storage/audit`.
+
 ## Risks
 
 - **T-132 cruza contextos:** anonimiza o borra datos de cuatro módulos, y debe esperar a que concluyan las órdenes (ADR-0067):

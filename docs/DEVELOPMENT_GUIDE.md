@@ -291,6 +291,7 @@ Ramas y commits (ADR-0084), en inglés:
 - La tasa de IVA es `VAT_RATE_BP` (1600, el 16%, por defecto); cambiarla exige reiniciar la API y no altera órdenes colocadas (ADR-0027, ADR-0122).
 - Una reserva de stock dura `RESERVATION_TTL` (`20m` por defecto, de 5m a 2h, BR-INV-07, ADR-0128).
 - Las imágenes de producto se guardan en `IMAGE_STORAGE_DIR` (`./storage/images` por defecto, fuera de Git) y la API las sirve en `http://localhost:3000/media` (ADR-0121). `IMAGE_BASE_URL` es obligatoria en producción.
+- Los archivos de la auditoría van a `AUDIT_ARCHIVE_DIR` (`./storage/audit` por defecto, fuera de Git), que la API nunca sirve (ADR-0146). Se leen con `gunzip -c storage/audit/audit-AAAA-MM-DD*.jsonl.gz`; si un día tiene más de un archivo, los registros repetidos tienen el mismo `id`.
 - Webhooks de pago: requieren un túnel hacia el entorno local; estrategia de prueba pendiente (P-31).
 
 ## Entorno local con Docker
@@ -313,7 +314,7 @@ Comandos:
 - Después de cambiar dependencias: `docker compose up --build -V`, para regenerar el `node_modules` del contenedor.
 - Detener: `docker compose down`. Los datos de PostgreSQL se conservan en un volumen.
 - **Borrar los datos locales de PostgreSQL:** `docker compose down -v`. No se puede deshacer.
-- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13). Crea `/app/storage/images` con dueño `node`: al desplegar se monta ahí un volumen persistente, que debe ir en los respaldos (ADR-0024, ADR-0121).
+- Imagen de producción (la construye la CI en el paso 10, ADR-0105): `docker build --target production -t base-shop .` Incluye el CLI de Prisma (ADR-0093); cómo se aplican las migraciones al desplegar se decide con P-05 (análisis en `DATABASE.md`, sección 13). Crea `/app/storage/images` y la carpeta privada `/app/storage/audit` con dueño `node`: al desplegar se monta un volumen persistente en `/app/storage`, que debe ir en los respaldos (ADR-0024, ADR-0121, ADR-0146).
 
 ## Migraciones
 
