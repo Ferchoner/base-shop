@@ -98,6 +98,13 @@ function saved(status: OrderStatus, paidAt: Date | null = null): Order {
   return Order.restore({ ...placed.snapshot, status, paidAt, version: 3 });
 }
 
+/** The same order, anonymized while it had concluded (ADR-0067). */
+function anonymized(status: OrderStatus, paidAt: Date | null = null): Order {
+  const order = saved('EXPIRED');
+  order.anonymize(null, PLACED);
+  return Order.restore({ ...order.snapshot, status, paidAt });
+}
+
 /** Orders in memory: `lock` hands a fresh copy, and `saved` keeps what was saved. */
 class InMemoryOrders extends OrderRepository {
   readonly saved: Order[] = [];
@@ -480,6 +487,25 @@ describe('OrderLifecycle: retrying the fulfillment (UC-ORD-08)', () => {
     expect([wrongStatus.calls, outdated.calls]).toEqual([[], []]);
   });
 
+  it('never retries the fulfillment of an anonymized order, checked before reserving (ADR-0145)', async () => {
+    const order = anonymized('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
+    const { lifecycle, orders, calls, audited } = setUp(order);
+
+    await expect(
+      lifecycle.retryFulfillment({
+        orderId: order.id,
+        actorId: staff,
+        version: 3,
+      }),
+    ).rejects.toThrow(
+      new InvalidStateTransitionError(
+        'AWAITING_MANUAL_FULFILLMENT',
+        'fulfill an anonymized order',
+      ),
+    );
+    expect([calls, orders.saved, audited]).toEqual([[], [], []]);
+  });
+
   it('saves nothing when the stock is still short', async () => {
     const order = saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
     const { lifecycle, orders, audited } = setUp(order, { available: false });
@@ -553,6 +579,20 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
       status: 'AWAITING_MANUAL_FULFILLMENT',
       paidAt: CAPTURED,
     });
+  });
+
+  it('leaves a late payment of an anonymized order waiting for the staff without reserving: it has no address to ship to (ADR-0145)', async () => {
+    const order = anonymized('EXPIRED');
+    const { lifecycle, orders, calls, published } = setUp(order);
+
+    expect(await pay(lifecycle, order)).toBe('awaiting-manual-fulfillment');
+
+    expect(calls).toEqual([]);
+    expect(savedOne(orders).snapshot).toMatchObject({
+      status: 'AWAITING_MANUAL_FULFILLMENT',
+      paidAt: CAPTURED,
+    });
+    expect(published).toEqual([]);
   });
 
   it('keeps the payment of a cancelled order once, without moving it (ADR-0133)', async () => {

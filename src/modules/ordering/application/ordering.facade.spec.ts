@@ -66,7 +66,10 @@ function view(id: string): OrderView {
   } as unknown as OrderView;
 }
 
-function facade(order: OrderView | null) {
+function facade(
+  order: OrderView | null,
+  anonymizations = {} as OrderAnonymizations,
+) {
   const asked: string[] = [];
   const queries = {
     findAdminOrder: (id: string) => {
@@ -75,7 +78,7 @@ function facade(order: OrderView | null) {
     },
   } as unknown as OrderingQueries;
   return {
-    facade: new OrderingFacade(queries, {} as OrderAnonymizations),
+    facade: new OrderingFacade(queries, anonymizations),
     asked,
   };
 }
@@ -126,5 +129,58 @@ describe('OrderingFacade (ADR-0074, ADR-0143)', () => {
 
   it('answers null for an order that does not exist', async () => {
     expect(await facade(null).facade.orderNotice(newId())).toBeNull();
+  });
+
+  it('answers an anonymized order without email nor address, so it gets no email (ADR-0067)', async () => {
+    const id = newId();
+    const anonymized = {
+      ...view(id),
+      contactEmail: null,
+      anonymizedAt: DUE,
+      shippingAddress: {
+        recipientName: null,
+        phone: null,
+        street: null,
+        exteriorNumber: null,
+        interiorNumber: null,
+        neighborhood: null,
+        postalCode: '58000',
+        stateCode: '16',
+        stateName: 'Michoacán de Ocampo',
+        municipalityCode: '16053',
+        municipalityName: 'Morelia',
+        city: null,
+        references: null,
+        country: 'MX',
+      },
+    } as unknown as OrderView;
+
+    expect(await facade(anonymized).facade.orderNotice(id)).toEqual({
+      orderId: id,
+      publicCode: 'K7M4-Q9XA',
+      contactEmail: null,
+    });
+  });
+});
+
+describe('OrderingFacade, for Privacy (UC-IAM-19, ADR-0145)', () => {
+  it('anonymizes the orders of a buyer, answering how many', async () => {
+    const asked: unknown[] = [];
+    const anonymizations = {
+      anonymize: (input: unknown) => {
+        asked.push(input);
+        return Promise.resolve(2);
+      },
+    } as unknown as OrderAnonymizations;
+    const input = {
+      buyer: { contactEmail: 'cliente@example.com', publicCode: 'K7M4-Q9XA' },
+      reason: 'ARCO-2026-0042',
+      at: DUE,
+    };
+
+    expect(
+      await facade(null, anonymizations).facade.anonymizeOrders(input),
+    ).toBe(2);
+    expect(asked).toEqual([input]);
   });
 });
