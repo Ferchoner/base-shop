@@ -9,6 +9,7 @@ export class MoneyDto {
    */
   amount: number;
 
+  /** Siempre `MXN` (ADR-0026). */
   @ApiProperty({ enum: ['MXN'], example: 'MXN' })
   currency: string;
 }

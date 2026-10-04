@@ -31,7 +31,10 @@ export class AddressInputDto {
   @Matches(/^[0-9]{10}$/, PHONE)
   phone: string;
 
-  /** @example 'Av. Madero Poniente' */
+  /**
+   * Calle, de 1 a 150 caracteres.
+   * @example 'Av. Madero Poniente'
+   */
   @IsString()
   @Length(1, 150)
   @Matches(/\S/, NOT_BLANK)
@@ -43,6 +46,7 @@ export class AddressInputDto {
   @Matches(/\S/, NOT_BLANK)
   exteriorNumber: string;
 
+  /** De 1 a 20 caracteres; opcional. */
   @ApiPropertyOptional({ ...NULLABLE_TEXT, example: '4B' })
   @IsOptional()
   @IsString()
@@ -67,12 +71,14 @@ export class AddressInputDto {
   @Matches(/^[0-9]{5}$/, MUNICIPALITY_CODE)
   municipalityCode: string;
 
+  /** Ciudad o localidad, de 1 a 120 caracteres; opcional. */
   @ApiPropertyOptional({ ...NULLABLE_TEXT, example: 'Morelia' })
   @IsOptional()
   @IsString()
   @Length(1, 120)
   city?: string | null;
 
+  /** Referencias para encontrar el domicilio, hasta 250 caracteres; opcional. */
   @ApiPropertyOptional({ ...NULLABLE_TEXT, example: 'Entre Galeana e Hidalgo' })
   @IsOptional()
   @IsString()
@@ -94,6 +100,7 @@ export class PostalAddressDto {
   /** @example '123' */
   exteriorNumber: string;
 
+  /** `null` sin número interior. */
   @ApiProperty({ ...NULLABLE_TEXT, example: '4B' })
   interiorNumber: string | null;
 
@@ -103,24 +110,35 @@ export class PostalAddressDto {
   /** @example '58000' */
   postalCode: string;
 
-  /** @example '16' */
+  /**
+   * Clave del INEGI del estado.
+   * @example '16'
+   */
   stateCode: string;
 
   /** @example 'Michoacán de Ocampo' */
   stateName: string;
 
-  /** @example '16053' */
+  /**
+   * Clave del INEGI del municipio.
+   * @example '16053'
+   */
   municipalityCode: string;
 
   /** @example 'Morelia' */
   municipalityName: string;
 
+  /** Ciudad o localidad; `null` si no se dio. */
   @ApiProperty({ ...NULLABLE_TEXT, example: 'Morelia' })
   city: string | null;
 
+  /** Referencias para encontrar el domicilio; `null` si no se dieron. */
   @ApiProperty({ ...NULLABLE_TEXT, example: 'Entre Galeana e Hidalgo' })
   references: string | null;
 
-  /** @example 'MX' */
+  /**
+   * Siempre `MX`: la tienda solo envía a México (ADR-0026).
+   * @example 'MX'
+   */
   country: string;
 }

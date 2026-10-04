@@ -41,10 +41,16 @@ export class PageQueryDto implements PageRequest {
 
 /** Counts of a listing response (ADR-0036). */
 export class PageMetaDto {
-  /** @example 1 */
+  /**
+   * La página de esta respuesta, desde 1.
+   * @example 1
+   */
   page: number;
 
-  /** @example 20 */
+  /**
+   * Elementos por página.
+   * @example 20
+   */
   pageSize: number;
 
   /**
@@ -53,6 +59,9 @@ export class PageMetaDto {
    */
   totalItems: number;
 
-  /** @example 3 */
+  /**
+   * Páginas en total; 0 sin resultados.
+   * @example 3
+   */
   totalPages: number;
 }
