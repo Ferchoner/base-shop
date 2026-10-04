@@ -23,6 +23,7 @@ const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
 
 /** `ShippingMethod` of API_SPEC.md §17. */
 export class ShippingMethodDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /**
@@ -51,11 +52,16 @@ export class ShippingMethodDto {
    */
   deliveryMinBusinessDays: number;
 
-  /** @example 7 */
+  /**
+   * Plazo máximo de entrega, en días hábiles desde la confirmación del pago.
+   * @example 7
+   */
   deliveryMaxBusinessDays: number;
 
+  /** Si se usa; en el MVP, el único método está activo. */
   isActive: boolean;
 
+  /** Versión para el bloqueo optimista: se envía al cambiarlo. */
   version: number;
 
   @ApiProperty({ type: String, format: 'date-time' })
@@ -64,7 +70,10 @@ export class ShippingMethodDto {
 
 /** `PUT /v1/admin/shipping/method` (UC-SHI-02): replaces every setting. Amounts in cents. */
 export class UpdateShippingMethodDto {
-  /** @example 'Envío Estándar' */
+  /**
+   * De 1 a 100 caracteres; solo lo ve el staff.
+   * @example 'Envío Estándar'
+   */
   @IsString()
   @Length(1, MAX_NAME_LENGTH)
   @Matches(/\S/, NOT_BLANK)

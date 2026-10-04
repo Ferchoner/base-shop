@@ -46,7 +46,11 @@ export class AdminPaymentsController {
     private readonly payments: PaymentsFacade,
   ) {}
 
-  @ApiOperation({ summary: 'Listar pagos' })
+  @ApiOperation({
+    summary: 'Listar pagos',
+    description:
+      'Paginado. Filtros por estado, proveedor, orden y fecha de captura, con varios valores separados por comas; orden por fecha de alta, la más reciente primero por defecto, o monto.',
+  })
   @ApiOkResponse({ type: AdminPaymentListDto })
   @RequirePermissions('orders.read')
   @Get()
@@ -73,7 +77,11 @@ export class AdminPaymentsController {
     return toPageResponse(page, query, toAdminPaymentDto);
   }
 
-  @ApiOperation({ summary: 'Consultar un pago, con sus intentos y reembolsos' })
+  @ApiOperation({
+    summary: 'Consultar un pago, con sus intentos y reembolsos',
+    description:
+      'Los intentos, del más antiguo al más reciente, y los reembolsos del pago.',
+  })
   @ApiOkResponse({ type: AdminPaymentDto })
   @ApiProblemResponses('not-found')
   @RequirePermissions('orders.read')

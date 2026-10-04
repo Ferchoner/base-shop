@@ -27,7 +27,11 @@ export class AdminShippingMethodController {
     private readonly configureShippingMethod: ConfigureShippingMethod,
   ) {}
 
-  @ApiOperation({ summary: 'Consultar el método de envío' })
+  @ApiOperation({
+    summary: 'Consultar el método de envío',
+    description:
+      'El único método de envío, con su costo, el umbral de envío gratis y el plazo de entrega (ADR-0041, ADR-0092).',
+  })
   @ApiOkResponse({ type: ShippingMethodDto })
   @ApiProblemResponses('not-found')
   @RequirePermissions('shipping.manage')

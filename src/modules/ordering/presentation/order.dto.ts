@@ -62,6 +62,7 @@ export class PlaceGuestOrderDto {
   @MaxLength(254)
   contactEmail: string;
 
+  /** La dirección de envío, con el formato de `AddressInput`. */
   @ApiProperty({ type: () => AddressInputDto })
   @IsObject()
   @ValidateNested()
@@ -139,7 +140,10 @@ export class OrderAccessLinkRequestDto {
 
 /** Request of `POST /v1/orders/access` (UC-ORD-05, API_SPEC.md §15.6). */
 export class OrderAccessRequestDto {
-  /** El token del enlace. */
+  /**
+   * El token del parámetro `token` del enlace: 43 caracteres en base64url.
+   * @example 'q8Xz3Lr0VbN7kT2mWc9YhD4sFj6Ae1Pu5Gi8Ko0RnSv'
+   */
   @IsString()
   @IsNotEmpty()
   @MaxLength(256)
@@ -149,6 +153,7 @@ export class OrderAccessRequestDto {
 /** Answer of the three reorder routes (UC-CRT-09, ADR-0139): read the cart with the routes of the cart. */
 export class ReorderDto {
   /** El carrito que recibió las líneas. */
+  @ApiProperty({ format: 'uuid' })
   cartId: string;
 
   @ApiProperty({
@@ -195,15 +200,22 @@ export class PlaceCustomerOrderDto {
 
 /** A line of `Order` (API_SPEC.md §8.8), as it was sold. */
 export class OrderLineDto {
-  /** @example 1 */
+  /**
+   * Número de la línea en la orden, desde 1.
+   * @example 1
+   */
   lineNumber: number;
 
   /** @example 'CAM-LIN-AZ-M' */
   sku: string;
 
-  /** @example 'Camisa de lino' */
+  /**
+   * El nombre del producto al colocar la orden.
+   * @example 'Camisa de lino'
+   */
   productName: string;
 
+  /** Las opciones de la variante al colocar la orden. */
   @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'string' },
@@ -211,6 +223,7 @@ export class OrderLineDto {
   })
   variantOptions: Record<string, string>;
 
+  /** Precio con IVA al colocar la orden; no cambia aunque cambie el precio. */
   @ApiProperty({ type: () => MoneyDto })
   unitPrice: MoneyDto;
 
@@ -220,18 +233,25 @@ export class OrderLineDto {
   /** Tasa de IVA en puntos base. @example 1600 */
   taxRateBp: number;
 
+  /** IVA contenido en `lineTotal`. */
   @ApiProperty({ type: () => MoneyDto })
   taxAmount: MoneyDto;
 
+  /** Precio por cantidad, con IVA. */
   @ApiProperty({ type: () => MoneyDto })
   lineTotal: MoneyDto;
 }
 
 /** The payment of an order, as the customer sees it (T-190). */
 export class OrderPaymentDto {
+  /** `MANUAL` es el pago en la tienda (ADR-0055); PayPal aún no está habilitado (ADR-0040). */
   @ApiProperty({ enum: ['MANUAL', 'PAYPAL'] })
   provider: string;
 
+  /**
+   * Estado del pago: `PENDING` mientras no se paga, `CAPTURED` al cobrarse, y `PARTIALLY_REFUNDED` o `REFUNDED` según
+   * sus reembolsos.
+   */
   @ApiProperty({
     enum: [
       'PENDING',
@@ -249,43 +269,55 @@ export class OrderPaymentDto {
 
 /** A refund of the payment of an order (ADR-0051). */
 export class OrderRefundDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({ type: () => MoneyDto })
   amount: MoneyDto;
 
+  /** `PENDING` hasta que el dinero se devuelve; `COMPLETED` o `FAILED` después. */
   @ApiProperty({ enum: ['PENDING', 'COMPLETED', 'FAILED'] })
   status: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 
+  /** Cuándo se completó; `null` si no se ha completado. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   completedAt: Date | null;
 }
 
 /** The payment of an order, as the staff sees it (API_SPEC.md §8.9). */
 export class AdminOrderPaymentDto extends OrderPaymentDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({ type: () => MoneyDto, description: 'El total de la orden.' })
   amount: MoneyDto;
 
+  /** Lo cobrado; 0 mientras no se cobra. */
   @ApiProperty({ type: () => MoneyDto })
   capturedAmount: MoneyDto;
 
+  /** Lo reembolsado hasta ahora, de los reembolsos completados. */
   @ApiProperty({ type: () => MoneyDto })
   refundedAmount: MoneyDto;
 
+  /** Cuándo se cobró; `null` si no se ha cobrado. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   capturedAt: Date | null;
 
+  /** Sus reembolsos, del más antiguo al más reciente. */
   @ApiProperty({ type: () => [OrderRefundDto] })
   refunds: OrderRefundDto[];
 }
 
 /** The shipment of an order, as the customer sees it (T-195). */
 export class OrderShipmentDto {
+  /**
+   * `PENDING` hasta que sale; luego `DISPATCHED`, y `DELIVERED`, `DELIVERY_FAILED` o `RETURNED`. `CANCELLED` si se
+   * canceló la orden antes de salir.
+   */
   @ApiProperty({
     enum: [
       'PENDING',
@@ -298,23 +330,29 @@ export class OrderShipmentDto {
   })
   status: string;
 
+  /** La paquetería; `null` mientras no se capture o en una entrega de la tienda. */
   @ApiProperty({ type: String, nullable: true })
   carrierName: string | null;
 
+  /** El número de guía; `null` mientras no se capture o en una entrega de la tienda. */
   @ApiProperty({ type: String, nullable: true })
   trackingNumber: string | null;
 
+  /** Si lo entrega la tienda, sin paquetería (ADR-0078). */
   ownDelivery: boolean;
 
+  /** Cuándo salió; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   dispatchedAt: Date | null;
 
+  /** Cuándo se entregó; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deliveredAt: Date | null;
 }
 
 /** The shipment of an order, as the staff sees it (API_SPEC.md §8.9, ADR-0140). */
 export class AdminOrderShipmentDto extends OrderShipmentDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** Versión para el bloqueo optimista. */
@@ -326,9 +364,17 @@ export class AdminOrderShipmentDto extends OrderShipmentDto {
  * internal number nor the ID for a customer (ADR-0049).
  */
 export class OrderFieldsDto {
-  /** @example 'K7M4-Q9XA' */
+  /**
+   * Código público: con él y el email, quien compra consulta su pedido.
+   * @example 'K7M4-Q9XA'
+   */
   publicCode: string;
 
+  /**
+   * `PENDING_PAYMENT` espera su pago hasta `paymentDueAt`, y si no llega pasa a `EXPIRED`.
+   * `AWAITING_MANUAL_FULFILLMENT` se pagó sin stock suficiente y espera surtido (ADR-0012). `REFUNDED`, cancelada y
+   * reembolsada.
+   */
   @ApiProperty({ enum: ORDER_STATUSES })
   status: OrderStatus;
 
@@ -343,27 +389,35 @@ export class OrderFieldsDto {
   /** Unidades de todas las líneas. */
   itemCount: number;
 
+  /** Suma de las líneas, con IVA. */
   @ApiProperty({ type: () => MoneyDto })
   subtotal: MoneyDto;
 
+  /** Informativo: IVA contenido en el subtotal y en el envío. */
   @ApiProperty({ type: () => MoneyDto })
   taxTotal: MoneyDto;
 
+  /** Con IVA; 0 con envío gratis. */
   @ApiProperty({ type: () => MoneyDto })
   shippingCost: MoneyDto;
 
+  /** IVA contenido en `shippingCost`. */
   @ApiProperty({ type: () => MoneyDto })
   shippingTaxAmount: MoneyDto;
 
+  /** Siempre 0 en el MVP. */
   @ApiProperty({ type: () => MoneyDto })
   discountTotal: MoneyDto;
 
+  /** El total por pagar: subtotal más envío menos descuento. */
   @ApiProperty({ type: () => MoneyDto })
   grandTotal: MoneyDto;
 
+  /** Plazo estimado de entrega, desde la confirmación del pago (ADR-0083). */
   @ApiProperty({ type: () => EstimatedDeliveryDto })
   estimatedDelivery: EstimatedDeliveryDto;
 
+  /** Cuándo se colocó. */
   @ApiProperty({ type: String, format: 'date-time' })
   placedAt: Date;
 
@@ -376,21 +430,27 @@ export class OrderFieldsDto {
   })
   paymentDueAt: Date | null;
 
+  /** Cuándo se pagó; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   paidAt: Date | null;
 
+  /** Cuándo salió su envío; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   shippedAt: Date | null;
 
+  /** Cuándo se entregó; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deliveredAt: Date | null;
 
+  /** Cuándo se canceló; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   cancelledAt: Date | null;
 
+  /** Cuándo venció sin pago; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   expiredAt: Date | null;
 
+  /** Cuándo se completó su reembolso; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   refundedAt: Date | null;
 }
@@ -417,9 +477,11 @@ export class OrderSummaryDto extends OrderFieldsDto {
 
 /** `Order` of API_SPEC.md §8.8: the customer's view. */
 export class OrderDto extends OrderSummaryDto {
+  /** En el orden en que se colocaron. */
   @ApiProperty({ type: () => [OrderLineDto] })
   lines: OrderLineDto[];
 
+  /** La dirección de envío al colocar la orden. */
   @ApiProperty({ type: () => PostalAddressDto })
   shippingAddress: PostalAddressDto;
 }

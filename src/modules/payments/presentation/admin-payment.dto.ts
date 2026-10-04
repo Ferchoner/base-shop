@@ -33,6 +33,7 @@ import {
 
 /** An attempt of `AdminPayment` (API_SPEC.md §16.3). */
 export class PaymentAttemptDto {
+  /** El estado al que llevó el intento. */
   @ApiProperty({ enum: PAYMENT_STATUSES })
   status: PaymentStatus;
 
@@ -43,6 +44,7 @@ export class PaymentAttemptDto {
   })
   providerReference: string | null;
 
+  /** El código de error del proveedor; `null` si no falló. */
   @ApiProperty({ type: String, nullable: true })
   failureCode: string | null;
 
@@ -59,57 +61,78 @@ export class PaymentAttemptDto {
 
 /** A refund of `AdminPayment` (API_SPEC.md §16.3, ADR-0051). */
 export class RefundDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({ type: () => MoneyDto })
   amount: MoneyDto;
 
+  /** `PENDING` hasta que el dinero se devuelve; `COMPLETED` o `FAILED` después. */
   @ApiProperty({ enum: ['PENDING', 'COMPLETED', 'FAILED'] })
   status: string;
 
+  /**
+   * Comprobante del reembolso: el del proveedor o, en uno manual, el que registró el staff; `null` mientras está
+   * pendiente.
+   */
   @ApiProperty({ type: String, nullable: true })
   providerRefundId: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  /** Staff que registró el reembolso manual; `null` en los demás. */
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   registeredBy: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 
+  /** Cuándo se completó; `null` si no se ha completado. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   completedAt: Date | null;
 }
 
 /** `AdminPayment` of API_SPEC.md §16.3. */
 export class AdminPaymentDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** La orden del pago. */
+  @ApiProperty({ format: 'uuid' })
   orderId: string;
 
   /** Código público de la orden. @example 'K7M4-Q9XA' */
   orderCode: string;
 
+  /** `MANUAL` es el pago en la tienda (ADR-0055); PayPal aún no está habilitado (ADR-0040). */
   @ApiProperty({ enum: PAYMENT_PROVIDERS })
   provider: PaymentProvider;
 
+  /**
+   * Estado del pago: `PENDING` mientras no se cobra, `CAPTURED` al cobrarse, y `PARTIALLY_REFUNDED` o `REFUNDED` según
+   * sus reembolsos.
+   */
   @ApiProperty({ enum: PAYMENT_STATUSES })
   status: PaymentStatus;
 
   @ApiProperty({ type: () => MoneyDto, description: 'El total de la orden.' })
   amount: MoneyDto;
 
+  /** Lo cobrado; 0 mientras no se cobra. */
   @ApiProperty({ type: () => MoneyDto })
   capturedAmount: MoneyDto;
 
+  /** Lo reembolsado, de los reembolsos completados. */
   @ApiProperty({ type: () => MoneyDto })
   refundedAmount: MoneyDto;
 
+  /** Siempre `MXN` (ADR-0026). */
   @ApiProperty({ enum: ['MXN'], example: 'MXN' })
   currency: string;
 
+  /** El ID del pago en el proveedor; `null` en un pago en la tienda. */
   @ApiProperty({ type: String, nullable: true })
   providerPaymentId: string | null;
 
+  /** Cuándo se cobró; `null` si no se ha cobrado. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   capturedAt: Date | null;
 
@@ -119,6 +142,7 @@ export class AdminPaymentDto {
   })
   attempts: PaymentAttemptDto[];
 
+  /** Del más antiguo al más reciente. */
   @ApiProperty({ type: () => [RefundDto] })
   refunds: RefundDto[];
 

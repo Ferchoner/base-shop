@@ -124,7 +124,11 @@ export class AdminOrdersController {
     return toPageResponse(page, query, toAdminOrderSummaryDto);
   }
 
-  @ApiOperation({ summary: 'Consultar un pedido, con su historial' })
+  @ApiOperation({
+    summary: 'Consultar un pedido, con su historial',
+    description:
+      'La vista del staff: líneas, totales, dirección, pago con sus reembolsos, envío e historial de estados. Una orden bloqueada no muestra su email ni su dirección exacta, que se consultan con `POST …/blocked-data` (ADR-0070).',
+  })
   @ApiOkResponse({ type: AdminOrderDto })
   @ApiProblemResponses('not-found')
   @RequirePermissions('orders.read')

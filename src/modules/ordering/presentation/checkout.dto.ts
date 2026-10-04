@@ -15,15 +15,22 @@ export class GuestQuoteDto {
 
 /** Plazo de entrega estimado en días hábiles desde la confirmación del pago (ADR-0083). */
 export class EstimatedDeliveryDto {
-  /** @example 3 */
+  /**
+   * Días hábiles mínimos desde la confirmación del pago.
+   * @example 3
+   */
   minBusinessDays: number;
 
-  /** @example 7 */
+  /**
+   * Días hábiles máximos desde la confirmación del pago.
+   * @example 7
+   */
   maxBusinessDays: number;
 }
 
 /** A line of `CheckoutQuote` (API_SPEC.md §8.7). */
 export class CheckoutQuoteLineDto {
+  @ApiProperty({ format: 'uuid' })
   variantId: string;
 
   /** @example 2 */
@@ -35,6 +42,7 @@ export class CheckoutQuoteLineDto {
   /** @example 'Camisa de lino' */
   productTitle: string;
 
+  /** Los valores de las opciones de la variante, por nombre. */
   @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'string' },
@@ -42,9 +50,11 @@ export class CheckoutQuoteLineDto {
   })
   options: Record<string, string>;
 
+  /** Precio vigente, con IVA; `null` si la línea no es vendible. */
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   unitPrice: MoneyDto | null;
 
+  /** Precio por cantidad; `null` si la línea no es vendible, y entonces no suma. */
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   lineTotal: MoneyDto | null;
 
@@ -72,6 +82,7 @@ export class CheckoutQuoteLineDto {
 
 /** `CheckoutQuote` of API_SPEC.md §8.7. */
 export class CheckoutQuoteDto {
+  /** Las líneas del carrito, también las que no se pueden comprar, marcadas. */
   @ApiProperty({ type: () => [CheckoutQuoteLineDto] })
   lines: CheckoutQuoteLineDto[];
 
@@ -94,6 +105,7 @@ export class CheckoutQuoteDto {
   })
   shippingCost: MoneyDto;
 
+  /** IVA contenido en `shippingCost`. */
   @ApiProperty({ type: () => MoneyDto })
   shippingTaxAmount: MoneyDto;
 
@@ -113,6 +125,7 @@ export class CheckoutQuoteDto {
   })
   freeShippingThreshold: MoneyDto | null;
 
+  /** Plazo estimado de entrega, desde la confirmación del pago (ADR-0083). */
   @ApiProperty({ type: () => EstimatedDeliveryDto })
   estimatedDelivery: EstimatedDeliveryDto;
 
