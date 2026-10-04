@@ -89,7 +89,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 
 ## Calidad
 
-- [ ] T-300 Testing
-- [ ] T-310 Security audit
-- [ ] T-320 API documentation
+- [ ] T-300 Testing: cobertura medida, con un umbral en la CI, y huecos cubiertos, empezando por los rellenos de datos de las migraciones. Sprint 9, paso 3; el plan fija su alcance y sus criterios de aceptación
+- [ ] T-310 Security audit: cada ruta contra el OWASP API Security Top 10 y `SECURITY.md`, y corrección de lo que aparezca, por severidad. Sprint 9, paso 1; el plan fija su alcance y sus criterios de aceptación
+- [ ] T-320 API documentation: el OpenAPI generado contra `API_SPEC.md`, ruta por ruta (descripciones, ejemplos y errores), y el `openapi.json` versionado con un chequeo en la CI. Sprint 9, paso 2; el plan fija su alcance y sus criterios de aceptación
 - [ ] T-330 Deployment (pospuesta: solo entorno local, ADR-0031)

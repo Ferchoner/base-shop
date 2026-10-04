@@ -2,36 +2,142 @@
 
 ## Sprint actual
 
-8 — Ciclo de conservación de datos personales. Inicio: 2026-10-03 (propuesta aprobada en el Sprint Review del Sprint 7).
+9 — Calidad antes de operar. Inicio: 2026-10-03 (propuesta aprobada en el Sprint Review del Sprint 8).
 
 ## Goal
 
-Los datos personales de órdenes y envíos siguen el ciclo de ADR-0070 con los plazos configurables de ADR-0149:
-- se ocultan al vencer la fase operativa, y solo se consultan con un permiso propio y auditado;
-- se anonimizan al vencer el bloqueo;
-- cada operador ajusta los plazos, y ve la política vigente, sin cambiar código.
+Antes de que un operador atienda a clientes reales, la API se revisa en tres frentes:
+- **seguridad:** cada ruta contra el OWASP API Security Top 10 y `SECURITY.md`, y se corrige lo que aparezca;
+- **documentación:** el OpenAPI generado coincide con `API_SPEC.md` ruta por ruta, y la CI lo mantiene al día;
+- **pruebas:** la cobertura se mide, tiene un umbral en la CI y se cubren sus huecos, empezando por los rellenos de datos de las migraciones.
 
 ## Tasks
 
-Detalle en `docs/TASKS.md`, sección "Contextos de negocio". Orden por dependencias:
+Detalle en `docs/TASKS.md`, sección "Calidad". Orden:
 
 | Paso | Tareas |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR, extendida a `PROJECT.md` y `README.md`; pull request agrupado de Dependabot (lunes 5 de octubre); prácticas de la review del Sprint 7 en la guía de desarrollo |
-| 1 | T-232 parte a: plazos configurables, incluidos los 30 días fijos de la limpieza diaria; job que bloquea y después anonimiza; ocultamiento de los datos bloqueados en la API |
-| 2 | T-232 parte b: permiso para consultar los datos bloqueados, auditado; anonimización opcional de cuentas inactivas; ruta pública con la política vigente |
+| 0 | Revisión del repositorio contra los ADR, con `PROJECT.md` y `README.md`; pull request agrupado de Dependabot (lunes 5 de octubre); prácticas de la review del Sprint 8 en la guía de desarrollo |
+| 1 | T-310: auditoría de seguridad de cada ruta contra el OWASP API Security Top 10 y `SECURITY.md`, y corrección de lo que aparezca |
+| 2 | T-320: el OpenAPI generado contra `API_SPEC.md`, ruta por ruta (descripciones, ejemplos y errores), y el `openapi.json` versionado con un chequeo en la CI |
+| 3 | T-300: cobertura medida, umbral en la CI y huecos cubiertos, empezando por los rellenos de datos de las migraciones |
 
-- **Criterio de cierre:** criterios de aceptación de T-232 en `TASKS.md` y CI en verde en `main`.
-- **Pospuesto al Sprint 9 o después:**
+- **Criterio de cierre:** los criterios de aceptación de T-310, T-320 y T-300, que fija el plan de cada una, y la CI en verde en `main`.
+- **Alcance:** hoy las tres tareas son solo títulos. El plan de cada una define su alcance y sus criterios de aceptación, y se aprueba antes de implementarla.
+- **Pospuesto al Sprint 10 o después:**
   - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
   - T-191 (bloqueada);
   - T-330 (despliegue, sin hosting);
   - las tareas diferidas: T-193 y T-200.
 - **Flujo de trabajo:**
-  - cada parte se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
+  - cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
   - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
 
 ### Resultado del paso 0
+
+- **Revisión contra los ADR, con `PROJECT.md` y `README.md`:**
+  - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y siguen abiertas las mismas 8 decisiones;
+  - el estado de `PROJECT.md` y `README.md` pasa al Sprint 9;
+  - las variables de `.env.example` coinciden con las que valida el código (las `POSTGRES_*` son solo de Docker Compose);
+  - existen los scripts que cita la documentación;
+  - cada contexto tiene sus cuatro capas, y los módulos transversales las que dice `ARCHITECTURE.md`;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.19), así que siguen los `overrides` de ADR-0091;
+  - `npm audit` no encuentra vulnerabilidades.
+- **Dependabot:** no hay pull requests abiertos. El agrupado del lunes 5 de octubre se revisa cuando llegue, entre tareas.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 8:
+  - fijar en el plan el número de ADR de cada parte de una tarea;
+  - agregar cada caso de uso nuevo a la tabla de cobertura de `API_SPEC.md` (§21);
+  - decir en el plan cómo se prueba el relleno de datos de una migración.
+- **Descripción del listado de pedidos:** la de `GET /v1/admin/orders` en el OpenAPI ya no dice que `payment` y `shipment` son `null` hasta T-190 y T-195. Va en un commit `fix` aparte.
+
+## Risks
+
+- **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.
+- **Cambios de contrato:** corregir un hallazgo, o una diferencia entre el OpenAPI y `API_SPEC.md`, puede cambiar respuestas; cada cambio de contrato queda en `API_SPEC.md` y en `CHANGELOG.md`.
+- **Umbral de cobertura:** uno demasiado alto obliga a escribir pruebas sin valor. El plan de T-300 lo fija a partir de la cobertura medida, sin bajar la que ya existe.
+- **Riesgos heredados del Sprint 8:** ver su review en el historial.
+
+## Sprint Review
+
+PENDIENTE.
+
+---
+
+## Historial
+
+### Sprint 8 — Ciclo de conservación de datos personales (2026-10-03)
+
+**Goal:** que los datos personales de órdenes y envíos sigan el ciclo de ADR-0070, con los plazos configurables de ADR-0149: ocultos al vencer la fase operativa, consultados solo con un permiso propio y auditado, anonimizados al vencer el bloqueo, y con los plazos que cada operador ajusta y publica. **Tareas:** T-232 en dos partes, en DONE, precedida por un paso 0.
+
+**Fecha:** 2026-10-03. **Resultado:** objetivo cumplido. T-232 está en DONE y el pipeline de CI está en verde en `main`.
+- Los datos personales de una orden y de su envío se bloquean 12 meses después de que la orden concluye y se anonimizan 60 meses después. El comprador deja de ver una orden bloqueada, y el staff la ve sin el email ni la dirección exacta.
+- El Administrador consulta los datos bloqueados con un motivo, y cada consulta se audita.
+- Cada operador ajusta los plazos con variables de entorno, puede anonimizar las cuentas inactivas y publica la política vigente.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Revisión contra los ADR extendida a `PROJECT.md` y `README.md`, con la tabla del stack de `PROJECT.md` corregida, y prácticas de la review del Sprint 7 en la guía | DONE | Paso 0 |
+| Fecha de conclusión de la orden, también al volver su envío (`ShipmentReturned`); job `ordering.retention` que bloquea y anonimiza; datos bloqueados ocultos al comprador y enmascarados para el staff; los 30 días de la limpieza diaria, configurables | DONE | T-232 parte a, ADR-0151 |
+| Consulta de los datos bloqueados con el permiso nuevo `orders.read-blocked`, auditada; anonimización opcional de cuentas inactivas; política de conservación pública | DONE | T-232 parte b, ADR-0152 |
+| 2,314 tests (1,355 unitarios, 446 de integración y 513 end-to-end); 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 152 ADR: 149 aceptados, 2 reemplazados parcialmente (ADR-0001 y ADR-0077) y 1 reemplazado (ADR-0014); 2 nuevos en este sprint (ADR-0151 y ADR-0152) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 3 pull requests a `main` (del #87 al #89). La CI pasó a la primera en todos, y también en `main` después de cada fusión.
+
+#### Decisiones abiertas que pasan al siguiente sprint
+
+Ninguna bloquea el trabajo de calidad del Sprint 9.
+
+| Grupo | Decisiones |
+|---|---|
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
+
+#### Riesgos que pasan al siguiente sprint
+
+- **Resueltos en este sprint:**
+  - los datos personales de órdenes y envíos se conservaban sin plazo: el ciclo de ADR-0070 ya corre;
+  - los 30 días fijos de la limpieza diaria no se podían ajustar;
+  - la descripción desactualizada del listado de pedidos del staff, corregida en esta review.
+- **Heredados, siguen vigentes:** ver las reviews de los sprints 2 a 7 en el historial. Entre ellos están:
+  - el estado en memoria de una sola instancia, y los contadores del rate limit en memoria;
+  - el adaptador de PayPal sin verificar, y pagar dos veces;
+  - los jobs, que con varias instancias correrían en cada una, salvo `platform.deliver-events`;
+  - la entrega de eventos al menos una vez, y las entregas fallidas, que solo ve el staff.
+- **Nuevos:**
+  - **Primera corrida del ciclo:** en una base con historial, bloquea de una vez las órdenes que concluyeron hace más de 12 meses, hasta 1,000 por día.
+  - **Rellenos de migraciones sin prueba:** `orders.concluded_at` y `users.last_active_at` se llenan con SQL que las pruebas no ejercitan, porque migran una base vacía (T-300).
+  - **Cuentas inactivas sin aviso:** si el operador enciende la función, la cuenta se anonimiza sin avisar antes al cliente.
+  - **Inicio de sesión en el instante de anonimizar:** puede abrirse una sesión justo después; la anonimización por solicitud ya tenía la misma carrera.
+
+#### Qué funcionó
+
+- **Separar los plazos de la ley (ADR-0149):** el ciclo corre con valores por defecto, y cada operador los ajusta sin cambiar código.
+- **Ocultar en las consultas:** los datos bloqueados se filtran y enmascaran en las vistas, y el dominio los conserva intactos; un pago tardío desbloquea la orden en el acto.
+- **La fecha de conclusión en el dominio:** un solo campo indexado reemplaza el cálculo por estado, y `ShipmentReturned` trae la devolución sin que Ordering lea Shipping.
+- **Repetir las condiciones al bloquear la fila:** el job revisa otra vez bajo `SELECT … FOR UPDATE`, y una prueba con dos conexiones lo comprueba.
+- **Pruebas de mutación:**
+
+  | Tarea | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-232 parte a | 0 de 77 | — |
+  | T-232 parte b | 0 de 41 | Antes de correrlas se quitaron 3 fragmentos redundantes que ninguna prueba habría distinguido |
+
+- **Verificar el commit feat por separado,** y **CI a la primera** en los 3 pull requests.
+
+#### Qué mejorar
+
+- **Número de ADR de cada parte:** en la parte b, el código citó ADR-0151 antes de decidir que la parte tendría su propio ADR; se corrigió al final.
+- **Cobertura de la API:** la parte a agregó UC-SYS-02 sin sumarlo a la tabla de la §21 de `API_SPEC.md`; se corrigió en la parte b.
+- **Rellenos de las migraciones:** los de `concluded_at` y `last_active_at` no tienen prueba.
+- **Sugerencias aparte:** la descripción del listado de pedidos, detectada en T-109 parte b, esperó dos sprints; se corrigió en esta review.
+
+#### Resultado del paso 0
 
 - **Revisión contra los ADR, ahora también de `PROJECT.md` y `README.md`:**
   - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y siguen abiertas las mismas 8 decisiones;
@@ -47,7 +153,7 @@ Detalle en `docs/TASKS.md`, sección "Contextos de negocio". Orden por dependenc
   - no renumerar las secciones que cita el código;
   - actualizar el estado de `PROJECT.md` y `README.md` al cerrar un sprint.
 
-### Resultado del paso 1
+#### Resultado del paso 1
 
 T-232 parte a, con el nuevo ADR-0151:
 
@@ -57,7 +163,7 @@ T-232 parte a, con el nuevo ADR-0151:
 - **Plazos:** seis variables nuevas con rango, entre ellas los 30 días de la limpieza diaria, y la política vigente en el log al arrancar.
 - **Riesgos del sprint:** los correos no necesitan ocultamiento, porque una orden bloqueada ya concluyó y no genera eventos; un pago tardío la desbloquea antes de avisar. Las respuestas guardadas por idempotencia ya no existen al anonimizar, porque duran 24 horas.
 
-### Resultado del paso 2
+#### Resultado del paso 2
 
 T-232 parte b, con el nuevo ADR-0152; T-232 queda en DONE:
 
@@ -66,21 +172,9 @@ T-232 parte b, con el nuevo ADR-0152; T-232 queda en DONE:
 - **Política pública:** `GET /v1/privacy/retention-policy` da los plazos vigentes para el aviso de privacidad.
 - **Riesgos del sprint:** la consulta de los datos bloqueados cierra el ocultamiento de ADR-0070, y la anonimización de cuentas inactivas define la actividad y deja las órdenes a su propio ciclo.
 
-## Risks
+#### Siguiente sprint
 
-- **Borrado irreversible y automático:** con los valores por defecto, la anonimización empieza 6 años después de que concluye la orden, pero un plazo mal configurado podría adelantarla. Aplican las salvaguardas de ADR-0149: rangos al arrancar, lotes con tope por corrida y auditoría sin valores.
-- **Ocultar en todas partes:** los datos bloqueados deben desaparecer de todas las respuestas, como las órdenes y los envíos del staff, la consulta del invitado, su enlace de acceso y los correos, sin romper la operación, porque una orden bloqueada ya concluyó.
-- **Copias de los datos:** el plan lista todas, como las direcciones de órdenes y envíos, los enlaces de acceso y las respuestas guardadas por idempotencia (práctica del Sprint 6).
-- **Cuentas inactivas:** el plan define qué cuenta como actividad y qué pasa con las órdenes de esas cuentas; la anonimización queda desactivada por defecto.
-- **Riesgos heredados del Sprint 7:** ver su review en el historial.
-
-## Sprint Review
-
-PENDIENTE.
-
----
-
-## Historial
+La propuesta del Sprint 9 se aprobó el 2026-10-03; ver "Sprint actual".
 
 ### Sprint 7 — Entrega garantizada de eventos (2026-10-03)
 

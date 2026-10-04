@@ -4,11 +4,11 @@
 
 1. Leer `CLAUDE.md`.
 2. Revisar documentación relacionada.
-3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161). Si la tarea borra o anonimiza datos personales, el plan lista todas sus copias (tokens, enlaces, respuestas guardadas por idempotencia, archivos, contenido de eventos): en T-132 las respuestas guardadas aparecieron durante la implementación. Si la tarea cambia un mecanismo transversal (eventos, transacciones, correos), el plan revisa cómo maneja los errores cada consumidor: en T-109, que los correos atrapaban la falla del servidor de correo apareció a mitad de la implementación.
+3. Crear/confirmar plan. El plan revisa las representaciones de `API_SPEC.md` §8 de cada vista que la tarea toca: `id` y `version` de `AdminOrder.shipment` y el `id` de las líneas de `AdminOrder` aparecieron durante la implementación (T-195, T-161). Si la tarea borra o anonimiza datos personales, el plan lista todas sus copias (tokens, enlaces, respuestas guardadas por idempotencia, archivos, contenido de eventos): en T-132 las respuestas guardadas aparecieron durante la implementación. Si la tarea cambia un mecanismo transversal (eventos, transacciones, correos), el plan revisa cómo maneja los errores cada consumidor: en T-109, que los correos atrapaban la falla del servidor de correo apareció a mitad de la implementación. Si la tarea va en partes con un ADR cada una, el plan fija el número de ADR de cada parte: en T-232 parte b, el código citó ADR-0151 antes de decidir que la parte tendría ADR-0152.
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
-7. Actualizar documentación. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran.
+7. Actualizar documentación. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
 8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
@@ -345,6 +345,7 @@ Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `
   4. `npm run db:migrate:dev` la aplica; después, `npm run db:diff` debe responder "No difference detected".
 - **SQL manual:** lo que el esquema de Prisma no expresa se escribe en la migración: extensiones, restricciones `CHECK` (nombre `<tabla>_<descripcion>_check`), restricciones de exclusión, índices de expresión y triggers. Prisma no los genera ni los borra, así que cambiarlos o quitarlos también requiere SQL manual en una migración nueva. Los índices parciales sí van en el esquema (`where: raw("...")`, función en vista previa `partialIndexes`).
 - **Datos iniciales:** los que el sistema necesita para funcionar van en migraciones de datos que no sobrescriben lo que ya exista, como los roles iniciales (ADR-0111) y el método de envío (ADR-0122). Al agregar una, conviene buscar las pruebas que crean la misma clase de filas, porque pueden chocar con ella; por ejemplo, con una segunda lista predeterminada o un segundo almacén activo.
+- **Rellenos de datos:** una migración que llena columnas de filas existentes, como `orders.concluded_at` y `users.last_active_at` en T-232, dice en su plan cómo se prueba ese relleno con filas preparadas como estaban antes. Las pruebas migran una base vacía, así que no lo ejercitan; T-300 define la forma.
 - Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
 - Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.

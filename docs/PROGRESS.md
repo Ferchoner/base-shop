@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 8 — Ciclo de conservación de datos personales (desde el 2026-10-03). El Sprint 7 (entrega garantizada de eventos) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+Sprint 9 — Calidad antes de operar (desde el 2026-10-03). El Sprint 8 (ciclo de conservación de datos personales) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
 
 ## Completed
 
@@ -142,6 +142,7 @@ Sprint 8 — Ciclo de conservación de datos personales (desde el 2026-10-03). E
 - [x] T-109 parte b: el staff consulta y reintenta las entregas fallidas en `/v1/admin/event-deliveries`, una o en bloque, con el permiso nuevo `events.manage`, y la limpieza diaria `platform.cleanup-events` borra los eventos entregados hace más de 7 días (ADR-0150)
 - [x] T-232 parte a: la orden guarda cuándo concluyó, y el job diario `ordering.retention` bloquea sus datos personales a los 12 meses y los anonimiza a los 72, con sus envíos; una orden bloqueada desaparece de las vistas del comprador y el staff la ve sin su email ni su dirección exacta; los plazos de la limpieza diaria son configurables (ADR-0151)
 - [x] T-232 parte b: el staff con el permiso nuevo `orders.read-blocked` consulta los datos de una orden bloqueada, con un motivo y auditado; las cuentas de clientes inactivos se anonimizan si el operador configura el plazo, sin sus órdenes; `GET /v1/privacy/retention-policy` publica los plazos vigentes (ADR-0152). T-232 en DONE
+- [x] Paso 0 del Sprint 9: revisión contra los ADR, con `PROJECT.md` y `README.md`, sin desajustes; la descripción del listado de pedidos del staff corregida; prácticas de la review del Sprint 8 en la guía de desarrollo
 - [x] P-61 cerrada (ADR-0149): plazos de conservación configurables con valores por defecto, y la validación legal como lista de cada operador antes de operar; T-232 deja de estar diferida
 - [x] Paso 0 del Sprint 7: revisión contra los ADR, con el estado de ADR-0077 y los módulos transversales de `ARCHITECTURE.md` corregidos; prácticas de la review del Sprint 6 en la guía de desarrollo; T-109 agregada
 - [x] Paso 0 del Sprint 5: revisión contra los ADR sin contradicciones; una migración quita el índice sin uso de `reservations` (ADR-0136); prácticas de la review del Sprint 4 en la guía de desarrollo
@@ -163,7 +164,8 @@ Sprint 8 — Ciclo de conservación de datos personales (desde el 2026-10-03). E
 ## Next
 
 - [x] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes, y P-61 cerrada), cerrado el 2026-10-03
-- [ ] Sprint 8: ciclo de conservación de datos personales (paso 0 y T-232 en dos partes); plan en `SPRINT.md`
+- [x] Sprint 8: ciclo de conservación de datos personales (paso 0 y T-232 en dos partes), cerrado el 2026-10-03
+- [ ] Sprint 9: calidad antes de operar (paso 0, T-310, T-320 y T-300); plan en `SPRINT.md`
 - [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked
