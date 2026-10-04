@@ -90,8 +90,11 @@ describe('Shipping: shipments (T-195)', () => {
     await moduleRef.close();
   });
 
-  beforeEach(async () => {
+  beforeEach(() => {
     current = START;
+  });
+
+  afterEach(async () => {
     await prisma.shipmentItem.deleteMany();
     await prisma.shipment.deleteMany();
   });

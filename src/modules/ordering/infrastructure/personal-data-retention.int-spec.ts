@@ -317,8 +317,12 @@ describe('Ordering: retention of personal data (T-232)', () => {
     for (const { id } of [recent, active]) {
       expect(byId.get(id)?.blockedAt).toBeNull();
     }
+    // Only those of its orders: the table is shared with the other suites.
     expect(
       await prisma.shipment.findMany({
+        where: {
+          orderId: { in: [due.id, expired.id, recent.id, active.id] },
+        },
         select: { orderId: true, blockedAt: true, destination: true },
         orderBy: { orderId: 'asc' },
       }),
