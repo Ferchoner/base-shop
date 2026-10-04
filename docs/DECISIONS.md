@@ -173,6 +173,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0153 | Auditoría de seguridad y matriz de rutas como control permanente | Aceptada |
 | ADR-0154 | Correcciones de la auditoría de seguridad que cambian decisiones | Aceptada |
 | ADR-0155 | Contrato de la API comprobado y documento OpenAPI versionado | Aceptada |
+| ADR-0156 | Detección de secretos en worktrees de git, sin falsos aprobados | Aceptada |
 
 ---
 
@@ -2983,7 +2984,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Commitear requiere Docker encendido, igual que los tests de integración y end-to-end.
   - Actualizar gitleaks sigue siendo manual: Dependabot no revisa imágenes en `package.json`. Se cambian los dos scripts, y el test exige que coincidan.
   - Modifica ADR-0105 en el paso 9.
-- **Estado:** Aceptada (plan del paso 0 del Sprint 3 aprobado el 2026-09-29).
+- **Estado:** Aceptada (plan del paso 0 del Sprint 3 aprobado el 2026-09-29). Modificada por ADR-0156: los dos scripts corren gitleaks con `scripts/secrets-scan.ts`, que monta también el directorio de git compartido, así que funciona en un worktree de git, y falla si gitleaks no puede leer el repositorio.
 
 ---
 
@@ -4715,3 +4716,37 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Regenerar el documento necesita Docker, como cualquier prueba e2e.
 - **Revisar si:** aparece `v2`, cambia la forma de las tablas de `API_SPEC.md`, o `@nestjs/swagger` cambia cómo combina las respuestas de un controlador y sus manejadores.
 - **Estado:** Aceptada (plan de T-320 aprobado el 2026-10-03, con sus 5 recomendaciones). Implementada en la parte a de T-320; modifica ADR-0096. Parte b (plan aprobado el 2026-10-03, con sus 5 recomendaciones): la prueba exige además una descripción en toda operación, en todo parámetro y en cada campo de los cuerpos que envía el cliente, también los anidados; cada parámetro de ruta se describe una sola vez, por su nombre, en `PATH_PARAMETERS` (`api-docs.ts`), porque significa lo mismo en todas las rutas; los IDs que son UUID declaran `format: uuid`; y las descripciones publicadas en inglés pasan al español. La revisión de los errores de cada ruta contra `API_SPEC.md` no encontró diferencias después de la parte a.
+
+## ADR-0156 — Detección de secretos en worktrees de git, sin falsos aprobados
+
+- **Fecha:** 2026-10-03
+- **Contexto:** Seguimiento de T-310. En un worktree de git (como los de `.claude/worktrees/`), `.git` es un archivo que apunta a una ruta absoluta del equipo, `<repositorio>/.git/worktrees/<nombre>`. El montaje de ADR-0119 (`-v .:/repo:ro`) solo lleva al contenedor el directorio de trabajo, así que git no encuentra el repositorio (`fatal: not a git repository`). gitleaks registra el error (`stderr is not empty`), revisa 0 commits, dice "no leaks found" y termina con 0: un falso aprobado, tanto de los cambios preparados como del historial. ADR-0119 descartó un script de Node porque Docker resolvía la ruta relativa en todos los sistemas; eso solo vale fuera de un worktree.
+- **Decisión:**
+  - **`scripts/secrets-scan.ts`** arma y corre el `docker run`; Node 24 ejecuta TypeScript sin compilar. `package.json` sigue fijando la imagen por digest y los argumentos de gitleaks, sin cambios: `node scripts/secrets-scan.ts <imagen> git /repo <flags>`.
+  - **Montajes:** el script pregunta a git por el directorio de trabajo, el directorio de git y el compartido (`git rev-parse --show-toplevel --git-dir --git-common-dir`). Monta el de trabajo en `/repo` y el compartido en `/git`, los dos en solo lectura, y pasa `GIT_DIR` y `GIT_WORK_TREE=/repo`. `GIT_DIR` es el directorio de git dentro de `/git`: `/git` en un clon normal y `/git/worktrees/<nombre>` en un worktree.
+    - Un clon normal sigue el mismo camino, así que la CI prueba el mismo código que un worktree.
+    - `safe.directory=*` va en variables de entorno de git. La imagen ya lo trae en su configuración global; así no depende de ella.
+  - **Falla cerrado:**
+    1. antes de escanear, git dentro del contenedor debe leer el mismo `HEAD` que en el equipo; si no, termina con 1 sin correr gitleaks;
+    2. si gitleaks registra `stderr is not empty`, termina con 1 aunque gitleaks diga "no leaks found". gitleaks registra así todo error de git, salvo los avisos que considera inofensivos.
+  - **Sin shell:** Node llama a `git` y a `docker` directamente, así que las rutas de Windows no pasan por cmd ni por la conversión de rutas de Git Bash.
+  - **Test:** `test/repository/secrets-scan.spec.ts` comprueba, sin Docker:
+    - los montajes y las variables de un clon normal en Linux, como en la CI, y de un worktree en Windows y en Linux;
+    - que todo montaje sea de solo lectura, y que una coma en la ruta no rompa `--mount`;
+    - que se rechace un directorio de git fuera del compartido;
+    - que la salida real de gitleaks con un error de git cuente como fallo, y que sus avisos inofensivos no;
+    - que los dos scripts de `package.json` pasen por `scripts/secrets-scan.ts` con `/repo`, y que la imagen siga solo en `package.json`.
+- **Alternativas consideradas:**
+  - **Solo hacer fallar el escaneo en un worktree:** obligaría a escanear desde el clon principal, que tiene otra rama y otros cambios preparados.
+  - **Agregar los montajes al comando de `package.json`:** las rutas absolutas cambian por equipo, y `$(git rev-parse …)` no funciona en cmd ni en PowerShell.
+  - **Montar la carpeta del clon principal en lugar del directorio de trabajo:** monta de más, y la ruta de Windows que guarda el archivo `.git` (`C:/Projects/…`) sigue sin existir en el contenedor.
+  - **Revisar solo la salida de gitleaks:** depende de un texto que puede cambiar con una versión nueva; la comprobación del `HEAD` no depende de gitleaks.
+  - **Instalar gitleaks en el equipo:** cada sistema operativo necesita su binario, y la versión ya no la fija el digest (ADR-0119).
+- **Consecuencias:**
+  - `npm run secrets:scan` funciona igual en un clon normal y en un worktree, desde PowerShell, Git Bash y Linux, y un escaneo que no lee el repositorio ya no pasa.
+  - Cada revisión arranca dos contenedores, la comprobación del `HEAD` y gitleaks: cerca de un segundo más.
+  - Actualizar gitleaks sigue igual: se cambian los dos scripts de `package.json`. Si una versión nueva cambia el texto `stderr is not empty`, la comprobación del `HEAD` sigue cubriendo los montajes.
+  - `npm run lint:code` revisa también `scripts/`.
+  - Modifica ADR-0119 en el montaje, y adopta la alternativa del script de Node que ese ADR descartó.
+- **Revisar si:** gitleaks empieza a terminar con error cuando git falla, o git cambia cómo guarda los worktrees.
+- **Estado:** Aceptada (pedida por el usuario el 2026-10-03 como seguimiento de T-310). Modifica ADR-0119.

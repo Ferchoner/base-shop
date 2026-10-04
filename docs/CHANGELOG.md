@@ -241,6 +241,10 @@
   - `docs/openapi/v1.json` guarda el documento de `v1` y se comprueba en la CI; `npm run openapi:update` lo regenera.
   - OpenAPI documenta los errores de un controlador junto con los de cada manejador: `/v1/me/password` y `/v1/me/email` recuperan el 401 `unauthenticated`, y la captura y el reembolso manuales, el 403 `forbidden`. `@Idempotent` documenta sus tres errores, y la recuperación de contraseña, el reenvío de verificación y la política de conservación, los comunes.
   - `API_SPEC.md` agrega a sus tablas de resumen las rutas de geografía, auditoría, entregas de eventos, privacidad y recompra.
+- Seguimiento de T-310 (nuevo ADR-0156): `npm run secrets:scan` corre gitleaks con `scripts/secrets-scan.ts`.
+  - En un worktree de git, gitleaks no encontraba el repositorio, revisaba 0 commits y terminaba con 0 y sin hallazgos. Ahora se montan en solo lectura el directorio de trabajo y el directorio de git compartido, con `GIT_DIR` y `GIT_WORK_TREE`.
+  - El escaneo falla si git, dentro del contenedor, no lee el mismo `HEAD` que en el equipo, o si gitleaks registra un error de git, aunque diga "no leaks found".
+  - La misma imagen fijada por digest y los mismos argumentos de gitleaks; `npm run lint:code` revisa también `scripts/`.
 - T-320 parte b (ADR-0155): descripciones del OpenAPI.
   - Toda operación, todo parámetro y cada campo de los cuerpos que envía el cliente tienen descripción, y la prueba de contrato lo exige.
   - Los parámetros de ruta se describen una vez por nombre (`PATH_PARAMETERS`), con `format: uuid` en los IDs.
