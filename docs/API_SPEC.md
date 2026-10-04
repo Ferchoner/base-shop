@@ -801,6 +801,11 @@ Implementado en T-132 (ADR-0145):
 
 ## 10. Endpoints — Catálogo geográfico (UC-IAM-22)
 
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/geo/states` | Público | UC-IAM-22 |
+| GET | `/v1/geo/states/{stateCode}/municipalities` | Público | UC-IAM-22 |
+
 | Endpoint | Detalle |
 |---|---|
 | `GET /v1/geo/states` | Público. 200 `{ "data": [ { "code": "16", "name": "Michoacán de Ocampo" } ] }`. Sin paginación (32 registros). Orden por nombre |
@@ -1160,6 +1165,9 @@ Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva t
 | POST | `/v1/me/cart/lines` | Solo cliente | UC-CRT-01, 02 |
 | PATCH, DELETE | `/v1/me/cart/lines/{variantId}` | Solo cliente | UC-CRT-03, 04 |
 | POST | `/v1/me/cart/merge` | Solo cliente | UC-CRT-06 |
+| POST | `/v1/me/orders/{publicCode}/reorder` | Solo cliente | UC-CRT-09 (14.3) |
+| POST | `/v1/orders/reorder` | Público | UC-CRT-09 (14.3) |
+| POST | `/v1/admin/orders/{orderId}/reorder` | `orders.manage` | UC-CRT-09 (14.3) |
 
 Las rutas `/v1/carts/{cartId}` solo operan sobre carritos de invitado (sin dueño). Un `cartId` de un carrito con dueño responde 404 (ADR-0071), para que conocer el identificador no dé acceso al carrito de una cuenta.
 
@@ -1558,6 +1566,10 @@ Implementado en T-195 parte b (ADR-0141):
 
 ## 18. Endpoints — Auditoría (UC-AUD-02, ADR-0037)
 
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/admin/audit` | `audit.read` | UC-AUD-02 |
+
 **`GET /v1/admin/audit`** — `audit.read`.
 
 - Paginación por cursor (sección 5.2); orden fijo, más reciente primero.
@@ -1633,6 +1645,12 @@ Las entregas de eventos (sección 22) son una herramienta de operación, sin cas
 
 Las entregas de los eventos de dominio a sus manejadores (sección 2.5), para diagnosticar y reintentar las que agotaron sus 8 intentos. Implementado en T-109 parte b.
 
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/admin/event-deliveries` | `events.manage` | Operación |
+| POST | `/v1/admin/event-deliveries/{deliveryId}/retry` | `events.manage` | Operación |
+| POST | `/v1/admin/event-deliveries/retry` | `events.manage` | Operación |
+
 ### 22.1 `GET /v1/admin/event-deliveries` — `events.manage`
 
 Paginado (ADR-0036). Filtros: `status` (uno o más de `PENDING`, `DELIVERED` y `FAILED`; por defecto, `FAILED`), `eventType` (como `PaymentCaptured`) y `handler` (como `PaymentCapturedHandler.onPaymentCaptured`). Orden: `occurredAt` (defecto `-occurredAt`) o `nextAttemptAt`, con desempate por ID.
@@ -1684,6 +1702,10 @@ Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Present
 ---
 
 ## 23. Endpoints — Privacidad (ADR-0152)
+
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/privacy/retention-policy` | Público | UC-IAM-23 |
 
 ### 23.1 `GET /v1/privacy/retention-policy` — Política de conservación vigente (UC-IAM-23)
 

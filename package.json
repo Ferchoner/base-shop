@@ -24,6 +24,7 @@
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "format:check": "prettier --check .",
     "test:int": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-int.json --runInBand",
+    "openapi:update": "node test/support/update-openapi.mjs",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
