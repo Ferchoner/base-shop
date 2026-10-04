@@ -11,7 +11,7 @@
 - Logging sin secretos ni datos sensibles innecesarios.
 - Aplicar rate limiting cuando corresponda.
 - Revisar dependencias vulnerables: la CI falla con vulnerabilidades altas y críticas (`npm audit --audit-level=high`), y Dependabot propone actualizaciones semanales (ADR-0030, ADR-0105).
-- Detectar secretos en cada cambio: el secret scanning y la protección de push de GitHub bloquean los secretos conocidos al subirlos, y gitleaks revisa lo preparado antes de cada commit (`npm run secrets:scan`) y todo el historial en la CI (ADR-0030, ADR-0105, ADR-0119).
+- Detectar secretos en cada cambio: el secret scanning y la protección de push de GitHub bloquean los secretos conocidos al subirlos, y gitleaks revisa lo preparado antes de cada commit (`npm run secrets:scan`) y todo el historial en la CI; el escaneo falla si gitleaks no puede leer el repositorio, también desde un worktree de git (ADR-0030, ADR-0105, ADR-0119, ADR-0156).
 - La CI corre con permisos de solo lectura, actions de terceros fijadas por SHA y sin interpolar datos del pull request (como el título) en sus scripts (ADR-0105).
 - Autorización (ADR-0111):
   - Toda ruta de `/v1/admin` exige staff con los permisos del catálogo en código, y toda ruta de `/v1/me`, una cuenta.

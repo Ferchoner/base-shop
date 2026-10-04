@@ -83,6 +83,14 @@ T-320 parte a, con el nuevo ADR-0155:
   - los errores de un controlador que OpenAPI perdía cuando un manejador declaraba otros del mismo estado, como el 401 de `/v1/me/password`;
   - los errores de tres rutas que no tenían y los de idempotencia del reintegro.
 
+### Seguimiento de T-310: escaneo de secretos en worktrees
+
+A pedido del usuario, con el nuevo ADR-0156:
+
+- **Falso aprobado:** en un worktree de git, gitleaks no encontraba el repositorio, revisaba 0 commits y terminaba con 0 y sin hallazgos, en lo preparado y en el historial.
+- **Corrección:** `scripts/secrets-scan.ts` monta también el directorio de git compartido, y el escaneo falla si git, dentro del contenedor, no lee el mismo `HEAD`, o si gitleaks registra un error de git. Desde un worktree, el historial pasa de 0 a 261 commits revisados, y un secreto preparado se detecta.
+- **Sin cambios en gitleaks:** la misma imagen y los mismos argumentos en `package.json`; la CI sigue el mismo camino que un worktree.
+
 ## Risks
 
 - **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.
