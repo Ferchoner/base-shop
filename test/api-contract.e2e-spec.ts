@@ -36,12 +36,17 @@ const IDEMPOTENCY_PROBLEMS = [
 
 interface Operation {
   readonly summary?: string;
+  readonly description?: string;
   readonly security?: readonly Record<string, unknown>[];
   readonly parameters?: readonly {
     name: string;
     in: string;
     required?: boolean;
+    description?: string;
   }[];
+  readonly requestBody?: {
+    content?: Record<string, { schema?: unknown }>;
+  };
   readonly responses: Record<
     string,
     {
@@ -203,6 +208,57 @@ describe('API contract (e2e, T-320)', () => {
   describe('OpenAPI document', () => {
     it('has one operation per route of the application', () => {
       expect([...operations.keys()].sort()).toEqual(Object.keys(routes).sort());
+    });
+
+    it('describes every operation and every parameter', () => {
+      expect(
+        violations((_, operation) => [
+          ...(operation.description ? [] : ['no description']),
+          ...(operation.parameters ?? [])
+            .filter((parameter) => !parameter.description)
+            .map(
+              (parameter) => `${parameter.in} ${parameter.name} undescribed`,
+            ),
+        ]),
+      ).toEqual([]);
+    });
+
+    it('describes every field of the bodies a client sends, nested ones included', () => {
+      const schemas = (document.components?.schemas ?? {}) as Record<
+        string,
+        { properties?: Record<string, { description?: string }> }
+      >;
+      const sent = new Set<string>();
+      /** The schemas a value refers to, through `$ref`, arrays and compositions. */
+      const collect = (value: unknown): void => {
+        if (Array.isArray(value)) {
+          value.forEach(collect);
+          return;
+        }
+        if (typeof value !== 'object' || value === null) return;
+        for (const [key, entry] of Object.entries(value)) {
+          if (key === '$ref' && typeof entry === 'string') {
+            const name = entry.replace('#/components/schemas/', '');
+            if (!sent.has(name)) {
+              sent.add(name);
+              collect(schemas[name]);
+            }
+          } else {
+            collect(entry);
+          }
+        }
+      };
+      for (const operation of operations.values()) {
+        collect(operation.requestBody);
+      }
+
+      expect(
+        [...sent].sort().flatMap((name) =>
+          Object.entries(schemas[name]?.properties ?? {})
+            .filter(([, property]) => !property.description)
+            .map(([property]) => `${name}.${property}`),
+        ),
+      ).toEqual([]);
     });
 
     it('gives every operation a summary and a success response with its schema', () => {
