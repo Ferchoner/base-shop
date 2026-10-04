@@ -83,6 +83,21 @@ T-320 parte a, con el nuevo ADR-0155:
   - los errores de un controlador que OpenAPI perdía cuando un manejador declaraba otros del mismo estado, como el 401 de `/v1/me/password`;
   - los errores de tres rutas que no tenían y los de idempotencia del reintegro.
 
+
+### Resultado del paso 2 (parte b)
+
+T-320 parte b; T-320 queda en DONE.
+
+- **Errores:** comparados ruta por ruta con `API_SPEC.md`, coinciden; lo que faltaba se corrigió en la parte a.
+- **Descripciones:**
+  - las 31 operaciones que solo tenían resumen;
+  - los 86 parámetros sin texto: 79 de ruta, con 20 nombres que se describen una vez cada uno, y 7 filtros;
+  - los 50 campos sin descripción de los cuerpos que envía el cliente;
+  - en las respuestas, los estados, montos, `null` y fechas que no se entienden por el nombre;
+  - 9 descripciones que estaban en inglés, ahora en español.
+- **Formatos y ejemplos:** 64 IDs más declaran `format: uuid`, 90 en total; los tokens de los enlaces y `Idempotency-Key` tienen ejemplo.
+- **Control:** la prueba de contrato exige descripción en toda operación, parámetro y campo que envía el cliente.
+
 ## Risks
 
 - **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.
