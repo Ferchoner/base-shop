@@ -27,7 +27,9 @@ function limitsOf(context: ExecutionContext): readonly RateLimitName[] {
 
 /**
  * One throttler per limit, reading its values from the environment (ADR-0102). Each counts per limit and
- * key, not per endpoint, so endpoints that share a limit share its budget.
+ * key, not per endpoint, so endpoints that share a limit share its budget. The default one counts every request
+ * per IP, also on endpoints with specific limits: a key that the client chooses, such as a cart or an email,
+ * could otherwise change on every request (T-310, ADR-0154).
  */
 function buildThrottlers(
   config: ConfigService<EnvironmentVariables, true>,
@@ -40,7 +42,6 @@ function buildThrottlers(
       name: DEFAULT_RATE_LIMIT,
       limit: defaultLimit.limit,
       ttl: defaultLimit.windowMs,
-      skipIf: (context) => limitsOf(context).length > 0,
       getTracker: (request) => rateLimitKey('ip', request),
       generateKey: (_context, tracker, name) => `${name}|${tracker}`,
     },

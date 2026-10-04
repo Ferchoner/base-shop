@@ -76,7 +76,7 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   // origin.
   'POST /v1/orders': {
     access: 'public',
-    limits: ['place-order'],
+    limits: ['place-order', 'place-order-email'],
     idempotent: 'cart',
   },
   'POST /v1/orders/:publicCode/payments': {

@@ -124,19 +124,12 @@ export class EnvironmentVariables {
   @Max(100)
   MAX_ADDRESSES_PER_CUSTOMER: number = 10;
 
-  /** Requests per IP on every endpoint without a specific limit. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
+  /** Requests per IP on every endpoint, also on those with specific limits. Format `<count>/<duration>` (ADR-0065, ADR-0102, ADR-0154). */
   @Expose()
   @Matches(RATE_LIMIT_PATTERN, {
     message: '$property must look like 5/15m (count / duration in s, m or h)',
   })
   RATE_LIMIT_DEFAULT: string = '100/1m';
-
-  /** Failed logins per email. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
-  @Expose()
-  @Matches(RATE_LIMIT_PATTERN, {
-    message: '$property must look like 5/15m (count / duration in s, m or h)',
-  })
-  RATE_LIMIT_LOGIN_EMAIL: string = '5/15m';
 
   /** Failed logins per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
@@ -144,6 +137,13 @@ export class EnvironmentVariables {
     message: '$property must look like 5/15m (count / duration in s, m or h)',
   })
   RATE_LIMIT_LOGIN_IP: string = '20/15m';
+
+  /** Wrong current passwords per user when changing the password. Format `<count>/<duration>` (ADR-0154). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_PASSWORD_CHANGE: string = '5/15m';
 
   /** Sign-ups per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
@@ -201,6 +201,13 @@ export class EnvironmentVariables {
   })
   RATE_LIMIT_PLACE_ORDER: string = '10/10m';
 
+  /** Guest orders placed per contact email. Format `<count>/<duration>` (ADR-0154). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_PLACE_ORDER_EMAIL: string = '5/1h';
+
   /** Host name or IP of the SMTP server (ADR-0045, ADR-0110): Mailpit in development. Required in production. */
   @Expose()
   @IsNotEmpty()
@@ -226,7 +233,7 @@ export class EnvironmentVariables {
   })
   MAIL_FROM: string = 'base-shop <no-reply@base-shop.test>';
 
-  /** Base URL of the frontend for the links in emails (ADR-0056, ADR-0110). Required in production. */
+  /** Base URL of the frontend for the links in emails (ADR-0056, ADR-0110). Required in production, with https. */
   @Expose()
   @IsBaseUrl()
   FRONTEND_BASE_URL: string = 'http://localhost:5173';
@@ -472,6 +479,7 @@ export function validateEnvironment(
   );
   problems.push(...auditArchiveProblems(environment));
   problems.push(...imageStorageProblems(environment));
+  problems.push(...frontendLinkProblems(environment));
   if (environment.NODE_ENV === 'production') {
     for (const name of REQUIRED_IN_PRODUCTION) {
       if (raw[name] === undefined || raw[name] === '') {
@@ -524,6 +532,19 @@ function imageStorageProblems(environment: EnvironmentVariables): string[] {
   return images !== '' && isSameOrInside(process.cwd(), path.resolve(images))
     ? [
         '- IMAGE_STORAGE_DIR must not be the working directory nor a folder that contains it, because the API serves it at /media',
+      ]
+    : [];
+}
+
+/**
+ * The links of the emails carry tokens (verification, recovery, access to guest orders), so production builds them
+ * only with https (T-310, ADR-0154). A value that is no URL already has its own problem.
+ */
+function frontendLinkProblems(environment: EnvironmentVariables): string[] {
+  return environment.NODE_ENV === 'production' &&
+    /^http:/i.test(environment.FRONTEND_BASE_URL)
+    ? [
+        '- FRONTEND_BASE_URL must use https when NODE_ENV is production, because the links in emails carry tokens',
       ]
     : [];
 }

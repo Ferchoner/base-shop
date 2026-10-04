@@ -4,6 +4,7 @@ import { ClsModule, ClsService } from 'nestjs-cls';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
+import { EventsModule } from '../../../platform/events/events.module.js';
 import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
 import { MailModule } from '../../../platform/mail/mail.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
@@ -80,6 +81,7 @@ describe('Email verification (T-121)', () => {
         RateLimitingModule,
         MailModule,
         AuditModule,
+        EventsModule,
         IdentityAccessModule,
       ],
     })

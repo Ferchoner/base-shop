@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
+import type { DomainEventDispatcher } from '../src/platform/events/domain-event-dispatcher.js';
 import type { PrismaService } from '../src/platform/persistence/prisma.service.js';
 import { type EmailMessage, newId } from '../src/shared-kernel/index.js';
 
@@ -14,6 +15,7 @@ const TEST_ENVIRONMENT = { RATE_LIMIT_PASSWORD_RESET_IP: '100/1h' };
 describe('Password recovery (e2e, T-123)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
+  let dispatcher: DomainEventDispatcher;
   let passwordHash: string;
   const sent: EmailMessage[] = [];
   const previous: Record<string, string | undefined> = {};
@@ -32,6 +34,8 @@ describe('Password recovery (e2e, T-123)', () => {
     const { EmailSender } = await import('../src/shared-kernel/index.js');
     const { PasswordHasher } =
       await import('../src/modules/identity-access/application/password-hasher.js');
+    const { DomainEventDispatcher } =
+      await import('../src/platform/events/domain-event-dispatcher.js');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -47,10 +51,12 @@ describe('Password recovery (e2e, T-123)', () => {
     configureHttp(app);
     await app.init();
     prisma = app.get(PrismaService);
+    dispatcher = app.get(DomainEventDispatcher);
     passwordHash = await app.get(PasswordHasher).hash(PASSWORD);
   });
 
   afterEach(async () => {
+    await dispatcher.whenIdle();
     sent.length = 0;
     await prisma.passwordResetToken.deleteMany();
     await prisma.refreshToken.deleteMany();
@@ -92,8 +98,9 @@ describe('Password recovery (e2e, T-123)', () => {
   const login = (email: string, password: string) =>
     http().post('/v1/auth/login').send({ email, password });
 
-  /** The token of the last recovery link sent to `to`. */
-  function lastToken(to: string): string {
+  /** The token of the last recovery link sent to `to`, once the links asked for are sent (ADR-0154). */
+  async function lastToken(to: string): Promise<string> {
+    await dispatcher.whenIdle();
     const message = sent.filter((email) => email.to === to).at(-1);
     const token = /reset-password\?token=([\w-]+)/.exec(message?.text ?? '');
     if (token === null) throw new Error(`No recovery link to ${to}`);
@@ -108,6 +115,7 @@ describe('Password recovery (e2e, T-123)', () => {
 
     expect(known.body).toEqual({});
     expect(unknown.body).toEqual({});
+    await dispatcher.whenIdle();
     expect(sent).toEqual([
       expect.objectContaining({
         to: email,
@@ -123,7 +131,7 @@ describe('Password recovery (e2e, T-123)', () => {
     const email = await insertCustomer();
     const before = (await login(email, PASSWORD).expect(200)).body;
     await requestReset(email).expect(202);
-    const token = lastToken(email);
+    const token = await lastToken(email);
 
     await confirm(token).expect(204);
 
@@ -144,7 +152,7 @@ describe('Password recovery (e2e, T-123)', () => {
   it('names the password rule that failed, and keeps the link', async () => {
     const email = await insertCustomer();
     await requestReset(email).expect(202);
-    const token = lastToken(email);
+    const token = await lastToken(email);
 
     const response = await confirm(token, 'corta').expect(400);
 

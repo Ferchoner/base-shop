@@ -3,5 +3,7 @@
 process.env.RATE_LIMIT_DEFAULT ??= '1000/1m';
 // The same for the guest's lookup and reorder (10 per IP in 15 minutes): their suite of limits sets its own.
 process.env.RATE_LIMIT_GUEST_ORDER ??= '1000/15m';
+// The same for guest orders per contact email (5 per hour), since the suites reuse their emails.
+process.env.RATE_LIMIT_PLACE_ORDER_EMAIL ??= '1000/1h';
 // The purchase suites pay in the store (ADR-0040): suites that test it turned off set their own value.
 process.env.MANUAL_PAYMENTS_ENABLED ??= 'true';

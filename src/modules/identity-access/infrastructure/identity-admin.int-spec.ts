@@ -5,6 +5,7 @@ import pg from 'pg';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
+import { EventsModule } from '../../../platform/events/events.module.js';
 import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
 import { MailModule } from '../../../platform/mail/mail.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
@@ -74,6 +75,7 @@ describe('Identity & Access administration (T-130)', () => {
         RateLimitingModule,
         MailModule,
         AuditModule,
+        EventsModule,
         IdentityAccessModule,
       ],
     }).compile();
@@ -157,9 +159,14 @@ describe('Identity & Access administration (T-130)', () => {
     prisma.auditLog.findFirst({ where: { action } });
 
   describe('roles (UC-IAM-15)', () => {
+    /** A superadmin, who holds every permission they give (BR-USR-20). */
+    const superadmin = () => insertUser('STAFF', { roleIds: [SUPERADMIN] });
+
     async function createRole(name: string): Promise<RoleId> {
+      const actorId = await superadmin();
       const id = await run(() =>
         moduleRef.get(CreateRole).execute({
+          actorId,
           name,
           description: null,
           permissions: ['orders.read', 'customers.read'],
@@ -195,9 +202,11 @@ describe('Identity & Access administration (T-130)', () => {
 
     it('updates a role with the version it was read at', async () => {
       const id = await createRole('Soporte');
+      const actorId = await superadmin();
 
       await run(() =>
         moduleRef.get(UpdateRole).execute(id, {
+          actorId,
           name: 'Atención',
           permissions: ['orders.read'],
           version: 1,
@@ -211,25 +220,33 @@ describe('Identity & Access administration (T-130)', () => {
       });
       await expect(
         run(() =>
-          moduleRef.get(UpdateRole).execute(id, { name: 'Otro', version: 1 }),
+          moduleRef
+            .get(UpdateRole)
+            .execute(id, { actorId, name: 'Otro', version: 1 }),
         ),
       ).rejects.toThrow(new VersionConflictError(2));
     });
 
     it('renames the superadmin role, but never changes its permissions', async () => {
       const update = moduleRef.get(UpdateRole);
+      const actorId = await superadmin();
       const { version } = (await queries.findRole(SUPERADMIN))!;
 
       await expect(
         run(() =>
-          update.execute(SUPERADMIN, { permissions: ['orders.read'], version }),
+          update.execute(SUPERADMIN, {
+            actorId,
+            permissions: ['orders.read'],
+            version,
+          }),
         ),
       ).rejects.toThrow(SuperadminPermissionsFixedError);
       await run(() =>
-        update.execute(SUPERADMIN, { name: 'Superadmin', version }),
+        update.execute(SUPERADMIN, { actorId, name: 'Superadmin', version }),
       );
       await run(() =>
         update.execute(SUPERADMIN, {
+          actorId,
           name: 'Superadministrador',
           version: version + 1,
         }),

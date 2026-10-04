@@ -1,4 +1,8 @@
-import { inMexicoTime, type Money } from '../../../shared-kernel/index.js';
+import {
+  emailSafeText,
+  inMexicoTime,
+  type Money,
+} from '../../../shared-kernel/index.js';
 import type { NoticeOrder } from './notice-orders.js';
 
 /** What an email says, before it knows whom to: its subject and its plain text (ADR-0110). */
@@ -57,7 +61,9 @@ function lineOf(line: NoticeOrder['lines'][number]): string {
 
 /**
  * The received order (`OrderPlaced`): its lines, totals and shipping address, how long its products are held and
- * the estimated delivery time (ADR-0083). With payments in the store, how to pay (ADR-0055, ADR-0143).
+ * the estimated delivery time (ADR-0083). With payments in the store, how to pay (ADR-0055, ADR-0143). The address
+ * is what the buyer typed, and a guest's email is not verified, so it is quoted on one line and without links
+ * (ADR-0154).
  */
 export function orderPlacedEmail(
   order: NoticeOrder,
@@ -67,7 +73,9 @@ export function orderPlacedEmail(
   const shipping =
     totals.shippingCost.amount === 0 ? 'gratis' : inPesos(totals.shippingCost);
   const interior =
-    address.interiorNumber === null ? '' : `, int. ${address.interiorNumber}`;
+    address.interiorNumber === null
+      ? ''
+      : `, int. ${emailSafeText(address.interiorNumber)}`;
   return email(`Recibimos tu pedido ${order.publicCode}`, order, [
     `Recibimos tu pedido ${order.publicCode}.`,
     '',
@@ -81,8 +89,8 @@ export function orderPlacedEmail(
     `Total: ${inPesos(totals.grandTotal)} (IVA incluido: ${inPesos(totals.taxTotal)})`,
     '',
     'Lo enviaremos a:',
-    address.recipientName,
-    `${address.street} ${address.exteriorNumber}${interior}, ${address.neighborhood}`,
+    emailSafeText(address.recipientName),
+    `${emailSafeText(address.street)} ${emailSafeText(address.exteriorNumber)}${interior}, ${emailSafeText(address.neighborhood)}`,
     `${address.postalCode} ${address.municipalityName}, ${address.stateName}`,
     '',
     ...(order.paymentDueAt === null

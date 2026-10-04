@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   EmailSender,
+  emailSafeText,
   FrontendLinks,
   lifetimeInWords,
   newId,
@@ -62,7 +63,7 @@ export class PasswordResets {
         to: account.email,
         subject: 'Restablece tu contraseña',
         text: [
-          `Hola, ${account.firstNames}:`,
+          `Hola, ${emailSafeText(account.firstNames)}:`,
           '',
           'Para elegir una contraseña nueva, abre este enlace:',
           this.links.link(RESET_PASSWORD_PAGE, { token }),

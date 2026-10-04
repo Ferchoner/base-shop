@@ -1,19 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import {
-  Body,
-  Controller,
-  Get,
-  type INestApplication,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, type INestApplication, Post } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { RateLimit } from '../src/platform/http/rate-limiting/rate-limit.decorator.js';
 
-/** Small limits, so each one is reached in a few requests. */
+/**
+ * Small limits, so each one is reached in a few requests. The default one counts every request too (ADR-0154), so it
+ * is large here and tested apart, in default-rate-limit.e2e-spec.ts.
+ */
 const TEST_LIMITS = {
-  RATE_LIMIT_DEFAULT: '3/1m',
+  RATE_LIMIT_DEFAULT: '1000/1m',
   RATE_LIMIT_REGISTER: '2/1h',
   RATE_LIMIT_PASSWORD_RESET_EMAIL: '2/1h',
   RATE_LIMIT_PASSWORD_RESET_IP: '3/1h',
@@ -25,11 +22,6 @@ const TEST_LIMITS = {
 /** Test-only endpoints standing in for the real ones, each with the limit of API_SPEC.md §7. */
 @Controller()
 class RateLimitTestController {
-  @Get('test-rate/any')
-  any() {
-    return { ok: true };
-  }
-
   @Post('test-rate/register')
   @RateLimit('register')
   register() {
@@ -69,11 +61,6 @@ class RateLimitTestController {
   @Post('test-rate/orders')
   @RateLimit('place-order')
   placeOrder(@Body() _body: unknown) {
-    return { ok: true };
-  }
-
-  @Post('webhooks/test-provider')
-  webhook() {
     return { ok: true };
   }
 }
@@ -128,20 +115,6 @@ describe('Rate limiting (e2e, T-126)', () => {
     expect(Number(response.headers['retry-after'])).toBeGreaterThan(0);
     expect(response.headers['x-ratelimit-limit']).toBeUndefined();
   }
-
-  it('limits every endpoint without a specific limit per IP (default)', async () => {
-    for (let call = 0; call < 3; call++) {
-      await http().get('/v1/test-rate/any').expect(200);
-    }
-
-    expectLimited(await http().get('/v1/test-rate/any'));
-  });
-
-  it('never limits payment webhooks (ADR-0071)', async () => {
-    for (let call = 0; call < 5; call++) {
-      await http().post('/v1/webhooks/test-provider').expect(201);
-    }
-  });
 
   it('limits sign-ups per IP', async () => {
     await http().post('/v1/test-rate/register').expect(201);

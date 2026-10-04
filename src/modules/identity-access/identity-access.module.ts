@@ -32,6 +32,7 @@ import {
   EMAIL_VERIFICATION_TTL_SECONDS,
   EmailVerifications,
 } from './application/email-verifications.js';
+import { GrantLimits } from './application/grant-limits.js';
 import { IdentityAccessFacade } from './application/identity-access.facade.js';
 import { IdentityQueries } from './application/identity.queries.js';
 import { PasswordChangeNotice } from './application/password-change-notice.js';
@@ -76,11 +77,13 @@ import { SessionRepository } from './domain/session.repository.js';
 import { UserRepository } from './domain/user.repository.js';
 import { AccessTokenKey } from './infrastructure/access-token-key.js';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.js';
+import { EmailVerificationRequestedHandler } from './infrastructure/email-verification-requested.event-handler.js';
 import { FileCommonPasswords } from './infrastructure/file-common-passwords.js';
 import { FirstSuperadminCommand } from './infrastructure/first-superadmin.command.js';
 import { GeoAddressLocations } from './infrastructure/geo-address-locations.js';
 import { JwtAccessTokens } from './infrastructure/jwt-access-tokens.js';
 import { JwtStrategy } from './infrastructure/jwt.strategy.js';
+import { PasswordResetRequestedHandler } from './infrastructure/password-reset-requested.event-handler.js';
 import { PrismaAddressBookRepository } from './infrastructure/prisma-address-book.repository.js';
 import { PrismaCustomerTraces } from './infrastructure/prisma-customer-traces.js';
 import { PrismaEmailVerificationTokenRepository } from './infrastructure/prisma-email-verification-token.repository.js';
@@ -171,6 +174,8 @@ import { MeController } from './presentation/me.controller.js';
     { provide: SessionRepository, useClass: PrismaSessionRepository },
     TokenCleanup,
     TokenCleanupJob,
+    PasswordResetRequestedHandler,
+    EmailVerificationRequestedHandler,
     {
       provide: SPENT_REFRESH_TOKEN_RETENTION_DAYS,
       inject: [ConfigService],
@@ -187,6 +192,7 @@ import { MeController } from './presentation/me.controller.js';
       useClass: PrismaPasswordResetTokenRepository,
     },
     SuperadminContinuity,
+    GrantLimits,
     CreateRole,
     UpdateRole,
     DeleteRole,

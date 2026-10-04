@@ -35,6 +35,19 @@ export class SuperadminPermissionsFixedError extends DomainError {
   }
 }
 
+/**
+ * A staff member tried to give a role or permission they do not hold, or the superadmin role without being a
+ * superadmin (BR-USR-20, ADR-0154). Answered as any other denied access, and audited as one.
+ */
+export class PermissionNotHeldError extends DomainError {
+  readonly code = 'forbidden';
+  readonly category = 'forbidden';
+
+  constructor() {
+    super('Nobody grants a role or permission they do not hold');
+  }
+}
+
 /** A role given to a staff member does not exist. Answered as a validation error of `roleIds`. */
 export class UnknownRolesError extends DomainError {
   readonly code = 'validation-error';
