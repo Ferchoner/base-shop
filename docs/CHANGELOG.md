@@ -214,3 +214,6 @@
   - `users.last_active_at` (migración `20261004210000_identity_last_active_at`): registrarse, iniciar sesión o renovar la sesión, a lo más una vez al día.
   - Nuevo job diario `privacy.anonymize-inactive-customers`: con `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` (12 a 240, vacía por defecto) anonimiza la cuenta de los clientes sin actividad, hasta 1,000 por corrida, sin sus órdenes; omite a quien tenga una orden sin concluir; auditado como sistema.
   - `GET /v1/privacy/retention-policy`, pública y con cache de una hora, publica los plazos vigentes; nueva sección 23 de `API_SPEC.md`.
+- La descripción OpenAPI de `GET /v1/admin/orders` ya no dice que `payment` y `shipment` son `null` hasta T-190 y T-195: cada pedido del listado los trae, y son `null` solo si aún no los tiene.
+- Sprint 8 cerrado (2026-10-03) con el objetivo cumplido: T-232 en dos partes, en 3 pull requests (#87 a #89) con la CI verde a la primera; 2,314 tests y 2 ADR nuevos (ADR-0151 y ADR-0152). Review en el historial de `SPRINT.md`. Sprint 9 aprobado: calidad antes de operar (T-310, T-320 y T-300).
+- Paso 0 del Sprint 9: revisión contra los ADR, con `PROJECT.md` y `README.md`, sin desajustes; Prisma 7.10.0 sigue siendo la última versión estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 8, y `TASKS.md` describe T-300, T-310 y T-320.
