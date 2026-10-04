@@ -28,6 +28,7 @@ export const ACTION_FILTER = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*(\.\*)?$/;
 
 /** Query of `GET /v1/admin/audit` (UC-AUD-02, API_SPEC.md §18). */
 export class AuditQueryDto extends CursorQueryDto {
+  /** Solo las acciones de este usuario. */
   @IsOptional()
   @IsUUID()
   actorId?: string;
@@ -56,13 +57,17 @@ export class AuditQueryDto extends CursorQueryDto {
   })
   action?: string;
 
-  /** @example 'order' */
+  /**
+   * Solo las acciones sobre recursos de este tipo.
+   * @example 'order'
+   */
   @IsOptional()
   @IsString()
   @Length(1, 100)
   @Matches(/\S/, NOT_BLANK)
   resourceType?: string;
 
+  /** Solo las de este recurso, por su ID exacto; con `resourceType`, de ese tipo. */
   @IsOptional()
   @IsString()
   @Length(1, 200)
@@ -93,39 +98,51 @@ export class AuditQueryDto extends CursorQueryDto {
 
 /** `AuditEntry` of API_SPEC.md §18 (ADR-0037, ADR-0100). */
 export class AuditEntryDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
   occurredAt: Date;
 
+  /** Quién actuó: `USER` con sesión, `SYSTEM` en jobs y eventos, o `ANONYMOUS` sin sesión. */
   @ApiProperty({ enum: ACTOR_TYPES })
   actorType: string;
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description: 'El usuario, cuando `actorType` es USER.',
   })
   actorId: string | null;
 
-  /** @example 'orders.cancel' */
+  /**
+   * Código de la acción, como `orders.cancel`.
+   * @example 'orders.cancel'
+   */
   action: string;
 
+  /** Tipo del recurso; `null` si la acción no tiene uno. */
   @ApiProperty({ ...NULLABLE_TEXT, example: 'order' })
   resourceType: string | null;
 
+  /** ID del recurso; `null` si la acción no tiene uno. */
   @ApiProperty(NULLABLE_TEXT)
   resourceId: string | null;
 
+  /** `SUCCESS`, `DENIED` o `FAILED`. */
   @ApiProperty({ enum: AUDIT_RESULTS })
   result: string;
 
+  /** El identificador de la solicitud (`X-Correlation-Id`) o del job; `null` si no hubo. */
   @ApiProperty(NULLABLE_TEXT)
   correlationId: string | null;
 
+  /** IP de la solicitud; `null` fuera de una. */
   @ApiProperty({ ...NULLABLE_TEXT, example: '203.0.113.7' })
   ip: string | null;
 
+  /** Navegador o cliente de la solicitud; `null` fuera de una. */
   @ApiProperty(NULLABLE_TEXT)
   userAgent: string | null;
 

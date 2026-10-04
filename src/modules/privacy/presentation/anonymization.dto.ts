@@ -41,8 +41,10 @@ export class AnonymizeCustomerDto extends AnonymizationReasonDto {
 
 /** Response of `POST /v1/admin/identity/customers/{userId}/anonymize` (API_SPEC.md §9.18). */
 export class CustomerAnonymizationDto {
+  @ApiProperty({ format: 'uuid' })
   userId: string;
 
+  /** Cuándo se anonimizó. */
   @ApiProperty({ type: String, format: 'date-time' })
   anonymizedAt: Date;
 
