@@ -57,6 +57,15 @@ T-232 parte a, con el nuevo ADR-0151:
 - **Plazos:** seis variables nuevas con rango, entre ellas los 30 días de la limpieza diaria, y la política vigente en el log al arrancar.
 - **Riesgos del sprint:** los correos no necesitan ocultamiento, porque una orden bloqueada ya concluyó y no genera eventos; un pago tardío la desbloquea antes de avisar. Las respuestas guardadas por idempotencia ya no existen al anonimizar, porque duran 24 horas.
 
+### Resultado del paso 2
+
+T-232 parte b, con el nuevo ADR-0152; T-232 queda en DONE:
+
+- **Consulta de los datos bloqueados:** `POST /v1/admin/orders/{orderId}/blocked-data` con un motivo, solo con el permiso nuevo `orders.read-blocked` (Administrador y Superadministrador). Responde el email, la dirección y el destino del envío como se guardaron, y cada consulta se audita sin los datos.
+- **Cuentas inactivas:** la actividad es registrarse, iniciar sesión o renovar la sesión (`users.last_active_at`). Con `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` configurada, el job diario `privacy.anonymize-inactive-customers` anonimiza la cuenta, sin sus órdenes, que siguen su ciclo. Un cliente con una orden sin concluir o que vuelve a tener actividad se queda. Apagado por defecto.
+- **Política pública:** `GET /v1/privacy/retention-policy` da los plazos vigentes para el aviso de privacidad.
+- **Riesgos del sprint:** la consulta de los datos bloqueados cierra el ocultamiento de ADR-0070, y la anonimización de cuentas inactivas define la actividad y deja las órdenes a su propio ciclo.
+
 ## Risks
 
 - **Borrado irreversible y automático:** con los valores por defecto, la anonimización empieza 6 años después de que concluye la orden, pero un plazo mal configurado podría adelantarla. Aplican las salvaguardas de ADR-0149: rangos al arrancar, lotes con tope por corrida y auditoría sin valores.

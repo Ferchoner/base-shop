@@ -209,3 +209,8 @@
   - Una orden bloqueada desaparece de `/v1/me/orders`, de la consulta y el enlace del invitado y de la recompra (404). `AdminOrder` y `AdminShipment` suman `blockedAt`, y desde entonces muestran el email en `null` y la dirección como anonimizada; la búsqueda por email no la encuentra.
   - Los 30 días de la limpieza diaria son configurables: `SPENT_REFRESH_TOKEN_RETENTION_DAYS`, `INACTIVE_GUEST_CART_RETENTION_DAYS` y `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS`. Al arrancar, el log `RetentionPolicy` escribe la política vigente.
   - Migración `20261004120000_ordering_retention`: `orders.concluded_at`, `orders.blocked_at` y `shipments.blocked_at`, una restricción y un índice parcial.
+- T-232 parte b (nuevo ADR-0152); T-232 en DONE:
+  - `POST /v1/admin/orders/{orderId}/blocked-data` con `{ reason }` da el email, la dirección y el destino del envío de una orden bloqueada, como se guardaron, con el permiso nuevo `orders.read-blocked` (Administrador por la migración `20261004200000_orders_read_blocked_permission`; Superadministrador implícito). Se audita `orders.read-blocked-data` con el motivo y sin los datos; una orden no bloqueada o anonimizada responde 409.
+  - `users.last_active_at` (migración `20261004210000_identity_last_active_at`): registrarse, iniciar sesión o renovar la sesión, a lo más una vez al día.
+  - Nuevo job diario `privacy.anonymize-inactive-customers`: con `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` (12 a 240, vacía por defecto) anonimiza la cuenta de los clientes sin actividad, hasta 1,000 por corrida, sin sus órdenes; omite a quien tenga una orden sin concluir; auditado como sistema.
+  - `GET /v1/privacy/retention-policy`, pública y con cache de una hora, publica los plazos vigentes; nueva sección 23 de `API_SPEC.md`.

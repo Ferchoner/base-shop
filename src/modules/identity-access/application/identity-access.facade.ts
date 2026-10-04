@@ -4,7 +4,10 @@ import type { AddressFields } from '../domain/address-book.js';
 import { RoleRepository } from '../domain/role.repository.js';
 import type { UserId } from '../domain/user.js';
 import { UserRepository } from '../domain/user.repository.js';
-import { AnonymizeCustomer } from './anonymize-customer.use-case.js';
+import {
+  AnonymizeCustomer,
+  AnonymizeInactiveCustomer,
+} from './anonymize-customer.use-case.js';
 import { effectivePermissions } from './effective-permissions.js';
 import { IdentityQueries } from './identity.queries.js';
 
@@ -31,6 +34,7 @@ export class IdentityAccessFacade {
     private readonly roles: RoleRepository,
     private readonly queries: IdentityQueries,
     private readonly anonymization: AnonymizeCustomer,
+    private readonly inactiveAnonymization: AnonymizeInactiveCustomer,
   ) {}
 
   /**
@@ -67,6 +71,28 @@ export class IdentityAccessFacade {
     at: Date;
   }): Promise<void> {
     return this.anonymization.execute(input);
+  }
+
+  /**
+   * Up to `limit` customers without activity since `before`, the least recently active first (ADR-0152); not locked.
+   */
+  inactiveCustomers(before: Date, limit: number): Promise<UserId[]> {
+    return this.users.inactiveCustomers(before, limit);
+  }
+
+  /**
+   * Anonymizes the account of a customer still without activity since `inactiveSince`, in the transaction of the
+   * caller, by the system (ADR-0152).
+   *
+   * @returns whether it anonymized it: false for an ID that is not a customer's, anonymized or active meanwhile.
+   */
+  anonymizeInactiveCustomer(input: {
+    userId: UserId;
+    inactiveSince: Date;
+    reason: string;
+    at: Date;
+  }): Promise<boolean> {
+    return this.inactiveAnonymization.execute(input);
   }
 
   /** One of the customer's saved addresses (UC-IAM-11); `null` when it does not exist or is another's. */

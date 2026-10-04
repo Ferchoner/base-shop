@@ -37,6 +37,7 @@ import type {
   CartId,
   CustomerId,
   Order,
+  OrderAddress,
   OrderId,
   RestockLine,
   RestockReason,
@@ -95,6 +96,11 @@ export class ShippingFacadeOrderShipments extends OrderShipments {
 
   block(orderIds: readonly OrderId[], at: Date): Promise<void> {
     return this.shipping.blockShipmentsOf(orderIds, at);
+  }
+
+  destinationOf(orderId: OrderId): Promise<OrderAddress | null> {
+    // Shipping keeps the address Ordering handed over, in the same format (ADR-0140).
+    return this.shipping.destinationOf(orderId) as Promise<OrderAddress | null>;
   }
 
   shipmentsOf(

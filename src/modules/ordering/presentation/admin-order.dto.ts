@@ -19,6 +19,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { PostalAddressDto } from '../../../platform/http/address.dto.js';
 import {
   PageMetaDto,
   PageQueryDto,
@@ -381,4 +382,33 @@ export class RetryFulfillmentDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+/** Request of `POST /v1/admin/orders/{orderId}/blocked-data` (ADR-0070, ADR-0152). */
+export class BlockedOrderDataRequestDto {
+  /**
+   * La reclamación o el requerimiento que se atiende, de 1 a 500 caracteres. Queda en la auditoría: no escribas datos
+   * personales.
+   * @example 'Reclamación PROFECO 2027-0153'
+   */
+  @IsString()
+  @Length(1, 500)
+  @Matches(/\S/, NOT_BLANK)
+  reason: string;
+}
+
+/** Response of `POST /v1/admin/orders/{orderId}/blocked-data`: the personal data of the order, as it was saved. */
+export class BlockedOrderDataDto {
+  /** @example 'cliente@example.com' */
+  contactEmail: string;
+
+  @ApiProperty({ type: () => PostalAddressDto })
+  shippingAddress: PostalAddressDto;
+
+  @ApiProperty({
+    type: () => PostalAddressDto,
+    nullable: true,
+    description: 'Destino de su envío; `null` si la orden no tiene envío.',
+  })
+  shipmentDestination: PostalAddressDto | null;
 }

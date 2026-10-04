@@ -27,6 +27,7 @@ import { userScope } from '../../../platform/http/idempotency/idempotency-scope.
 import { Idempotent } from '../../../platform/http/idempotency/idempotent.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
+import { BlockedOrderData } from '../application/blocked-order-data.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
@@ -37,6 +38,8 @@ import {
   AdminOrderDto,
   AdminOrderListDto,
   AdminOrderListQueryDto,
+  BlockedOrderDataDto,
+  BlockedOrderDataRequestDto,
   CancelOrderDto,
   RestockDto,
   RestockOrderDto,
@@ -48,6 +51,7 @@ import { ManualCaptureDto } from './payment.dto.js';
 import {
   toAdminOrderDto,
   toAdminOrderSummaryDto,
+  toBlockedOrderDataDto,
   toReorderDto,
 } from './ordering.mappers.js';
 
@@ -67,6 +71,7 @@ export class AdminOrdersController {
     private readonly paymentRequests: OrderPaymentRequests,
     private readonly reorders: OrderReorders,
     private readonly restocks: OrderRestocks,
+    private readonly blockedData: BlockedOrderData,
   ) {}
 
   @ApiOperation({
@@ -126,6 +131,28 @@ export class AdminOrdersController {
   @Get(':orderId')
   get(@Param('orderId') orderId: string): Promise<AdminOrderDto> {
     return this.read(orderIdOf(orderId));
+  }
+
+  @ApiOperation({
+    summary: 'Consultar los datos personales bloqueados de un pedido',
+    description:
+      'Para atender una reclamación o un requerimiento (ADR-0070, ADR-0152): el email de contacto, la dirección y el destino de su envío, como se guardaron. Solo en un pedido bloqueado (`blockedAt`); en uno que no lo está, cuyos datos ya se ven, o en uno anonimizado, que ya no los tiene, 409 `invalid-state-transition`. Se audita como `orders.read-blocked-data` con el motivo y sin los datos; si la auditoría falla, no se devuelve nada.',
+  })
+  @ApiOkResponse({ type: BlockedOrderDataDto })
+  @ApiProblemResponses('not-found', 'invalid-state-transition')
+  @RequirePermissions('orders.read-blocked')
+  @HttpCode(200)
+  @Post(':orderId/blocked-data')
+  async readBlockedData(
+    @Param('orderId') orderId: string,
+    @Body() body: BlockedOrderDataRequestDto,
+  ): Promise<BlockedOrderDataDto> {
+    return toBlockedOrderDataDto(
+      await this.blockedData.read({
+        orderId: orderIdOf(orderId),
+        reason: body.reason,
+      }),
+    );
   }
 
   @ApiOperation({

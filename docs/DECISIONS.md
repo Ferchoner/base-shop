@@ -169,6 +169,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0149 | Plazos de conservación configurables, con valores por defecto | Aceptada |
 | ADR-0150 | Entrega garantizada de eventos (outbox transaccional) | Aceptada |
 | ADR-0151 | Ciclo de conservación: bloqueo y anonimización automáticos | Aceptada |
+| ADR-0152 | Consulta de datos bloqueados, cuentas inactivas y política pública | Aceptada |
 
 ---
 
@@ -613,7 +614,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Con el TTL de 20 minutos y ejecución cada minuto, una reserva vencida puede seguir ocupando stock hasta un minuto extra.
   - Los jobs corren en el mismo proceso que la API, lo cual es coherente con operar una sola instancia (ADR-0024). Si se escala a varias instancias, cada una ejecutaría los jobs: habrá que agregar un bloqueo en PostgreSQL (advisory lock) o mover los jobs a un proceso separado.
-- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232). ADR-0150 agrega `platform.deliver-events`, cada minuto, que reintenta las entregas de eventos y funciona con varias instancias. ADR-0151 vuelve configurables esos plazos de 30 días y suma `ordering.retention`, también a las 3:00, que bloquea y anonimiza los datos personales de las órdenes.
+- **Estado:** Aceptada. La base común de los jobs se detalla en ADR-0101. El job de expiración se implementó en T-230 (ADR-0136): uno solo, en Ordering, vence cada orden junto con su reserva. La limpieza diaria se implementó en T-231 (ADR-0144): un job por dueño de cada tabla, con borrados por lotes de 1,000 filas, cada lote en su propia sentencia. ADR-0148 suma la limpieza diaria de los enlaces de acceso a los pedidos de invitado (`ordering.cleanup-access-tokens`). ADR-0149: los plazos de 30 días de la limpieza diaria (eventos de webhooks, refresh tokens y carritos de invitado) serán configurables (T-232). ADR-0150 agrega `platform.deliver-events`, cada minuto, que reintenta las entregas de eventos y funciona con varias instancias. ADR-0151 vuelve configurables esos plazos de 30 días y suma `ordering.retention`, también a las 3:00, que bloquea y anonimiza los datos personales de las órdenes. ADR-0152 suma `privacy.anonymize-inactive-customers`, también a las 3:00, apagado por defecto.
 
 ---
 
@@ -909,6 +910,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `staff.manage` | Gestionar cuentas del staff y roles |
 | `audit.read` | Consultar la auditoría |
 | `events.manage` | Ver y reintentar las entregas de eventos de dominio (agregado por ADR-0150) |
+| `orders.read-blocked` | Consultar los datos personales bloqueados de un pedido, con motivo y auditado (agregado por ADR-0152) |
 
   - **Roles iniciales:**
     - Superadministrador: todos los permisos. No se puede quitar el último (BR-USR-03).
@@ -924,7 +926,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los roles se editan en base de datos, así que pueden crearse otros sin cambiar código.
   - Sin segundo factor, una contraseña del staff filtrada da acceso completo a sus permisos; el rate limiting del login y la auditoría de inicios de sesión son las mitigaciones actuales.
 - **Revisar:** segundo factor (2FA) para el staff como mejora de seguridad a mediano o largo plazo, idealmente antes de operar con clientes reales.
-- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito.
+- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito. ADR-0152 agrega `orders.read-blocked` al Administrador, por migración.
 
 ---
 
@@ -1445,7 +1447,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Además: validar los plazos de retención de la auditoría técnica (ADR-0037) y revisar este ADR cuando se publique el reglamento de la nueva ley.
 - **Alternativas consideradas:** Anonimizar directamente sin fase de bloqueo; conservar indefinidamente; implementar el ciclo en el MVP con plazos provisionales.
 - **Consecuencias:** P-61 queda abierta solo para los valores de los plazos y las respuestas del especialista. Cuando se validen, se implementa el ciclo (tarea T-232) y se actualiza el aviso de privacidad.
-- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso. Modificada por ADR-0149: los plazos tienen valores por defecto configurables (12 meses de fase operativa y 60 de bloqueo), el ciclo queda activo por defecto y la validación legal pasa a cada operador; P-61 se cierra y T-232 deja de estar diferida. Implementada en parte por ADR-0151 (T-232 parte a): la orden guarda cuándo concluyó, el bloqueo oculta sus datos al comprador y al staff, y un job diario bloquea y anonimiza; el permiso de consulta de los datos bloqueados llega en la parte b.
+- **Estado:** Aceptada. Para anonimizar, ADR-0145 precisa cuándo concluye una orden: una SHIPPED con su envío devuelto concluye, y una CANCELLED con pago espera su reembolso. Modificada por ADR-0149: los plazos tienen valores por defecto configurables (12 meses de fase operativa y 60 de bloqueo), el ciclo queda activo por defecto y la validación legal pasa a cada operador; P-61 se cierra y T-232 deja de estar diferida. Implementada en parte por ADR-0151 (T-232 parte a): la orden guarda cuándo concluyó, el bloqueo oculta sus datos al comprador y al staff, y un job diario bloquea y anonimiza; el permiso de consulta de los datos bloqueados llega en la parte b. ADR-0152 implementa la consulta de los datos bloqueados con `orders.read-blocked`, con motivo y auditada: el ciclo queda completo.
 
 ---
 
@@ -4434,7 +4436,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Quedan abiertas 8 decisiones.
   - Un operador que no valide los plazos opera con los valores por defecto; la lista "Antes de operar" se lo advierte.
 - **Revisar si:** se publica el reglamento de la ley de 2025, o un operador necesita plazos distintos por tipo de dato o de cliente.
-- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61. ADR-0150 suma `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto) a la política configurable; los eventos no llevan datos personales. ADR-0151 fija los nombres y los rangos de las variables, e implementa la parte a de T-232.
+- **Estado:** Aceptada (análisis aprobado el 2026-10-03, con sus 4 recomendaciones). Modifica ADR-0070 y cierra P-61. ADR-0150 suma `DELIVERED_EVENT_RETENTION_DAYS` (7 días por defecto) a la política configurable; los eventos no llevan datos personales. ADR-0151 fija los nombres y los rangos de las variables, e implementa la parte a de T-232. ADR-0152 implementa la anonimización de cuentas inactivas, apagada por defecto, y la ruta pública con la política vigente.
 
 ---
 
@@ -4543,4 +4545,46 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El modelo de datos suma `orders.concluded_at`, `orders.blocked_at` y `shipments.blocked_at` (migración `20261004120000_ordering_retention`), con un índice parcial de las órdenes sin anonimizar por fecha de conclusión.
   - Quedan para la parte b: el permiso auditado para consultar los datos bloqueados, las cuentas inactivas y la ruta pública con la política vigente.
 - **Revisar si:** un operador necesita bloquear antes de que la orden concluya, o las órdenes que concluyen cada día superan el tope de la corrida.
-- **Estado:** Aceptada (plan de T-232 parte a aprobado el 2026-10-03, con sus 4 recomendaciones). Implementa en parte ADR-0070 y ADR-0149.
+- **Estado:** Aceptada (plan de T-232 parte a aprobado el 2026-10-03, con sus 4 recomendaciones). Implementa en parte ADR-0070 y ADR-0149. ADR-0152 completa T-232 con la consulta de los datos bloqueados.
+
+---
+
+## ADR-0152 — Consulta de datos bloqueados, cuentas inactivas y política pública
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-232 parte b, Sprint 8, después del bloqueo y la anonimización automáticos de ADR-0151.
+  - ADR-0070 reserva los datos bloqueados a un permiso propio de los administradores, con cada consulta auditada.
+  - ADR-0149 pide anonimizar las cuentas de clientes inactivos, desactivado por defecto, y publicar la política vigente para el aviso de privacidad.
+  - Faltaba decidir cómo se pide la consulta, qué cuenta como actividad, qué pasa con las órdenes de una cuenta inactiva y qué publica la ruta.
+- **Decisión** (plan de T-232 parte b, con sus 4 recomendaciones):
+  - **Consulta de los datos bloqueados (UC-ORD-11):**
+    - permiso nuevo `orders.read-blocked`. Lo tienen el Administrador, por migración, y el Superadministrador, implícito; el Operador no;
+    - `POST /v1/admin/orders/{orderId}/blocked-data` con `{ reason }`, de 1 a 500 caracteres: la reclamación o el requerimiento que se atiende. Es POST porque deja registro y porque el motivo no debe ir en la URL (ADR-0071);
+    - responde el email de contacto, la dirección y el destino del envío, como se guardaron;
+    - una orden que no está bloqueada, cuyos datos ya se ven, o una anonimizada, que ya no los tiene, responde 409 `invalid-state-transition`;
+    - se audita `orders.read-blocked-data` con el motivo y sin los valores, en la misma transacción: si la auditoría falla, no se responde nada.
+  - **Cuentas de clientes inactivos (UC-SYS-03):**
+    - la actividad es registrarse, iniciar sesión o renovar la sesión. Se guarda en `users.last_active_at`, y una renovación la escribe a lo más una vez al día. La migración la llena con el último inicio de sesión o, si no hay, con la creación de la cuenta;
+    - `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS`, de 12 a 240 meses, está vacía por defecto: la función queda apagada;
+    - el job `privacy.anonymize-inactive-customers` corre a diario a las 3:00. Toma hasta 1,000 clientes, activos o suspendidos, empezando por el que lleva más tiempo sin actividad. Cada uno va en su propia transacción, con la cuenta bloqueada con `SELECT … FOR UPDATE` y revisada otra vez, así que un cliente que inicia sesión mientras tanto se queda;
+    - anonimiza solo la cuenta, como UC-IAM-19: sus datos, sesiones, enlaces, direcciones y carritos. Sus órdenes siguen su propio ciclo (ADR-0151);
+    - a un cliente con una orden sin concluir se le deshace la anonimización y se omite (E-31);
+    - se audita `customers.anonymize` con actor SYSTEM y la inactividad como motivo;
+    - no se avisa por correo antes de anonimizar.
+  - **Política pública (UC-IAM-23):**
+    - `GET /v1/privacy/retention-policy`, pública, con `Cache-Control: public, max-age=3600`;
+    - publica los plazos que conservan o borran datos personales: el ciclo de las órdenes, las cuentas inactivas, la auditoría, los refresh tokens, los carritos de invitado y los eventos de webhooks. Los eventos de dominio quedan fuera porque no llevan datos personales;
+    - el log de arranque y la ruta leen la misma configuración.
+- **Alternativas consideradas:**
+  - **`GET` con el motivo en la consulta:** el motivo quedaría en los logs y los historiales.
+  - **Mostrar los datos en el detalle normal a quien tenga el permiso:** habría que auditar cada lectura del pedido, o ninguna.
+  - **Contar como actividad solo `last_login_at`:** un cliente que solo renueva su sesión parecería inactivo.
+  - **Anonimizar también las órdenes de la cuenta inactiva, como una solicitud ARCO:** borraría antes de tiempo los datos que el bloqueo conserva para reclamaciones.
+  - **Avisar por correo antes de anonimizar:** queda para cuando un operador lo necesite.
+- **Consecuencias:**
+  - T-232 queda terminada, y con ella el ciclo de ADR-0070.
+  - El catálogo tiene 17 permisos.
+  - El modelo de datos suma `users.last_active_at`, con el índice `(type, last_active_at)` (migración `20261004210000_identity_last_active_at`).
+  - Renovar la sesión escribe en `users` a lo más una vez al día por cuenta.
+- **Revisar si:** un operador necesita avisar antes de anonimizar una cuenta, o la ley pide otro tratamiento para las cuentas inactivas.
+- **Estado:** Aceptada (plan de T-232 parte b aprobado el 2026-10-03, con sus 4 recomendaciones). Completa ADR-0070 y ADR-0149, después de ADR-0151.

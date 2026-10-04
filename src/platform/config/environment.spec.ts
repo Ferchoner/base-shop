@@ -835,6 +835,38 @@ describe('Retention of personal data and records (ADR-0070, ADR-0149)', () => {
   });
 });
 
+describe('INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS (ADR-0149, ADR-0152)', () => {
+  it('is unset by default, and when empty: inactive customers are never anonymized', () => {
+    expect(
+      validateEnvironment(REQUIRED).INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS,
+    ).toBeUndefined();
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS: '',
+      }).INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS,
+    ).toBeUndefined();
+  });
+
+  it.each(['12', '240'])('accepts %p', (value) => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS: value,
+      }).INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS,
+    ).toBe(Number(value));
+  });
+
+  it.each(['11', '241', '12.5', 'year', ' '])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS: value,
+      }),
+    ).toThrow(/INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS/);
+  });
+});
+
 describe('DELIVERED_EVENT_RETENTION_DAYS (ADR-0150)', () => {
   it('defaults to 7 days', () => {
     expect(validateEnvironment(REQUIRED).DELIVERED_EVENT_RETENTION_DAYS).toBe(

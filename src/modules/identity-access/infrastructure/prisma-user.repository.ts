@@ -14,6 +14,8 @@ import { UserRepository } from '../domain/user.repository.js';
 
 const ROLE_IDS = { roles: { select: { roleId: true } } } as const;
 
+const DAY_MS = 86_400_000;
+
 type UserRow = Prisma.UserGetPayload<{ include: typeof ROLE_IDS }>;
 
 /** `users` and `user_roles` (DATABASE.md §3.1, §3.3), always through the active transaction. */
@@ -44,8 +46,38 @@ export class PrismaUserRepository extends UserRepository {
   async recordSignIn(id: UserId, at: Date): Promise<void> {
     await this.txHost.tx.user.update({
       where: { id },
-      data: { lastLoginAt: at },
+      data: { lastLoginAt: at, lastActiveAt: at },
     });
+  }
+
+  async recordActivity(id: UserId, at: Date): Promise<void> {
+    await this.txHost.tx.user.updateMany({
+      where: { id, lastActiveAt: { lte: new Date(at.getTime() - DAY_MS) } },
+      data: { lastActiveAt: at },
+    });
+  }
+
+  async inactiveCustomers(before: Date, limit: number): Promise<UserId[]> {
+    const rows = await this.txHost.tx.user.findMany({
+      select: { id: true },
+      where: {
+        type: 'CUSTOMER',
+        status: { not: 'ANONYMIZED' },
+        lastActiveAt: { lte: before },
+      },
+      orderBy: [{ lastActiveAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map(({ id }) => toId<'User'>(id));
+  }
+
+  async lockInactiveCustomer(id: UserId, before: Date): Promise<User | null> {
+    const tx = this.txHost.tx;
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM users
+       WHERE id = ${id}::uuid AND type = 'CUSTOMER' AND status <> 'ANONYMIZED' AND last_active_at <= ${before}
+         FOR UPDATE`;
+    return locked.length === 0 ? null : this.findById(id);
   }
 
   async add(user: User, createdBy: UserId | null): Promise<void> {
@@ -66,6 +98,7 @@ export class PrismaUserRepository extends UserRepository {
           privacyNoticeVersion: state.privacyNoticeVersion,
           version: state.version,
           createdAt: state.createdAt,
+          lastActiveAt: state.createdAt,
           roles: {
             create: state.roleIds.map((roleId) => ({
               roleId,

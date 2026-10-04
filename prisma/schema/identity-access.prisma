@@ -27,6 +27,8 @@ model User {
   mustChangePassword   Boolean    @default(false) @map("must_change_password")
   passwordChangedAt    DateTime?  @map("password_changed_at") @db.Timestamptz(3)
   lastLoginAt          DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  /// Signing up, signing in or renewing the session, at most once a day: what counts as activity (ADR-0152).
+  lastActiveAt         DateTime   @default(now()) @map("last_active_at") @db.Timestamptz(3)
   suspendedAt          DateTime?  @map("suspended_at") @db.Timestamptz(3)
   anonymizedAt         DateTime?  @map("anonymized_at") @db.Timestamptz(3)
   privacyNoticeVersion String?    @map("privacy_notice_version")
@@ -41,6 +43,7 @@ model User {
   passwordResetTokens     PasswordResetToken[]
 
   @@index([type, status])
+  @@index([type, lastActiveAt])
   @@map("users")
 }
 

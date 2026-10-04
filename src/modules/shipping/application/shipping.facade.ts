@@ -11,6 +11,7 @@ import {
   type OrderLineId,
   Shipment,
   type ShipmentAddress,
+  type ShipmentDestination,
   type WarehouseId,
 } from '../domain/shipment.js';
 import { ShipmentRepository } from '../domain/shipment.repository.js';
@@ -144,6 +145,14 @@ export class ShippingFacade {
         await this.shipments.save(shipment, at);
       }
     });
+  }
+
+  /**
+   * The destination of the shipment of an order as it was saved, also when blocked; `null` for an order without one.
+   * Only for the blocked data of an order, which Ordering reads for the staff and audits (ADR-0070, ADR-0152).
+   */
+  destinationOf(orderId: string): Promise<ShipmentDestination | null> {
+    return this.queries.destinationOf(toId<'Order'>(orderId));
   }
 
   /** The shipments of these orders, by order; an order without one is left out. */

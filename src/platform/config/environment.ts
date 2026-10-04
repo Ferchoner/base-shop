@@ -296,6 +296,21 @@ export class EnvironmentVariables {
   @Max(240)
   PERSONAL_DATA_BLOCKED_MONTHS: number = 60;
 
+  /**
+   * Months without activity (signing up, signing in or renewing the session) after which the account of a customer is
+   * anonymized: from 12 to 240; unset or empty, never, which is the default (ADR-0149, ADR-0152). Its orders follow
+   * their own retention cycle.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    value === undefined || value === '' ? undefined : Number(value),
+  )
+  @IsOptional()
+  @IsInt()
+  @Min(12)
+  @Max(240)
+  INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS?: number;
+
   /** Days a refresh token stays after it expired or was revoked, to detect its reuse: from 1 to 365 (ADR-0149). */
   @Expose()
   @Type(() => Number)

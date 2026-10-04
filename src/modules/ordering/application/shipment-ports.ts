@@ -1,4 +1,4 @@
-import type { Order, OrderId } from '../domain/order.js';
+import type { Order, OrderAddress, OrderId } from '../domain/order.js';
 
 /** The shipment of an order, as the order shows it (API_SPEC.md §8.8); its ID and version only for the staff (§8.9). */
 export interface OrderShipment {
@@ -35,6 +35,12 @@ export abstract class OrderShipments {
 
   /** Blocks the shipments of these orders, being blocked; an order without one is skipped (ADR-0070). */
   abstract block(orderIds: readonly OrderId[], at: Date): Promise<void>;
+
+  /**
+   * The destination of the shipment of an order as it was saved, also when blocked; `null` for an order without one.
+   * Only for the blocked data of the order (ADR-0070, ADR-0152).
+   */
+  abstract destinationOf(orderId: OrderId): Promise<OrderAddress | null>;
 
   /** The shipments of these orders, by order; an order without one is left out. */
   abstract shipmentsOf(

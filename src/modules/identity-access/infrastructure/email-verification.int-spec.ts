@@ -140,6 +140,11 @@ describe('Email verification (T-121)', () => {
         mustChangePassword: false,
         privacyNoticeVersion: '2026-09',
       });
+      // Signing up is activity (ADR-0152).
+      const { createdAt, lastActiveAt } = await prisma.user.findUniqueOrThrow({
+        where: { id },
+      });
+      expect(lastActiveAt).toEqual(createdAt);
       const token = email.lastToken('maria@example.com');
       const [row] = await prisma.emailVerificationToken.findMany({
         where: { userId: id },

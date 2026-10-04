@@ -8,6 +8,7 @@ import { GeoModule } from '../geo/index.js';
 import { AddAddress } from './application/add-address.use-case.js';
 import {
   AnonymizeCustomer,
+  AnonymizeInactiveCustomer,
   CustomerTraces,
 } from './application/anonymize-customer.use-case.js';
 import {
@@ -199,6 +200,7 @@ import { MeController } from './presentation/me.controller.js';
     SuspendCustomer,
     ReactivateCustomer,
     AnonymizeCustomer,
+    AnonymizeInactiveCustomer,
     { provide: CustomerTraces, useClass: PrismaCustomerTraces },
     AddAddress,
     UpdateAddress,

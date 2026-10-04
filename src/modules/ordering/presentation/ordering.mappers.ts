@@ -1,4 +1,6 @@
+import type { PostalAddressDto } from '../../../platform/http/address.dto.js';
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
+import type { BlockedOrderDataView } from '../application/blocked-order-data.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
 import type { OrderAccess } from '../application/order-access-links.js';
 import type { WithPaymentAndShipment } from '../application/order-reader.js';
@@ -17,7 +19,11 @@ import type {
   OrderPayment,
   PaymentStart,
 } from '../application/payment-ports.js';
-import type { AdminOrderDto, AdminOrderSummaryDto } from './admin-order.dto.js';
+import type {
+  AdminOrderDto,
+  AdminOrderSummaryDto,
+  BlockedOrderDataDto,
+} from './admin-order.dto.js';
 import type { CheckoutQuoteDto } from './checkout.dto.js';
 import type {
   AdminOrderPaymentDto,
@@ -146,6 +152,20 @@ export function toAdminOrderSummaryDto(
     anonymizedAt: view.anonymizedAt,
     blockedAt: view.blockedAt,
     shippingAddress: { ...view.shippingAddress },
+  };
+}
+
+/** The personal data of a blocked order (API_SPEC.md §15.7), whole: a blocked order was not anonymized. */
+export function toBlockedOrderDataDto(
+  view: BlockedOrderDataView,
+): BlockedOrderDataDto {
+  return {
+    contactEmail: view.contactEmail,
+    shippingAddress: { ...view.shippingAddress } as PostalAddressDto,
+    shipmentDestination:
+      view.shipmentDestination === null
+        ? null
+        : ({ ...view.shipmentDestination } as PostalAddressDto),
   };
 }
 

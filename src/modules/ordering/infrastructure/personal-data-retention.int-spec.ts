@@ -21,6 +21,8 @@ import {
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { ShippingQueries } from '../../shipping/application/shipping.queries.js';
+import { BlockedOrderData } from '../application/blocked-order-data.js';
+import { OrderingFacade } from '../application/ordering.facade.js';
 import { OrderingQueries } from '../application/ordering.queries.js';
 import {
   PersonalDataRetention,
@@ -78,7 +80,11 @@ const KEPT = {
   country: 'MX',
 };
 
-const AUDITED = ['orders.block', 'orders.anonymize'];
+const AUDITED = [
+  'orders.block',
+  'orders.anonymize',
+  'orders.read-blocked-data',
+];
 
 type Buyer = { customerId: string; email: string } | { guestEmail: string };
 
@@ -551,6 +557,90 @@ describe('Ordering: retention of personal data (T-232)', () => {
       oldest.id,
       blocked.id,
     ]);
+  });
+
+  it('reads the data of a blocked order as saved, with the destination of its shipment, audited with the reason and without them (ADR-0152)', async () => {
+    const { id } = await order(
+      { guestEmail: 'invitado@example.com' },
+      ago(13),
+      {
+        shipment: 'DELIVERED',
+      },
+    );
+    const destination = { ...ADDRESS, street: 'Morelos Sur' };
+    await prisma.shipment.updateMany({
+      where: { orderId: id },
+      data: { destination },
+    });
+    await retain();
+
+    expect(
+      await run(() =>
+        moduleRef
+          .get(BlockedOrderData)
+          .read({ orderId: id, reason: 'Reclamación 2027-0153' }),
+      ),
+    ).toEqual({
+      contactEmail: 'invitado@example.com',
+      shippingAddress: ADDRESS,
+      shipmentDestination: destination,
+    });
+    expect(
+      await prisma.auditLog.findMany({
+        where: { action: 'orders.read-blocked-data' },
+        select: {
+          resourceType: true,
+          resourceId: true,
+          changes: true,
+          reason: true,
+        },
+      }),
+    ).toEqual([
+      {
+        resourceType: 'order',
+        resourceId: id,
+        changes: null,
+        reason: 'Reclamación 2027-0153',
+      },
+    ]);
+  });
+
+  it('reads no destination for a blocked order without a shipment', async () => {
+    const { id } = await order({ guestEmail: 'invitado@example.com' }, ago(13));
+    await retain();
+
+    expect(
+      (
+        await run(() =>
+          moduleRef
+            .get(BlockedOrderData)
+            .read({ orderId: id, reason: 'Requerimiento 15/2027' }),
+        )
+      ).shipmentDestination,
+    ).toBeNull();
+  });
+
+  it('tells whether a customer has an order that has not concluded: on its way, or cancelled with its refund pending (ADR-0152)', async () => {
+    const [paying, refunding, done] = [newId(), newId(), newId()];
+    await order({ customerId: paying, email: 'ana@example.com' }, null, {
+      status: 'PAID',
+    });
+    await order({ customerId: refunding, email: 'luis@example.com' }, null, {
+      status: 'CANCELLED',
+    });
+    await order({ customerId: done, email: 'eva@example.com' }, ago(2));
+    await order({ guestEmail: 'invitado@example.com' }, null, {
+      status: 'PAID',
+    });
+    const ordering = moduleRef.get(OrderingFacade);
+
+    expect(
+      await Promise.all(
+        [paying, refunding, done, newId()].map((id) =>
+          ordering.hasOpenOrders(id),
+        ),
+      ),
+    ).toEqual([true, true, false, false]);
   });
 
   it('refuses a blocked order that has not concluded', async () => {

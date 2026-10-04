@@ -90,6 +90,12 @@ export abstract class ShippingQueries {
 
   abstract findShipment(id: ShipmentId): Promise<ShipmentView | null>;
 
+  /**
+   * The destination of the shipment of an order as it was saved, also when blocked; `null` for an order without one.
+   * Only for the staff who reads the blocked data of an order, which Ordering audits (ADR-0070, ADR-0152).
+   */
+  abstract destinationOf(orderId: OrderId): Promise<ShipmentDestination | null>;
+
   /** Shipments for the staff (UC-SHI-08); ties are broken by ID. */
   abstract listShipments(
     filter: ShipmentFilter,

@@ -6,6 +6,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { PersonalDataRetention } from '../src/modules/ordering/application/personal-data-retention.js';
+import { InactiveCustomerAnonymizations } from '../src/modules/privacy/application/inactive-customer-anonymizations.js';
 import type { AuthenticatedUser } from '../src/platform/auth/authenticated-user.js';
 import { DomainEventDispatcher } from '../src/platform/events/domain-event-dispatcher.js';
 import { configureHttp } from '../src/platform/http/configure-http.js';
@@ -138,6 +139,7 @@ describe('Retention of personal data (e2e, T-232)', () => {
   const reader = staff('orders.read');
   const cashier = staff('orders.read', 'payments.manage');
   const shipper = staff('shipping.manage');
+  const administrator = staff('orders.read', 'orders.read-blocked');
 
   /** A published variant priced at $100.00, with 10 units. */
   async function variant(): Promise<string> {
@@ -423,6 +425,124 @@ describe('Retention of personal data (e2e, T-232)', () => {
     ).toEqual({
       actorType: 'SYSTEM',
       reason: 'Plazo de conservación de datos personales vencido (ADR-0149)',
+    });
+  });
+
+  describe('the blocked data of an order (ADR-0070, ADR-0152)', () => {
+    const REASON = 'Reclamación PROFECO 2027-0153';
+    const WHOLE = {
+      ...ADDRESS,
+      stateName: 'Michoacán de Ocampo',
+      municipalityName: 'Morelia',
+      country: 'MX',
+    };
+    const readBlocked = (
+      orderId: string,
+      body: object = { reason: REASON },
+      user = administrator,
+    ) =>
+      http()
+        .post(`/v1/admin/orders/${orderId}/blocked-data`)
+        .set(signedInAs(user))
+        .send(body);
+
+    it('gives its data as saved, with the destination of its shipment, to whom holds orders.read-blocked, audited with the reason', async () => {
+      const { id } = await guestOrder('invitado@example.com');
+      await delivered(id);
+      await concludedMonthsAgo(12, id);
+      await retain();
+
+      const { body } = await readBlocked(id)
+        .expect(200)
+        .expect('Cache-Control', 'no-store');
+
+      expect(body).toEqual({
+        contactEmail: 'invitado@example.com',
+        shippingAddress: WHOLE,
+        shipmentDestination: WHOLE,
+      });
+      expect(
+        await prisma.auditLog.findMany({
+          where: { action: 'orders.read-blocked-data' },
+          select: {
+            actorType: true,
+            actorId: true,
+            resourceId: true,
+            changes: true,
+            reason: true,
+          },
+        }),
+      ).toEqual([
+        {
+          actorType: 'USER',
+          actorId: administrator.id,
+          resourceId: id,
+          changes: null,
+          reason: REASON,
+        },
+      ]);
+      await readBlocked(id, { reason: REASON }, reader).expect(403);
+      for (const invalid of [
+        {},
+        { reason: '   ' },
+        { reason: 'x'.repeat(501) },
+      ]) {
+        await readBlocked(id, invalid).expect(400);
+      }
+    });
+
+    it('refuses an order that is not blocked and one anonymized, without auditing; and 404 for one that does not exist', async () => {
+      const visible = await guestOrder('invitado@example.com');
+      const gone = await guestOrder('otro@example.com');
+      await delivered(gone.id);
+      await concludedMonthsAgo(72, gone.id);
+      await retain();
+      await retain();
+
+      for (const { id } of [visible, gone]) {
+        expect((await readBlocked(id).expect(409)).body).toMatchObject({
+          type: '/problems/invalid-state-transition',
+        });
+      }
+      await readBlocked(newId()).expect(404);
+      expect(
+        await prisma.auditLog.count({
+          where: { action: 'orders.read-blocked-data' },
+        }),
+      ).toBe(0);
+    });
+  });
+
+  it('anonymizes no inactive customer while no period is set, the default (ADR-0152)', async () => {
+    const idle = await customer();
+    await prisma.user.update({
+      where: { id: idle.id },
+      data: { lastActiveAt: monthsBefore(new Date(), 240) },
+    });
+
+    expect(
+      await app
+        .get(ClsService)
+        .run(() => app.get(InactiveCustomerAnonymizations).run()),
+    ).toEqual({ anonymized: 0, skipped: 0, failed: 0 });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: idle.id } })).status,
+    ).toBe('ACTIVE');
+  });
+
+  it('publishes the retention policy in force, to anyone, for an hour (ADR-0152)', async () => {
+    const { body } = await http()
+      .get('/v1/privacy/retention-policy')
+      .expect(200)
+      .expect('Cache-Control', 'public, max-age=3600');
+
+    expect(body).toEqual({
+      personalData: { enabled: true, operationalMonths: 12, blockedMonths: 60 },
+      inactiveCustomerMonths: null,
+      auditTrail: { databaseMonths: 3, archiveMonths: 24 },
+      spentRefreshTokenDays: 30,
+      inactiveGuestCartDays: 30,
+      processedWebhookEventDays: 30,
     });
   });
 });

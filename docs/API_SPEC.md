@@ -152,7 +152,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, y `events.manage` de ADR-0150). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150 y `orders.read-blocked` de ADR-0152). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -1223,6 +1223,7 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/admin/orders/{orderId}/retry-fulfillment` | `orders.manage` | UC-ORD-08 |
 | POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` + `Idempotency-Key` | UC-INV-09 (ADR-0132, ADR-0142) |
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
+| POST | `/v1/admin/orders/{orderId}/blocked-data` | `orders.read-blocked` | UC-ORD-11 (ADR-0152) |
 
 Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es).
 
@@ -1394,6 +1395,13 @@ Implementado en T-180 parte b (ADR-0133):
 - **Reintentar el surtido:** el estado se revisa antes de reservar; se audita `orders.retry-fulfillment`.
 - **Pago capturado (UC-ORD-09):** escucha `PaymentCaptured { orderId, paymentId, amount }`. Un monto distinto del total no cambia la orden y queda en el log como error; el pago de una orden cancelada le deja `paidAt` y la orden sigue CANCELLED; desde T-190 parte b se inicia además su reembolso (ADR-0135). `paidAt` es el momento de la captura. El pago tardío de una orden anonimizada la deja en AWAITING_MANUAL_FULFILLMENT sin reservar (ADR-0145).
 - **Concurrencia:** cada cambio bloquea la orden; una `version` desactualizada responde 409 `version-conflict` con `currentVersion`.
+
+**`POST /v1/admin/orders/{orderId}/blocked-data`** — `orders.read-blocked`. Los datos personales de una orden bloqueada (UC-ORD-11, ADR-0070, ADR-0152).
+
+- Request `{ "reason" }`: la reclamación o el requerimiento que se atiende, de 1 a 500 caracteres, sin datos personales. Va en el cuerpo para no quedar en logs ni historiales (ADR-0071).
+- Response 200 `{ "contactEmail", "shippingAddress": Address, "shipmentDestination": Address }`, como se guardaron; `shipmentDestination` es `null` si la orden no tiene envío.
+- Errores: 400 `validation-error` sin motivo o con uno vacío o de más de 500 caracteres; 404 `not-found`; 409 `invalid-state-transition` con `currentStatus` si la orden no está bloqueada (sus datos ya se ven en `AdminOrder`) o se anonimizó (ya no los tiene).
+- Se audita `orders.read-blocked-data` con el motivo y sin los datos, en la misma transacción: si la auditoría falla, no se responde nada.
 
 ---
 
@@ -1589,6 +1597,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-IAM-13 a 19 | Sección 9 |
 | UC-IAM-20, 21 | Sin API: scripts (ADR-0043, ADR-0057) |
 | UC-IAM-22 | Sección 10 |
+| UC-IAM-23 | Sección 23 |
 | UC-CAT-01 a 14 | Sección 11 |
 | UC-PRC-01 a 05 | Sección 12 |
 | UC-PRC-06 | Sin API pública: fachada interna del módulo |
@@ -1597,7 +1606,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
-| UC-ORD-01 a 08 | Sección 15 |
+| UC-ORD-01 a 08, 11 | Sección 15 |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
 | UC-PAY-01, 02, 04, 06, 07 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |
@@ -1605,7 +1614,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-SHI-02, 04 a 09 | Sección 17 |
 | UC-SHI-01, 03 | Dentro de la cotización; dentro del pago de la orden (ADR-0140) |
 | UC-AUD-02 | Sección 18 |
-| UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 | Sin API: transversales y jobs |
+| UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 a 03 | Sin API: transversales y jobs |
 
 Las entregas de eventos (sección 22) son una herramienta de operación, sin caso de uso propio.
 
@@ -1662,3 +1671,28 @@ Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Present
 - Swagger UI en `/docs/v1` y el documento OpenAPI de `v1` en `/docs/v1/openapi.json`, fuera del prefijo `/v1`. Solo se sirven con `NODE_ENV=development` (ADR-0096); con `NODE_ENV=test` el documento se construye y se revisa sin servirlo, para que un DTO que lo rompa falle en cualquier suite (paso 0 del Sprint 6).
 - Los errores de cada endpoint usan el esquema común `ProblemDetails`, cuyo `type` admite solo los tipos de la sección 6.2.
 - Autenticación declarada como `bearer` para las rutas `/v1/me` y `/v1/admin`.
+
+---
+
+## 23. Endpoints — Privacidad (ADR-0152)
+
+### 23.1 `GET /v1/privacy/retention-policy` — Política de conservación vigente (UC-IAM-23)
+
+Pública, para que el frontend muestre los plazos reales en el aviso de privacidad (ADR-0149). Implementado en T-232 parte b.
+
+- Response 200, con `Cache-Control: public, max-age=3600`, porque los plazos cambian solo con un despliegue:
+
+  ```json
+  {
+    "personalData": { "enabled": true, "operationalMonths": 12, "blockedMonths": 60 },
+    "inactiveCustomerMonths": null,
+    "auditTrail": { "databaseMonths": 3, "archiveMonths": 24 },
+    "spentRefreshTokenDays": 30,
+    "inactiveGuestCartDays": 30,
+    "processedWebhookEventDays": 30
+  }
+  ```
+
+- `personalData`: el ciclo de los datos personales de órdenes y envíos (ADR-0151); con `enabled` en `false`, se conservan.
+- `inactiveCustomerMonths`: meses sin actividad tras los que se anonimiza la cuenta de un cliente; `null` si nunca (el valor por defecto).
+- Los eventos de dominio no aparecen: no llevan datos personales (ADR-0150).
