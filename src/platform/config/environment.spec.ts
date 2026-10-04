@@ -223,11 +223,13 @@ describe('JOBS_ENABLED (ADR-0101)', () => {
 });
 
 describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
-  it('defaults to the limits of ADR-0065', () => {
-    expect(validateEnvironment(REQUIRED)).toMatchObject({
+  it('defaults to the limits of ADR-0065 and ADR-0154', () => {
+    const environment = validateEnvironment(REQUIRED);
+
+    expect(environment).toMatchObject({
       RATE_LIMIT_DEFAULT: '100/1m',
-      RATE_LIMIT_LOGIN_EMAIL: '5/15m',
       RATE_LIMIT_LOGIN_IP: '20/15m',
+      RATE_LIMIT_PASSWORD_CHANGE: '5/15m',
       RATE_LIMIT_REGISTER: '5/1h',
       RATE_LIMIT_PASSWORD_RESET_EMAIL: '3/1h',
       RATE_LIMIT_PASSWORD_RESET_IP: '10/1h',
@@ -236,7 +238,10 @@ describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
       RATE_LIMIT_ORDER_ACCESS_EMAIL: '3/1h',
       RATE_LIMIT_ORDER_ACCESS_IP: '10/1h',
       RATE_LIMIT_PLACE_ORDER: '10/10m',
+      RATE_LIMIT_PLACE_ORDER_EMAIL: '5/1h',
     });
+    // Failed logins per email are no longer limited (ADR-0154).
+    expect(environment).not.toHaveProperty('RATE_LIMIT_LOGIN_EMAIL');
   });
 
   it('accepts another value', () => {
@@ -281,6 +286,26 @@ describe('Email and frontend links (ADR-0110)', () => {
       SMTP_PORT: 587,
       FRONTEND_BASE_URL: 'https://shop.example.com',
     });
+  });
+
+  it('requires https for the frontend in production, since the links carry tokens (ADR-0154)', () => {
+    const plain = 'http://shop.example.com';
+
+    expect(() =>
+      validateEnvironment({ ...PRODUCTION, FRONTEND_BASE_URL: plain }),
+    ).toThrow(
+      'FRONTEND_BASE_URL must use https when NODE_ENV is production, because the links in emails carry tokens',
+    );
+    expect(() =>
+      validateEnvironment({
+        ...PRODUCTION,
+        FRONTEND_BASE_URL: 'HTTP://shop.example.com',
+      }),
+    ).toThrow('FRONTEND_BASE_URL must use https');
+    expect(
+      validateEnvironment({ ...REQUIRED, FRONTEND_BASE_URL: plain })
+        .FRONTEND_BASE_URL,
+    ).toBe(plain);
   });
 
   it.each([

@@ -187,6 +187,39 @@ describe('My password (e2e, T-120)', () => {
     },
   );
 
+  it('stops a user after 5 wrong current passwords, even with the right one, and only that user (SA-15)', async () => {
+    const token = await signIn(await insertUser());
+    const other = await signIn(await insertUser());
+    const right = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD };
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await changePassword(token, {
+        ...right,
+        currentPassword: `${PASSWORD}!`,
+      }).expect(401);
+    }
+
+    const limited = await changePassword(token, right).expect(429);
+
+    expect(limited.body.type).toBe('/problems/rate-limit-exceeded');
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    await changePassword(other, right).expect(204);
+  });
+
+  it('counts only wrong current passwords, not new ones that break the policy', async () => {
+    const token = await signIn(await insertUser());
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await changePassword(token, {
+        currentPassword: PASSWORD,
+        newPassword: 'corta',
+      }).expect(400);
+    }
+
+    await changePassword(token, {
+      currentPassword: PASSWORD,
+      newPassword: NEW_PASSWORD,
+    }).expect(204);
+  });
+
   it('rejects a malformed request, and one without a token', async () => {
     const token = await signIn(await insertUser());
 

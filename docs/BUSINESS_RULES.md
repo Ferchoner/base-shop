@@ -23,6 +23,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-17. El cambio obligatorio de contraseña del staff pide la contraseña temporal (ADR-0056).
 - BR-USR-18. El login responde "credenciales no válidas" sin distinguir email inexistente, contraseña incorrecta o cuenta suspendida. El registro sí indica que un email ya está registrado; el registro tiene rate limiting (ADR-0062).
 - BR-USR-19. Cambiar la contraseña desde la cuenta revoca las demás sesiones del usuario, conserva la actual y envía un aviso por correo (ADR-0072).
+- BR-USR-20. Nadie da lo que no tiene: un miembro del staff solo asigna roles, o agrega permisos a un rol, si tiene todos esos permisos, y solo un superadministrador asigna el rol superadministrador. Reactivar a un miembro del staff cuenta como asignarle sus roles, porque quien reactiva recibe su contraseña temporal. Quitar roles o permisos y suspender no tienen esta restricción (ADR-0154).
 
 ## Productos
 

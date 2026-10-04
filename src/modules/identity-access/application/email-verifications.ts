@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   EmailSender,
+  emailSafeText,
   FrontendLinks,
   lifetimeInWords,
   newId,
@@ -60,7 +61,7 @@ export class EmailVerifications {
         to: account.email,
         subject: 'Confirma tu correo',
         text: [
-          `Hola, ${account.firstNames}:`,
+          `Hola, ${emailSafeText(account.firstNames)}:`,
           '',
           'Confirma tu correo en este enlace:',
           this.links.link(VERIFY_EMAIL_PAGE, { token }),

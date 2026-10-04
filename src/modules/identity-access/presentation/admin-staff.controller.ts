@@ -81,7 +81,7 @@ export class AdminStaffController {
   @ApiOperation({
     summary: 'Dar de alta a un miembro del staff',
     description:
-      'Genera una contraseña temporal que se muestra solo en esta respuesta y se cambia en el primer inicio de sesión. No se envía invitación por correo.',
+      'Genera una contraseña temporal que se muestra solo en esta respuesta y se cambia en el primer inicio de sesión. No se envía invitación por correo. Quien da de alta debe tener todos los permisos de los roles, y solo un superadministrador asigna el rol superadministrador: si no, 403 `forbidden`.',
   })
   @ApiCreatedResponse({ type: StaffWithTemporaryPasswordDto })
   @ApiProblemResponses('duplicate-value')
@@ -114,7 +114,7 @@ export class AdminStaffController {
   @ApiOperation({
     summary: 'Reemplazar los roles de un miembro del staff',
     description:
-      'Al menos un rol. No se quita el rol al último superadministrador activo.',
+      'Al menos un rol. No se quita el rol al último superadministrador activo. Los roles que se agregan siguen la regla del alta: quien los asigna tiene todos sus permisos, y el rol superadministrador solo lo asigna otro superadministrador (403 `forbidden`).',
   })
   @ApiOkResponse({ type: StaffUserDto })
   @ApiProblemResponses('not-found', 'version-conflict', 'last-superadmin')
@@ -166,7 +166,7 @@ export class AdminStaffController {
   @ApiOperation({
     summary: 'Reactivar a un miembro del staff',
     description:
-      'Solo desde SUSPENDED. Conserva sus roles y recibe una contraseña temporal nueva, que se muestra solo en esta respuesta y se cambia en el siguiente inicio de sesión.',
+      'Solo desde SUSPENDED. Conserva sus roles y recibe una contraseña temporal nueva, que se muestra solo en esta respuesta y se cambia en el siguiente inicio de sesión. Como quien reactiva recibe esa contraseña, debe poder asignar todos sus roles (403 `forbidden`).',
   })
   @ApiOkResponse({ type: StaffWithTemporaryPasswordDto })
   @ApiProblemResponses(

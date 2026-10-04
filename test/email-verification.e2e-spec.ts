@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
+import type { DomainEventDispatcher } from '../src/platform/events/domain-event-dispatcher.js';
 import type { PrismaService } from '../src/platform/persistence/prisma.service.js';
 import type { EmailMessage } from '../src/shared-kernel/index.js';
 
@@ -20,7 +21,10 @@ const TEST_ENVIRONMENT = { RATE_LIMIT_REGISTER: '100/1h' };
 describe('Email verification (e2e, T-121)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
+  let dispatcher: DomainEventDispatcher;
   const sent: EmailMessage[] = [];
+  /** While set, emails wait for it before they count as sent. */
+  let held: Promise<void> | undefined;
   const previous: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
@@ -35,14 +39,16 @@ describe('Email verification (e2e, T-121)', () => {
     const { PrismaService } =
       await import('../src/platform/persistence/prisma.service.js');
     const { EmailSender } = await import('../src/shared-kernel/index.js');
+    const { DomainEventDispatcher } =
+      await import('../src/platform/events/domain-event-dispatcher.js');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(EmailSender)
       .useValue({
-        send: (message: EmailMessage) => {
+        send: async (message: EmailMessage) => {
+          await held;
           sent.push(message);
-          return Promise.resolve();
         },
       })
       .compile();
@@ -50,9 +56,11 @@ describe('Email verification (e2e, T-121)', () => {
     configureHttp(app);
     await app.init();
     prisma = app.get(PrismaService);
+    dispatcher = app.get(DomainEventDispatcher);
   });
 
   afterEach(async () => {
+    await dispatcher.whenIdle();
     sent.length = 0;
     await prisma.emailVerificationToken.deleteMany();
     await prisma.refreshToken.deleteMany();
@@ -199,8 +207,34 @@ describe('Email verification (e2e, T-121)', () => {
       const response = await resend('maria@example.com').expect(202);
 
       expect(response.body).toEqual({});
+      // The new link is issued and sent after the answer (ADR-0154).
+      await dispatcher.whenIdle();
+      expect(sent.map(({ to }) => to)).toEqual([
+        'maria@example.com',
+        'maria@example.com',
+      ]);
       await confirm(first).expect(400);
       await confirm(lastToken('maria@example.com')).expect(200);
+    });
+
+    it('answers a resend before issuing and sending the link, so the time taken never tells about the account (SA-16)', async () => {
+      await register().expect(201);
+      sent.length = 0;
+      let release = () => {};
+      held = new Promise((resolve) => (release = resolve));
+
+      try {
+        await resend('maria@example.com').expect(202);
+
+        expect(sent).toEqual([]);
+      } finally {
+        release();
+        held = undefined;
+      }
+      await dispatcher.whenIdle();
+      expect(sent).toEqual([
+        expect.objectContaining({ to: 'maria@example.com' }),
+      ]);
     });
   });
 

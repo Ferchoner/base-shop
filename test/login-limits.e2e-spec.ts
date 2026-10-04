@@ -6,15 +6,12 @@ import type { PrismaService } from '../src/platform/persistence/prisma.service.j
 import { newId } from '../src/shared-kernel/index.js';
 
 const PASSWORD = 'una frase larga y segura';
-/** Small limits, so each one is reached in a few requests. */
-const TEST_LIMITS = {
-  RATE_LIMIT_LOGIN_EMAIL: '2/15m',
-  RATE_LIMIT_LOGIN_IP: '4/15m',
-};
+/** A small limit, so it is reached in a few requests. */
+const TEST_LIMITS = { RATE_LIMIT_LOGIN_IP: '4/15m' };
 
 /**
- * Failed sign-ins are limited per email and per IP; successful ones spend nothing (T-120, ADR-0065,
- * ADR-0102). The tests share one budget per IP, so they run in order.
+ * Failed sign-ins are limited per IP; successful ones spend nothing, and the failures of an email never keep its
+ * owner out (T-120, ADR-0065, ADR-0102, ADR-0154). The tests share one budget per IP, so they run in order.
  */
 describe('Sign-in limits (e2e, T-120)', () => {
   let app: INestApplication<App>;
@@ -89,19 +86,20 @@ describe('Sign-in limits (e2e, T-120)', () => {
     for (let call = 0; call < 3; call++) await login(email).expect(200);
   });
 
-  it('stops an email after its failures, even with the right password, and says when to retry', async () => {
+  it('never keeps the owner out because of the failures of their email (SA-04)', async () => {
     const email = await insertCustomer();
     await login(email, 'otra frase equivocada').expect(401);
     await login(email.toUpperCase(), 'otra frase equivocada').expect(401);
+    await login(email, 'otra frase equivocada').expect(401);
 
-    expectLimited(await login(email));
+    await login(email).expect(200);
   });
 
-  it('stops an IP after its failures, whatever the email', async () => {
-    // Two failures from the previous test count against the same IP (4 in 15 minutes).
+  it('stops an IP after its failures, whatever the email, and says when to retry', async () => {
+    // Three failures from the previous test count against the same IP (4 in 15 minutes).
     await login('uno@example.com', 'otra frase equivocada').expect(401);
-    await login('dos@example.com', 'otra frase equivocada').expect(401);
 
     expectLimited(await login(await insertCustomer()));
+    expectLimited(await login('dos@example.com', 'otra frase equivocada'));
   });
 });

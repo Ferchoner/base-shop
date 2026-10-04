@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmailSender, inMexicoTime } from '../../../shared-kernel/index.js';
+import {
+  EmailSender,
+  emailSafeText,
+  inMexicoTime,
+} from '../../../shared-kernel/index.js';
 
 /**
  * Tells the account owner that their password changed (ADR-0056, ADR-0072, ADR-0115), so someone who did
@@ -21,7 +25,7 @@ export class PasswordChangeNotice {
         to: account.email,
         subject: 'Tu contraseña cambió',
         text: [
-          `Hola, ${account.firstNames}:`,
+          `Hola, ${emailSafeText(account.firstNames)}:`,
           '',
           `La contraseña de tu cuenta se cambió el ${inMexicoTime(changedAt)} (hora del centro de México).`,
           '',

@@ -4,8 +4,8 @@ import type { RateLimitName } from './rate-limits.js';
 export const RATE_LIMITS_METADATA = Symbol('rate-limits');
 
 /**
- * Applies specific limits of ADR-0065 to an endpoint instead of the default one (ADR-0102). Each limit is
- * a budget per key shared by every endpoint that uses it; for example, guest order lookup and reorder share
+ * Applies specific limits of ADR-0065 to an endpoint, on top of the default one per IP (ADR-0102, ADR-0154). Each
+ * limit is a budget per key shared by every endpoint that uses it; for example, guest order lookup and reorder share
  * `guest-order` per IP.
  *
  * ```ts

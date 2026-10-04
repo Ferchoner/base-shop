@@ -507,7 +507,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | PostgreSQL 18 | Persistencia | Definida | ADR-0025 |
 | Disco del servidor | Imágenes y archivos de auditoría | Implementada | ADR-0024, ADR-0037, ADR-0121, ADR-0146 |
 | Capturador de correos local (por ejemplo, Mailpit) | Correos en desarrollo | Definida | ADR-0045 |
-| Proveedor de correo real | Correos en producción | PENDIENTE (P-24) | — |
+| Proveedor de correo real | Correos en producción, con TLS obligatorio y autenticación SMTP | PENDIENTE (P-24) | ADR-0154 |
 | PayPal | Pagos | Semiimplementado, no habilitado; verificación PENDIENTE (P-31) | ADR-0040 |
 | Mercado Pago, Stripe | Pagos | Pospuestos | ADR-0040 |
 | Paqueterías | Envíos | Sin integración | ADR-0041 |

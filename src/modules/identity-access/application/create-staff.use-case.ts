@@ -11,18 +11,20 @@ import type { RoleId } from '../domain/role.js';
 import { RoleRepository } from '../domain/role.repository.js';
 import { User, type UserId } from '../domain/user.js';
 import { UserRepository } from '../domain/user.repository.js';
+import { GrantLimits } from './grant-limits.js';
 import { TemporaryPasswords } from './temporary-passwords.js';
 
 /**
  * Creates a staff account with a temporary password (UC-IAM-13, BR-USR-09, BR-USR-13). The password is
  * returned once, to be shown to whoever creates the account; there is no invitation email (ADR-0043). The
- * email must be free across customers and staff (BR-USR-01).
+ * email must be free across customers and staff (BR-USR-01), and whoever creates it must hold its roles (BR-USR-20).
  */
 @Injectable()
 export class CreateStaff {
   constructor(
     private readonly users: UserRepository,
     private readonly roles: RoleRepository,
+    private readonly grants: GrantLimits,
     private readonly temporaryPasswords: TemporaryPasswords,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
@@ -40,8 +42,10 @@ export class CreateStaff {
     const temporary = await this.temporaryPasswords.issue();
     return this.transactions.run(async () => {
       const roleIds = [...new Set(input.roleIds)];
-      if ((await this.roles.findByIds(roleIds)).length !== roleIds.length) {
-        throw new UnknownRolesError();
+      const roles = await this.roles.findByIds(roleIds);
+      if (roles.length !== roleIds.length) throw new UnknownRolesError();
+      if (input.actorId !== null) {
+        await this.grants.assertCanGrantRoles(input.actorId, roles);
       }
       const user = User.createStaff({
         id: newId(),

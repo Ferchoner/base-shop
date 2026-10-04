@@ -95,12 +95,12 @@ export class OrdersController {
 
   @ApiOperation({
     summary: 'Colocar la orden de un invitado',
-    description: `${PLACE_ORDER_DESCRIPTION} El invitado consulta su pedido con el email de contacto y el código público.`,
+    description: `${PLACE_ORDER_DESCRIPTION} Además, hasta 5 órdenes de invitado por email de contacto cada hora. El invitado consulta su pedido con el email de contacto y el código público.`,
   })
   @ApiCreatedResponse({ type: OrderDto })
   @ApiProblemResponses('staff-cannot-purchase', ...PLACE_ORDER_PROBLEMS)
   @UseGuards(NoStaffPurchases)
-  @RateLimit('place-order')
+  @RateLimit('place-order', 'place-order-email')
   @Idempotent(cartScope)
   @Post()
   async place(@Body() body: PlaceGuestOrderDto): Promise<OrderDto> {

@@ -55,9 +55,22 @@ Detalle en `docs/TASKS.md`, sección "Calidad". Orden:
 T-310 parte a, con el nuevo ADR-0153:
 
 - **Matriz de rutas:** una prueba compara cómo se protegen las 126 rutas con `test/security/route-matrix.ts` y llama a las 100 protegidas sin credenciales; una ruta nueva falla hasta revisarse.
-- **Informe `SECURITY_AUDIT.md`:** sin hallazgos críticos ni altos; 5 medios y 3 bajos van a la parte b, 9 bajos se corrigieron, 2 se posponen con el hosting y 10 son informativos.
+- **Informe `SECURITY_AUDIT.md`:** sin hallazgos críticos ni altos; 5 medios y 3 bajos van a la parte b, 9 bajos se corrigieron, uno bajo y uno informativo se posponen con el hosting, y de los otros 8 informativos uno se corrigió y 7 se aceptan.
 - **Correcciones:** `no-store` en las respuestas públicas con datos personales o el `cartId`; rutas comparadas sin distinguir mayúsculas; encabezados en el 415; 400 en lugar de 500 para páginas enormes y cuerpos JSON muy anidados; longitudes máximas en filtros del staff; contraseñas escritas en forma descompuesta; puertos de Docker Compose en `127.0.0.1`; y la carpeta de imágenes, fuera de la de trabajo.
 - **Semgrep:** 2 resultados en 690 archivos, los dos informativos (SA-24 y SA-25).
+
+### Resultado del paso 1 (parte b)
+
+T-310 parte b, con el nuevo ADR-0154, que cambia decisiones de rate limiting, login, staff y correo. T-310 queda en DONE.
+
+- **Límites:**
+  - el general por IP cuenta en toda ruta, también en las de límite propio (SA-01);
+  - 5 órdenes de invitado por email de contacto por hora (SA-02);
+  - el login ya no limita por email, que dejaba a cualquiera fuera de una cuenta ajena: quedan los 20 fallos por IP (SA-04);
+  - 5 contraseñas actuales incorrectas por usuario al cambiarla (SA-15).
+- **Nadie da lo que no tiene (SA-03, BR-USR-20):** con `staff.manage` solo se dan roles y permisos propios, el rol superadministrador solo lo asigna otro superadministrador, y reactivar exige poder dar los roles del reactivado.
+- **Correo:** en producción, TLS obligatorio en SMTP y `https` en `FRONTEND_BASE_URL` (SA-05; la autenticación SMTP, con P-24); la recuperación y el reenvío envían el enlace en segundo plano (SA-16); los nombres y direcciones van en una línea y sin enlaces (SA-17).
+- **Conteo corregido:** el informe de la parte a decía 12 bajos y 10 informativos; son 13 y 9.
 
 ## Risks
 

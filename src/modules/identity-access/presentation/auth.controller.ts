@@ -96,20 +96,20 @@ export class AuthController {
   @ApiOperation({
     summary: 'Reenviar el enlace de verificación',
     description:
-      'Responde igual exista o no el email, y esté o no verificado. El enlace nuevo invalida los anteriores. Límite: 3 por email por hora.',
+      'Responde 202 sin cuerpo en cuanto recibe la solicitud: el enlace se emite y se envía después, solo si el email es de un cliente activo sin verificar, así que ni la respuesta ni su tiempo dicen si existe o está verificado. El enlace nuevo invalida los anteriores. Límite: 3 por email por hora.',
   })
   @ApiAcceptedResponse()
   @RateLimit('email-verification')
   @Post('email-verification/resend')
   @HttpCode(202)
-  async resend(@Body() body: ResendEmailVerificationDto): Promise<void> {
-    await this.resendEmailVerification.execute(body);
+  resend(@Body() body: ResendEmailVerificationDto): void {
+    this.resendEmailVerification.request(body.email);
   }
 
   @ApiOperation({
     summary: 'Iniciar sesión',
     description:
-      'Devuelve un token de acceso y un refresh token. Un email inexistente, una contraseña incorrecta y una cuenta suspendida responden igual. Límite: 5 intentos fallidos por email en 15 minutos y 20 por IP.',
+      'Devuelve un token de acceso y un refresh token. Un email inexistente, una contraseña incorrecta y una cuenta suspendida responden igual. Límite: 20 intentos fallidos por IP en 15 minutos. Los fallos de un email no impiden que entre quien da la contraseña correcta.',
   })
   @ApiOkResponse({ type: AuthResultDto })
   @ApiProblemResponses('invalid-credentials')
@@ -120,13 +120,12 @@ export class AuthController {
     @Body() body: LoginDto,
     @Req() request: { ip?: string },
   ): Promise<AuthResultDto> {
-    // Only failed attempts count (ADR-0102): checked before the credentials, recorded when they are wrong.
+    // Only failed attempts count, per IP (ADR-0102): checked before the credentials, recorded when they are wrong.
+    // Never per email, which would let anyone keep the owner of an account out (ADR-0154).
     const ip = rateLimitKey('ip', request);
-    this.failedAttempts.assertAllowed('login-email', body.email);
     this.failedAttempts.assertAllowed('login-ip', ip);
     const result = await this.signIn.execute(body);
     if (result.outcome !== 'AUTHENTICATED') {
-      this.failedAttempts.recordFailure('login-email', body.email);
       this.failedAttempts.recordFailure('login-ip', ip);
       throw new ProblemException('invalid-credentials');
     }
@@ -174,14 +173,14 @@ export class AuthController {
   @ApiOperation({
     summary: 'Pedir un enlace para restablecer la contraseña',
     description:
-      'Responde igual exista o no el email. Las cuentas suspendidas no reciben el correo. El enlace nuevo invalida los anteriores. Límite: 3 por email y 10 por IP por hora.',
+      'Responde 202 sin cuerpo en cuanto recibe la solicitud: el enlace se emite y se envía después, solo si el email es de una cuenta que puede iniciar sesión, así que ni la respuesta ni su tiempo dicen si existe. Las cuentas suspendidas no reciben el correo. El enlace nuevo invalida los anteriores. Límite: 3 por email y 10 por IP por hora.',
   })
   @ApiAcceptedResponse()
   @RateLimit('password-reset-email', 'password-reset-ip')
   @Post('password-reset/request')
   @HttpCode(202)
-  async requestReset(@Body() body: PasswordResetRequestDto): Promise<void> {
-    await this.requestPasswordReset.execute(body);
+  requestReset(@Body() body: PasswordResetRequestDto): void {
+    this.requestPasswordReset.request(body.email);
   }
 
   @ApiOperation({

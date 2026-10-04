@@ -10,6 +10,7 @@ import {
   type EnvironmentVariables,
   validateEnvironment,
 } from '../../../platform/config/environment.js';
+import { EventsModule } from '../../../platform/events/events.module.js';
 import { RateLimitingModule } from '../../../platform/http/rate-limiting/rate-limiting.module.js';
 import { MailModule } from '../../../platform/mail/mail.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
@@ -65,6 +66,7 @@ describe('Staff accounts (T-131)', () => {
         RateLimitingModule,
         MailModule,
         AuditModule,
+        EventsModule,
         IdentityAccessModule,
       ],
     }).compile();
@@ -193,10 +195,11 @@ describe('Staff accounts (T-131)', () => {
 
     it("rejects an email another account has, a customer's included, whatever its case", async () => {
       await insertUser('CUSTOMER', { email: 'ana@example.com' });
+      const admin = await insertUser('STAFF', { roleIds: [SUPERADMIN] });
 
-      await expect(
-        create(newId(), { email: 'ANA@example.com' }),
-      ).rejects.toThrow(new DuplicateValueError('email'));
+      await expect(create(admin, { email: 'ANA@example.com' })).rejects.toThrow(
+        new DuplicateValueError('email'),
+      );
     });
 
     it('rejects roles that do not exist, and creates nothing', async () => {

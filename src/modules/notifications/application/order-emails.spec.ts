@@ -124,6 +124,32 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
     expect(text).toContain('Av. Madero 123, int. B, Centro');
   });
 
+  it('quotes the address as typed on one line and without links, since a guest email is not verified (ADR-0154)', () => {
+    const lineBreak = String.fromCharCode(13, 10);
+    const { text } = orderPlacedEmail(
+      order({
+        shippingAddress: {
+          ...order().shippingAddress,
+          recipientName: `María${lineBreak}${lineBreak}Tu pedido fue retenido`,
+          street: 'Paga en https://tienda-falsa.com',
+          exteriorNumber: `123${lineBreak}www.tienda-falsa.mx`,
+          interiorNumber: `B${lineBreak}Llama al 555`,
+          neighborhood: `Centro${lineBreak}tienda-falsa.com`,
+        },
+      }),
+      false,
+    );
+
+    expect(text).toContain(
+      [
+        'Lo enviaremos a:',
+        'María Tu pedido fue retenido',
+        'Paga en https: //tienda-falsa. com 123 www. tienda-falsa. mx, int. B Llama al 555, Centro tienda-falsa. com',
+      ].join(String.fromCharCode(10)),
+    );
+    expect(text).not.toMatch(/tienda-falsa\.(com|mx)/);
+  });
+
   it('confirms the payment with the total paid', () => {
     const email = orderPaidEmail(order());
 

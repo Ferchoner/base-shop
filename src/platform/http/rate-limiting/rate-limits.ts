@@ -3,8 +3,8 @@ import type { RateLimitKey } from './rate-limit-keys.js';
 
 /**
  * Specific limits of ADR-0065 counted per request (ADR-0102). An endpoint takes one or more with
- * `@RateLimit(...)`; endpoints without one get `default`. The failed-login limits are not here: they count
- * failures, not requests (FailedAttemptLimiter).
+ * `@RateLimit(...)`, on top of `default`, which every endpoint gets (ADR-0154). The limits of failed logins and
+ * password changes are not here: they count failures, not requests (FailedAttemptLimiter).
  */
 export const RATE_LIMITS = {
   register: { variable: 'RATE_LIMIT_REGISTER', key: 'ip' },
@@ -24,6 +24,10 @@ export const RATE_LIMITS = {
   },
   'order-access-ip': { variable: 'RATE_LIMIT_ORDER_ACCESS_IP', key: 'ip' },
   'place-order': { variable: 'RATE_LIMIT_PLACE_ORDER', key: 'user-or-cart' },
+  'place-order-email': {
+    variable: 'RATE_LIMIT_PLACE_ORDER_EMAIL',
+    key: 'contact-email',
+  },
 } as const satisfies Record<
   string,
   { variable: keyof EnvironmentVariables; key: RateLimitKey }
@@ -31,5 +35,5 @@ export const RATE_LIMITS = {
 
 export type RateLimitName = keyof typeof RATE_LIMITS;
 
-/** The limit of every endpoint without a specific one: requests per IP. */
+/** The limit of every endpoint, with specific limits or without them: requests per IP (ADR-0154). */
 export const DEFAULT_RATE_LIMIT = 'default';

@@ -171,6 +171,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0151 | Ciclo de conservación: bloqueo y anonimización automáticos | Aceptada |
 | ADR-0152 | Consulta de datos bloqueados, cuentas inactivas y política pública | Aceptada |
 | ADR-0153 | Auditoría de seguridad y matriz de rutas como control permanente | Aceptada |
+| ADR-0154 | Correcciones de la auditoría de seguridad que cambian decisiones | Aceptada |
 
 ---
 
@@ -1336,7 +1337,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los contadores se reinician al reiniciar la API (aceptado).
   - Si la API se escala a varias instancias, los contadores deben pasar a un almacén compartido.
   - Si la API queda detrás de un proxy, habrá que configurar qué IP se toma (depende del hosting, P-06).
-- **Estado:** Aceptada. Implementada en ADR-0102.
+- **Estado:** Aceptada. Implementada en ADR-0102. ADR-0154: el login ya no limita por email, sino solo 20 intentos fallidos por IP; el límite general por IP cuenta también en los endpoints con límite propio; se agregan 5 órdenes de invitado por email de contacto por hora y 5 contraseñas actuales incorrectas por usuario en 15 minutos.
 
 ---
 
@@ -2292,7 +2293,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una ruta inexistente responde 404 antes de los guards, así que no gasta el límite general.
   - La IP es la de la conexión directa; detrás de un proxy (P-06) habrá que configurar Express para confiar en él.
   - Los endpoints de T-120, T-130, T-180 y siguientes declaran su límite con `@RateLimit`, y el login usa `FailedAttemptLimiter`.
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 conecta `FailedAttemptLimiter` al login y ejecuta la autenticación antes del rate limiting.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0114 conecta `FailedAttemptLimiter` al login y ejecuta la autenticación antes del rate limiting. ADR-0154: los límites específicos se suman al general en lugar de reemplazarlo, `FailedAttemptLimiter` deja de contar el login por email y cuenta el cambio de contraseña por usuario, y se agrega `place-order-email`.
 
 ---
 
@@ -2578,7 +2579,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-121, T-123 y T-215 solo arman el mensaje; no conocen el mecanismo de envío.
   - Cambiar de proveedor (P-24) es otro adaptador de `EmailSender` y otras variables SMTP. Si el proveedor pide usuario y contraseña, se agregan como variables nuevas.
   - Los correos de desarrollo se leen en http://localhost:8025.
-- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28). Primer uso en ADR-0117: el token va en la query del enlace.
+- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28). Primer uso en ADR-0117: el token va en la query del enlace. ADR-0154: en producción el SMTP exige TLS con certificado verificado y `FRONTEND_BASE_URL` debe usar `https`; la autenticación SMTP queda para P-24.
 
 ---
 
@@ -2691,7 +2692,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-131 agrega el alta y la reactivación del staff sobre `StaffUser` y el mismo control de superadministrador.
   - T-132 usará `reason` para la referencia de la solicitud ARCO.
   - Otras acciones que pidan motivo (cancelaciones, reintegros, ajustes) usan la misma columna.
-- **Estado:** Aceptada (plan de T-130 parte b aprobado el 2026-09-28).
+- **Estado:** Aceptada (plan de T-130 parte b aprobado el 2026-09-28). ADR-0154: con `staff.manage` solo se dan roles y permisos que uno tiene, el rol superadministrador solo lo asigna otro superadministrador, y reactivar a un miembro del staff exige poder darle sus roles (BR-USR-20).
 
 ---
 
@@ -2789,7 +2790,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Hasta T-121 y T-131 nadie puede iniciar sesión fuera de los tests: todavía no existen el registro de clientes ni el alta de staff.
   - La API de Argon2 de Node está en fase "release candidate"; si cambiara, el adaptador es el único punto que hay que tocar.
   - Los tests de autorización siguen con el autenticador de prueba de `test/support/`; los de autenticación inician sesión de verdad.
-- **Estado:** Aceptada (plan de T-120 aprobado el 2026-09-29). La parte (b) de T-120 se decide en ADR-0115.
+- **Estado:** Aceptada (plan de T-120 aprobado el 2026-09-29). La parte (b) de T-120 se decide en ADR-0115. ADR-0154: el login solo consulta el límite por IP antes de las credenciales; el límite por email se elimina.
 
 ---
 
@@ -2872,7 +2873,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La contraseña temporal solo existe en la respuesta o en la terminal. Si se pierde, se suspende y reactiva la cuenta, o se usa la recuperación de T-123.
   - Tras el primer superadministrador, las cuentas de staff solo se crean por la API, con `staff.manage`.
   - En Docker Compose, el script corre dentro del contenedor, con las variables en `.env` o pasadas con `docker compose exec -e`.
-- **Estado:** Aceptada (plan de T-131 aprobado el 2026-09-29).
+- **Estado:** Aceptada (plan de T-131 aprobado el 2026-09-29). ADR-0154: quien da de alta o reactiva a un miembro del staff debe poder darle todos sus roles.
 
 ---
 
@@ -2912,7 +2913,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-123 reutiliza los tokens de enlace (`link-tokens.ts`) y la hora de México de los avisos.
   - El pedido del cliente verificado lo exige Ordering (BR-USR-05) con el `emailVerified` de la cuenta.
   - Los tokens vencidos o usados los borrará la limpieza diaria (T-231).
-- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29). ADR-0118: el cambio de email también invalida los enlaces de recuperación pendientes. ADR-0148 agrega la página `/order-access` para el enlace de acceso a los pedidos de invitado.
+- **Estado:** Aceptada (plan de T-121 aprobado el 2026-09-29). ADR-0118: el cambio de email también invalida los enlaces de recuperación pendientes. ADR-0148 agrega la página `/order-access` para el enlace de acceso a los pedidos de invitado. ADR-0154: el reenvío responde 202 en cuanto recibe la solicitud y emite y envía el enlace en segundo plano.
 
 ---
 
@@ -2947,7 +2948,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Identity & Access queda completo para el Sprint 2: todos sus casos de uso con API, salvo la anonimización (UC-IAM-19), que pasó a T-132.
   - Los enlaces vencidos o usados los borrará la limpieza diaria (T-231).
-- **Estado:** Aceptada (plan de T-123 aprobado el 2026-09-29).
+- **Estado:** Aceptada (plan de T-123 aprobado el 2026-09-29). ADR-0154: la solicitud responde 202 en cuanto se recibe y el enlace se emite y se envía en segundo plano.
 
 ---
 
@@ -4494,7 +4495,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El modelo de datos (ADR-0066) suma `domain_events` y `event_deliveries`: 41 tablas.
   - Los tests de integración del bus controlan el reloj y vacían el outbox antes de cada prueba.
 - **Revisar si:** el volumen de eventos hace crecer las tablas más de lo que limpia la parte b, o se ejecuta más de una instancia de forma regular.
-- **Estado:** Aceptada (planes de T-109 partes a y b aprobados el 2026-10-03, con sus 4 recomendaciones cada uno). Reemplaza ADR-0014 y modifica ADR-0098.
+- **Estado:** Aceptada (planes de T-109 partes a y b aprobados el 2026-10-03, con sus 4 recomendaciones cada uno). Reemplaza ADR-0014 y modifica ADR-0098. ADR-0154 agrega dos eventos volátiles, `PasswordResetRequested` y `EmailVerificationRequested`, que llevan un email.
 
 ---
 
@@ -4620,6 +4621,59 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Consecuencias:**
   - Agregar o cambiar una ruta exige actualizar la matriz (`DEVELOPMENT_GUIDE.md`), y quien revisa el pull request ve el cambio de protección en el diff.
   - Las 100 rutas protegidas se prueban sin credenciales en cada corrida de la CI.
-  - Quedan 5 hallazgos medios y 3 bajos para la parte b, y 2 bajos pospuestos con el hosting (P-06).
+  - Quedan 5 hallazgos medios y 3 bajos para la parte b, y un bajo y un informativo pospuestos con el hosting (P-06).
 - **Revisar si:** cambia el OWASP API Security Top 10, se agrega otro tipo de autenticación, o una ruta deja de poder clasificarse con la matriz.
-- **Estado:** Aceptada (plan de T-310 aprobado el 2026-10-03, con sus 5 recomendaciones). Implementada en la parte a de T-310.
+- **Estado:** Aceptada (plan de T-310 aprobado el 2026-10-03, con sus 5 recomendaciones). Implementada en la parte a de T-310. Las correcciones de la parte b, que cambian decisiones, están en ADR-0154.
+
+## ADR-0154 — Correcciones de la auditoría de seguridad que cambian decisiones
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-310, parte b. La auditoría (ADR-0153, `SECURITY_AUDIT.md`) dejó 5 hallazgos medios y 3 bajos que necesitan diseño, y varios contradicen decisiones vigentes:
+  - los límites propios reemplazan al general por IP (ADR-0102);
+  - el login limita por email antes de comprobar las credenciales (ADR-0065, ADR-0114);
+  - quien tiene `staff.manage` puede darse cualquier permiso (ADR-0112, ADR-0116);
+  - el correo acepta conexiones sin cifrar (ADR-0110);
+  - la recuperación y el reenvío envían el correo dentro de la solicitud (ADR-0117, ADR-0118).
+- **Decisión** (recomendaciones de la parte b, aprobadas):
+  - **Límite general siempre (SA-01):** las 100 solicitudes por minuto por IP cuentan en toda ruta, y los límites propios se suman a ellas. Los límites propios cuentan por claves que elige el cliente, como el carrito o el email, así que sin el general no había tope por IP. Los webhooks siguen sin límite (ADR-0071).
+  - **Órdenes de invitado por email (SA-02):** `place-order-email` permite 5 órdenes de invitado por email de contacto por hora (`RATE_LIMIT_PLACE_ORDER_EMAIL`), además de las 10 por carrito en 10 minutos. Acota los correos "Recibimos tu pedido" que alguien puede mandar a un email ajeno. El stock apartado lo acotan este límite y el general por IP.
+  - **Nadie da lo que no tiene (SA-03, BR-USR-20):**
+    - dar de alta a un miembro del staff, o agregarle roles, exige tener todos los permisos de esos roles;
+    - el rol superadministrador solo lo asigna un superadministrador, aunque otro rol tenga todos los permisos;
+    - crear un rol, o agregarle permisos, exige tener esos permisos;
+    - reactivar a un miembro del staff cuenta como darle sus roles a quien reactiva, que recibe su contraseña temporal;
+    - quitar roles o permisos y suspender no tienen esa restricción, porque no dan nada a nadie; suspender una cuenta comprometida debe seguir siendo posible;
+    - la respuesta es 403 `forbidden`, auditado como cualquier acceso denegado (ADR-0100).
+  - **Login sin bloqueo por email (SA-04):** el login deja de limitar los fallos por email, y se elimina `RATE_LIMIT_LOGIN_EMAIL`.
+    - Comprobado antes de las credenciales, ese límite dejaba a cualquiera impedir que el titular entrara, el bloqueo que ADR-0065 rechaza.
+    - Comprobado después, no frenaría a nadie, porque la contraseña correcta entraría igual.
+    - Quedan los 20 intentos fallidos por IP en 15 minutos, comprobados antes de las credenciales, y la política de contraseñas de 15 caracteres sin contraseñas comunes (ADR-0115).
+  - **Cambio de contraseña (SA-15):** 5 contraseñas actuales incorrectas por usuario en 15 minutos (`RATE_LIMIT_PASSWORD_CHANGE`), con `FailedAttemptLimiter`, contra quien las prueba con un token robado. Una contraseña nueva que no cumple la política no cuenta.
+  - **Correo cifrado en producción (SA-05):**
+    - `FRONTEND_BASE_URL` debe usar `https`, o la API no arranca;
+    - el SMTP exige TLS con certificado verificado, con STARTTLS obligatorio o TLS desde el inicio en el puerto 465; si el servidor no lo ofrece, el correo no se envía;
+    - la autenticación SMTP se agrega con el proveedor (P-24).
+  - **Recuperación y reenvío en segundo plano (SA-16):**
+    - `POST /v1/auth/password-reset/request` y `POST /v1/auth/email-verification/resend` responden 202 en cuanto validan la solicitud;
+    - publican un evento volátil, `PasswordResetRequested` o `EmailVerificationRequested`, cuyo manejador emite y envía el enlace, como el enlace de acceso a los pedidos (ADR-0148);
+    - los eventos llevan el email, así que no se guardan ni se reintentan (ADR-0150): si se pierde uno, la persona pide otro enlace.
+  - **Texto de la gente en los correos (SA-17):**
+    - los nombres y la dirección que alguien escribió se citan en una línea, sin caracteres de control ni invisibles, y sin enlaces (`emailSafeText`);
+    - un punto antes de una letra y los dos puntos de un esquema llevan un espacio después (`tienda. com`, `https: //`): se leen igual, pero ningún cliente de correo los vuelve clicables;
+    - se aplica al escribir el correo, sin cambiar lo que se guarda ni lo que acepta la API.
+- **Alternativas consideradas:**
+  - **Contar los fallos del login por email e IP juntos:** el titular quedaría fuera si comparte la IP con quien ataca, y frena poco más que el límite por IP.
+  - **Comprobar el límite por email después de las credenciales:** no frena a nadie, y respondería 429 a una contraseña equivocada cuando la correcta funcionaría.
+  - **Sumar el límite general solo a algunas rutas:** cada ruta nueva con límite propio dependería de que alguien lo recuerde.
+  - **Rechazar al registrar los nombres con saltos de línea o enlaces:** cambia el contrato y no cubre los datos ya guardados; además, un punto entre palabras es válido en nombres y calles.
+  - **Guardar el evento de la recuperación en la outbox para reintentarlo:** guardaría el email en la tabla de eventos (ADR-0150).
+  - **Que solo un superadministrador gestione al staff:** dejaría sin uso `staff.manage`, que ADR-0112 permite dar a otros roles.
+- **Consecuencias:**
+  - Las rutas con límite propio también gastan el presupuesto general de su IP; un cliente normal no llega a 100 solicitudes por minuto.
+  - Un ataque a una cuenta desde muchas IP solo lo frenan el límite por IP y la política de contraseñas.
+  - Con `staff.manage` y sin ser superadministrador, nadie puede reactivar, dar de alta ni agregar roles con más permisos que los suyos; sí puede suspender o quitar roles.
+  - Producción no arranca con un `FRONTEND_BASE_URL` `http`, y un servidor SMTP sin TLS deja los correos sin enviar, con el código de error en el log.
+  - La recuperación y el reenvío ya no esperan el correo: un fallo solo queda en el log (ADR-0110).
+  - SA-05 queda parcial hasta P-24, que decide la autenticación SMTP.
+- **Revisar si:** se agrega un segundo factor o un CAPTCHA, con los que un límite por email podría volver sin bloquear al titular; se elige el proveedor de correo (P-24); o la API pasa a varias instancias (ADR-0065).
+- **Estado:** Aceptada (recomendaciones de la parte b de T-310 aprobadas el 2026-10-03). Modifica ADR-0065, ADR-0102, ADR-0110, ADR-0112, ADR-0114, ADR-0116, ADR-0117 y ADR-0118.

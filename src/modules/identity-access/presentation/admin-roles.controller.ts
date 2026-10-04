@@ -17,7 +17,9 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../../../platform/auth/authenticated-user.js';
 import { RequirePermissions } from '../../../platform/auth/authorization.decorators.js';
+import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import {
   toPageResponse,
   toSortOrders,
@@ -28,6 +30,7 @@ import {
   NotFoundError,
   PERMISSION_CODES,
   PERMISSIONS,
+  toId,
 } from '../../../shared-kernel/index.js';
 import { CreateRole } from '../application/create-role.use-case.js';
 import { DeleteRole } from '../application/delete-role.use-case.js';
@@ -90,16 +93,22 @@ export class AdminRolesController {
     return toPageResponse(page, query, toRoleDto);
   }
 
-  @ApiOperation({ summary: 'Crear un rol' })
+  @ApiOperation({
+    summary: 'Crear un rol',
+    description:
+      'Solo con permisos que tiene quien lo crea: uno que no tiene responde 403 `forbidden`.',
+  })
   @ApiCreatedResponse({ type: RoleDto })
   @ApiProblemResponses('duplicate-value')
   @Post()
   async create(
+    @CurrentUser() actor: AuthenticatedUser,
     @Body() body: CreateRoleDto,
     @Res({ passthrough: true })
     response: { setHeader(name: string, value: string): void },
   ): Promise<RoleDto> {
     const id = await this.createRole.execute({
+      actorId: toId(actor.id),
       name: body.name,
       description: body.description ?? null,
       permissions: body.permissions,
@@ -119,17 +128,18 @@ export class AdminRolesController {
   @ApiOperation({
     summary: 'Editar un rol',
     description:
-      'Los permisos del rol superadministrador no cambian: siempre tiene todos.',
+      'Los permisos del rol superadministrador no cambian: siempre tiene todos. Solo se agregan permisos que tiene quien edita: uno que no tiene responde 403 `forbidden`; quitar permisos no tiene esa restricción.',
   })
   @ApiOkResponse({ type: RoleDto })
   @ApiProblemResponses('not-found', 'duplicate-value', 'version-conflict')
   @Patch(':roleId')
   async update(
+    @CurrentUser() actor: AuthenticatedUser,
     @Param('roleId') roleId: string,
     @Body() body: UpdateRoleDto,
   ): Promise<RoleDto> {
     const id = pathId<'Role'>(roleId, 'Role');
-    await this.updateRole.execute(id, body);
+    await this.updateRole.execute(id, { ...body, actorId: toId(actor.id) });
     return this.read(id);
   }
 
