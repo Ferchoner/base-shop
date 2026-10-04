@@ -19,12 +19,14 @@
   - Los 403 de `/v1/admin` se auditan.
   - Toda respuesta autenticada lleva `Cache-Control: no-store`, errores incluidos (ADR-0071, ADR-0112).
   - El sistema nunca queda sin superadministrador activo: los cambios que podrían dejarlo sin ninguno bloquean el rol y se validan de a uno (ADR-0112).
+  - Nadie da lo que no tiene (BR-USR-20, ADR-0154): con `staff.manage` solo se asignan roles y se agregan permisos que uno tiene, y el rol superadministrador solo lo asigna otro superadministrador. Reactivar a un miembro del staff da su contraseña temporal a quien reactiva, así que exige lo mismo.
   - El motivo que da el staff queda en la auditoría y nunca debe llevar datos personales.
 - Correos (ADR-0110):
   - El log no registra destinatarios, asuntos ni contenidos.
   - `MAIL_FROM` se valida en una sola línea, y nodemailer impide inyectar encabezados desde el asunto.
   - Los enlaces al frontend se arman con `FrontendLinks`, que codifica los parámetros.
-  - En producción, el servidor SMTP, el remitente y la URL del frontend son obligatorios.
+  - En producción, el servidor SMTP, el remitente y la URL del frontend son obligatorios. La URL del frontend usa `https` y el SMTP exige TLS con certificado verificado, porque los enlaces llevan tokens; la autenticación SMTP se decide con el proveedor (P-24, ADR-0154).
+  - Los nombres y la dirección que alguien escribió se citan en una línea y sin enlaces, porque pueden llegar a un email ajeno (ADR-0154).
 - Ninguna dependencia ejecuta scripts al instalarse: `allowScripts` los niega y `.npmrc` hace fallar la instalación ante uno sin revisar, en local, en la CI y en Docker. Esto también corta la telemetría de `@scarf/scarf` (ADR-0108).
 - Auditoría de seguridad (T-310, ADR-0153): el resultado y los hallazgos están en `SECURITY_AUDIT.md`. Una prueba compara cómo se protege cada ruta con la matriz revisada de `test/security/route-matrix.ts` y llama a cada ruta protegida sin credenciales; una ruta nueva se revisa y se escribe allí.
 - `main` solo recibe cambios por pull request con la CI en verde, sin excepciones para administradores. Dependabot espera 7 días antes de proponer una versión nueva, para evitar paquetes comprometidos recién publicados, y abre de inmediato las actualizaciones de seguridad (ADR-0106).
@@ -63,12 +65,13 @@ Mecanismo (ADR-0023):
 - Segundo factor (2FA): pospuesto, con el diseño de autenticación preparado para incorporarlo (ADR-0048).
 - Cambio de contraseña desde la cuenta: revoca las demás sesiones, conserva la actual y envía aviso por correo (ADR-0072).
 - Recuperación de contraseña (ADR-0056): enlace de un solo uso vigente 30 minutos, token guardado con hash, respuesta que no revela si el email existe, límite por email y por IP, revocación de todas las sesiones al restablecer y aviso por correo. El cambio obligatorio del staff pide la contraseña temporal.
+  - El enlace se emite y se envía en segundo plano, después de responder 202, para que el tiempo de la respuesta tampoco lo revele (ADR-0154).
   - Implementada en ADR-0118: vigencia configurable de 5 minutos a 2 horas, y el cambio de email invalida los enlaces pendientes, que fueron a la dirección anterior.
 - Los enlaces de verificación y recuperación usan la URL base del frontend configurada por variable de entorno (ADR-0056).
 - Verificación de email (ADR-0046): enlace de un solo uso vigente 24 horas; reenvío limitado que invalida el anterior; nueva verificación al cambiar de email.
   - Implementada en ADR-0117: el token del enlace (256 bits) se guarda solo como hash, y verifica únicamente la dirección a la que se envió.
 - Enlace de acceso a los pedidos de invitado (ADR-0148): el mismo token de 256 bits guardado solo como hash, de un solo uso, vigente 30 minutos (configurable), que invalida los anteriores del email. Se emite en segundo plano, para que ni la respuesta ni su tiempo revelen si el email tiene órdenes, y la anonimización del invitado lo borra.
-  - El reenvío responde igual en todos los casos y solo envía a clientes activos sin verificar.
+  - El reenvío responde igual en todos los casos y solo envía a clientes activos sin verificar. Como la recuperación, emite y envía el enlace en segundo plano (ADR-0154).
   - Cambiar el email pide la contraseña actual, se audita y avisa al email anterior, sin mostrarle el nuevo.
 - La clave de firma de los JWT se gestiona como secreto (ADR-0032).
 - El refresh token dura 7 días (configurable).
@@ -158,21 +161,23 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 
 | Endpoint | Límite |
 |---|---|
-| Login | 5 intentos fallidos por email en 15 minutos, y 20 por IP |
+| Login | 20 intentos fallidos por IP en 15 minutos; ninguno por email, para que nadie pueda dejar fuera al titular (ADR-0154) |
+| Cambio de contraseña | 5 contraseñas actuales incorrectas por usuario en 15 minutos (ADR-0154) |
 | Registro | 5 por IP por hora |
 | Recuperación de contraseña | 3 por email y 10 por IP por hora |
 | Reenvío de verificación | 3 por email por hora |
 | Cambio de email | 3 por hora (ADR-0071) |
 | Consulta de pedido, recompra de invitado y uso del enlace de acceso | 10 por IP en 15 minutos (ADR-0071, ADR-0148) |
 | Enlace de acceso a los pedidos de invitado | 3 por email y 10 por IP por hora (ADR-0148) |
-| Colocar orden | 10 por usuario o carrito en 10 minutos |
-| Resto de endpoints | 100 solicitudes por minuto por IP |
+| Colocar orden | 10 por usuario o carrito en 10 minutos; las de invitado, además, 5 por email de contacto por hora (ADR-0154) |
+| Todos los endpoints, también los anteriores | 100 solicitudes por minuto por IP (ADR-0154) |
 
 - La tabla de referencia por endpoint está en `API_SPEC.md` (sección 7).
 - Se frena por tiempo; nunca se bloquean cuentas por intentos fallidos.
 - 429 con `Retry-After` al exceder un límite.
 - Detrás de un proxy, la IP a considerar se configura al elegir hosting (P-06).
-- Mecanismo (ADR-0102): en el login cuentan solo los intentos fallidos, por correo y por IP; los correos usados como clave se guardan en memoria como huella SHA-256; los webhooks quedan fuera; la autenticación debe ejecutarse antes del guard de rate limiting para que los límites por usuario vean quién llama.
+- Mecanismo (ADR-0102): en el login cuentan solo los intentos fallidos, por IP, y en el cambio de contraseña, las contraseñas actuales incorrectas, por usuario (ADR-0154); los correos usados como clave se guardan en memoria como huella SHA-256; los webhooks quedan fuera; la autenticación debe ejecutarse antes del guard de rate limiting para que los límites por usuario vean quién llama.
+- Los límites propios se suman al general por IP: cuentan por claves que elige el cliente, como el carrito o el email (ADR-0154).
 - El rate limiting por IP no basta para proteger la memoria de la cache, porque cada combinación de filtros del catálogo público es una clave nueva y llegan desde muchas IP. Cada espacio de la cache guarda hasta 1 000 valores y descarta el que se usó hace más tiempo (ADR-0129).
 
 ## Datos personales

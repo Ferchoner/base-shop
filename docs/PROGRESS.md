@@ -144,6 +144,7 @@ Sprint 9 — Calidad antes de operar (desde el 2026-10-03). El Sprint 8 (ciclo d
 - [x] T-232 parte b: el staff con el permiso nuevo `orders.read-blocked` consulta los datos de una orden bloqueada, con un motivo y auditado; las cuentas de clientes inactivos se anonimizan si el operador configura el plazo, sin sus órdenes; `GET /v1/privacy/retention-policy` publica los plazos vigentes (ADR-0152). T-232 en DONE
 - [x] Paso 0 del Sprint 9: revisión contra los ADR, con `PROJECT.md` y `README.md`, sin desajustes; la descripción del listado de pedidos del staff corregida; prácticas de la review del Sprint 8 en la guía de desarrollo
 - [x] T-310 parte a: auditoría de seguridad contra el OWASP API Security Top 10, sin hallazgos críticos ni altos (`SECURITY_AUDIT.md`); la matriz de rutas comprueba en la CI cómo se protege cada una; 9 correcciones bajas (ADR-0153)
+- [x] T-310 parte b: el límite general por IP cuenta en toda ruta; 5 órdenes de invitado por email por hora; el login ya no limita por email; nadie da roles ni permisos que no tiene; TLS y `https` obligatorios en producción; la recuperación y el reenvío envían el enlace en segundo plano; nombres y direcciones sin saltos ni enlaces en los correos (ADR-0154). T-310 en DONE
 - [x] P-61 cerrada (ADR-0149): plazos de conservación configurables con valores por defecto, y la validación legal como lista de cada operador antes de operar; T-232 deja de estar diferida
 - [x] Paso 0 del Sprint 7: revisión contra los ADR, con el estado de ADR-0077 y los módulos transversales de `ARCHITECTURE.md` corregidos; prácticas de la review del Sprint 6 en la guía de desarrollo; T-109 agregada
 - [x] Paso 0 del Sprint 5: revisión contra los ADR sin contradicciones; una migración quita el índice sin uso de `reservations` (ADR-0136); prácticas de la review del Sprint 4 en la guía de desarrollo
@@ -194,7 +195,7 @@ Ninguna pendiente.
 
 | ID | Decisión | Bloquea |
 |---|---|---|
-| P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting | — |
+| P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting. Debe ofrecer TLS, que producción exige, y con él se agrega la autenticación SMTP (ADR-0154) | — |
 | P-69 | Antes de operar con clientes reales: validación con el contador del IVA del costo de envío (ADR-0079) y del modo de redondeo del IVA (ADR-0094), y confirmación por el administrador de los valores de envío con costos reales de paquetería (ADR-0092) | — |
 
 ### Arquitectura, datos y seguridad

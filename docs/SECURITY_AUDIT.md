@@ -30,20 +30,20 @@ Evaluación de la API contra el OWASP API Security Top 10 (2023) y contra lo que
 | Solo clientes | 8 |
 | Staff con permisos del catálogo | 80 |
 
-- 10 rutas tienen límites propios (ADR-0065) y 5 exigen `Idempotency-Key` (ADR-0063). El login se limita por sus intentos fallidos, sin decorador (ADR-0102).
+- 10 rutas tienen límites propios (ADR-0065), que se suman al general por IP (ADR-0154), y 5 exigen `Idempotency-Key` (ADR-0063). El login y el cambio de contraseña se limitan por sus intentos fallidos, sin decorador (ADR-0102, ADR-0154).
 - Las 100 rutas protegidas responden 401 sin token, con `Cache-Control: no-store`; las 80 administrativas responden 403 al staff con todos los permisos menos los suyos y a los clientes; las 8 de solo clientes responden 403 al staff.
 
 ## 3. Resultado
 
-No hay hallazgos críticos ni altos. Hay 5 medios, que necesitan decisiones y van a la parte b de T-310 (ADR-0154 si alguno cambia una decisión vigente); 12 bajos, de los que la parte a corrigió 9; y 10 informativos.
+No hay hallazgos críticos ni altos. Hay 5 medios, que necesitaron decisiones y se corrigieron en la parte b de T-310 (ADR-0154), SA-05 en parte hasta elegir el proveedor de correo (P-24); 13 bajos, de los que la parte a corrigió 9 y la parte b 3, y SA-18 queda pospuesto con el hosting (P-06); y 9 informativos.
 
 | ID | Severidad | OWASP | Hallazgo | Estado |
 |---|---|---|---|---|
-| SA-01 | Media | API4 | Los límites propios reemplazan al general de 100 por minuto por IP. Colocar una orden de invitado se cuenta por el `cartId` del cuerpo y el reenvío de verificación por el email, así que cambiándolos no hay tope por IP. Cada orden con un `cartId` inventado guarda además un 404 en `idempotency_keys` por 24 horas | Parte b |
-| SA-02 | Media | API6 | El checkout de invitado envía "Recibimos tu pedido" a un email sin verificar, con nombre y calle que escribe quien compra, y aparta stock 20 minutos; no hay límite por email | Parte b |
-| SA-03 | Media | API5 | Quien tiene `staff.manage` puede darse el rol de superadministrador, crear un rol con todos los permisos y obtener la contraseña temporal de otro staff al suspenderlo y reactivarlo. Hoy solo el Superadministrador tiene ese permiso, pero los roles son editables | Parte b |
-| SA-04 | Media | API2, API6 | El límite de 5 fallos por email se comprueba antes que las credenciales: cualquiera puede impedir que el titular entre, el bloqueo de cuentas que ADR-0065 rechazó | Parte b |
-| SA-05 | Media | API10 | El correo usa STARTTLS oportunista, sin TLS obligatorio ni autenticación SMTP, y en producción se acepta un `FRONTEND_BASE_URL` con `http`: los enlaces con token podrían viajar sin cifrar. Se resuelve con el proveedor de correo (P-24) | Parte b |
+| SA-01 | Media | API4 | Los límites propios reemplazan al general de 100 por minuto por IP. Colocar una orden de invitado se cuenta por el `cartId` del cuerpo y el reenvío de verificación por el email, así que cambiándolos no hay tope por IP. Cada orden con un `cartId` inventado guarda además un 404 en `idempotency_keys` por 24 horas | Corregido |
+| SA-02 | Media | API6 | El checkout de invitado envía "Recibimos tu pedido" a un email sin verificar, con nombre y calle que escribe quien compra, y aparta stock 20 minutos; no hay límite por email | Corregido |
+| SA-03 | Media | API5 | Quien tiene `staff.manage` puede darse el rol de superadministrador, crear un rol con todos los permisos y obtener la contraseña temporal de otro staff al suspenderlo y reactivarlo. Hoy solo el Superadministrador tiene ese permiso, pero los roles son editables | Corregido |
+| SA-04 | Media | API2, API6 | El límite de 5 fallos por email se comprueba antes que las credenciales: cualquiera puede impedir que el titular entre, el bloqueo de cuentas que ADR-0065 rechazó | Corregido |
+| SA-05 | Media | API10 | El correo usa STARTTLS oportunista, sin TLS obligatorio ni autenticación SMTP, y en producción se acepta un `FRONTEND_BASE_URL` con `http`: los enlaces con token podrían viajar sin cifrar. Se resuelve con el proveedor de correo (P-24) | Corregido en parte; autenticación con P-24 |
 | SA-06 | Baja | API8 | Las respuestas públicas con datos personales o con el `cartId` (carritos, cotización, órdenes de invitado, su consulta, enlace, recompra y pago) no llevaban `Cache-Control: no-store`, como pide `SECURITY.md` | Corregido |
 | SA-07 | Baja | API5, API8 | Express enruta sin distinguir mayúsculas, pero el guard y el filtro de errores comparaban `/v1/admin` y `/v1/me` con ellas: `/V1/ADMIN/...` no auditaba su 403 ni fallaba cerrado ante una ruta sin requisito. El permiso sí se aplicaba | Corregido |
 | SA-08 | Baja | API8 | La respuesta 415 salía antes de helmet y CORS: con `X-Powered-By: Express` y sin los encabezados de seguridad | Corregido |
@@ -53,9 +53,9 @@ No hay hallazgos críticos ni altos. Hay 5 medios, que necesitan decisiones y va
 | SA-12 | Baja | API2 | Una contraseña escrita en forma descompuesta (NFD) se registraba, porque la política cuenta tras NFKC, pero el login, el cambio de contraseña y el de email la rechazaban por pasar de 64 caracteres | Corregido |
 | SA-13 | Baja | API8 | Docker Compose publicaba PostgreSQL, Mailpit y la API en todas las interfaces; Mailpit guarda los enlaces de verificación y recuperación | Corregido |
 | SA-14 | Baja | API8 | `IMAGE_STORAGE_DIR` podía ser la carpeta de trabajo o una que la contuviera: `/media` publicaría el código y el `.env` | Corregido |
-| SA-15 | Baja | API2 | El cambio de contraseña no tiene límite por usuario: con un token robado se puede probar la contraseña actual, y cada intento cuesta un Argon2id | Parte b |
-| SA-16 | Baja | API2 | La recuperación de contraseña y el reenvío de verificación envían el correo dentro de la solicitud: el tiempo de respuesta dice si la cuenta está activa o verificada | Parte b |
-| SA-17 | Baja | API6 | Los nombres admiten saltos de línea y enlaces, y van en correos a cualquier email: registrarse con un email ajeno permite enviarle texto propio | Parte b |
+| SA-15 | Baja | API2 | El cambio de contraseña no tiene límite por usuario: con un token robado se puede probar la contraseña actual, y cada intento cuesta un Argon2id | Corregido |
+| SA-16 | Baja | API2 | La recuperación de contraseña y el reenvío de verificación envían el correo dentro de la solicitud: el tiempo de respuesta dice si la cuenta está activa o verificada | Corregido |
+| SA-17 | Baja | API6 | Los nombres admiten saltos de línea y enlaces, y van en correos a cualquier email: registrarse con un email ajeno permite enviarle texto propio | Corregido |
 | SA-18 | Baja | API4 | Los límites por IP usan la dirección IPv6 completa: un cliente con un bloque /64 la rota | Pospuesto (P-06) |
 | SA-19 | Informativa | API4 | El servidor HTTP usa los tiempos de espera de Node (5 minutos por solicitud) | Pospuesto (P-06) |
 | SA-20 | Informativa | API4 | La búsqueda pública admite unas 50 palabras por consulta, sin cache; la acota el límite general por IP | Aceptado |
@@ -82,7 +82,26 @@ No hay hallazgos críticos ni altos. Hay 5 medios, que necesitan decisiones y va
 
 Las pruebas de estas correcciones están en `test/security/hardening.e2e-spec.ts`, `src/platform/http/json-depth.spec.ts` y `src/platform/config/environment.spec.ts`.
 
-## 5. Controles verificados
+## 5. Correcciones de la parte b
+
+Cambian decisiones vigentes, así que se registran en ADR-0154.
+
+- **SA-01:** el límite general de 100 solicitudes por minuto por IP cuenta en toda ruta, y los límites propios se suman a él.
+- **SA-02:** 5 órdenes de invitado por email de contacto por hora, además de las 10 por carrito en 10 minutos.
+- **SA-03:** nadie da lo que no tiene (BR-USR-20):
+  - con `staff.manage` solo se asignan roles y se agregan permisos que uno tiene;
+  - el rol superadministrador solo lo asigna otro superadministrador;
+  - reactivar a un miembro del staff exige poder darle sus roles, porque quien reactiva recibe su contraseña temporal;
+  - lo demás responde 403 `forbidden`, auditado.
+- **SA-04:** el login ya no limita por email. Quedan los 20 intentos fallidos por IP en 15 minutos y la política de contraseñas.
+- **SA-05:** en producción, `FRONTEND_BASE_URL` usa `https` y el SMTP exige TLS con certificado verificado. Falta la autenticación SMTP, que se decide con el proveedor (P-24).
+- **SA-15:** 5 contraseñas actuales incorrectas por usuario en 15 minutos al cambiar la contraseña.
+- **SA-16:** la recuperación y el reenvío responden 202 en cuanto reciben la solicitud, y emiten y envían el enlace en segundo plano, con un evento que no se guarda.
+- **SA-17:** los nombres y la dirección que alguien escribió se citan en los correos en una línea, sin caracteres invisibles y con los enlaces rotos (`tienda. com`).
+
+Las pruebas están en `test/security/grant-limits.e2e-spec.ts`, `test/default-rate-limit.e2e-spec.ts`, `test/rate-limiting.e2e-spec.ts`, `test/login-limits.e2e-spec.ts`, `test/me-password.e2e-spec.ts`, `test/password-reset.e2e-spec.ts`, `src/platform/mail/smtp-email-sender.int-spec.ts` y `src/shared-kernel/email-safe-text.spec.ts`.
+
+## 6. Controles verificados
 
 Lo que `SECURITY.md` afirma y se comprobó en el código, con al menos una prueba:
 

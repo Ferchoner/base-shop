@@ -736,7 +736,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 | `domain_events` | id (el `eventId`), event_type, payload jsonb (el evento completo, con las fechas marcadas como `{"$date": …}`), occurred_at, created_at | PK `id` |
 | `event_deliveries` | id, event_id (FK `CASCADE`), handler (`Clase.método`), status (enum `event_delivery_status`: PENDING, DELIVERED, FAILED), attempts, next_attempt_at, locked_until, last_error, delivered_at, created_at | `UNIQUE (event_id, handler)`; índice parcial `(next_attempt_at) WHERE status = 'PENDING'`; `CHECK (status <> 'DELIVERED' OR delivered_at IS NOT NULL)`; `CHECK (attempts >= 0)` |
 
-- **Sin datos personales:** los eventos que llevan uno se publican como volátiles y no se guardan (`OrderAccessRequested`).
+- **Sin datos personales:** los eventos que llevan uno se publican como volátiles y no se guardan (`OrderAccessRequested`, `PasswordResetRequested` y `EmailVerificationRequested`).
 - **Entrega:** quien toma una entrega suma un intento y la reserva 5 minutos (`locked_until`); el job toma las vencidas con `FOR UPDATE SKIP LOCKED`. Una entrega nueva espera un minuto, para dejarla al despacho inmediato.
 - **Errores:** `last_error` guarda clase y mensaje, redactados como los logs, hasta 500 caracteres.
 - **Reintento del staff:** una entrega FAILED vuelve a PENDING con `attempts = 0` y `next_attempt_at` en el momento (T-109 parte b).

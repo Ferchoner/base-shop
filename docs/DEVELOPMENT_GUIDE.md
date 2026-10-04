@@ -52,8 +52,8 @@ Cache (ADR-0028, ADR-0104):
 
 Rate limiting (ADR-0065, ADR-0102):
 
-- Todo endpoint tiene el límite general por IP. Uno con un límite de `API_SPEC.md` (sección 7) lo declara con `@RateLimit('register')` (o varios: `@RateLimit('password-reset-email', 'password-reset-ip')`), que reemplaza al general.
-- El login usa `FailedAttemptLimiter`: `assertAllowed('login-email', email)` y `assertAllowed('login-ip', ip)` antes de validar las credenciales, y `recordFailure(...)` cuando no son válidas.
+- Todo endpoint tiene el límite general por IP. Uno con un límite de `API_SPEC.md` (sección 7) lo declara con `@RateLimit('register')` (o varios: `@RateLimit('password-reset-email', 'password-reset-ip')`), que se suma al general (ADR-0154).
+- Lo que cuenta intentos fallidos usa `FailedAttemptLimiter`: el login, `assertAllowed('login-ip', ip)` antes de validar las credenciales y `recordFailure('login-ip', ip)` cuando no son válidas; el cambio de contraseña, lo mismo con `'password-change'` y el id del usuario. Nunca se limita por un email antes de comprobar la contraseña, porque cualquiera podría dejar fuera al titular (ADR-0154).
 - Las pruebas end-to-end corren con `RATE_LIMIT_DEFAULT` en 1000 por minuto (`test/e2e-environment.ts`), porque arman sus datos por HTTP. Las que prueban límites fijan los suyos con las variables `RATE_LIMIT_*` antes de importar `AppModule`.
 - `@nestjs/throttler` es CommonJS y requiere los módulos ESM de NestJS; en Jest, `test/setup-esm-interop.ts` los carga antes de cada archivo de test para evitar un ciclo de carga. No hace falta nada en el código de la aplicación.
 
