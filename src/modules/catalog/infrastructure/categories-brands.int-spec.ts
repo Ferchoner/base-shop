@@ -34,7 +34,8 @@ import {
   InactiveParentError,
   UnusableParentError,
 } from '../domain/catalog-errors.js';
-import type { CategoryId } from '../domain/category.js';
+import { Category, type CategoryId } from '../domain/category.js';
+import { CategoryRepository } from '../domain/category.repository.js';
 
 const AUDITED_ACTIONS = [
   'categories.create',
@@ -320,6 +321,22 @@ describe('Categories and brands (T-150)', () => {
       await expect(updateCategory(id, { parentId: inactive })).rejects.toEqual(
         new UnusableParentError('inactive'),
       );
+    });
+
+    it('answers a parent deleted after it was checked as an unknown parent', async () => {
+      // Saved straight away, as when the parent is deleted between the check of the use case and the save.
+      const category = Category.create({
+        id: newId(),
+        parentId: newId(),
+        name: 'Camisas',
+        slug: 'camisas',
+        position: 0,
+      });
+
+      await expect(
+        run(() => moduleRef.get(CategoryRepository).save(category)),
+      ).rejects.toEqual(new UnusableParentError('unknown'));
+      expect(await queries.findCategory(category.id)).toBeNull();
     });
 
     it('lets only one of two opposite moves happen at the same time, so no cycle appears', async () => {

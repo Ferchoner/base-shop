@@ -350,6 +350,54 @@ describe('Storefront (e2e, T-140 part c)', () => {
       });
     });
 
+    it('shows its categories by name and its images in order, the first one as the main image', async () => {
+      const clothes = await create('categories', { name: 'Ropa' });
+      const shirts = await create('categories', { name: 'Camisas' });
+      const product = await onSale('Camisa de lino', 59_900, {
+        categoryIds: [clothes.id, shirts.id],
+      });
+      const image = (position: number, variantId: string | null) =>
+        prisma.productImage.create({
+          data: {
+            id: newId(),
+            productId: product.id,
+            variantId,
+            storageKey: `products/${product.id}/${newId()}.jpg`,
+            contentType: 'image/jpeg',
+            sizeBytes: 100,
+            position,
+          },
+        });
+      const back = await image(2, product.variantId);
+      const front = await image(1, null);
+
+      const { body } = await http()
+        .get(`${STORE}/products/camisa-de-lino`)
+        .expect(200);
+
+      expect(body.categories).toEqual([
+        { id: shirts.id, name: 'Camisas', slug: 'camisas' },
+        { id: clothes.id, name: 'Ropa', slug: 'ropa' },
+      ]);
+      expect(body.images).toEqual([
+        {
+          id: front.id,
+          url: `${imageBaseUrl}/${front.storageKey}`,
+          altText: null,
+          position: 1,
+          variantId: null,
+        },
+        {
+          id: back.id,
+          url: `${imageBaseUrl}/${back.storageKey}`,
+          altText: null,
+          position: 2,
+          variantId: product.variantId,
+        },
+      ]);
+      expect(body.image).toEqual(body.images[0]);
+    });
+
     it('answers 404 for a product the store does not show, and never caches it', async () => {
       const draft = await create('products', { title: 'Borrador' });
       const variant = await addVariant(draft, 'BOR-1');

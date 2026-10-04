@@ -366,6 +366,9 @@ describe('Reorder (e2e, T-181)', () => {
       const missing = await reorder(
         as({ contactEmail: 'otro@example.com' }),
       ).expect(404);
+      const unreadable = await reorder(as({ publicCode: 'ILOU-1234' })).expect(
+        404,
+      );
       const lookup = await http()
         .post('/v1/orders/lookup')
         .send(as({ contactEmail: 'otro@example.com' }))
@@ -396,6 +399,11 @@ describe('Reorder (e2e, T-181)', () => {
         status,
         detail,
         instance: '/v1/orders/reorder',
+        correlationId: expect.any(String),
+      });
+      // A code that cannot be one is answered as one that does not exist.
+      expect(unreadable.body).toEqual({
+        ...missing.body,
         correlationId: expect.any(String),
       });
       expect(conflict.body.currentStatus).toBe('PENDING_PAYMENT');

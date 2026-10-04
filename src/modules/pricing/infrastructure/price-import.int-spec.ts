@@ -283,6 +283,7 @@ describe('Bulk import of prices (T-145 part b)', () => {
       ['GORRA-AZUL', '199'],
       ['gorra-azul', '149', '', '2026-01-01 00:00'],
       ['CAM-LINO-M', '599'],
+      ['GORRA-AZUL', '149', '$199'],
     );
     const malformed = { ...fileRows[2], line: 12, wellFormed: false };
 
@@ -303,6 +304,10 @@ describe('Bulk import of prices (T-145 part b)', () => {
       expect.objectContaining({
         field: 'rows[9].effectiveFrom',
         code: 'repeatedStart',
+      }),
+      expect.objectContaining({
+        field: 'rows[11].compareAtAmount',
+        code: 'pesos',
       }),
       expect.objectContaining({ field: 'rows[12]', code: 'columnCount' }),
     ]);

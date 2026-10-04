@@ -288,7 +288,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
     expect(sku.body).toMatchObject({ field: 'sku' });
   });
 
-  it('publishes only with an active variant, and then locks slug, SKU and options', async () => {
+  it('publishes only with an active variant, and then locks slug, SKU and options, but not the weight', async () => {
     const product = await createProduct();
 
     const empty = await http()
@@ -312,6 +312,11 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       .set(editor())
       .send({ sku: 'OTRO', version: published.body.version })
       .expect(409);
+    const weight = await http()
+      .patch(`${PRODUCTS}/${product.id}/variants/${withVariant.variants[0].id}`)
+      .set(editor())
+      .send({ weightGrams: 250, version: published.body.version })
+      .expect(200);
 
     expect(empty.body).toMatchObject({
       type: '/problems/invalid-state-transition',
@@ -328,6 +333,10 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       fields: ['slug'],
     });
     expect(sku.body).toMatchObject({ fields: ['sku'] });
+    expect(weight.body).toMatchObject({
+      version: published.body.version + 1,
+      variants: [expect.objectContaining({ sku: 'CAM-M', weightGrams: 250 })],
+    });
   });
 
   it('archives and reactivates, and takes no change while archived', async () => {
