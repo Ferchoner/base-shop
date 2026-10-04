@@ -33,6 +33,11 @@ const ACCOUNT = {
 };
 const UNUSED_TOKENS = {} as PasswordResetTokenRepository;
 
+/** A name with a line break and a link, as anyone can type it when signing up with someone else's email. */
+const TYPED_NAME = ['Ana', 'Visita https://tienda-falsa.com'].join(
+  String.fromCharCode(13, 10),
+);
+
 describe('PasswordResets.send (ADR-0056, ADR-0118)', () => {
   it('sends the link to the reset page of the frontend, with its lifetime', async () => {
     const email = new RecordingEmailSender();
@@ -78,5 +83,18 @@ describe('PasswordResets.send (ADR-0056, ADR-0118)', () => {
     expect(logged).toEqual([
       `Password reset email for user ${ACCOUNT.id} was not sent: SMTP 421`,
     ]);
+  });
+
+  it('quotes the name on one line and without links (ADR-0154)', async () => {
+    const email = new RecordingEmailSender();
+
+    await new PasswordResets(UNUSED_TOKENS, new ShopLinks(), email, 1_800).send(
+      { ...ACCOUNT, firstNames: TYPED_NAME },
+      'token-123',
+    );
+
+    const { text } = email.sent[0];
+    expect(text).toContain('Hola, Ana Visita https: //tienda-falsa. com:');
+    expect(text).not.toContain('tienda-falsa.com');
   });
 });

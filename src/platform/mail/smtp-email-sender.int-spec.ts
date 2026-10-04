@@ -23,8 +23,13 @@ interface MailpitMessage {
   HTML: string;
 }
 
-function senderFor(host: string, port: number): SmtpEmailSender {
+function senderFor(
+  host: string,
+  port: number,
+  nodeEnv: EnvironmentVariables['NODE_ENV'] = 'test',
+): SmtpEmailSender {
   const values: Partial<EnvironmentVariables> = {
+    NODE_ENV: nodeEnv,
     SMTP_HOST: host,
     SMTP_PORT: port,
     MAIL_FROM: 'Tienda Base <no-reply@base-shop.test>',
@@ -137,5 +142,25 @@ describe('SmtpEmailSender (T-122)', () => {
     expect(lines).toEqual([expect.stringMatching(/^Email not sent: /)]);
     expect(lines.join('\n')).not.toContain(RECIPIENT);
     unreachable.onModuleDestroy();
+  });
+
+  it('never sends in production over a connection without encryption (ADR-0154)', async () => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    // Mailpit offers no STARTTLS, like a server that would take the email in clear text.
+    const production = senderFor(
+      mailpit.getHost(),
+      mailpit.getMappedPort(1025),
+      'production',
+    );
+
+    await expect(
+      production.send({ to: RECIPIENT, subject: 'Hola', text: 'Texto' }),
+    ).rejects.toThrow(EmailDeliveryError);
+
+    const list = (await (await fetch(`${api}/messages`)).json()) as {
+      messages: unknown[];
+    };
+    expect(list.messages).toEqual([]);
+    production.onModuleDestroy();
   });
 });

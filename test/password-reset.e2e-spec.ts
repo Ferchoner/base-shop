@@ -18,6 +18,8 @@ describe('Password recovery (e2e, T-123)', () => {
   let dispatcher: DomainEventDispatcher;
   let passwordHash: string;
   const sent: EmailMessage[] = [];
+  /** While set, emails wait for it before they count as sent. */
+  let held: Promise<void> | undefined;
   const previous: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
@@ -41,9 +43,9 @@ describe('Password recovery (e2e, T-123)', () => {
     })
       .overrideProvider(EmailSender)
       .useValue({
-        send: (message: EmailMessage) => {
+        send: async (message: EmailMessage) => {
+          await held;
           sent.push(message);
-          return Promise.resolve();
         },
       })
       .compile();
@@ -125,6 +127,23 @@ describe('Password recovery (e2e, T-123)', () => {
         ),
       }),
     ]);
+  });
+
+  it('answers before issuing and sending the link, so the time taken never tells whether the account exists (SA-16)', async () => {
+    const email = await insertCustomer();
+    let release = () => {};
+    held = new Promise((resolve) => (release = resolve));
+
+    try {
+      await requestReset(email).expect(202);
+
+      expect(sent).toEqual([]);
+    } finally {
+      release();
+      held = undefined;
+    }
+    await dispatcher.whenIdle();
+    expect(sent).toEqual([expect.objectContaining({ to: email })]);
   });
 
   it('sets the new password with the link, once, and signs out every session', async () => {

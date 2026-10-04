@@ -23,6 +23,8 @@ describe('Email verification (e2e, T-121)', () => {
   let prisma: PrismaService;
   let dispatcher: DomainEventDispatcher;
   const sent: EmailMessage[] = [];
+  /** While set, emails wait for it before they count as sent. */
+  let held: Promise<void> | undefined;
   const previous: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
@@ -44,9 +46,9 @@ describe('Email verification (e2e, T-121)', () => {
     })
       .overrideProvider(EmailSender)
       .useValue({
-        send: (message: EmailMessage) => {
+        send: async (message: EmailMessage) => {
+          await held;
           sent.push(message);
-          return Promise.resolve();
         },
       })
       .compile();
@@ -213,6 +215,26 @@ describe('Email verification (e2e, T-121)', () => {
       ]);
       await confirm(first).expect(400);
       await confirm(lastToken('maria@example.com')).expect(200);
+    });
+
+    it('answers a resend before issuing and sending the link, so the time taken never tells about the account (SA-16)', async () => {
+      await register().expect(201);
+      sent.length = 0;
+      let release = () => {};
+      held = new Promise((resolve) => (release = resolve));
+
+      try {
+        await resend('maria@example.com').expect(202);
+
+        expect(sent).toEqual([]);
+      } finally {
+        release();
+        held = undefined;
+      }
+      await dispatcher.whenIdle();
+      expect(sent).toEqual([
+        expect.objectContaining({ to: 'maria@example.com' }),
+      ]);
     });
   });
 

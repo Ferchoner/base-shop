@@ -288,6 +288,26 @@ describe('Email and frontend links (ADR-0110)', () => {
     });
   });
 
+  it('requires https for the frontend in production, since the links carry tokens (ADR-0154)', () => {
+    const plain = 'http://shop.example.com';
+
+    expect(() =>
+      validateEnvironment({ ...PRODUCTION, FRONTEND_BASE_URL: plain }),
+    ).toThrow(
+      'FRONTEND_BASE_URL must use https when NODE_ENV is production, because the links in emails carry tokens',
+    );
+    expect(() =>
+      validateEnvironment({
+        ...PRODUCTION,
+        FRONTEND_BASE_URL: 'HTTP://shop.example.com',
+      }),
+    ).toThrow('FRONTEND_BASE_URL must use https');
+    expect(
+      validateEnvironment({ ...REQUIRED, FRONTEND_BASE_URL: plain })
+        .FRONTEND_BASE_URL,
+    ).toBe(plain);
+  });
+
   it.each([
     'SMTP_HOST',
     'SMTP_PORT',

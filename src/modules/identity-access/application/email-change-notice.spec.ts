@@ -26,6 +26,11 @@ const ACCOUNT = {
 /** 16:05 UTC is 10:05 in central Mexico. */
 const CHANGED_AT = new Date('2026-09-29T16:05:00Z');
 
+/** A name with a line break and a link, as anyone can type it when signing up with someone else's email. */
+const TYPED_NAME = ['Ana', 'Visita https://tienda-falsa.com'].join(
+  String.fromCharCode(13, 10),
+);
+
 describe('EmailChangeNotice (ADR-0117)', () => {
   it('tells the previous address when the email changed, without naming the new one', async () => {
     const email = new RecordingEmailSender();
@@ -63,5 +68,18 @@ describe('EmailChangeNotice (ADR-0117)', () => {
     expect(logged).toEqual([
       `Email change notice for user ${ACCOUNT.id} was not sent: SMTP 421`,
     ]);
+  });
+
+  it('quotes the name on one line and without links (ADR-0154)', async () => {
+    const email = new RecordingEmailSender();
+
+    await new EmailChangeNotice(email).send(
+      { ...ACCOUNT, firstNames: TYPED_NAME },
+      CHANGED_AT,
+    );
+
+    const { text } = email.sent[0];
+    expect(text).toContain('Hola, Ana Visita https: //tienda-falsa. com:');
+    expect(text).not.toContain('tienda-falsa.com');
   });
 });

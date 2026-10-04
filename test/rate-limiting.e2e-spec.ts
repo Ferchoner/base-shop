@@ -17,6 +17,7 @@ const TEST_LIMITS = {
   RATE_LIMIT_EMAIL_VERIFICATION: '2/1h',
   RATE_LIMIT_GUEST_ORDER: '2/15m',
   RATE_LIMIT_PLACE_ORDER: '2/10m',
+  RATE_LIMIT_PLACE_ORDER_EMAIL: '2/1h',
 };
 
 /** Test-only endpoints standing in for the real ones, each with the limit of API_SPEC.md §7. */
@@ -61,6 +62,12 @@ class RateLimitTestController {
   @Post('test-rate/orders')
   @RateLimit('place-order')
   placeOrder(@Body() _body: unknown) {
+    return { ok: true };
+  }
+
+  @Post('test-rate/guest-orders')
+  @RateLimit('place-order', 'place-order-email')
+  placeGuestOrder(@Body() _body: unknown) {
     return { ok: true };
   }
 }
@@ -179,5 +186,17 @@ describe('Rate limiting (e2e, T-126)', () => {
     await placeAsUser().expect(201);
     await placeAsUser().expect(201);
     expectLimited(await placeAsUser());
+  });
+
+  it('limits guest orders per contact email too, whatever the cart (SA-02)', async () => {
+    const place = (contactEmail: string) =>
+      http()
+        .post('/v1/test-rate/guest-orders')
+        .send({ cartId: randomUUID(), contactEmail });
+
+    await place('ana@example.com').expect(201);
+    await place('ana@example.com').expect(201);
+    expectLimited(await place(' ANA@example.com'));
+    await place('luis@example.com').expect(201);
   });
 });
