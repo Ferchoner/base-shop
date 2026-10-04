@@ -19,6 +19,7 @@ import { cartScope } from '../../../platform/http/idempotency/idempotency-scope.
 import { Idempotent } from '../../../platform/http/idempotency/idempotent.decorator.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
+import { NoStore } from '../../../platform/http/no-store.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
 import { OrderAccessLinks } from '../application/order-access-links.js';
@@ -81,6 +82,7 @@ export const PLACE_ORDER_DESCRIPTION =
  * nor pay it (403, E-09), but can look it up and use an access link, as it can read a guest cart (ADR-0138).
  */
 @ApiTags('Pedidos')
+@NoStore()
 @Controller('orders')
 export class OrdersController {
   constructor(

@@ -1,6 +1,8 @@
 # Local development environment (T-102, ADR-0089). Values come from .env (copy .env.example).
 # Everything: docker compose up --build
 # Only the services, with the API running on the host: docker compose up postgres mailpit
+# Every port is published on 127.0.0.1 only: Mailpit keeps the links of the emails, and nothing here serves the
+# network (T-310).
 name: base-shop
 
 services:
@@ -11,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env (see .env.example)}
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       # PostgreSQL 18 images keep their data under /var/lib/postgresql.
       - postgres-data:/var/lib/postgresql
@@ -26,8 +28,8 @@ services:
   mailpit:
     image: axllent/mailpit:v1
     ports:
-      - '8025:8025'
-      - '1025:1025'
+      - '127.0.0.1:8025:8025'
+      - '127.0.0.1:1025:1025'
 
   api:
     build:
@@ -44,7 +46,7 @@ services:
       TSC_WATCHFILE: DynamicPriorityPolling
       TSC_WATCHDIRECTORY: DynamicPriorityPolling
     ports:
-      - '${PORT:-3000}:${PORT:-3000}'
+      - '127.0.0.1:${PORT:-3000}:${PORT:-3000}'
     volumes:
       - ./:/app
       # Keep the container's Linux node_modules instead of the host's. Anonymous on purpose:

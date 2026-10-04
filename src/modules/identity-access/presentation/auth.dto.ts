@@ -9,6 +9,12 @@ import {
   MaxLength,
 } from 'class-validator';
 
+/**
+ * The longest password a request may carry, as typed. The policy counts at most 64 characters after normalizing to
+ * NFKC (ADR-0115); a password typed in a decomposed form, such as NFD, takes up to four times as many (T-310).
+ */
+export const PASSWORD_INPUT_MAX_LENGTH = 256;
+
 // Plain fields are documented by the Swagger plugin; enums and constants declare their type with
 // @ApiProperty (ADR-0109, ADR-0112).
 
@@ -27,12 +33,13 @@ export class LoginDto {
   email: string;
 
   /**
-   * Up to 64 characters, the most the password policy allows (ADR-0047).
+   * Up to 256 characters as typed: the policy allows 64 after normalizing to NFKC (ADR-0047, ADR-0115), and a
+   * password typed in a decomposed form takes more (T-310).
    * @example 'una frase larga y segura'
    */
   @IsString()
   @IsNotEmpty()
-  @MaxLength(64)
+  @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
   password: string;
 }
 

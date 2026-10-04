@@ -13,7 +13,11 @@ import {
   PERMISSION_CODES,
   type PermissionCode,
 } from '../../../shared-kernel/index.js';
-import { NOT_BLANK, toNormalizedEmail } from './auth.dto.js';
+import {
+  NOT_BLANK,
+  PASSWORD_INPUT_MAX_LENGTH,
+  toNormalizedEmail,
+} from './auth.dto.js';
 import { StaffRoleDto } from './identity-admin.dto.js';
 
 // Plain fields are documented by the Swagger plugin; enums, lists and dates declare their type with
@@ -60,7 +64,7 @@ export class ChangePasswordDto {
    */
   @IsString()
   @IsNotEmpty()
-  @MaxLength(64)
+  @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
   currentPassword: string;
 
   /**
@@ -103,6 +107,6 @@ export class ChangeEmailDto {
   /** @example 'una frase larga y segura' */
   @IsString()
   @IsNotEmpty()
-  @MaxLength(64)
+  @MaxLength(PASSWORD_INPUT_MAX_LENGTH)
   currentPassword: string;
 }

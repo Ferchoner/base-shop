@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NoStaffPurchases } from '../../../platform/auth/no-staff-purchases.guard.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
+import { NoStore } from '../../../platform/http/no-store.js';
 import { toId } from '../../../shared-kernel/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
 import { CheckoutQuoteDto, GuestQuoteDto } from './checkout.dto.js';
@@ -14,6 +15,7 @@ export const QUOTE_DESCRIPTION =
 @ApiTags('Checkout')
 @ApiProblemResponses('staff-cannot-purchase')
 @UseGuards(NoStaffPurchases)
+@NoStore()
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkout: Checkout) {}

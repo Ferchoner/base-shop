@@ -18,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
+import { NoStore } from '../../../platform/http/no-store.js';
 import { toId } from '../../../shared-kernel/index.js';
 import { CartViews } from '../application/cart-views.js';
 import { Carts } from '../application/carts.use-case.js';
@@ -34,6 +35,7 @@ const line = (id: string) => pathId<'Variant'>(id, 'Cart line');
  * cannot create or change one (ADR-0131).
  */
 @ApiTags('Carrito')
+@NoStore()
 @Controller('carts')
 export class CartsController {
   constructor(

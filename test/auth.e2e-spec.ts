@@ -184,7 +184,8 @@ describe('Authentication (e2e, T-120)', () => {
       [{ email: 'no-es-un-correo', password: PASSWORD }, 'email', 'isEmail'],
       [{ email: 'ana@example.com' }, 'password', expect.any(String)],
       [
-        { email: 'ana@example.com', password: 'x'.repeat(65) },
+        // 256 characters as typed: the policy counts 64 after NFKC (T-310).
+        { email: 'ana@example.com', password: 'x'.repeat(257) },
         'password',
         'maxLength',
       ],
