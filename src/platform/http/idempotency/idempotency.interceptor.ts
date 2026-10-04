@@ -4,7 +4,6 @@ import {
   Injectable,
   type NestInterceptor,
 } from '@nestjs/common';
-import { HTTP_CODE_METADATA } from '@nestjs/common/constants.js';
 import { Reflector } from '@nestjs/core';
 import { catchError, from, mergeMap, type Observable, of } from 'rxjs';
 import { Clock, DomainError } from '../../../shared-kernel/index.js';
@@ -30,14 +29,16 @@ interface IdempotentRequest {
   params: Record<string, string>;
   body?: unknown;
   user?: unknown;
-  route?: { path?: string };
-  originalUrl?: string;
-  url: string;
+  /** The route Express matched, with its parameters unfilled; set before any interceptor runs. */
+  route: { path: string };
 }
 
 interface IdempotentResponse {
-  /** The status NestJS set from `@HttpCode` before the handler, or the one the handler set itself. */
-  statusCode?: number;
+  /**
+   * The status NestJS set before the handler (the one of `@HttpCode`, or 201 for POST and 200 otherwise), or the one
+   * the handler set itself. Express always has one.
+   */
+  statusCode: number;
   status(code: number): unknown;
   setHeader(name: string, value: string): unknown;
   getHeader(name: string): unknown;
@@ -75,7 +76,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     const attempt: IdempotencyAttempt = {
       scope,
-      endpoint: `${request.method} ${request.route?.path ?? pathOf(request)}`,
+      endpoint: `${request.method} ${request.route.path}`,
       key,
       requestHash: requestFingerprint(request.params, request.body),
       startedAt: this.clock.now(),
@@ -93,13 +94,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
       case 'replay':
         return replay(outcome.response, response);
       case 'started':
-        return this.run(attempt, context, response, next);
+        return this.run(attempt, response, next);
     }
   }
 
   private run(
     attempt: IdempotencyAttempt,
-    context: ExecutionContext,
     response: IdempotentResponse,
     next: CallHandler,
   ): Observable<unknown> {
@@ -109,7 +109,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
           this.store
             .complete(attempt, {
               kind: 'success',
-              status: response.statusCode ?? successStatus(context),
+              status: response.statusCode,
               body: toJson(body),
               location: headerValue(response.getHeader('Location')),
             })
@@ -178,16 +178,6 @@ function replay(
   return of(stored.body);
 }
 
-/** Status NestJS will send: the one of `@HttpCode`, or 201 for POST and 200 otherwise. */
-function successStatus(context: ExecutionContext): number {
-  const declared = Reflect.getMetadata(
-    HTTP_CODE_METADATA,
-    context.getHandler(),
-  ) as number | undefined;
-  const { method } = context.switchToHttp().getRequest<IdempotentRequest>();
-  return declared ?? (method === 'POST' ? 201 : 200);
-}
-
 /** The value as JSON would send it, so the stored response matches the original one. */
 function toJson(value: unknown): unknown {
   return value === undefined
@@ -197,8 +187,4 @@ function toJson(value: unknown): unknown {
 
 function headerValue(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
-}
-
-function pathOf(request: IdempotentRequest): string {
-  return (request.originalUrl ?? request.url).split('?')[0];
 }
