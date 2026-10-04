@@ -1,11 +1,14 @@
 # Dependency updates (ADR-0030, ADR-0106). Version updates run every Monday. Security updates are
 # opened as soon as an advisory is published and are not delayed by the cooldown.
+# While the project is closed as an MVP (ADR-0158), open-pull-requests-limit: 0 pauses the version
+# updates. Security updates have a limit of their own, so they still arrive. Remove both lines to resume.
 # Docker images are not listed: they follow their major version (node:24, postgres:18, ADR-0025) and
 # take the latest release on every build.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    open-pull-requests-limit: 0
     schedule:
       interval: weekly
       day: monday
@@ -33,6 +36,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    open-pull-requests-limit: 0
     schedule:
       interval: weekly
       day: monday

@@ -259,3 +259,8 @@
   - `MigrationDatabase` (`test/integration/`) prueba los rellenos de `orders.concluded_at` y `users.last_active_at` en una base migrada hasta antes de cada uno.
   - Pruebas nuevas de los huecos que son lógica; las líneas que quedan sin cubrir están justificadas en ADR-0157.
   - El interceptor de idempotencia ya no tiene los respaldos del código de respuesta y de la ruta, que Express nunca usaba.
+- Sprint 9 cerrado (2026-10-04) con el objetivo cumplido: T-310 y T-320 en dos partes cada una, y T-300, en 8 pull requests (#90 a #97) con el pipeline en verde a la primera; 2,409 tests, cobertura con umbral en la CI y 5 ADR nuevos (ADR-0153 a ADR-0157). Review en el historial de `SPRINT.md`.
+- Proyecto cerrado como MVP (2026-10-04, nuevo ADR-0158), por decisión del usuario: el MVP es lo construido hasta el Sprint 9, en el entorno local.
+  - Quedan fuera del MVP, hasta que una entidad quiera usar el proyecto, las tareas T-191, T-192, T-193, T-200 y T-330 (todas en DEFERRED), y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69.
+  - El MVP no tiene proveedor de pago en línea: el pago manual en tienda sigue siendo solo para pruebas.
+  - `PROJECT.md`, `README.md`, `PROGRESS.md` y `SPRINT.md` describen el cierre y cómo retomar el proyecto.

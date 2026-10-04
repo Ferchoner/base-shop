@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Sprint 9 — Calidad antes de operar (desde el 2026-10-03). El Sprint 8 (ciclo de conservación de datos personales) se cerró el 2026-10-03 con el objetivo cumplido; su review está en el historial de `SPRINT.md`.
+MVP cerrado el 2026-10-04 (ADR-0158). El Sprint 9 (calidad antes de operar) se cerró ese día con el objetivo cumplido; su review está en el historial de `SPRINT.md`. No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
 
 ## Completed
 
@@ -171,15 +171,25 @@ Sprint 9 — Calidad antes de operar (desde el 2026-10-03). El Sprint 8 (ciclo d
 
 - [x] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes, y P-61 cerrada), cerrado el 2026-10-03
 - [x] Sprint 8: ciclo de conservación de datos personales (paso 0 y T-232 en dos partes), cerrado el 2026-10-03
-- [ ] Sprint 9: calidad antes de operar (paso 0, T-310, T-320 y T-300); plan en `SPRINT.md`
-- [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
+- [x] Sprint 9: calidad antes de operar (paso 0, T-310 y T-320 en dos partes cada una, y T-300), cerrado el 2026-10-04
+- [x] MVP cerrado el 2026-10-04 (ADR-0158)
+
+## Fuera del MVP
+
+Hasta que una entidad quiera usar el proyecto (ADR-0158):
+
+- T-192 PayPal, con la conciliación de pagos y el reintento de reembolsos fallidos, y T-191, su verificación en sandbox (P-31)
+- T-193 Mercado Pago y Stripe, y T-200 promociones
+- T-330 despliegue, cuando haya hosting (P-05, P-06)
+- Las decisiones pendientes de abajo, que no bloquean nada de lo construido
 
 ## Blocked
 
-- T-191 verificación de PayPal por P-31 y por falta de cuenta y sandbox
-- T-330 deployment (pospuesta, ADR-0031)
+Nada: lo que estaba bloqueado quedó fuera del MVP.
 
 ## Pending Decisions
+
+Quedan abiertas fuera del MVP (ADR-0158): se deciden con la entidad que use el proyecto.
 
 ### Stack e infraestructura
 

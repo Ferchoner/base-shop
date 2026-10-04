@@ -21,7 +21,7 @@ Incluido:
 - Almacenes, inventario y reservas de inventario
 - Carrito (incluido carrito de invitado)
 - Checkout y pedidos (incluida compra como invitado, y el enlace de acceso a sus pedidos por correo, ADR-0148)
-- Pagos
+- Pagos: el modelo, el puerto para proveedores y el pago manual en tienda, solo para pruebas (ADR-0055)
 - Envíos
 - Notificaciones (como reacción a eventos)
 - Auditoría técnica
@@ -37,6 +37,8 @@ Fuera del MVP (ver ADR-0018):
 - Múltiples almacenes en operación (el modelo los soporta).
 - Múltiples monedas.
 - Recoger en tienda (ADR-0078).
+- Proveedores de pago en línea (PayPal, Mercado Pago y Stripe), con la conciliación de pagos y el reintento de reembolsos fallidos (ADR-0158).
+- Despliegue: el MVP corre solo en el entorno local (ADR-0031, ADR-0158).
 
 "Administración" no es un módulo propio: cada contexto expone sus operaciones administrativas protegidas por permisos (ver ADR-0004).
 
@@ -59,11 +61,11 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 | Storage (imágenes) | Definido | Disco del servidor por ahora; CDN a futuro. Se guarda la clave de almacenamiento y la URL se construye al responder. Formatos JPEG, PNG y WebP, reconocidos por su contenido; máximo 5 MB por imagen, configurable. La API las sirve en `/media` mientras no haya hosting | ADR-0016, ADR-0024, ADR-0121 |
 | Cache | Definido | `@nestjs/cache-manager` en memoria del proceso; solo lecturas públicas del catálogo; TTL de 120 s (configurable); invalidación por eventos de Catalog | ADR-0028 |
 | Colas / jobs | Definido parcialmente | Sin colas de mensajes; eventos en proceso, guardados con el cambio en un outbox y reintentados. Jobs con `@nestjs/schedule` en el proceso de la API: expiración de órdenes y reintento de eventos cada minuto, limpieza diaria, archivo de la auditoría y ciclo de conservación de datos personales a las 3:00; la conciliación de pagos, cada 5 minutos, llega con PayPal (T-192) | ADR-0029, ADR-0150, ADR-0151 |
-| Testing | Definido | Jest: unitarios (`npm test`), integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (`npm run test:e2e`, también con Testcontainers); sin mocks de base de datos | ADR-0002, ADR-0033, ADR-0090, ADR-0091 |
+| Testing | Definido | Jest: unitarios (`npm test`), integración contra PostgreSQL 18 real con Testcontainers (`npm run test:int`) y end-to-end (`npm run test:e2e`, también con Testcontainers); sin mocks de base de datos; cobertura de las tres suites con umbral en la CI | ADR-0002, ADR-0033, ADR-0090, ADR-0091, ADR-0157 |
 | Docker | Definido | `docker compose` para desarrollo local (PostgreSQL 18, Mailpit y la API en modo desarrollo); `Dockerfile` con las imágenes `development`, `production` (sin el CLI de Prisma) y `migrate` (aplica las migraciones), que la CI arranca contra un PostgreSQL 18 | ADR-0002, ADR-0089, ADR-0147 |
 | Lint y formato | Definido | oxlint para lint; Prettier para formato de código y configuración | ADR-0073, ADR-0084 |
 | Validación | Definido | class-validator y class-transformer para DTOs y configuración; `@nestjs/config` para las variables de entorno | ADR-0087 |
-| CI | Definido | GitHub Actions; pipeline en cada pull request y en la rama principal (10 pasos en un job, secretos con gitleaks, también antes de cada commit, y mensajes de commit revisados); rama principal protegida; GitHub Flow; Dependabot semanal | ADR-0030, ADR-0105, ADR-0106, ADR-0119 |
+| CI | Definido | GitHub Actions; pipeline en cada pull request y en la rama principal (10 pasos en un job, secretos con gitleaks, también antes de cada commit, y mensajes de commit revisados); rama principal protegida; GitHub Flow; Dependabot semanal, solo con actualizaciones de seguridad mientras el MVP esté cerrado | ADR-0030, ADR-0105, ADR-0106, ADR-0119, ADR-0158 |
 | CD | Pospuesto | Sin hosting no hay a dónde desplegar (P-05) | ADR-0031 |
 | Hosting | Definido (temporal) | Solo entorno local con Docker Compose. Candidatos futuros: Oracle Cloud Always Free o VPS de bajo costo (P-06) | ADR-0031 |
 | Observabilidad | Definido parcialmente | Logs en consola con nivel configurable por variable de entorno; los fallos de handlers van al log y a sus entregas, que el staff consulta (`events.manage`). Herramientas se deciden con el hosting (P-07) | ADR-0032, ADR-0150 |
@@ -93,11 +95,13 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 ## 8. Estado
 
-Fase: Inicialización. Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Sprint 2 (Identity & Access) cerrado el 2026-09-29: registro, verificación de email, sesiones, recuperación de contraseña, staff, roles, permisos y direcciones. Sprint 3 (catálogo vendible) cerrado el 2026-10-01: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y tienda pública. Sprint 4 (compra con pago en tienda) cerrado el 2026-10-02: carrito, checkout, órdenes, pago en tienda, reembolsos, vencimiento y recompra. Sprint 5 (entrega del pedido) cerrado el 2026-10-02: envíos, reintegro de stock, correos al cliente y limpieza diaria. Sprint 6 (privacidad y operación) cerrado el 2026-10-03: anonimización, consulta y archivo de la auditoría, imagen de producción reducida y enlace de acceso a los pedidos de invitado. Sprint 7 (entrega garantizada de eventos) cerrado el 2026-10-03: outbox transaccional con reintentos y consulta del staff, y plazos de conservación configurables. Sprint 8 (ciclo de conservación de datos personales) cerrado el 2026-10-03: bloqueo y anonimización automáticos de los datos personales de las órdenes, su consulta auditada, cuentas inactivas y política de conservación pública. En curso: Sprint 9 (calidad antes de operar), desde el 2026-10-03. Ver `SPRINT.md` y `PROGRESS.md`.
+Fase: MVP cerrado el 2026-10-04 (ADR-0158). El alcance de la §3 está construido y probado, y corre solo en el entorno local. Lo que queda fuera del MVP (T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69) espera a que una entidad quiera usar el proyecto; la §9 es la lista para retomarlo.
+
+Sprints: Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Sprint 2 (Identity & Access) cerrado el 2026-09-29: registro, verificación de email, sesiones, recuperación de contraseña, staff, roles, permisos y direcciones. Sprint 3 (catálogo vendible) cerrado el 2026-10-01: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y tienda pública. Sprint 4 (compra con pago en tienda) cerrado el 2026-10-02: carrito, checkout, órdenes, pago en tienda, reembolsos, vencimiento y recompra. Sprint 5 (entrega del pedido) cerrado el 2026-10-02: envíos, reintegro de stock, correos al cliente y limpieza diaria. Sprint 6 (privacidad y operación) cerrado el 2026-10-03: anonimización, consulta y archivo de la auditoría, imagen de producción reducida y enlace de acceso a los pedidos de invitado. Sprint 7 (entrega garantizada de eventos) cerrado el 2026-10-03: outbox transaccional con reintentos y consulta del staff, y plazos de conservación configurables. Sprint 8 (ciclo de conservación de datos personales) cerrado el 2026-10-03: bloqueo y anonimización automáticos de los datos personales de las órdenes, su consulta auditada, cuentas inactivas y política de conservación pública. Sprint 9 (calidad antes de operar) cerrado el 2026-10-04: auditoría de seguridad contra el OWASP API Security Top 10, contrato de la API comprobado y OpenAPI versionado, y cobertura con umbral en la CI. Ver `SPRINT.md` y `PROGRESS.md`.
 
 ## 9. Antes de operar con clientes reales
 
-base-shop no tiene una entidad vendedora definida: cada operador resuelve esta lista antes de atender clientes reales, y la revisa cuando cambia la ley.
+base-shop no tiene una entidad vendedora definida: cada operador resuelve esta lista antes de atender clientes reales, y la revisa cuando cambia la ley. Es también el primer paso para retomar el proyecto después del cierre del MVP (ADR-0158).
 
 - **Datos personales (ADR-0149), con un especialista legal:**
   - los plazos de conservación: fase operativa y de bloqueo, cuentas inactivas, auditoría, eventos de webhooks, refresh tokens y carritos de invitado. Todos son variables de `.env.example`, con valores por defecto que no son asesoría legal;

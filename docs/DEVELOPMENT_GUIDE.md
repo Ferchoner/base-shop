@@ -242,7 +242,7 @@ Ramas e integración continua (ADR-0030):
 - GitHub Flow: la rama principal siempre está en estado desplegable; cada tarea se trabaja en una rama corta y se integra mediante pull request.
 - La rama principal está protegida: no se fusiona un pull request si el pipeline no está en verde.
 - El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, cobertura de toda la suite contra sus umbrales, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
-- Dependabot abre actualizaciones de dependencias agrupadas cada semana.
+- Dependabot abre actualizaciones de dependencias agrupadas cada semana. Mientras el MVP esté cerrado, solo las de seguridad (ADR-0158).
 
 Protección de `main` y Dependabot (ADR-0106):
 
@@ -253,6 +253,7 @@ Protección de `main` y Dependabot (ADR-0106):
   - Espera 7 días desde que se publica una versión.
   - No propone versiones mayores de `@types/node` (sigue a Node.js 24) ni de `typescript` (se queda en 6.x hasta que ts-jest, la CLI de Nest y el plugin de Swagger admitan TypeScript 7, ADR-0107). Ignorar otra versión mayor requiere registrar el motivo y actualizar el test de configuración.
   - Las actualizaciones de seguridad llegan en cuanto se publica la alerta.
+  - **En pausa (ADR-0158):** mientras el MVP esté cerrado, `open-pull-requests-limit: 0` detiene las actualizaciones de versión de los dos ecosistemas; las de seguridad siguen llegando. Para retomarlas se quitan esas dos líneas y el test que las comprueba.
 - **Ramas:** se borran solas al fusionar; en local se limpian con `git fetch --prune`.
 
 Pipeline de CI (ADR-0105): `.github/workflows/ci.yml` corre en cada pull request hacia `main` y en cada push a `main`. Tiene dos jobs: `Pipeline` (los 10 pasos) y `Commit messages` (solo en pull requests). Antes de abrir un pull request se puede repetir todo en local, con Docker en marcha:

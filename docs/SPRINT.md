@@ -2,38 +2,116 @@
 
 ## Sprint actual
 
-9 — Calidad antes de operar. Inicio: 2026-10-03 (propuesta aprobada en el Sprint Review del Sprint 8).
+Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9 (ADR-0158): no habrá otro sprint hasta que una entidad quiera usarlo.
 
-## Goal
+## Cierre del MVP
 
-Antes de que un operador atienda a clientes reales, la API se revisa en tres frentes:
-- **seguridad:** cada ruta contra el OWASP API Security Top 10 y `SECURITY.md`, y se corrige lo que aparezca;
-- **documentación:** el OpenAPI generado coincide con `API_SPEC.md` ruta por ruta, y la CI lo mantiene al día;
-- **pruebas:** la cobertura se mide, tiene un umbral en la CI y se cubren sus huecos, empezando por los rellenos de datos de las migraciones.
+- **Periodo:** 10 sprints, del Sprint 0 (desde el 2026-09-24) al Sprint 9 (hasta el 2026-10-04).
+- **Qué incluye:** el alcance de `PROJECT.md` (§3), en 126 rutas de `/v1`:
+  - identidad y acceso, con roles y permisos;
+  - catálogo con tienda pública, precios con historial, e inventario con reservas;
+  - carrito, checkout y órdenes, también de invitados;
+  - el pago manual en tienda, solo para pruebas, con reembolsos;
+  - envíos, correos al cliente y auditoría técnica;
+  - privacidad: aviso versionado, anonimización y ciclo de conservación de los datos personales;
+  - entrega garantizada de eventos.
+- **Cómo se construyó:** 96 pull requests fusionados en `main`, cada uno con la CI en verde; 2,409 tests, con la cobertura de la suite sobre su umbral; y 158 ADR.
+- **Fuera del MVP:** las tareas T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69 (ADR-0158).
+- **Riesgos del cierre:**
+  - el MVP no cobra a clientes reales: no tiene proveedor de pago en línea;
+  - mientras dure la pausa de Dependabot, solo llegan las actualizaciones de seguridad, y las dependencias se atrasan;
+  - los riesgos de las reviews de los sprints siguen vigentes al retomar el proyecto.
+- **Para retomarlo:** los cuatro pasos de ADR-0158. Primero, la lista de `PROJECT.md` (§9) con la entidad que lo use; después, quitar la pausa de Dependabot y poner al día las dependencias; luego, una revisión contra los ADR; y al final, el primer sprint, con las tareas diferidas que esa entidad necesite.
 
-## Tasks
+---
 
-Detalle en `docs/TASKS.md`, sección "Calidad". Orden:
+## Historial
 
-| Paso | Tareas |
+### Sprint 9 — Calidad antes de operar (2026-10-03 a 2026-10-04)
+
+**Goal:** que antes de que un operador atienda a clientes reales, la API se revise en tres frentes: seguridad, cada ruta contra el OWASP API Security Top 10 y `SECURITY.md`; documentación, el OpenAPI generado contra `API_SPEC.md` y al día en la CI; y pruebas, la cobertura medida con un umbral en la CI, empezando por los rellenos de datos de las migraciones. **Tareas:** T-310 y T-320, en dos partes cada una, y T-300, en DONE, precedidas por un paso 0.
+
+**Fecha:** 2026-10-04. **Resultado:** objetivo cumplido. T-310, T-320 y T-300 están en DONE y el pipeline de CI está en verde en `main`.
+- Cada ruta se revisó contra el OWASP API Security Top 10, sin hallazgos críticos ni altos. Se corrigieron los 5 medios y los bajos que pedían decisiones, y la matriz de rutas comprueba en cada corrida cómo se protege cada una.
+- El documento OpenAPI coincide con `API_SPEC.md` ruta por ruta, está versionado, y la CI lo compara con el que genera la aplicación.
+- La cobertura de toda la suite se mide y tiene un umbral en la CI, y los rellenos de datos de las migraciones tienen prueba.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Revisión contra los ADR, con `PROJECT.md` y `README.md`, sin desajustes; descripción del listado de pedidos del staff corregida; prácticas de la review del Sprint 8 en la guía | DONE | Paso 0 |
+| Matriz de rutas como control en la CI; informe `SECURITY_AUDIT.md` sin hallazgos críticos ni altos; 9 correcciones bajas | DONE | T-310 parte a, ADR-0153 |
+| Los 5 hallazgos medios y 3 bajos que pedían decisiones: límites, nadie da lo que no tiene, TLS y `https` en producción, y enlaces de correo en segundo plano | DONE | T-310 parte b, ADR-0154 |
+| `npm run secrets:scan` lee el repositorio también desde un worktree de git, y falla si gitleaks no puede leerlo | DONE | Seguimiento de T-310, ADR-0156 |
+| Prueba de contrato contra `API_SPEC.md` y la matriz de rutas; `docs/openapi/v1.json` comprobado en la CI; errores que OpenAPI perdía | DONE | T-320 parte a, ADR-0155 |
+| Descripción en toda operación, parámetro y campo que envía el cliente, comprobada en la CI; errores revisados ruta por ruta, sin diferencias | DONE | T-320 parte b, ADR-0155 |
+| La prueba de conservación ya no depende del orden de las suites | DONE | T-232, pull request #94 |
+| Cobertura de toda la suite con umbral en la CI; prueba de los rellenos de T-232; cada línea sin cubrir revisada; dos respaldos muertos borrados | DONE | T-300, ADR-0157 |
+| 2,409 tests (1,398 unitarios, 460 de integración y 551 end-to-end); cobertura de 98.82% de sentencias, 84.12% de ramas, 99.10% de funciones y 99.47% de líneas; 0 vulnerabilidades; 0 secretos en el historial | — | CI |
+| 157 ADR: 154 aceptados, 2 reemplazados parcialmente (ADR-0001 y ADR-0077) y 1 reemplazado (ADR-0014); 5 nuevos en este sprint (ADR-0153 a ADR-0157) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 8 pull requests a `main` (del #90 al #97); otra sesión, en paralelo, hizo el #94 y el #95. El pipeline pasó a la primera en todos, y también en `main` después de cada fusión. El #96 falló una vez en `Commit messages`, por un scope en el asunto de sus commits.
+
+#### Decisiones abiertas
+
+Quedan fuera del MVP (ADR-0158) y no bloquean nada de lo construido.
+
+| Grupo | Decisiones |
 |---|---|
-| 0 | Revisión del repositorio contra los ADR, con `PROJECT.md` y `README.md`; pull request agrupado de Dependabot (lunes 5 de octubre); prácticas de la review del Sprint 8 en la guía de desarrollo |
-| 1 | T-310: auditoría de seguridad de cada ruta contra el OWASP API Security Top 10 y `SECURITY.md`, y corrección de lo que aparezca |
-| 2 | T-320: el OpenAPI generado contra `API_SPEC.md`, ruta por ruta (descripciones, ejemplos y errores), y el `openapi.json` versionado con un chequeo en la CI |
-| 3 | T-300: cobertura medida, umbral en la CI y huecos cubiertos, empezando por los rellenos de datos de las migraciones |
+| Dependen del hosting | P-05 (CD), P-06 (hosting, HSTS, TLS e IP del cliente detrás del proxy), P-07 (métricas y trazas), P-13 (secretos en servidor), P-24 (proveedor de correo) |
+| Dependen de la cuenta de PayPal | P-31 (pruebas de webhooks; bloquea T-191) |
+| Validaciones externas | P-69 (fiscal) |
+| Negocio y operación | P-14 (objetivos no funcionales cuantitativos) |
 
-- **Criterio de cierre:** los criterios de aceptación de T-310, T-320 y T-300, que fija el plan de cada una, y la CI en verde en `main`.
-- **Alcance:** hoy las tres tareas son solo títulos. El plan de cada una define su alcance y sus criterios de aceptación, y se aprueba antes de implementarla.
-- **Pospuesto al Sprint 10 o después:**
-  - T-192 (PayPal y conciliación), porque sin cuenta ni sandbox no se puede verificar (P-31);
-  - T-191 (bloqueada);
-  - T-330 (despliegue, sin hosting);
-  - las tareas diferidas: T-193 y T-200.
-- **Flujo de trabajo:**
-  - cada tarea se trabaja en su propia rama (`tipo/T-xxx-descripcion`) y se integra con un pull request que debe pasar la CI (ADR-0030, ADR-0084, ADR-0106);
-  - antes de cada commit: revisar lo preparado con `git diff --cached --stat` y correr `npm run secrets:scan`, con Docker en marcha y con `set -o pipefail` si su salida se filtra.
+#### Riesgos
 
-### Resultado del paso 0
+- **Resueltos en este sprint:**
+  - las rutas sin revisar contra el OWASP API Security Top 10, y sus hallazgos medios;
+  - un documento OpenAPI que podía apartarse de `API_SPEC.md` sin que nadie lo notara;
+  - los rellenos de `orders.concluded_at` y `users.last_active_at`, sin prueba;
+  - el escaneo de secretos, que aprobaba sin revisar nada desde un worktree de git;
+  - la cobertura sin medir, y la de las e2e, que no veía `src/`.
+- **Heredados, siguen vigentes:** ver las reviews de los sprints 2 a 8 en este historial. Entre ellos están:
+  - el estado en memoria de una sola instancia, y los contadores del rate limit en memoria;
+  - los jobs, que con varias instancias correrían en cada una, salvo `platform.deliver-events`;
+  - pagar dos veces, y el adaptador de PayPal, ahora fuera del MVP (ADR-0158);
+  - la entrega de eventos al menos una vez, y las entregas fallidas, que solo ve el staff;
+  - las cuentas inactivas, que se anonimizan sin aviso si el operador enciende la función.
+- **Nuevos:**
+  - **Margen del umbral de cobertura:** es pequeño en funciones (99.10%); tres funciones nuevas sin probar hacen fallar la CI.
+  - **Cobertura en dos sistemas:** se midió en Windows y la CI corre en Linux. Solo la sincronización de la carpeta de los archivos de auditoría corre distinto, y la CI pasó los umbrales.
+  - **Hallazgos sin corregir de la auditoría:** uno bajo y uno informativo esperan el hosting, y 7 informativos se aceptaron (`SECURITY_AUDIT.md`).
+
+#### Qué funcionó
+
+- **La matriz de rutas como control permanente:** una ruta nueva hace fallar la CI hasta que se revisa cómo se protege.
+- **Comprobar la documentación con pruebas:** la prueba de contrato encontró 10 rutas que faltaban en `API_SPEC.md` y los errores que OpenAPI perdía, y exigir descripciones evita que vuelvan a faltar.
+- **Unir la cobertura de las tres suites:** mostró que las e2e no medían `src/`. La revisión línea por línea encontró lógica sin prueba, como las carreras con claves foráneas y los fallos del outbox, y dos respaldos que nunca corrían.
+- **Una base propia para cada relleno:** `MigrationDatabase` migra hasta justo antes de la migración y prueba con filas como eran entonces.
+- **Pruebas de mutación:**
+
+  | Tarea | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-310 parte a | 0 de 28 | — |
+  | T-310 parte b | 0 de 43 | — |
+  | T-320 parte a | 0 de 13 | — |
+  | T-320 parte b | 0 de 8 | — |
+  | T-300 | 2 de 45 | Uno cayó al ajustar su prueba. El otro es equivalente: quita `s.status = 'RETURNED'` del relleno de `concluded_at`, pero una orden tiene un solo envío y solo uno devuelto tiene `returned_at` |
+
+  El seguimiento de T-310 y el #94 no tuvieron prueba de mutación.
+- **Verificar por separado los commits de código,** y el pipeline en verde a la primera en los 8 pull requests.
+
+#### Qué mejorar
+
+- **Asunto con scope:** el #96 usó `docs(platform):`, que el patrón de la CI no admite, porque el chequeo local de los mensajes no usaba el mismo patrón. Ahora lo usa, y los mensajes se reescribieron con `git push --force-with-lease`, con autorización.
+- **Número de ADR entre sesiones en paralelo:** dos sesiones tomaron ADR-0156, y T-300 pasó a ADR-0157.
+- **Falso aprobado del escaneo de secretos:** desde un worktree pasaba sin revisar nada, y se descubrió por casualidad. Un control que puede pasar sin hacer nada necesita mostrar lo que hizo, como el conteo de commits revisados.
+- **Corridas de mutación largas:** una llegó al límite de 2 horas de los procesos en segundo plano con un mutante aplicado; se restauró el archivo y se repitieron los últimos mutantes.
+- **Cobertura ciega desde el inicio:** desde el Sprint 1, `npm run test:cov` medía solo las unitarias, y nadie lo notó hasta T-300.
+
+#### Resultado del paso 0
 
 - **Revisión contra los ADR, con `PROJECT.md` y `README.md`:**
   - existen todas las referencias a ADR, tareas, P-xx, reglas de negocio, casos de uso y errores, y siguen abiertas las mismas 8 decisiones;
@@ -50,7 +128,7 @@ Detalle en `docs/TASKS.md`, sección "Calidad". Orden:
   - decir en el plan cómo se prueba el relleno de datos de una migración.
 - **Descripción del listado de pedidos:** la de `GET /v1/admin/orders` en el OpenAPI ya no dice que `payment` y `shipment` son `null` hasta T-190 y T-195. Va en un commit `fix` aparte.
 
-### Resultado del paso 1 (parte a)
+#### Resultado del paso 1 (parte a)
 
 T-310 parte a, con el nuevo ADR-0153:
 
@@ -59,7 +137,7 @@ T-310 parte a, con el nuevo ADR-0153:
 - **Correcciones:** `no-store` en las respuestas públicas con datos personales o el `cartId`; rutas comparadas sin distinguir mayúsculas; encabezados en el 415; 400 en lugar de 500 para páginas enormes y cuerpos JSON muy anidados; longitudes máximas en filtros del staff; contraseñas escritas en forma descompuesta; puertos de Docker Compose en `127.0.0.1`; y la carpeta de imágenes, fuera de la de trabajo.
 - **Semgrep:** 2 resultados en 690 archivos, los dos informativos (SA-24 y SA-25).
 
-### Resultado del paso 1 (parte b)
+#### Resultado del paso 1 (parte b)
 
 T-310 parte b, con el nuevo ADR-0154, que cambia decisiones de rate limiting, login, staff y correo. T-310 queda en DONE.
 
@@ -72,7 +150,7 @@ T-310 parte b, con el nuevo ADR-0154, que cambia decisiones de rate limiting, lo
 - **Correo:** en producción, TLS obligatorio en SMTP y `https` en `FRONTEND_BASE_URL` (SA-05; la autenticación SMTP, con P-24); la recuperación y el reenvío envían el enlace en segundo plano (SA-16); los nombres y direcciones van en una línea y sin enlaces (SA-17).
 - **Conteo corregido:** el informe de la parte a decía 12 bajos y 10 informativos; son 13 y 9.
 
-### Resultado del paso 2 (parte a)
+#### Resultado del paso 2 (parte a)
 
 T-320 parte a, con el nuevo ADR-0155:
 
@@ -83,7 +161,7 @@ T-320 parte a, con el nuevo ADR-0155:
   - los errores de un controlador que OpenAPI perdía cuando un manejador declaraba otros del mismo estado, como el 401 de `/v1/me/password`;
   - los errores de tres rutas que no tenían y los de idempotencia del reintegro.
 
-### Seguimiento de T-310: escaneo de secretos en worktrees
+#### Seguimiento de T-310: escaneo de secretos en worktrees
 
 A pedido del usuario, con el nuevo ADR-0156:
 
@@ -91,7 +169,7 @@ A pedido del usuario, con el nuevo ADR-0156:
 - **Corrección:** `scripts/secrets-scan.ts` monta también el directorio de git compartido, y el escaneo falla si git, dentro del contenedor, no lee el mismo `HEAD`, o si gitleaks registra un error de git. Desde un worktree, el historial pasa de 0 a 261 commits revisados, y un secreto preparado se detecta.
 - **Sin cambios en gitleaks:** la misma imagen y los mismos argumentos en `package.json`; la CI sigue el mismo camino que un worktree.
 
-### Resultado del paso 2 (parte b)
+#### Resultado del paso 2 (parte b)
 
 T-320 parte b; T-320 queda en DONE.
 
@@ -105,7 +183,7 @@ T-320 parte b; T-320 queda en DONE.
 - **Formatos y ejemplos:** 64 IDs más declaran `format: uuid`, 90 en total; los tokens de los enlaces y `Idempotency-Key` tienen ejemplo.
 - **Control:** la prueba de contrato exige descripción en toda operación, parámetro y campo que envía el cliente.
 
-### Resultado del paso 3
+#### Resultado del paso 3
 
 T-300, con el nuevo ADR-0157; T-300 queda en DONE.
 
@@ -122,20 +200,9 @@ T-300, con el nuevo ADR-0157; T-300 queda en DONE.
 - **Código muerto:** se borraron dos respaldos del interceptor de idempotencia que Express nunca alcanza.
 - **Pruebas:** 2,409 (1,398 unitarias, 460 de integración y 551 end-to-end).
 
-## Risks
+#### Siguiente sprint
 
-- **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.
-- **Cambios de contrato:** corregir un hallazgo, o una diferencia entre el OpenAPI y `API_SPEC.md`, puede cambiar respuestas; cada cambio de contrato queda en `API_SPEC.md` y en `CHANGELOG.md`.
-- **Umbral de cobertura:** uno demasiado alto obliga a escribir pruebas sin valor. El plan de T-300 lo fija a partir de la cobertura medida, sin bajar la que ya existe.
-- **Riesgos heredados del Sprint 8:** ver su review en el historial.
-
-## Sprint Review
-
-PENDIENTE.
-
----
-
-## Historial
+Ninguno: en esta review, el proyecto se cerró como MVP (ADR-0158); ver "Cierre del MVP".
 
 ### Sprint 8 — Ciclo de conservación de datos personales (2026-10-03)
 
@@ -246,7 +313,7 @@ T-232 parte b, con el nuevo ADR-0152; T-232 queda en DONE:
 
 #### Siguiente sprint
 
-La propuesta del Sprint 9 se aprobó el 2026-10-03; ver "Sprint actual".
+La propuesta del Sprint 9 se aprobó el 2026-10-03; ver su entrada en este historial.
 
 ### Sprint 7 — Entrega garantizada de eventos (2026-10-03)
 
@@ -345,7 +412,7 @@ Ninguna bloquea el ciclo de conservación: desde ADR-0149, sus plazos son config
 
 #### Siguiente sprint
 
-La propuesta del Sprint 8 se aprobó el 2026-10-03; ver "Sprint actual".
+La propuesta del Sprint 8 se aprobó el 2026-10-03; ver su entrada en este historial.
 
 ### Sprint 6 — Privacidad y operación (2026-10-02 a 2026-10-03)
 
@@ -464,7 +531,7 @@ Las mismas 9. P-24 (proveedor de correo) afecta ahora también al enlace de acce
 
 #### Siguiente sprint
 
-Al cerrar, el usuario pidió solo la review. La propuesta del Sprint 7 se aprobó después, el 2026-10-03; ver "Sprint actual".
+Al cerrar, el usuario pidió solo la review. La propuesta del Sprint 7 se aprobó después, el 2026-10-03; ver su entrada en este historial.
 
 ### Sprint 5 — Entrega del pedido (2026-10-02)
 
@@ -587,7 +654,7 @@ Ninguna bloquea la anonimización, la auditoría ni la imagen de producción. P-
 
 #### Siguiente sprint
 
-La propuesta del Sprint 6 se aprobó el 2026-10-02; ver "Sprint actual".
+La propuesta del Sprint 6 se aprobó el 2026-10-02; ver su entrada en este historial.
 
 ### Sprint 4 — Compra con pago en tienda (2026-10-01 a 2026-10-02)
 
@@ -691,7 +758,7 @@ Ninguna bloquea los envíos manuales, el reintegro, los correos con el capturado
 
 #### Siguiente sprint
 
-La propuesta del Sprint 5 se aprobó el 2026-10-02; ver "Sprint actual".
+La propuesta del Sprint 5 se aprobó el 2026-10-02; ver su entrada en este historial.
 
 ### Sprint 3 — Catálogo vendible (2026-09-29 a 2026-09-30)
 
@@ -789,7 +856,7 @@ Las nueve de siempre no bloquean el carrito, el checkout ni el pago en tienda. P
 
 #### Siguiente sprint
 
-La propuesta del Sprint 4 se aprobó el 2026-10-01; ver "Sprint actual".
+La propuesta del Sprint 4 se aprobó el 2026-10-01; ver su entrada en este historial.
 
 ### Sprint 2 — Identity & Access (2026-09-28 a 2026-09-29)
 
@@ -885,7 +952,7 @@ Son las mismas nueve. Ninguna bloquea el catálogo, los precios ni el inventario
 
 #### Siguiente sprint
 
-La propuesta del Sprint 3 se aprobó el 2026-09-29; ver "Sprint actual".
+La propuesta del Sprint 3 se aprobó el 2026-09-29; ver su entrada en este historial.
 
 ### Sprint 1 — Fundaciones técnicas (2026-09-26 a 2026-09-28)
 
@@ -965,7 +1032,7 @@ Son las mismas nueve con las que empezó el sprint. Ninguna bloquea Identity & A
 
 #### Siguiente sprint
 
-La propuesta del Sprint 2 se aprobó el 2026-09-28; ver "Sprint actual".
+La propuesta del Sprint 2 se aprobó el 2026-09-28; ver su entrada en este historial.
 
 ### Sprint 0 — Discovery and Architecture (2026-09-24 a 2026-09-26)
 
@@ -1016,4 +1083,4 @@ Ninguna bloquea las fundaciones técnicas.
 
 #### Siguiente sprint
 
-La propuesta del Sprint 1 se aprobó el 2026-09-26; ver "Sprint actual".
+La propuesta del Sprint 1 se aprobó el 2026-09-26; ver su entrada en este historial.

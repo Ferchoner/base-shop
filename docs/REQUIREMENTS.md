@@ -40,7 +40,7 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
 | Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077) |
-| Payments | Pago manual (solo pruebas), PayPal semiimplementado | Mercado Pago, Stripe, métodos asíncronos |
+| Payments | Pago manual (solo pruebas) | PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
 | Shipping | Envíos manuales (por paquetería o entrega propia), costo fijo con envío gratis por monto | Integración con paqueterías, envíos parciales, recoger en tienda (ADR-0078) |
 | Transversales | Auditoría técnica, notificaciones, jobs | Facturación electrónica (CFDI) |
 
@@ -508,7 +508,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Disco del servidor | Imágenes y archivos de auditoría | Implementada | ADR-0024, ADR-0037, ADR-0121, ADR-0146 |
 | Capturador de correos local (por ejemplo, Mailpit) | Correos en desarrollo | Definida | ADR-0045 |
 | Proveedor de correo real | Correos en producción, con TLS obligatorio y autenticación SMTP | PENDIENTE (P-24) | ADR-0154 |
-| PayPal | Pagos | Semiimplementado, no habilitado; verificación PENDIENTE (P-31) | ADR-0040 |
+| PayPal | Pagos | Fuera del MVP, sin construir; verificación PENDIENTE (P-31) | ADR-0040, ADR-0158 |
 | Mercado Pago, Stripe | Pagos | Pospuestos | ADR-0040 |
 | Paqueterías | Envíos | Sin integración | ADR-0041 |
 | GitHub Actions, Dependabot | CI y dependencias | Definida | ADR-0030, ADR-0105, ADR-0106 |
