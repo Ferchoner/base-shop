@@ -58,16 +58,21 @@ jobs:
       - name: 4. TypeScript compilation
         run: npx tsc --noEmit
 
+      # Every test run measures coverage of src/; step 6 merges them (ADR-0157).
       - name: 5. Unit tests
-        run: npm test
+        run: npm test -- --coverage
 
       # Testcontainers starts postgres:18 with the runner's Docker (ADR-0090). Its setup applies every
       # migration from scratch, and database-schema.int-spec.ts checks the Prisma schema against them.
       - name: 6-7. Integration tests, migrations from scratch and schema diff
-        run: npm run test:int
+        run: npm run test:int -- --coverage
 
       - name: 6. End-to-end tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --coverage
+
+      # Each run covers part of src/ on purpose, so the thresholds apply to the merged total (ADR-0157).
+      - name: 6. Coverage of the whole suite, against its thresholds
+        run: npm run coverage:check
 
       - name: 8. Dependency audit (fails on high and critical)
         run: npm audit --audit-level=high
