@@ -27,6 +27,7 @@ const DATE_TIME_WITH_OFFSET =
 
 /** `PriceList` of API_SPEC.md §12. */
 export class PriceListDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'GENERAL' */
@@ -35,17 +36,23 @@ export class PriceListDto {
   /** @example 'Lista general' */
   name: string;
 
+  /** Siempre `MXN` (ADR-0026). */
   @ApiProperty({ enum: ['MXN'], example: 'MXN' })
   currency: string;
 
-  /** @example 0 */
+  /**
+   * Prioridad entre listas, para cuando haya más de una (ADR-0039).
+   * @example 0
+   */
   priority: number;
 
+  /** La lista que usa la tienda; en el MVP, la única (ADR-0039). */
   isDefault: boolean;
 
   /** Los montos incluyen IVA (ADR-0008). */
   taxesIncluded: boolean;
 
+  /** `ACTIVE` o `INACTIVE`. */
   @ApiProperty({ enum: ['ACTIVE', 'INACTIVE'] })
   status: string;
 }
@@ -57,6 +64,7 @@ export class PriceListListDto {
 
 /** `PricePeriod` of API_SPEC.md §12. */
 export class PricePeriodDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({ type: () => MoneyDto, description: 'Con IVA incluido.' })
@@ -69,6 +77,7 @@ export class PricePeriodDto {
   })
   compareAtAmount: MoneyDto | null;
 
+  /** Desde cuándo rige el precio. */
   @ApiProperty({ type: String, format: 'date-time' })
   effectiveFrom: Date;
 
@@ -81,6 +90,7 @@ export class PricePeriodDto {
   })
   effectiveTo: Date | null;
 
+  /** `PAST`, `CURRENT` o `SCHEDULED`, al momento de responder. */
   @ApiProperty({ enum: PRICE_PERIOD_STATES })
   state: string;
 
@@ -182,5 +192,6 @@ export class PriceImportSummaryDto {
   /** Filas iguales al precio vigente, o a uno ya programado en el mismo instante. */
   unchanged: number;
 
+  /** `true` si solo se validó el archivo, sin guardar precios. */
   dryRun: boolean;
 }

@@ -53,6 +53,7 @@ const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
 
 /** `Warehouse` of API_SPEC.md §13. */
 export class WarehouseDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'PRINCIPAL' */
@@ -61,9 +62,11 @@ export class WarehouseDto {
   /** @example 'Almacén principal' */
   name: string;
 
+  /** `null` mientras no se capture. */
   @ApiProperty({ type: () => PostalAddressDto, nullable: true })
   address: PostalAddressDto | null;
 
+  /** `ACTIVE` o `INACTIVE`; en el MVP, el único almacén está activo (ADR-0081). */
   @ApiProperty({ enum: ['ACTIVE', 'INACTIVE'] })
   status: string;
 
@@ -102,8 +105,10 @@ export class UpdateWarehouseDto {
 
 /** `StockItem` of API_SPEC.md §13. */
 export class StockItemDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  @ApiProperty({ format: 'uuid' })
   variantId: string;
 
   /** @example 'CAM-LINO-M' */
@@ -112,12 +117,19 @@ export class StockItemDto {
   /** @example 'Camisa de lino' */
   productTitle: string;
 
+  @ApiProperty({ format: 'uuid' })
   warehouseId: string;
 
-  /** @example 25 */
+  /**
+   * Unidades físicas en el almacén.
+   * @example 25
+   */
   onHand: number;
 
-  /** @example 3 */
+  /**
+   * Unidades apartadas por órdenes que esperan su pago.
+   * @example 3
+   */
   reserved: number;
 
   /** `onHand − reserved`. @example 22 */
@@ -137,6 +149,7 @@ export class StockItemListDto {
 
 /** Query of `GET …/stock-items` (UC-INV-04). */
 export class StockItemQueryDto extends PageQueryDto {
+  /** Solo las existencias de esta variante. */
   @IsOptional()
   @IsUUID()
   variantId?: string;
@@ -147,6 +160,7 @@ export class StockItemQueryDto extends PageQueryDto {
   @MaxLength(64)
   sku?: string;
 
+  /** Solo las existencias de este almacén. */
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
@@ -174,26 +188,35 @@ export class StockItemQueryDto extends PageQueryDto {
 
 /** `StockMovement` of API_SPEC.md §13. */
 export class StockMovementDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** `RECEIPT`, `ADJUSTMENT`, `SALE` o `RESTOCK`. */
   @ApiProperty({ enum: STOCK_MOVEMENT_TYPES })
   type: string;
 
   /** Con signo. @example -2 */
   quantity: number;
 
-  /** @example 23 */
+  /**
+   * Unidades físicas después del movimiento.
+   * @example 23
+   */
   onHandAfter: number;
 
+  /** El motivo de un ajuste; `null` en los demás movimientos. */
   @ApiProperty({ enum: STOCK_MOVEMENT_REASONS, nullable: true })
   reasonCode: string | null;
 
+  /** Nota del staff; `null` sin ella. */
   @ApiProperty(NULLABLE_TEXT)
   note: string | null;
 
+  /** La orden de una venta o un reintegro; `null` en los demás. */
   @ApiProperty({ ...NULLABLE_TEXT, format: 'uuid' })
   orderId: string | null;
 
+  /** La línea de la orden de una venta o un reintegro; `null` en los demás. */
   @ApiProperty({ ...NULLABLE_TEXT, format: 'uuid' })
   orderLineId: string | null;
 
@@ -245,6 +268,7 @@ export class StockMovementQueryDto extends CursorQueryDto {
 
 /** `POST …/receipts` (UC-INV-02). */
 export class ReceiptDto {
+  /** La variante que entra, en cualquier estado. */
   @IsUUID()
   variantId: string;
 
@@ -258,6 +282,7 @@ export class ReceiptDto {
   @Max(MAX_STOCK_QUANTITY)
   quantity: number;
 
+  /** Nota opcional, como el número de remisión. */
   @ApiPropertyOptional({ ...NULLABLE_TEXT, example: 'Remisión 1234' })
   @IsOptional()
   @IsString()
@@ -267,6 +292,7 @@ export class ReceiptDto {
 
 /** `POST …/adjustments` (UC-INV-03, ADR-0069). */
 export class AdjustmentDto {
+  /** La variante que se ajusta, en cualquier estado. */
   @IsUUID()
   variantId: string;
 
@@ -289,6 +315,7 @@ export class AdjustmentDto {
   @IsIn(ADJUSTMENT_REASONS)
   reasonCode: AdjustmentReason;
 
+  /** Nota del ajuste; obligatoria con el motivo `OTHER`. */
   @ApiPropertyOptional({ ...NULLABLE_TEXT, example: 'Caja mojada' })
   @IsOptional()
   @IsString()

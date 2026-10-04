@@ -64,7 +64,11 @@ export class AdminPricingController {
     private readonly importPrices: ImportPrices,
   ) {}
 
-  @ApiOperation({ summary: 'Listar las listas de precios' })
+  @ApiOperation({
+    summary: 'Listar las listas de precios',
+    description:
+      'Sin paginar. En el MVP solo existe la lista general, la predeterminada (ADR-0039).',
+  })
   @ApiOkResponse({ type: PriceListListDto })
   @RequirePermissions('pricing.read')
   @Get()

@@ -30,7 +30,11 @@ export class AdminWarehousesController {
     private readonly updateWarehouse: UpdateWarehouse,
   ) {}
 
-  @ApiOperation({ summary: 'Listar los almacenes' })
+  @ApiOperation({
+    summary: 'Listar los almacenes',
+    description:
+      'Sin paginar. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081).',
+  })
   @ApiOkResponse({ type: WarehouseListDto })
   @RequirePermissions('inventory.read')
   @Get()
