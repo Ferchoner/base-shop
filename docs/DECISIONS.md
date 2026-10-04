@@ -4769,6 +4769,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - las invariantes defensivas que solo existen para el compilador;
     - las funciones de los decoradores de los DTO, que class-validator y class-transformer llaman solo cuando llega el campo;
     - lo que solo corre en Linux, como sincronizar la carpeta de los archivos de auditoría, que la CI sí cubre.
+  - **Código muerto:** el interceptor de idempotencia tenía dos respaldos que Express nunca alcanza: el código de la respuesta según `@HttpCode` y la ruta según la URL. Express fija los dos antes de cualquier interceptor, así que se borraron.
 - **Alternativas consideradas:**
   - **Un umbral por suite:** cada suite cubre su parte a propósito; exigirlo obligaría a duplicar pruebas.
   - **Un umbral por archivo:** un archivo corto con un relanzamiento sin probar haría fallar la CI.
@@ -4777,7 +4778,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Una sola corrida con `projects` de Jest:** las suites tienen preparaciones distintas (Testcontainers, `--runInBand`), y la CI corre cada una en su paso.
   - **Probar los rellenos con `prisma migrate deploy`:** aplica todas las migraciones pendientes juntas, sin detenerse antes de una.
 - **Consecuencias:**
-  - Código nuevo sin probar puede dejar la cobertura bajo un umbral y hacer fallar la CI; el chequeo dice qué métrica y cuánto. Al fijarlos, el margen era pequeño en funciones (99.02%) y en ramas (84.03%): una función nueva sin probar ya hace fallar la CI.
+  - Código nuevo sin probar puede dejar la cobertura bajo un umbral y hacer fallar la CI; el chequeo dice qué métrica y cuánto. Al fijarlos, el margen era pequeño en funciones (99.10%) y en ramas (84.12%): tres funciones nuevas sin probar ya hacen fallar la CI. Dos corridas completas cubrieron exactamente las mismas sentencias, ramas y funciones.
   - Medir la cobertura instrumenta el código: las suites tardan algo más.
   - Una migración que llena columnas de filas existentes se prueba con `MigrationDatabase` (`DEVELOPMENT_GUIDE.md`).
   - Modifica ADR-0030, que no fijaba un porcentaje mínimo, y ADR-0105 en los pasos 5 y 6.

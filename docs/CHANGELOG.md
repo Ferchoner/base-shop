@@ -258,3 +258,4 @@
   - Las e2e tienen la raíz del repositorio como directorio raíz, para que su cobertura vea `src/`.
   - `MigrationDatabase` (`test/integration/`) prueba los rellenos de `orders.concluded_at` y `users.last_active_at` en una base migrada hasta antes de cada uno.
   - Pruebas nuevas de los huecos que son lógica; las líneas que quedan sin cubrir están justificadas en ADR-0157.
+  - El interceptor de idempotencia ya no tiene los respaldos del código de respuesta y de la ruta, que Express nunca usaba.

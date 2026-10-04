@@ -119,6 +119,7 @@ T-300, con el nuevo ADR-0157; T-300 queda en DONE.
   - los cursores con un ID inválido;
   - el detalle de un producto con categorías e imágenes.
 - **Quedan sin cubrir, justificados:** los relanzamientos de errores inesperados, las invariantes para el compilador y las funciones de decoradores de DTO.
+- **Código muerto:** se borraron dos respaldos del interceptor de idempotencia que Express nunca alcanza.
 - **Pruebas:** 2,409 (1,398 unitarias, 460 de integración y 551 end-to-end).
 
 ## Risks
