@@ -16,8 +16,8 @@ class ManualClock {
 
 function createLimiter(clock: ManualClock): FailedAttemptLimiter {
   const values: Partial<EnvironmentVariables> = {
-    RATE_LIMIT_LOGIN_EMAIL: '3/15m',
     RATE_LIMIT_LOGIN_IP: '5/15m',
+    RATE_LIMIT_PASSWORD_CHANGE: '3/15m',
   };
   const config = {
     get: (key: keyof EnvironmentVariables) => values[key],
@@ -25,7 +25,7 @@ function createLimiter(clock: ManualClock): FailedAttemptLimiter {
   return new FailedAttemptLimiter(config, clock);
 }
 
-describe('FailedAttemptLimiter (ADR-0102)', () => {
+describe('FailedAttemptLimiter (ADR-0102, ADR-0154)', () => {
   let clock: ManualClock;
   let limiter: FailedAttemptLimiter;
 
@@ -34,19 +34,21 @@ describe('FailedAttemptLimiter (ADR-0102)', () => {
     limiter = createLimiter(clock);
   });
 
-  function failTimes(times: number, key = 'ana@example.com'): void {
+  const USER = '0199a0c1-0000-7000-8000-000000000001';
+
+  function failTimes(times: number, key = USER): void {
     for (let attempt = 0; attempt < times; attempt++) {
-      limiter.assertAllowed('login-email', key);
-      limiter.recordFailure('login-email', key);
+      limiter.assertAllowed('password-change', key);
+      limiter.recordFailure('password-change', key);
     }
   }
 
   it('allows attempts until the number of failures reaches the limit', () => {
     failTimes(3);
 
-    expect(() =>
-      limiter.assertAllowed('login-email', 'ana@example.com'),
-    ).toThrow(ProblemException);
+    expect(() => limiter.assertAllowed('password-change', USER)).toThrow(
+      ProblemException,
+    );
   });
 
   it('answers rate-limit-exceeded with Retry-After until the oldest failure leaves the window', () => {
@@ -55,7 +57,7 @@ describe('FailedAttemptLimiter (ADR-0102)', () => {
 
     let error: ProblemException | undefined;
     try {
-      limiter.assertAllowed('login-email', 'ana@example.com');
+      limiter.assertAllowed('password-change', USER);
     } catch (thrown) {
       error = thrown as ProblemException;
     }
@@ -68,37 +70,31 @@ describe('FailedAttemptLimiter (ADR-0102)', () => {
     failTimes(3);
     clock.advance(15 * 60_000 + 1);
 
-    expect(() =>
-      limiter.assertAllowed('login-email', 'ana@example.com'),
-    ).not.toThrow();
+    expect(() => limiter.assertAllowed('password-change', USER)).not.toThrow();
   });
 
-  it('counts each key on its own, ignoring case and spaces in emails', () => {
-    failTimes(3, 'Ana@Example.com ');
+  it('counts each key on its own, ignoring case and spaces', () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      limiter.recordFailure('login-ip', 'ip:2001:DB8::1 ');
+    }
 
+    expect(() => limiter.assertAllowed('login-ip', 'ip:2001:db8::1')).toThrow();
     expect(() =>
-      limiter.assertAllowed('login-email', 'ana@example.com'),
-    ).toThrow();
-    expect(() =>
-      limiter.assertAllowed('login-email', 'luis@example.com'),
+      limiter.assertAllowed('login-ip', 'ip:2001:db8::2'),
     ).not.toThrow();
   });
 
   it('keeps separate budgets per limit', () => {
     failTimes(3);
 
-    expect(() =>
-      limiter.assertAllowed('login-ip', 'ana@example.com'),
-    ).not.toThrow();
+    expect(() => limiter.assertAllowed('login-ip', USER)).not.toThrow();
   });
 
   it('only counts failures: checking alone never blocks', () => {
     for (let attempt = 0; attempt < 10; attempt++) {
-      limiter.assertAllowed('login-email', 'ana@example.com');
+      limiter.assertAllowed('password-change', USER);
     }
 
-    expect(() =>
-      limiter.assertAllowed('login-email', 'ana@example.com'),
-    ).not.toThrow();
+    expect(() => limiter.assertAllowed('password-change', USER)).not.toThrow();
   });
 });

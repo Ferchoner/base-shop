@@ -33,6 +33,11 @@ const ACCOUNT = {
 };
 const UNUSED_TOKENS = {} as EmailVerificationTokenRepository;
 
+/** A name with a line break and a link, as anyone can type it when signing up with someone else's email. */
+const TYPED_NAME = ['Ana', 'Visita https://tienda-falsa.com'].join(
+  String.fromCharCode(13, 10),
+);
+
 describe('EmailVerifications.send (ADR-0046, ADR-0117)', () => {
   it('sends the link to the verification page of the frontend, with its lifetime', async () => {
     const email = new RecordingEmailSender();
@@ -95,5 +100,20 @@ describe('EmailVerifications.send (ADR-0046, ADR-0117)', () => {
     expect(logged).toEqual([
       `Verification email for user ${ACCOUNT.id} was not sent: SMTP 421`,
     ]);
+  });
+
+  it('quotes the name on one line and without links (ADR-0154)', async () => {
+    const email = new RecordingEmailSender();
+
+    await new EmailVerifications(
+      UNUSED_TOKENS,
+      new ShopLinks(),
+      email,
+      86_400,
+    ).send({ ...ACCOUNT, firstNames: TYPED_NAME }, 'token-123');
+
+    const { text } = email.sent[0];
+    expect(text).toContain('Hola, Ana Visita https: //tienda-falsa. com:');
+    expect(text).not.toContain('tienda-falsa.com');
   });
 });

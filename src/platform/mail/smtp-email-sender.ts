@@ -15,8 +15,9 @@ const SOCKET_TIMEOUT_MS = 20_000;
 
 /**
  * Sends emails through SMTP with nodemailer (ADR-0110): to Mailpit in development (ADR-0045), to the real
- * provider once P-24 is decided. nodemailer encodes UTF-8 subjects and bodies and strips line breaks from
- * headers, so a subject cannot inject other headers.
+ * provider once P-24 is decided, which also decides its authentication. In production the connection is always
+ * encrypted, with a verified certificate, since the links carry tokens (T-310, ADR-0154). nodemailer encodes UTF-8
+ * subjects and bodies and strips line breaks from headers, so a subject cannot inject other headers.
  *
  * The log never shows the recipient or the content (ADR-0097): only the message id, or the SMTP error code.
  */
@@ -33,8 +34,10 @@ export class SmtpEmailSender extends EmailSender implements OnModuleDestroy {
     this.transporter = createTransport({
       host: config.get('SMTP_HOST', { infer: true }),
       port,
-      // Port 465 is TLS from the start; on other ports nodemailer upgrades with STARTTLS when offered.
+      // Port 465 is TLS from the start. On other ports nodemailer upgrades with STARTTLS: in production it must, or
+      // the email is not sent; Mailpit, in development, offers none.
       secure: port === 465,
+      requireTLS: config.get('NODE_ENV', { infer: true }) === 'production',
       connectionTimeout: CONNECTION_TIMEOUT_MS,
       greetingTimeout: GREETING_TIMEOUT_MS,
       socketTimeout: SOCKET_TIMEOUT_MS,

@@ -226,3 +226,13 @@
   - Longitudes máximas en `q` de roles (100), staff y clientes (254) y existencias (100), y en `sku` (64); de 1 a 50 roles por lista.
   - El login, el cambio de contraseña y el de email aceptan 256 caracteres tal como se escriben, para las contraseñas registradas en forma descompuesta.
   - Docker Compose publica sus puertos solo en `127.0.0.1`, y la API no arranca con `IMAGE_STORAGE_DIR` en la carpeta de trabajo o una que la contenga.
+- T-310 parte b (nuevo ADR-0154), con cambios de contrato:
+  - El límite general de 100 solicitudes por minuto por IP cuenta también en las rutas con límite propio.
+  - `POST /v1/orders` admite 5 órdenes de invitado por email de contacto por hora (`RATE_LIMIT_PLACE_ORDER_EMAIL`).
+  - El login ya no limita los fallos por email; se quita `RATE_LIMIT_LOGIN_EMAIL`. Siguen los 20 fallos por IP en 15 minutos.
+  - `POST /v1/me/password` responde 429 tras 5 contraseñas actuales incorrectas del usuario en 15 minutos (`RATE_LIMIT_PASSWORD_CHANGE`).
+  - Con `staff.manage`, dar de alta, agregar roles, crear o ampliar un rol y reactivar a un miembro del staff responden 403 `forbidden` si dan algo que quien actúa no tiene, o el rol superadministrador sin serlo (BR-USR-20).
+  - `POST /v1/auth/password-reset/request` y `POST /v1/auth/email-verification/resend` responden 202 antes de emitir el enlace, que se envía en segundo plano con los eventos volátiles `PasswordResetRequested` y `EmailVerificationRequested`.
+  - En producción, `FRONTEND_BASE_URL` debe usar `https` y el SMTP exige TLS con certificado verificado.
+  - Los correos citan nombres y direcciones en una línea, sin caracteres invisibles y con los enlaces rotos (`tienda. com`).
+  - `SECURITY_AUDIT.md` corrige el conteo de la parte a: 13 hallazgos bajos y 9 informativos.

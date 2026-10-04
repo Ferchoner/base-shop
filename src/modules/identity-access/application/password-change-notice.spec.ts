@@ -26,6 +26,11 @@ const ACCOUNT = {
 /** 16:05 UTC is 10:05 in central Mexico. */
 const CHANGED_AT = new Date('2026-09-29T16:05:00Z');
 
+/** A name with a line break and a link, as anyone can type it when signing up with someone else's email. */
+const TYPED_NAME = ['Ana', 'Visita https://tienda-falsa.com'].join(
+  String.fromCharCode(13, 10),
+);
+
 describe('PasswordChangeNotice (ADR-0072, ADR-0115)', () => {
   it('tells the owner when their password changed, in Mexico time, and what to do if it was not them', async () => {
     const email = new RecordingEmailSender();
@@ -63,5 +68,18 @@ describe('PasswordChangeNotice (ADR-0072, ADR-0115)', () => {
     );
     expect(String(warn.mock.calls[0][0])).not.toContain(ACCOUNT.email);
     warn.mockRestore();
+  });
+
+  it('quotes the name on one line and without links (ADR-0154)', async () => {
+    const email = new RecordingEmailSender();
+
+    await new PasswordChangeNotice(email).send(
+      { ...ACCOUNT, firstNames: TYPED_NAME },
+      CHANGED_AT,
+    );
+
+    const { text } = email.sent[0];
+    expect(text).toContain('Hola, Ana Visita https: //tienda-falsa. com:');
+    expect(text).not.toContain('tienda-falsa.com');
   });
 });

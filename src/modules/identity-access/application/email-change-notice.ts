@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmailSender, inMexicoTime } from '../../../shared-kernel/index.js';
+import {
+  EmailSender,
+  emailSafeText,
+  inMexicoTime,
+} from '../../../shared-kernel/index.js';
 
 /**
  * Tells the previous address that the account's email changed (ADR-0117), without naming the new one: if
@@ -21,7 +25,7 @@ export class EmailChangeNotice {
         to: account.previousEmail,
         subject: 'Tu correo cambió',
         text: [
-          `Hola, ${account.firstNames}:`,
+          `Hola, ${emailSafeText(account.firstNames)}:`,
           '',
           `El correo de tu cuenta se cambió el ${inMexicoTime(changedAt)} (hora del centro de México). Desde ahora, los avisos llegarán a la dirección nueva.`,
           '',

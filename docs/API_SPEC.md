@@ -109,12 +109,14 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida", con las instrucciones de pago en tienda si el pago manual está habilitado (ADR-0143) | Correo del cliente |
 | Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada", que dice si el reembolso está en proceso (ADR-0143) | Correo del cliente |
 | Pedir un enlace de acceso a los pedidos de invitado (`POST /v1/orders/access-links`, ADR-0148) | `OrderAccessRequested` | Si el email tiene órdenes de invitado, se emite el enlace, que invalida los anteriores del email, y se envía el correo "Consulta tus pedidos"; si no, nada | Correo del invitado |
+| Pedir un enlace de recuperación (`POST /v1/auth/password-reset/request`, ADR-0154) | `PasswordResetRequested` | Si el email es de una cuenta que puede iniciar sesión, se emite el enlace, que invalida los anteriores, y se envía el correo "Restablece tu contraseña"; si no, nada | Correo de la cuenta |
+| Pedir otro enlace de verificación (`POST /v1/auth/email-verification/resend`, ADR-0154) | `EmailVerificationRequested` | Si el email es de un cliente activo sin verificar, se emite el enlace, que invalida los anteriores, y se envía el correo "Confirma tu correo"; si no, nada | Correo del cliente |
 | Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054, ADR-0137): el invitado, o el cliente sin carrito activo, recupera el carrito de la orden activo otra vez; el cliente con carrito activo recibe en él las líneas | Carrito del cliente o del invitado |
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
 - Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva, el inicio del reembolso y la cancelación del envío (ADR-0140).
 - Si el procesamiento de un evento falla, o la API se detiene después de confirmar, el efecto se reintenta hasta 8 veces en unas 22 horas, así que puede tardar más (ADR-0150). Un efecto puede ocurrir dos veces en un caso raro; los cambios de estado lo toleran, y un correo podría llegar duplicado. Lo que agota sus intentos lo consulta y lo reintenta el staff (sección 22).
-- La solicitud de un enlace de acceso a los pedidos (`OrderAccessRequested`) no se reintenta, porque lleva el email: si se pierde, el invitado pide otro.
+- La solicitud de un enlace de acceso a los pedidos (`OrderAccessRequested`), de recuperación (`PasswordResetRequested`) o de verificación (`EmailVerificationRequested`) no se reintenta, porque lleva el email: si se pierde, se pide otro enlace.
 - Todo efecto nuevo en segundo plano se agrega a esta tabla.
 
 Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`, y no lleva `X-Powered-By`. Swagger UI, solo en local, tiene una CSP más permisiva en su ruta.
@@ -318,25 +320,28 @@ Cada endpoint lista solo sus errores específicos.
 
 | Límite | Endpoints |
 |---|---|
-| 5 intentos fallidos por email en 15 minutos, y 20 por IP | `POST /v1/auth/login` |
+| 20 intentos fallidos por IP en 15 minutos | `POST /v1/auth/login` |
+| 5 contraseñas actuales incorrectas por usuario en 15 minutos | `POST /v1/me/password` |
 | 5 por IP por hora | `POST /v1/auth/register` |
 | 3 por email y 10 por IP por hora | `POST /v1/auth/password-reset/request` |
 | 3 por email por hora | `POST /v1/auth/email-verification/resend`, `POST /v1/me/email` |
 | 3 por email y 10 por IP por hora | `POST /v1/orders/access-links` |
 | 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder`, `POST /v1/orders/access` |
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
-| 100 por minuto por IP | Resto de endpoints |
+| 5 por email de contacto por hora | `POST /v1/orders` (ADR-0154) |
+| 100 por minuto por IP | Todos los endpoints, también los anteriores (ADR-0154) |
 
 Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`. Los webhooks quedan fuera del límite general (ADR-0071): los protege la verificación de firma.
 
 Detalles del mecanismo (ADR-0102):
 
-- En el login solo cuentan los intentos **fallidos**; un login correcto no gasta el límite.
+- En el login solo cuentan los intentos **fallidos**, por IP; un login correcto no gasta el límite. No hay límite por email: dejaría a cualquiera impedir que el titular entre (ADR-0154). En el cambio de contraseña cuentan solo las contraseñas actuales incorrectas, por usuario.
+- Los límites propios se suman al general por IP, porque cuentan por claves que elige el cliente (ADR-0154).
 - Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: la consulta, la recompra de invitado y el uso del enlace de acceso comparten el mismo contador por IP.
-- Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden).
+- Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden); `contactEmail` (órdenes de invitado por email).
 - El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
 - Una ruta inexistente responde 404 sin gastar el límite general.
-- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_EMAIL`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP` y `RATE_LIMIT_PLACE_ORDER`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER` y `RATE_LIMIT_PLACE_ORDER_EMAIL`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
 
 ---
 
@@ -633,15 +638,16 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Autenticación:** ninguna. **Rate limit:** 3 por email por hora.
 - **Request:** `{ "email": "cliente@example.com" }`.
 - **Response 202** sin cuerpo, exista o no el email y esté o no verificado (BR-USR-12). Invalida el enlace anterior. Implementado en T-121 (ADR-0117): solo envía a un cliente activo sin verificar; a cuentas verificadas, suspendidas o de staff no envía nada.
+- **Desde T-310 (ADR-0154):** responde en cuanto recibe la solicitud; el enlace se emite y se envía en segundo plano, así que tampoco el tiempo de la respuesta dice si el email existe o está verificado. El correo puede tardar unos segundos (sección 2.5).
 
 ### 9.5 `POST /v1/auth/login` — Iniciar sesión (UC-IAM-04)
 
-- **Autenticación:** ninguna. **Rate limit:** 5 fallidos por email en 15 minutos y 20 por IP.
+- **Autenticación:** ninguna. **Rate limit:** 20 fallidos por IP en 15 minutos; ninguno por email (ADR-0154).
 - **Request:** `{ "email": "…", "password": "…" }`.
 - **Response 200:** `AuthResult`. Si `mustChangePassword` es `true` (staff con contraseña temporal), el token solo permite las rutas de la sección 3.2.
 - **Errores:** 401 `invalid-credentials` para email inexistente, contraseña incorrecta o cuenta suspendida o anonimizada (ADR-0062).
 - **Auditoría:** éxito y fallo (ADR-0037).
-- **Implementado en T-120 (ADR-0114):** 400 `validation-error` ante un email mal formado, una contraseña de más de 256 caracteres tal como se escribe (la política cuenta 64 tras NFKC, ADR-0153) o un campo desconocido. La respuesta lleva `Cache-Control: no-store`. Al agotar el límite de intentos fallidos, 429 `rate-limit-exceeded` con `Retry-After`, también con la contraseña correcta.
+- **Implementado en T-120 (ADR-0114):** 400 `validation-error` ante un email mal formado, una contraseña de más de 256 caracteres tal como se escribe (la política cuenta 64 tras NFKC, ADR-0153) o un campo desconocido. La respuesta lleva `Cache-Control: no-store`. Al agotar el límite de intentos fallidos de una IP, 429 `rate-limit-exceeded` con `Retry-After`, también con la contraseña correcta. Los fallos de un email no impiden que entre quien da la contraseña correcta desde otra IP (ADR-0154).
 
 ### 9.6 `POST /v1/auth/refresh` — Renovar sesión (UC-IAM-05)
 
@@ -662,6 +668,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Request:** `{ "email": "…" }`.
 - **Response 202** sin cuerpo, exista o no el email. No envía correo a cuentas suspendidas. Invalida enlaces anteriores (ADR-0056).
 - **Implementado en T-123 (ADR-0118):** el enlace es `FRONTEND_BASE_URL/reset-password?token=…` y vence según `PASSWORD_RESET_TTL` (30 minutos por defecto). Lo reciben clientes y staff activos. Cambiar el email invalida los enlaces pendientes.
+- **Desde T-310 (ADR-0154):** responde en cuanto recibe la solicitud; el enlace se emite y se envía en segundo plano, así que tampoco el tiempo de la respuesta dice si la cuenta existe. El correo puede tardar unos segundos (sección 2.5).
 
 ### 9.9 `POST /v1/auth/password-reset/confirm` — Restablecer contraseña (UC-IAM-08)
 
@@ -688,7 +695,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Request:** `{ "currentPassword": "…", "newPassword": "…" }`. Para el cambio obligatorio del staff, `currentPassword` es la contraseña temporal (ADR-0056).
 - **Validaciones:** `newPassword` según ADR-0047 y distinta de la actual.
 - **Response 204.** Quita `mustChangePassword`. Revoca todas las demás sesiones del usuario y conserva la actual; envía un correo avisando del cambio (ADR-0072).
-- **Errores:** 401 `invalid-credentials` si `currentPassword` no coincide; 400 `password-policy-violation`.
+- **Errores:** 401 `invalid-credentials` si `currentPassword` no coincide; 400 `password-policy-violation`; 429 `rate-limit-exceeded` tras 5 contraseñas actuales incorrectas del usuario en 15 minutos, también con la correcta (ADR-0154). Las contraseñas nuevas que no cumplen la política no cuentan.
 - **Implementado en T-120 (ADR-0115):**
   - `currentPassword` se comprueba antes que la política. Un 401 no cambia nada y se audita.
   - `password-policy-violation` lleva en `errors` una entrada en `newPassword` con `code` `passwordLength`, `passwordCharacters`, `commonPassword` o `samePassword`.
@@ -727,7 +734,7 @@ Implementado en T-130 (ADR-0113):
 
 ### 9.16 Roles (UC-IAM-15)
 
-La descripción de un rol tiene de 1 a 250 caracteres (`null` la borra). Un `PATCH` al rol superadministrador con `permissions` responde 400 `validation-error` en ese campo (ADR-0112).
+La descripción de un rol tiene de 1 a 250 caracteres (`null` la borra). Un `PATCH` al rol superadministrador con `permissions` responde 400 `validation-error` en ese campo (ADR-0112). Crear un rol, o agregarle permisos, exige tener esos permisos; si no, 403 `forbidden`, auditado. Quitar permisos no tiene esa restricción (BR-USR-20, ADR-0154).
 
 Representación `Role`: `{ "id", "name", "description", "isSuperadmin", "permissions": ["…"], "userCount", "version", "createdAt", "updatedAt" }`.
 
@@ -753,6 +760,8 @@ Representación `StaffUser`: `{ "id", "email", "firstNames", "lastNames", "statu
 | `POST /v1/admin/identity/staff/{userId}/reactivate` | Request `{ "reason", "version" }`. Desde SUSPENDED. Genera una contraseña temporal nueva (BR-USR-13) y marca `mustChangePassword`; conserva los roles (ADR-0076). 200 `{ "user": StaffUser, "temporaryPassword": "…" }`; la contraseña temporal se muestra solo en esta respuesta, con `Cache-Control: no-store`. Errores: 409 `invalid-state-transition` si no está SUSPENDED |
 
 La contraseña temporal se entrega en la respuesta (ADR-0071): no hay invitación por correo (ADR-0043).
+
+Nadie da lo que no tiene (BR-USR-20, ADR-0154): el alta, los roles que agrega un `PUT …/roles` y la reactivación exigen que quien actúa tenga todos los permisos de esos roles, y el rol superadministrador solo lo asigna otro superadministrador. La reactivación cuenta los roles que ya tiene el reactivado, porque quien reactiva recibe su contraseña temporal. Si no, 403 `forbidden`, auditado, sin cambios. Quitar roles y suspender no tienen esta restricción.
 
 `reason` tiene de 1 a 500 caracteres y no puede estar en blanco. Se guarda en la auditoría (`audit_logs.reason`), así que no debe llevar datos personales (ADR-0112). Implementados en T-130: listado, detalle, `PUT …/roles` y `POST …/suspend`. En T-131 (ADR-0116):
 
@@ -1267,7 +1276,7 @@ o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección
 - **Proceso:** recalcula todo sin cache; si el total difiere de `expectedTotal` → 409; reserva todo el stock o nada; crea la orden en PENDING_PAYMENT con snapshots; marca el carrito CHECKED_OUT (una sola transacción).
 - **Response 201:** `Order` (vista de cliente) con `publicCode` y `paymentDueAt`. `Location: /v1/me/orders/{publicCode}` solo en la ruta de cliente.
 - **Errores:** 400 `idempotency-key-missing`; 403 `email-not-verified`; 403 `staff-cannot-purchase`; 404 (carrito o dirección); 409 `total-mismatch` (con `currentTotal`); 409 `insufficient-stock` (con `lines`); 409 `variant-not-sellable`; 409 `cart-not-active`; 409 `empty-cart`; 409 `idempotency-request-in-progress`; 422 `idempotency-key-mismatch`.
-- **Rate limit:** 10 por usuario o carrito en 10 minutos.
+- **Rate limit:** 10 por usuario o carrito en 10 minutos; en `POST /v1/orders`, además, 5 por email de contacto por hora (ADR-0154).
 
 ### 15.4 Consultas del cliente (UC-ORD-03)
 

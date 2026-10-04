@@ -31,6 +31,7 @@ export {
   EmailSender,
 } from './email-sender.js';
 export { DomainEventPublisher } from './domain-event-publisher.js';
+export { emailSafeText } from './email-safe-text.js';
 export { FrontendLinks } from './frontend-links.js';
 export { lifetimeInWords } from './lifetime-in-words.js';
 export { hashLinkToken, newLinkToken } from './link-tokens.js';

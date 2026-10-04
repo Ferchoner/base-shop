@@ -10,6 +10,7 @@ import { RequireAccount } from '../../../platform/auth/authorization.decorators.
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
+import { FailedAttemptLimiter } from '../../../platform/http/rate-limiting/failed-attempt-limiter.js';
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import { ChangeEmail } from '../application/change-email.use-case.js';
@@ -37,6 +38,7 @@ export class MeController {
     private readonly changePassword: ChangePassword,
     private readonly changeEmail: ChangeEmail,
     private readonly rectifyCustomer: RectifyCustomer,
+    private readonly failedAttempts: FailedAttemptLimiter,
   ) {}
 
   @ApiOperation({
@@ -101,10 +103,14 @@ export class MeController {
   @ApiOperation({
     summary: 'Cambiar mi contraseña',
     description:
-      'Pide la contraseña actual (la temporal, en el cambio obligatorio del staff). La nueva cumple la política y es distinta de la actual. Revoca las demás sesiones, conserva la actual y avisa por correo.',
+      'Pide la contraseña actual (la temporal, en el cambio obligatorio del staff). La nueva cumple la política y es distinta de la actual. Revoca las demás sesiones, conserva la actual y avisa por correo. Límite: 5 contraseñas actuales incorrectas por usuario en 15 minutos.',
   })
   @ApiNoContentResponse()
-  @ApiProblemResponses('invalid-credentials', 'password-policy-violation')
+  @ApiProblemResponses(
+    'invalid-credentials',
+    'password-policy-violation',
+    'rate-limit-exceeded',
+  )
   @RequireAccount({ allowPendingPasswordChange: true })
   @Post('password')
   @HttpCode(204)
@@ -112,6 +118,8 @@ export class MeController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: ChangePasswordDto,
   ): Promise<void> {
+    // Wrong current passwords count per user, against someone trying them with a stolen token (ADR-0154).
+    this.failedAttempts.assertAllowed('password-change', user.id);
     const result = await this.changePassword.execute({
       userId: toId(user.id),
       sessionId: toId(user.sessionId),
@@ -119,6 +127,7 @@ export class MeController {
       newPassword: body.newPassword,
     });
     if (result.outcome === 'INVALID_CURRENT_PASSWORD') {
+      this.failedAttempts.recordFailure('password-change', user.id);
       throw new ProblemException('invalid-credentials');
     }
   }

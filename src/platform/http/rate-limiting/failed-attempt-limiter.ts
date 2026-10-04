@@ -9,16 +9,21 @@ import {
 } from '../../config/rate-limit-value.js';
 import { ProblemException } from '../problem-details/problem.exception.js';
 
-export type FailedAttemptLimit = 'login-email' | 'login-ip';
+export type FailedAttemptLimit = 'login-ip' | 'password-change';
 
 /** Past this many keys, expired ones are swept on the next failure, so memory stays bounded. */
 const SWEEP_THRESHOLD = 10_000;
 
 /**
- * Limits failed attempts rather than requests (ADR-0065, ADR-0102): 5 failed logins per email and 20 per IP
- * in 15 minutes by default. It slows down by time and never locks accounts. Counters live in memory, like
- * the request limits. The login endpoint calls `assertAllowed` before checking credentials and
- * `recordFailure` when they are wrong (ADR-0114).
+ * Limits failed attempts rather than requests (ADR-0065, ADR-0102, ADR-0154), by default:
+ *
+ * - `login-ip`: 20 failed logins per IP in 15 minutes. Failures per email are not limited, since that would let
+ *   anyone keep the owner of an account out (T-310).
+ * - `password-change`: 5 wrong current passwords per user in 15 minutes, against someone trying them with a stolen
+ *   access token.
+ *
+ * It slows down by time and never locks accounts. Counters live in memory, like the request limits. Callers check
+ * with `assertAllowed` before verifying the password, and call `recordFailure` when it is wrong.
  */
 @Injectable()
 export class FailedAttemptLimiter {
@@ -31,11 +36,11 @@ export class FailedAttemptLimiter {
     private readonly clock: Clock,
   ) {
     this.limits = {
-      'login-email': parseRateLimit(
-        config.get('RATE_LIMIT_LOGIN_EMAIL', { infer: true }),
-      ),
       'login-ip': parseRateLimit(
         config.get('RATE_LIMIT_LOGIN_IP', { infer: true }),
+      ),
+      'password-change': parseRateLimit(
+        config.get('RATE_LIMIT_PASSWORD_CHANGE', { infer: true }),
       ),
     };
   }
@@ -82,7 +87,7 @@ export class FailedAttemptLimiter {
     }
   }
 
-  /** Keys are hashed, so no email or IP stays in memory as is. */
+  /** Keys are hashed, so no IP or user id stays in memory as is. */
   private mapKey(limit: FailedAttemptLimit, key: string): string {
     const hash = createHash('sha256')
       .update(key.trim().toLowerCase())
