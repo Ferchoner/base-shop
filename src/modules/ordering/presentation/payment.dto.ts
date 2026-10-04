@@ -46,29 +46,42 @@ export class PaymentActionDto {
   })
   type: string;
 
-  /** @example 'K7M4-Q9XA' */
+  /**
+   * El código público de la orden, para presentarlo en la tienda.
+   * @example 'K7M4-Q9XA'
+   */
   orderCode: string;
 
+  /** El monto por pagar. */
   @ApiProperty({ type: () => MoneyDto })
   amount: MoneyDto;
 
-  /** @example 'Presenta este código en la tienda para pagar.' */
+  /**
+   * Qué hacer para pagar, para mostrarlo a quien compra.
+   * @example 'Presenta este código en la tienda para pagar.'
+   */
   instructions: string;
 }
 
 /** Response of starting a payment (API_SPEC.md §16.2). */
 export class PaymentStartDto {
+  /** El pago de la orden. */
+  @ApiProperty({ format: 'uuid' })
   paymentId: string;
 
+  /** `MANUAL`, el pago en la tienda. */
   @ApiProperty({ enum: PAYMENT_PROVIDERS })
   provider: string;
 
+  /** Siempre `PENDING`: el pago todavía no se hace. */
   @ApiProperty({ enum: ['PENDING'] })
   status: string;
 
+  /** El total de la orden. */
   @ApiProperty({ type: () => MoneyDto })
   amount: MoneyDto;
 
+  /** Lo que quien compra debe hacer para pagar. */
   @ApiProperty({ type: () => PaymentActionDto })
   action: PaymentActionDto;
 }

@@ -87,7 +87,11 @@ export class AdminShipmentsController {
     return toPageResponse(page, query, toAdminShipmentDto);
   }
 
-  @ApiOperation({ summary: 'Consultar un envío' })
+  @ApiOperation({
+    summary: 'Consultar un envío',
+    description:
+      'Con sus líneas, su destino, la paquetería y la guía, y las fechas de cada cambio de estado.',
+  })
   @ApiOkResponse({ type: AdminShipmentDto })
   @ApiProblemResponses('not-found')
   @RequirePermissions('shipping.manage')

@@ -601,6 +601,7 @@ describe('Categories and brands (e2e, T-150)', () => {
     ).toEqual({
       type: 'array',
       items: { $ref: '#/components/schemas/PublicCategoryDto' },
+      description: 'Subcategorías visibles.',
     });
   });
 });

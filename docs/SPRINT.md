@@ -91,6 +91,20 @@ A pedido del usuario, con el nuevo ADR-0156:
 - **Corrección:** `scripts/secrets-scan.ts` monta también el directorio de git compartido, y el escaneo falla si git, dentro del contenedor, no lee el mismo `HEAD`, o si gitleaks registra un error de git. Desde un worktree, el historial pasa de 0 a 261 commits revisados, y un secreto preparado se detecta.
 - **Sin cambios en gitleaks:** la misma imagen y los mismos argumentos en `package.json`; la CI sigue el mismo camino que un worktree.
 
+### Resultado del paso 2 (parte b)
+
+T-320 parte b; T-320 queda en DONE.
+
+- **Errores:** comparados ruta por ruta con `API_SPEC.md`, coinciden; lo que faltaba se corrigió en la parte a.
+- **Descripciones:**
+  - las 31 operaciones que solo tenían resumen;
+  - los 86 parámetros sin texto: 79 de ruta, con 20 nombres que se describen una vez cada uno, y 7 filtros;
+  - los 50 campos sin descripción de los cuerpos que envía el cliente;
+  - en las respuestas, los estados, montos, `null` y fechas que no se entienden por el nombre;
+  - 9 descripciones que estaban en inglés, ahora en español.
+- **Formatos y ejemplos:** 64 IDs más declaran `format: uuid`, 90 en total; los tokens de los enlaces y `Idempotency-Key` tienen ejemplo.
+- **Control:** la prueba de contrato exige descripción en toda operación, parámetro y campo que envía el cliente.
+
 ## Risks
 
 - **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.

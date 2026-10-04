@@ -54,6 +54,7 @@ export class ShipmentAddressDto {
   @ApiProperty(ANONYMIZED)
   exteriorNumber: string | null;
 
+  /** `null` sin número interior, o con los datos bloqueados o anonimizados. */
   @ApiProperty({ type: String, nullable: true })
   interiorNumber: string | null;
 
@@ -62,46 +63,66 @@ export class ShipmentAddressDto {
 
   postalCode: string;
 
+  /** Clave del INEGI del estado. */
   stateCode: string;
 
   stateName: string;
 
+  /** Clave del INEGI del municipio. */
   municipalityCode: string;
 
   municipalityName: string;
 
+  /** `null` si no se dio, o con los datos bloqueados o anonimizados. */
   @ApiProperty({ type: String, nullable: true })
   city: string | null;
 
+  /** `null` si no se dieron, o con los datos bloqueados o anonimizados. */
   @ApiProperty({ type: String, nullable: true })
   references: string | null;
 
-  /** @example 'MX' */
+  /**
+   * Siempre `MX` (ADR-0026).
+   * @example 'MX'
+   */
   country: string;
 }
 
 /** A line of the order that the shipment carries (API_SPEC.md §17). */
 export class ShipmentItemDto {
+  /** La línea de la orden. */
+  @ApiProperty({ format: 'uuid' })
   orderLineId: string;
 
   sku: string;
 
+  /** El nombre del producto al colocar la orden. */
   productName: string;
 
+  /** Unidades de la línea. */
   quantity: number;
 }
 
 /** `AdminShipment` of API_SPEC.md §17. */
 export class AdminShipmentDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** La orden del envío. */
+  @ApiProperty({ format: 'uuid' })
   orderId: string;
 
   /** Código público de la orden. @example 'K7M4-Q9XA' */
   orderCode: string;
 
+  /** El almacén desde el que sale. */
+  @ApiProperty({ format: 'uuid' })
   warehouseId: string;
 
+  /**
+   * `PENDING` hasta que sale; luego `DISPATCHED`, y `DELIVERED`, `DELIVERY_FAILED` o `RETURNED`. `CANCELLED` si se
+   * canceló la orden antes de salir.
+   */
   @ApiProperty({ enum: SHIPMENT_STATUSES })
   status: ShipmentStatus;
 
@@ -127,24 +148,30 @@ export class AdminShipmentDto {
   })
   items: ShipmentItemDto[];
 
+  /** La paquetería; `null` mientras no se capture o en una entrega de la tienda. */
   @ApiProperty({ type: String, nullable: true })
   carrierName: string | null;
 
+  /** El número de guía; `null` mientras no se capture o en una entrega de la tienda. */
   @ApiProperty({ type: String, nullable: true })
   trackingNumber: string | null;
 
   /** Entrega propia de la tienda, sin paquetería ni guía (ADR-0078). */
   ownDelivery: boolean;
 
+  /** Cuándo salió; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   dispatchedAt: Date | null;
 
+  /** Cuándo se entregó; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deliveredAt: Date | null;
 
+  /** Cuándo falló la entrega; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   failedAt: Date | null;
 
+  /** Cuándo regresó; `null` si no ha ocurrido. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   returnedAt: Date | null;
 

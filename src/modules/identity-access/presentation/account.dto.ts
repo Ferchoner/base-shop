@@ -25,8 +25,10 @@ import { StaffRoleDto } from './identity-admin.dto.js';
 
 /** The signed-in account (`Account`, API_SPEC.md §8.10). */
 export class AccountDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** `CUSTOMER` o `STAFF` (BR-USR-08). */
   @ApiProperty({ enum: ['CUSTOMER', 'STAFF'] })
   type: 'CUSTOMER' | 'STAFF';
 
@@ -39,16 +41,17 @@ export class AccountDto {
   /** @example 'López Hernández' */
   lastNames: string;
 
+  /** Si el email ya se verificó; un cliente lo necesita para comprar (BR-USR-05). */
   emailVerified: boolean;
 
-  /** Staff with a temporary password, who may only change it. */
+  /** Staff con contraseña temporal, que solo puede cambiarla. */
   mustChangePassword: boolean;
 
-  /** Staff roles; always empty for customers. */
+  /** Roles del staff; vacío en un cliente. */
   @ApiProperty({ type: () => [StaffRoleDto] })
   roles: StaffRoleDto[];
 
-  /** Permissions of the staff member's roles; always empty for customers. */
+  /** Permisos de los roles del staff; vacío en un cliente. */
   @ApiProperty({ type: String, enum: PERMISSION_CODES, isArray: true })
   permissions: PermissionCode[];
 
@@ -59,7 +62,7 @@ export class AccountDto {
 /** `POST /v1/me/password` (API_SPEC.md §9.12). */
 export class ChangePasswordDto {
   /**
-   * The current password; the temporary one for staff who must change it.
+   * La contraseña actual; la temporal, en el cambio obligatorio del staff.
    * @example 'una frase larga y segura'
    */
   @IsString()
@@ -68,8 +71,8 @@ export class ChangePasswordDto {
   currentPassword: string;
 
   /**
-   * 15 to 64 characters, not a common password and not the current one (ADR-0047). Checked by the password
-   * policy, which answers `password-policy-violation`.
+   * De 15 a 64 caracteres, no una contraseña común y distinta de la actual (ADR-0047). Si no cumple,
+   * `password-policy-violation`.
    * @example 'otra frase larga y distinta'
    */
   @IsString()
@@ -78,14 +81,20 @@ export class ChangePasswordDto {
 
 /** `PATCH /v1/me` (API_SPEC.md §9.11): only the fields sent change; neither accepts `null`. */
 export class UpdateAccountDto {
-  /** @example 'María José' */
+  /**
+   * Nombres, de 1 a 100 caracteres; no admite `null`.
+   * @example 'María José'
+   */
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 100)
   @Matches(/\S/, NOT_BLANK)
   firstNames?: string;
 
-  /** @example 'López Hernández' */
+  /**
+   * Apellidos, de 1 a 100 caracteres; no admite `null`.
+   * @example 'López Hernández'
+   */
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 100)
@@ -104,7 +113,10 @@ export class ChangeEmailDto {
   @MaxLength(254)
   newEmail: string;
 
-  /** @example 'una frase larga y segura' */
+  /**
+   * La contraseña actual, para confirmar el cambio.
+   * @example 'una frase larga y segura'
+   */
   @IsString()
   @IsNotEmpty()
   @MaxLength(PASSWORD_INPUT_MAX_LENGTH)

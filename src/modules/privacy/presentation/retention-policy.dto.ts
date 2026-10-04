@@ -23,15 +23,22 @@ export class PersonalDataRetentionDto {
 
 /** The technical audit trail, which records IPs and user agents (ADR-0037, ADR-0146). */
 export class AuditTrailRetentionDto {
-  /** @example 3 */
+  /**
+   * Meses en la base de datos, consultables con la API.
+   * @example 3
+   */
   databaseMonths: number;
 
-  /** @example 24 */
+  /**
+   * Meses en los archivos comprimidos, fuera de la API.
+   * @example 24
+   */
   archiveMonths: number;
 }
 
 /** Response of `GET /v1/privacy/retention-policy` (ADR-0149, ADR-0152). */
 export class RetentionPolicyDto {
+  /** El ciclo de los datos personales de órdenes y envíos (ADR-0151). */
   @ApiProperty({ type: () => PersonalDataRetentionDto })
   personalData: PersonalDataRetentionDto;
 
@@ -44,6 +51,7 @@ export class RetentionPolicyDto {
   })
   inactiveCustomerMonths: number | null;
 
+  /** Cuánto se conserva la auditoría (ADR-0146). */
   @ApiProperty({ type: () => AuditTrailRetentionDto })
   auditTrail: AuditTrailRetentionDto;
 

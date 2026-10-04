@@ -98,19 +98,30 @@ export class RetriedDeliveriesDto {
 
 /** `EventDelivery` of API_SPEC.md §22.1: the delivery of a domain event to one handler (ADR-0150). */
 export class EventDeliveryDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** El evento que se entrega. */
+  @ApiProperty({ format: 'uuid' })
   eventId: string;
 
-  /** @example 'PaymentCaptured' */
+  /**
+   * El tipo del evento.
+   * @example 'PaymentCaptured'
+   */
   eventType: string;
 
+  /** Cuándo ocurrió el evento. */
   @ApiProperty({ type: String, format: 'date-time' })
   occurredAt: Date;
 
-  /** @example 'PaymentCapturedHandler.onPaymentCaptured' */
+  /**
+   * El manejador que lo recibe, como clase y método.
+   * @example 'PaymentCapturedHandler.onPaymentCaptured'
+   */
   handler: string;
 
+  /** `PENDING` mientras le quedan intentos, `DELIVERED` al entregarse y `FAILED` al agotar los 8. */
   @ApiProperty({ enum: DELIVERY_STATUSES })
   status: DeliveryStatus;
 
@@ -132,6 +143,7 @@ export class EventDeliveryDto {
   })
   lastError: string | null;
 
+  /** Cuándo se entregó; `null` si no se ha entregado. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deliveredAt: Date | null;
 

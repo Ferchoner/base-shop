@@ -54,7 +54,11 @@ import { toRoleDto } from './identity-admin.mappers.js';
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
 @Controller('admin/identity/permissions')
 export class AdminPermissionsController {
-  @ApiOperation({ summary: 'Catálogo de permisos' })
+  @ApiOperation({
+    summary: 'Catálogo de permisos',
+    description:
+      'Los permisos del catálogo en código, con su descripción (ADR-0017): los únicos que puede tener un rol.',
+  })
   @ApiOkResponse({ type: PermissionListDto })
   @RequirePermissions('staff.manage')
   @Get()
@@ -81,7 +85,11 @@ export class AdminRolesController {
     private readonly deleteRole: DeleteRole,
   ) {}
 
-  @ApiOperation({ summary: 'Listar roles' })
+  @ApiOperation({
+    summary: 'Listar roles',
+    description:
+      'Paginado. Filtro por parte del nombre; orden por nombre, el predeterminado, o por fecha de alta. Cada rol dice cuántos miembros del staff lo tienen.',
+  })
   @ApiOkResponse({ type: RoleListDto })
   @Get()
   async list(@Query() query: RoleListQueryDto): Promise<RoleListDto> {
@@ -117,7 +125,11 @@ export class AdminRolesController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Consultar un rol' })
+  @ApiOperation({
+    summary: 'Consultar un rol',
+    description:
+      'Con sus permisos y cuántos miembros del staff lo tienen. El rol superadministrador tiene todos los permisos.',
+  })
   @ApiOkResponse({ type: RoleDto })
   @ApiProblemResponses('not-found')
   @Get(':roleId')
@@ -143,7 +155,11 @@ export class AdminRolesController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Borrar un rol sin usuarios' })
+  @ApiOperation({
+    summary: 'Borrar un rol sin usuarios',
+    description:
+      'Solo si ningún miembro del staff lo tiene (BR-USR-07). El rol superadministrador nunca se borra (BR-USR-03).',
+  })
   @ApiNoContentResponse()
   @ApiProblemResponses('not-found', 'resource-in-use', 'last-superadmin')
   @HttpCode(204)

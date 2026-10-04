@@ -59,19 +59,23 @@ export class StatusHistoryEntryDto {
   })
   fromStatus: OrderStatus | null;
 
+  /** El estado al que pasó. */
   @ApiProperty({ enum: ORDER_STATUSES })
   toStatus: OrderStatus;
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description: 'Staff o cliente; `null` si fue el sistema.',
   })
   actorId: string | null;
 
+  /** Motivo que dio el staff; `null` sin él. */
   @ApiProperty({ type: String, nullable: true })
   reason: string | null;
 
+  /** Cuándo ocurrió. */
   @ApiProperty({ type: String, format: 'date-time' })
   occurredAt: Date;
 }
@@ -99,6 +103,7 @@ export class AdminOrderAddressDto {
   @ApiProperty({ ...ANONYMIZED, example: '123' })
   exteriorNumber: string | null;
 
+  /** `null` sin número interior. */
   @ApiProperty({ type: String, nullable: true, example: '4B' })
   interiorNumber: string | null;
 
@@ -108,21 +113,29 @@ export class AdminOrderAddressDto {
   /** @example '58000' */
   postalCode: string;
 
-  /** @example '16' */
+  /**
+   * Clave del INEGI del estado.
+   * @example '16'
+   */
   stateCode: string;
 
   /** @example 'Michoacán de Ocampo' */
   stateName: string;
 
-  /** @example '16053' */
+  /**
+   * Clave del INEGI del municipio.
+   * @example '16053'
+   */
   municipalityCode: string;
 
   /** @example 'Morelia' */
   municipalityName: string;
 
+  /** `null` si no se dio. */
   @ApiProperty({ type: String, nullable: true, example: 'Morelia' })
   city: string | null;
 
+  /** `null` si no se dieron. */
   @ApiProperty({
     type: String,
     nullable: true,
@@ -130,12 +143,16 @@ export class AdminOrderAddressDto {
   })
   references: string | null;
 
-  /** @example 'MX' */
+  /**
+   * Siempre `MX` (ADR-0026).
+   * @example 'MX'
+   */
   country: string;
 }
 
 /** `AdminOrder` in a listing (API_SPEC.md §15.7): without lines nor history. */
 export class AdminOrderSummaryDto extends OrderFieldsDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({
@@ -157,6 +174,7 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description: '`null` si la orden es de un invitado.',
   })
@@ -165,6 +183,7 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   /** Versión para el bloqueo optimista. */
   version: number;
 
+  /** Cuándo se anonimizaron sus datos personales; `null` si no se han anonimizado (ADR-0070). */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   anonymizedAt: Date | null;
 
@@ -177,12 +196,14 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   })
   blockedAt: Date | null;
 
+  /** La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada. */
   @ApiProperty({ type: () => AdminOrderAddressDto })
   shippingAddress: AdminOrderAddressDto;
 }
 
 /** A line of `AdminOrder`: with its ID, which a restock names (ADR-0142). */
 export class AdminOrderLineDto extends OrderLineDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 }
 
@@ -339,8 +360,10 @@ export class RestockOrderDto {
 
 /** `StockMovement` of API_SPEC.md §13: a RESTOCK movement. */
 export class RestockMovementDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  @ApiProperty({ format: 'uuid' })
   stockItemId: string;
 
   @ApiProperty({ enum: ['RESTOCK'] })
@@ -349,21 +372,27 @@ export class RestockMovementDto {
   /** Unidades que regresaron. */
   quantity: number;
 
+  /** Unidades físicas después del reintegro. */
   onHandAfter: number;
 
+  /** `ORDER_CANCELLED` o `SHIPMENT_RETURNED`. */
   @ApiProperty({ enum: RESTOCK_REASONS })
   reasonCode: string | null;
 
+  /** Nota del staff; `null` sin ella. */
   @ApiProperty({ type: String, nullable: true })
   note: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  /** La orden del reintegro. */
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   orderId: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  /** La línea de la orden que se reintegra. */
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   orderLineId: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  /** Staff que lo registró. */
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   actorId: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
@@ -399,9 +428,13 @@ export class BlockedOrderDataRequestDto {
 
 /** Response of `POST /v1/admin/orders/{orderId}/blocked-data`: the personal data of the order, as it was saved. */
 export class BlockedOrderDataDto {
-  /** @example 'cliente@example.com' */
+  /**
+   * El email de contacto de la orden.
+   * @example 'cliente@example.com'
+   */
   contactEmail: string;
 
+  /** La dirección de envío de la orden. */
   @ApiProperty({ type: () => PostalAddressDto })
   shippingAddress: PostalAddressDto;
 

@@ -20,7 +20,11 @@ export class GeoCatalogController {
     private readonly cache: AppCache,
   ) {}
 
-  @ApiOperation({ summary: 'Estados de México (catálogo del INEGI)' })
+  @ApiOperation({
+    summary: 'Estados de México (catálogo del INEGI)',
+    description:
+      'Los 32 estados, por nombre, sin paginar. Datos de referencia que se pueden guardar en cache.',
+  })
   // Declared explicitly: the Swagger plugin infers it only when it has the type checker, as in
   // `nest build`, not in the tests (DEVELOPMENT_GUIDE.md).
   @ApiOkResponse({ type: GeoStateListDto })
@@ -33,7 +37,11 @@ export class GeoCatalogController {
     });
   }
 
-  @ApiOperation({ summary: 'Municipios activos de un estado' })
+  @ApiOperation({
+    summary: 'Municipios activos de un estado',
+    description:
+      'Solo los municipios vigentes, por nombre, sin paginar. Un estado que no existe responde 404.',
+  })
   @ApiOkResponse({ type: GeoMunicipalityListDto })
   @ApiProblemResponses('not-found')
   @Get('states/:stateCode/municipalities')

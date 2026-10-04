@@ -50,7 +50,11 @@ export class MeAddressesController {
     private readonly removeAddress: RemoveAddress,
   ) {}
 
-  @ApiOperation({ summary: 'Listar mis direcciones' })
+  @ApiOperation({
+    summary: 'Listar mis direcciones',
+    description:
+      'Todas, sin paginar: la predeterminada primero y después las más recientes. Un cliente tiene a lo sumo `MAX_ADDRESSES_PER_CUSTOMER` (10 por defecto).',
+  })
   @ApiOkResponse({ type: AddressListDto })
   @Get()
   async list(@CurrentUser() user: AuthenticatedUser): Promise<AddressListDto> {

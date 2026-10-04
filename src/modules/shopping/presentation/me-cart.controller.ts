@@ -90,7 +90,11 @@ export class MeCartController {
     return toCartDto(await this.views.customerCart(customer(user)));
   }
 
-  @ApiOperation({ summary: 'Cambiar la cantidad de un producto' })
+  @ApiOperation({
+    summary: 'Cambiar la cantidad de un producto',
+    description:
+      'Fija la cantidad de la línea, de 1 a 30 (BR-CRT-02); para quitarla se usa `DELETE`. Responde el carrito.',
+  })
   @ApiOkResponse({ type: CartDto })
   @ApiProblemResponses('not-found', 'variant-not-sellable', 'cart-not-active')
   @Patch('lines/:variantId')

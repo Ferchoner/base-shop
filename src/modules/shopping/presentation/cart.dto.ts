@@ -9,6 +9,7 @@ import { MAX_LINE_QUANTITY } from '../application/cart-limits.js';
 
 /** Request of `POST …/lines` (UC-CRT-02, API_SPEC.md §14.2). */
 export class AddCartLineDto {
+  /** Variante vendible: producto publicado, variante activa y precio vigente (BR-PRD-11). */
   @IsUUID('all')
   variantId: string;
 
@@ -42,6 +43,7 @@ export class MergeCartDto {
 }
 
 export class CartProductDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'camisa-lino-azul' */
@@ -53,21 +55,26 @@ export class CartProductDto {
 
 /** `Image` of API_SPEC.md §8.3: la imagen principal de la variante o, si no tiene, la del producto. */
 export class CartImageDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   url: string;
 
+  /** Texto alternativo; `null` sin él. */
   @ApiProperty({ type: String, nullable: true })
   altText: string | null;
 
+  /** Orden entre las imágenes del producto, desde 1. */
   position: number;
 
-  @ApiProperty({ type: String, nullable: true })
+  /** Variante que muestra; `null` si es del producto. */
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   variantId: string | null;
 }
 
 /** A line of `Cart` (API_SPEC.md §8.6). */
 export class CartLineDto {
+  @ApiProperty({ format: 'uuid' })
   variantId: string;
 
   /** @example 2 */
@@ -79,6 +86,7 @@ export class CartLineDto {
   /** @example 'CAM-LIN-AZ-M' */
   sku: string;
 
+  /** Los valores de las opciones de la variante, por nombre. */
   @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'string' },
@@ -86,6 +94,7 @@ export class CartLineDto {
   })
   options: Record<string, string>;
 
+  /** La imagen principal de la variante o, sin ella, la del producto (ADR-0131); `null` sin imágenes. */
   @ApiProperty({ type: () => CartImageDto, nullable: true })
   image: CartImageDto | null;
 
@@ -95,9 +104,11 @@ export class CartLineDto {
   /** Si la cantidad pedida puede surtirse, sin revelar existencias (ADR-0061). */
   canFulfill: boolean;
 
+  /** Precio vigente, con IVA; `null` si la línea no es vendible. */
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   unitPrice: MoneyDto | null;
 
+  /** Precio por cantidad; `null` si la línea no es vendible, y entonces no suma al subtotal. */
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   lineTotal: MoneyDto | null;
 }
@@ -106,12 +117,14 @@ export class CartLineDto {
 export class CartDto {
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description:
       '`null` en `GET /v1/me/cart` cuando el cliente aún no tiene carrito.',
   })
   id: string | null;
 
+  /** `ACTIVE`; `CHECKED_OUT` o `MERGED` dicen que ese carrito ya no se usa y hay que pasar a otro. */
   @ApiProperty({ enum: ['ACTIVE', 'CHECKED_OUT', 'MERGED'] })
   status: string;
 
@@ -125,6 +138,7 @@ export class CartDto {
   @ApiProperty({ type: () => MoneyDto })
   subtotal: MoneyDto;
 
+  /** El último cambio del carrito; `null` si el cliente aún no tiene uno. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastActivityAt: Date | null;
 }

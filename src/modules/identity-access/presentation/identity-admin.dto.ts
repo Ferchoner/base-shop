@@ -57,17 +57,20 @@ export class PermissionListDto {
 // --- Roles (API_SPEC.md §9.16) ---
 
 export class RoleDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Operador' */
   name: string;
 
+  /** `null` sin descripción. */
   @ApiProperty(NULLABLE_TEXT)
   description: string | null;
 
   /** El rol protegido por BR-USR-03; siempre tiene todos los permisos. */
   isSuperadmin: boolean;
 
+  /** Permisos del rol, del catálogo; todos en el rol superadministrador. */
   @ApiProperty({
     type: [String],
     enum: PERMISSION_CODES,
@@ -78,6 +81,7 @@ export class RoleDto {
   /** Staff con este rol. */
   userCount: number;
 
+  /** Versión para el bloqueo optimista: se envía al cambiarlo. */
   version: number;
 
   @ApiProperty(DATE_TIME)
@@ -109,12 +113,16 @@ export class RoleListQueryDto extends PageQueryDto {
 }
 
 export class CreateRoleDto {
-  /** @example 'Soporte' */
+  /**
+   * Nombre único, de 1 a 50 caracteres.
+   * @example 'Soporte'
+   */
   @IsString()
   @Length(1, 50)
   @Matches(/\S/, NOT_BLANK)
   name: string;
 
+  /** De 1 a 250 caracteres; opcional. */
   @ApiPropertyOptional({
     ...NULLABLE_TEXT,
     example: 'Atiende a clientes y consulta pedidos',
@@ -137,6 +145,7 @@ export class CreateRoleDto {
 }
 
 export class UpdateRoleDto {
+  /** Nombre único, de 1 a 50 caracteres. */
   @IsOptional()
   @IsString()
   @Length(1, 50)
@@ -173,6 +182,7 @@ export class UpdateRoleDto {
 // --- Staff (API_SPEC.md §9.17) ---
 
 export class StaffRoleDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Operador' */
@@ -180,6 +190,7 @@ export class StaffRoleDto {
 }
 
 export class StaffUserDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'ana.perez@example.com' */
@@ -189,6 +200,7 @@ export class StaffUserDto {
 
   lastNames: string;
 
+  /** `ACTIVE` o `SUSPENDED`; el staff suspendido no inicia sesión. */
   @ApiProperty({ enum: ['ACTIVE', 'SUSPENDED'] })
   status: string;
 
@@ -198,9 +210,11 @@ export class StaffUserDto {
   @ApiProperty({ type: () => [StaffRoleDto] })
   roles: StaffRoleDto[];
 
+  /** Último inicio de sesión; `null` si nunca entró. */
   @ApiProperty(NULLABLE_DATE_TIME)
   lastLoginAt: Date | null;
 
+  /** Versión para el bloqueo optimista: se envía al cambiarlo. */
   version: number;
 
   @ApiProperty(DATE_TIME)
@@ -275,13 +289,19 @@ export class CreateStaffDto {
   @MaxLength(254)
   email: string;
 
-  /** @example 'Ana' */
+  /**
+   * Nombres, de 1 a 100 caracteres.
+   * @example 'Ana'
+   */
   @IsString()
   @Length(1, 100)
   @Matches(/\S/, NOT_BLANK)
   firstNames: string;
 
-  /** @example 'Pérez Gómez' */
+  /**
+   * Apellidos, de 1 a 100 caracteres.
+   * @example 'Pérez Gómez'
+   */
   @IsString()
   @Length(1, 100)
   @Matches(/\S/, NOT_BLANK)
@@ -333,6 +353,7 @@ export class ReasonDto {
 // --- Customers (API_SPEC.md §9.18) ---
 
 export class AdminCustomerDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({
@@ -341,12 +362,15 @@ export class AdminCustomerDto {
   })
   email: string | null;
 
+  /** `null` en un cliente anonimizado. */
   @ApiProperty(NULLABLE_TEXT)
   firstNames: string | null;
 
+  /** `null` en un cliente anonimizado. */
   @ApiProperty(NULLABLE_TEXT)
   lastNames: string | null;
 
+  /** `ACTIVE`, `SUSPENDED` o `ANONYMIZED`. Un cliente anonimizado no vuelve a estar activo (ADR-0076). */
   @ApiProperty({ enum: USER_STATUSES })
   status: string;
 
@@ -355,12 +379,15 @@ export class AdminCustomerDto {
   @ApiProperty(DATE_TIME)
   createdAt: Date;
 
+  /** Último inicio de sesión; `null` si nunca entró. */
   @ApiProperty(NULLABLE_DATE_TIME)
   lastLoginAt: Date | null;
 
+  /** Cuándo se anonimizó la cuenta; `null` si no se ha anonimizado. */
   @ApiProperty(NULLABLE_DATE_TIME)
   anonymizedAt: Date | null;
 
+  /** Versión para el bloqueo optimista: se envía al cambiarlo. */
   version: number;
 
   @ApiPropertyOptional({
@@ -396,6 +423,7 @@ export class CustomerListQueryDto extends PageQueryDto {
   @IsIn(USER_STATUSES, { each: true })
   status?: ('ACTIVE' | 'SUSPENDED' | 'ANONYMIZED')[];
 
+  /** `true`, solo los clientes con el email verificado; `false`, solo los que no lo han verificado. */
   @ApiPropertyOptional({ type: Boolean })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>

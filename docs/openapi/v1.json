@@ -12,6 +12,7 @@
             "type": "string"
           },
           "emailVerified": {
+            "description": "Si el email ya se verificó; un cliente lo necesita para comprar (BR-USR-05).",
             "type": "boolean"
           },
           "firstNames": {
@@ -19,6 +20,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "lastNames": {
@@ -26,11 +28,11 @@
             "type": "string"
           },
           "mustChangePassword": {
-            "description": "Staff with a temporary password, who may only change it.",
+            "description": "Staff con contraseña temporal, que solo puede cambiarla.",
             "type": "boolean"
           },
           "permissions": {
-            "description": "Permissions of the staff member's roles; always empty for customers.",
+            "description": "Permisos de los roles del staff; vacío en un cliente.",
             "items": {
               "enum": [
                 "catalog.read",
@@ -56,13 +58,14 @@
             "type": "array"
           },
           "roles": {
-            "description": "Staff roles; always empty for customers.",
+            "description": "Roles del staff; vacío en un cliente.",
             "items": {
               "$ref": "#/components/schemas/StaffRoleDto"
             },
             "type": "array"
           },
           "type": {
+            "description": "`CUSTOMER` o `STAFF` (BR-USR-08).",
             "enum": [
               "CUSTOMER",
               "STAFF"
@@ -71,11 +74,11 @@
           }
         },
         "required": [
+          "id",
           "type",
           "roles",
           "permissions",
           "createdAt",
-          "id",
           "email",
           "firstNames",
           "lastNames",
@@ -94,6 +97,7 @@
             "type": "number"
           },
           "variantId": {
+            "description": "Variante vendible: producto publicado, variante activa y precio vigente (BR-PRD-11).",
             "format": "uuid",
             "type": "string"
           }
@@ -107,11 +111,13 @@
       "AddressDto": {
         "properties": {
           "city": {
+            "description": "Ciudad o localidad; `null` si no se dio.",
             "example": "Morelia",
             "nullable": true,
             "type": "string"
           },
           "country": {
+            "description": "Siempre `MX`: la tienda solo envía a México (ADR-0026).",
             "example": "MX",
             "type": "string"
           },
@@ -124,17 +130,21 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "interiorNumber": {
+            "description": "`null` sin número interior.",
             "example": "4B",
             "nullable": true,
             "type": "string"
           },
           "isDefault": {
+            "description": "La dirección predeterminada del cliente; solo una lo es.",
             "type": "boolean"
           },
           "municipalityCode": {
+            "description": "Clave del INEGI del municipio.",
             "example": "16053",
             "type": "string"
           },
@@ -159,11 +169,13 @@
             "type": "string"
           },
           "references": {
+            "description": "Referencias para encontrar el domicilio; `null` si no se dieron.",
             "example": "Entre Galeana e Hidalgo",
             "nullable": true,
             "type": "string"
           },
           "stateCode": {
+            "description": "Clave del INEGI del estado.",
             "example": "16",
             "type": "string"
           },
@@ -184,9 +196,9 @@
           "interiorNumber",
           "city",
           "references",
+          "id",
           "createdAt",
           "updatedAt",
-          "id",
           "isDefault",
           "recipientName",
           "phone",
@@ -205,6 +217,7 @@
       "AddressInputDto": {
         "properties": {
           "city": {
+            "description": "Ciudad o localidad, de 1 a 120 caracteres; opcional.",
             "example": "Morelia",
             "maxLength": 120,
             "minLength": 1,
@@ -220,6 +233,7 @@
             "type": "string"
           },
           "interiorNumber": {
+            "description": "De 1 a 20 caracteres; opcional.",
             "example": "4B",
             "maxLength": 20,
             "minLength": 1,
@@ -261,6 +275,7 @@
             "type": "string"
           },
           "references": {
+            "description": "Referencias para encontrar el domicilio, hasta 250 caracteres; opcional.",
             "example": "Entre Galeana e Hidalgo",
             "maxLength": 250,
             "minLength": 1,
@@ -274,6 +289,7 @@
             "type": "string"
           },
           "street": {
+            "description": "Calle, de 1 a 150 caracteres.",
             "example": "Av. Madero Poniente",
             "maxLength": 150,
             "minLength": 1,
@@ -311,6 +327,7 @@
       "AdjustmentDto": {
         "properties": {
           "note": {
+            "description": "Nota del ajuste; obligatoria con el motivo `OTHER`.",
             "example": "Caja mojada",
             "maxLength": 500,
             "nullable": true,
@@ -329,6 +346,7 @@
             "type": "string"
           },
           "variantId": {
+            "description": "La variante que se ajusta, en cualquier estado.",
             "format": "uuid",
             "type": "string"
           },
@@ -352,6 +370,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -367,6 +386,7 @@
             "type": "string"
           },
           "status": {
+            "description": "`ACTIVE` o `INACTIVE`; la tienda solo muestra las activas.",
             "enum": [
               "ACTIVE",
               "INACTIVE"
@@ -379,10 +399,10 @@
           }
         },
         "required": [
+          "id",
           "status",
           "createdAt",
           "updatedAt",
-          "id",
           "name",
           "slug",
           "productCount"
@@ -418,6 +438,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -426,6 +447,7 @@
           },
           "parentId": {
             "description": "`null` en una categoría raíz.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
@@ -442,6 +464,7 @@
             "type": "string"
           },
           "status": {
+            "description": "`ACTIVE` o `INACTIVE`; la tienda muestra una categoría si ella y todos sus ancestros están activos (ADR-0080).",
             "enum": [
               "ACTIVE",
               "INACTIVE"
@@ -454,11 +477,11 @@
           }
         },
         "required": [
+          "id",
           "parentId",
           "status",
           "createdAt",
           "updatedAt",
-          "id",
           "name",
           "slug",
           "position",
@@ -474,6 +497,7 @@
             "type": "number"
           },
           "children": {
+            "description": "Subcategorías, también las inactivas.",
             "items": {
               "$ref": "#/components/schemas/AdminCategoryNodeDto"
             },
@@ -484,6 +508,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -492,6 +517,7 @@
           },
           "parentId": {
             "description": "`null` en una categoría raíz.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
@@ -508,6 +534,7 @@
             "type": "string"
           },
           "status": {
+            "description": "`ACTIVE` o `INACTIVE`; la tienda muestra una categoría si ella y todos sus ancestros están activos (ADR-0080).",
             "enum": [
               "ACTIVE",
               "INACTIVE"
@@ -520,12 +547,12 @@
           }
         },
         "required": [
+          "id",
           "parentId",
           "status",
           "createdAt",
           "updatedAt",
           "children",
-          "id",
           "name",
           "slug",
           "position",
@@ -558,6 +585,7 @@
             "type": "array"
           },
           "anonymizedAt": {
+            "description": "Cuándo se anonimizó la cuenta; `null` si no se ha anonimizado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -575,22 +603,27 @@
             "type": "boolean"
           },
           "firstNames": {
+            "description": "`null` en un cliente anonimizado.",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "lastLoginAt": {
+            "description": "Último inicio de sesión; `null` si nunca entró.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "lastNames": {
+            "description": "`null` en un cliente anonimizado.",
             "nullable": true,
             "type": "string"
           },
           "status": {
+            "description": "`ACTIVE`, `SUSPENDED` o `ANONYMIZED`. Un cliente anonimizado no vuelve a estar activo (ADR-0076).",
             "enum": [
               "ACTIVE",
               "SUSPENDED",
@@ -599,10 +632,12 @@
             "type": "string"
           },
           "version": {
+            "description": "Versión para el bloqueo optimista: se envía al cambiarlo.",
             "type": "number"
           }
         },
         "required": [
+          "id",
           "email",
           "firstNames",
           "lastNames",
@@ -610,7 +645,6 @@
           "createdAt",
           "lastLoginAt",
           "anonymizedAt",
-          "id",
           "emailVerified",
           "version"
         ],
@@ -619,11 +653,13 @@
       "AdminOrderAddressDto": {
         "properties": {
           "city": {
+            "description": "`null` si no se dio.",
             "example": "Morelia",
             "nullable": true,
             "type": "string"
           },
           "country": {
+            "description": "Siempre `MX` (ADR-0026).",
             "example": "MX",
             "type": "string"
           },
@@ -634,11 +670,13 @@
             "type": "string"
           },
           "interiorNumber": {
+            "description": "`null` sin número interior.",
             "example": "4B",
             "nullable": true,
             "type": "string"
           },
           "municipalityCode": {
+            "description": "Clave del INEGI del municipio.",
             "example": "16053",
             "type": "string"
           },
@@ -669,11 +707,13 @@
             "type": "string"
           },
           "references": {
+            "description": "`null` si no se dieron.",
             "example": "Entre Galeana e Hidalgo",
             "nullable": true,
             "type": "string"
           },
           "stateCode": {
+            "description": "Clave del INEGI del estado.",
             "example": "16",
             "type": "string"
           },
@@ -709,6 +749,7 @@
       "AdminOrderDto": {
         "properties": {
           "anonymizedAt": {
+            "description": "Cuándo se anonimizaron sus datos personales; `null` si no se han anonimizado (ADR-0070).",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -720,6 +761,7 @@
             "type": "string"
           },
           "cancelledAt": {
+            "description": "Cuándo se canceló; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -732,29 +774,48 @@
           },
           "customerId": {
             "description": "`null` si la orden es de un invitado.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "discountTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Siempre 0 en el MVP."
           },
           "estimatedDelivery": {
-            "$ref": "#/components/schemas/EstimatedDeliveryDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedDeliveryDto"
+              }
+            ],
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
           },
           "expiredAt": {
+            "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "grandTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total por pagar: subtotal más envío menos descuento."
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "itemCount": {
@@ -773,6 +834,7 @@
             "type": "number"
           },
           "paidAt": {
+            "description": "Cuándo se pagó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -794,14 +856,17 @@
             "type": "string"
           },
           "placedAt": {
+            "description": "Cuándo se colocó.",
             "format": "date-time",
             "type": "string"
           },
           "publicCode": {
+            "description": "Código público: con él y el email, quien compra consulta su pedido.",
             "example": "K7M4-Q9XA",
             "type": "string"
           },
           "refundedAt": {
+            "description": "Cuándo se completó su reembolso; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -817,20 +882,37 @@
             "type": "object"
           },
           "shippedAt": {
+            "description": "Cuándo salió su envío; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "shippingAddress": {
-            "$ref": "#/components/schemas/AdminOrderAddressDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminOrderAddressDto"
+              }
+            ],
+            "description": "La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada."
           },
           "shippingCost": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Con IVA; 0 con envío gratis."
           },
           "shippingTaxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `shippingCost`."
           },
           "status": {
+            "description": "`PENDING_PAYMENT` espera su pago hasta `paymentDueAt`, y si no llega pasa a `EXPIRED`.\n`AWAITING_MANUAL_FULFILLMENT` se pagó sin stock suficiente y espera surtido (ADR-0012). `REFUNDED`, cancelada y\nreembolsada.",
             "enum": [
               "PENDING_PAYMENT",
               "PAID",
@@ -851,10 +933,20 @@
             "type": "array"
           },
           "subtotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Suma de las líneas, con IVA."
           },
           "taxTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Informativo: IVA contenido en el subtotal y en el envío."
           },
           "version": {
             "description": "Versión para el bloqueo optimista.",
@@ -879,6 +971,7 @@
           "cancelledAt",
           "expiredAt",
           "refundedAt",
+          "id",
           "payment",
           "shipment",
           "customerId",
@@ -887,7 +980,6 @@
           "shippingAddress",
           "lines",
           "statusHistory",
-          "id",
           "orderNumber",
           "version",
           "publicCode",
@@ -898,16 +990,24 @@
       "AdminOrderLineDto": {
         "properties": {
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "lineNumber": {
+            "description": "Número de la línea en la orden, desde 1.",
             "example": 1,
             "type": "number"
           },
           "lineTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio por cantidad, con IVA."
           },
           "productName": {
+            "description": "El nombre del producto al colocar la orden.",
             "example": "Camisa de lino",
             "type": "string"
           },
@@ -920,7 +1020,12 @@
             "type": "string"
           },
           "taxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `lineTotal`."
           },
           "taxRateBp": {
             "description": "Tasa de IVA en puntos base.",
@@ -928,12 +1033,18 @@
             "type": "number"
           },
           "unitPrice": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio con IVA al colocar la orden; no cambia aunque cambie el precio."
           },
           "variantOptions": {
             "additionalProperties": {
               "type": "string"
             },
+            "description": "Las opciones de la variante al colocar la orden.",
             "example": {
               "talla": "M"
             },
@@ -945,12 +1056,12 @@
           "unitPrice",
           "taxAmount",
           "lineTotal",
+          "id",
           "lineNumber",
           "sku",
           "productName",
           "quantity",
-          "taxRateBp",
-          "id"
+          "taxRateBp"
         ],
         "type": "object"
       },
@@ -983,17 +1094,25 @@
             "description": "El total de la orden."
           },
           "capturedAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo cobrado; 0 mientras no se cobra."
           },
           "capturedAt": {
+            "description": "Cuándo se cobró; `null` si no se ha cobrado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "provider": {
+            "description": "`MANUAL` es el pago en la tienda (ADR-0055); PayPal aún no está habilitado (ADR-0040).",
             "enum": [
               "MANUAL",
               "PAYPAL"
@@ -1001,15 +1120,22 @@
             "type": "string"
           },
           "refundedAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo reembolsado hasta ahora, de los reembolsos completados."
           },
           "refunds": {
+            "description": "Sus reembolsos, del más antiguo al más reciente.",
             "items": {
               "$ref": "#/components/schemas/OrderRefundDto"
             },
             "type": "array"
           },
           "status": {
+            "description": "Estado del pago: `PENDING` mientras no se paga, `CAPTURED` al cobrarse, y `PARTIALLY_REFUNDED` o `REFUNDED` según\nsus reembolsos.",
             "enum": [
               "PENDING",
               "REQUIRES_ACTION",
@@ -1026,38 +1152,44 @@
         "required": [
           "provider",
           "status",
+          "id",
           "amount",
           "capturedAmount",
           "refundedAmount",
           "capturedAt",
-          "refunds",
-          "id"
+          "refunds"
         ],
         "type": "object"
       },
       "AdminOrderShipmentDto": {
         "properties": {
           "carrierName": {
+            "description": "La paquetería; `null` mientras no se capture o en una entrega de la tienda.",
             "nullable": true,
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "dispatchedAt": {
+            "description": "Cuándo salió; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "ownDelivery": {
+            "description": "Si lo entrega la tienda, sin paquetería (ADR-0078).",
             "type": "boolean"
           },
           "status": {
+            "description": "`PENDING` hasta que sale; luego `DISPATCHED`, y `DELIVERED`, `DELIVERY_FAILED` o `RETURNED`. `CANCELLED` si se\ncanceló la orden antes de salir.",
             "enum": [
               "PENDING",
               "DISPATCHED",
@@ -1069,6 +1201,7 @@
             "type": "string"
           },
           "trackingNumber": {
+            "description": "El número de guía; `null` mientras no se capture o en una entrega de la tienda.",
             "nullable": true,
             "type": "string"
           },
@@ -1083,15 +1216,16 @@
           "trackingNumber",
           "dispatchedAt",
           "deliveredAt",
-          "ownDelivery",
           "id",
-          "version"
+          "version",
+          "ownDelivery"
         ],
         "type": "object"
       },
       "AdminOrderSummaryDto": {
         "properties": {
           "anonymizedAt": {
+            "description": "Cuándo se anonimizaron sus datos personales; `null` si no se han anonimizado (ADR-0070).",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1103,6 +1237,7 @@
             "type": "string"
           },
           "cancelledAt": {
+            "description": "Cuándo se canceló; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1115,29 +1250,48 @@
           },
           "customerId": {
             "description": "`null` si la orden es de un invitado.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "discountTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Siempre 0 en el MVP."
           },
           "estimatedDelivery": {
-            "$ref": "#/components/schemas/EstimatedDeliveryDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedDeliveryDto"
+              }
+            ],
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
           },
           "expiredAt": {
+            "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "grandTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total por pagar: subtotal más envío menos descuento."
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "itemCount": {
@@ -1150,6 +1304,7 @@
             "type": "number"
           },
           "paidAt": {
+            "description": "Cuándo se pagó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1171,14 +1326,17 @@
             "type": "string"
           },
           "placedAt": {
+            "description": "Cuándo se colocó.",
             "format": "date-time",
             "type": "string"
           },
           "publicCode": {
+            "description": "Código público: con él y el email, quien compra consulta su pedido.",
             "example": "K7M4-Q9XA",
             "type": "string"
           },
           "refundedAt": {
+            "description": "Cuándo se completó su reembolso; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1194,20 +1352,37 @@
             "type": "object"
           },
           "shippedAt": {
+            "description": "Cuándo salió su envío; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "shippingAddress": {
-            "$ref": "#/components/schemas/AdminOrderAddressDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminOrderAddressDto"
+              }
+            ],
+            "description": "La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada."
           },
           "shippingCost": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Con IVA; 0 con envío gratis."
           },
           "shippingTaxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `shippingCost`."
           },
           "status": {
+            "description": "`PENDING_PAYMENT` espera su pago hasta `paymentDueAt`, y si no llega pasa a `EXPIRED`.\n`AWAITING_MANUAL_FULFILLMENT` se pagó sin stock suficiente y espera surtido (ADR-0012). `REFUNDED`, cancelada y\nreembolsada.",
             "enum": [
               "PENDING_PAYMENT",
               "PAID",
@@ -1221,10 +1396,20 @@
             "type": "string"
           },
           "subtotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Suma de las líneas, con IVA."
           },
           "taxTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Informativo: IVA contenido en el subtotal y en el envío."
           },
           "version": {
             "description": "Versión para el bloqueo optimista.",
@@ -1249,13 +1434,13 @@
           "cancelledAt",
           "expiredAt",
           "refundedAt",
+          "id",
           "payment",
           "shipment",
           "customerId",
           "anonymizedAt",
           "blockedAt",
           "shippingAddress",
-          "id",
           "orderNumber",
           "version",
           "publicCode",
@@ -1281,9 +1466,15 @@
             "type": "array"
           },
           "capturedAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo cobrado; 0 mientras no se cobra."
           },
           "capturedAt": {
+            "description": "Cuándo se cobró; `null` si no se ha cobrado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1293,6 +1484,7 @@
             "type": "string"
           },
           "currency": {
+            "description": "Siempre `MXN` (ADR-0026).",
             "enum": [
               "MXN"
             ],
@@ -1300,6 +1492,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "orderCode": {
@@ -1308,9 +1501,12 @@
             "type": "string"
           },
           "orderId": {
+            "description": "La orden del pago.",
+            "format": "uuid",
             "type": "string"
           },
           "provider": {
+            "description": "`MANUAL` es el pago en la tienda (ADR-0055); PayPal aún no está habilitado (ADR-0040).",
             "enum": [
               "MANUAL",
               "PAYPAL"
@@ -1318,19 +1514,27 @@
             "type": "string"
           },
           "providerPaymentId": {
+            "description": "El ID del pago en el proveedor; `null` en un pago en la tienda.",
             "nullable": true,
             "type": "string"
           },
           "refundedAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo reembolsado, de los reembolsos completados."
           },
           "refunds": {
+            "description": "Del más antiguo al más reciente.",
             "items": {
               "$ref": "#/components/schemas/RefundDto"
             },
             "type": "array"
           },
           "status": {
+            "description": "Estado del pago: `PENDING` mientras no se cobra, `CAPTURED` al cobrarse, y `PARTIALLY_REFUNDED` o `REFUNDED` según\nsus reembolsos.",
             "enum": [
               "PENDING",
               "REQUIRES_ACTION",
@@ -1353,6 +1557,8 @@
           }
         },
         "required": [
+          "id",
+          "orderId",
           "provider",
           "status",
           "amount",
@@ -1365,8 +1571,6 @@
           "refunds",
           "createdAt",
           "updatedAt",
-          "id",
-          "orderId",
           "orderCode",
           "version"
         ],
@@ -1393,6 +1597,7 @@
       "AdminProductDto": {
         "properties": {
           "archivedAt": {
+            "description": "Cuándo se archivó; `null` si no está archivado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1403,6 +1608,7 @@
                 "$ref": "#/components/schemas/NamedReferenceDto"
               }
             ],
+            "description": "`null` sin marca.",
             "nullable": true,
             "type": "object"
           },
@@ -1422,11 +1628,13 @@
             "type": "string"
           },
           "firstPublishedAt": {
+            "description": "Su primera publicación. Desde ella, el slug y las opciones de las variantes no cambian (ADR-0068); `null` si nunca\nse publicó.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "images": {
@@ -1436,6 +1644,7 @@
             "type": "array"
           },
           "publishedAt": {
+            "description": "Desde cuándo está publicado; `null` si no lo está.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1445,6 +1654,7 @@
             "type": "string"
           },
           "status": {
+            "description": "`DRAFT`, `PUBLISHED` o `ARCHIVED`.",
             "enum": [
               "DRAFT",
               "PUBLISHED",
@@ -1476,10 +1686,12 @@
             "type": "array"
           },
           "version": {
+            "description": "Versión para el bloqueo optimista: se envía al cambiarlo.",
             "type": "number"
           }
         },
         "required": [
+          "id",
           "brand",
           "categories",
           "status",
@@ -1491,7 +1703,6 @@
           "archivedAt",
           "createdAt",
           "updatedAt",
-          "id",
           "title",
           "slug",
           "version"
@@ -1531,6 +1742,7 @@
             "type": "string"
           },
           "carrierName": {
+            "description": "La paquetería; `null` mientras no se capture o en una entrega de la tienda.",
             "nullable": true,
             "type": "string"
           },
@@ -1539,6 +1751,7 @@
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1552,11 +1765,13 @@
             "description": "Sin quién recibe ni dónde exactamente cuando los datos de la orden están bloqueados o anonimizados (ADR-0070)."
           },
           "dispatchedAt": {
+            "description": "Cuándo salió; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "failedAt": {
+            "description": "Cuándo falló la entrega; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1567,6 +1782,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "items": {
@@ -1582,6 +1798,8 @@
             "type": "string"
           },
           "orderId": {
+            "description": "La orden del envío.",
+            "format": "uuid",
             "type": "string"
           },
           "ownDelivery": {
@@ -1594,11 +1812,13 @@
             "type": "string"
           },
           "returnedAt": {
+            "description": "Cuándo regresó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "status": {
+            "description": "`PENDING` hasta que sale; luego `DISPATCHED`, y `DELIVERED`, `DELIVERY_FAILED` o `RETURNED`. `CANCELLED` si se\ncanceló la orden antes de salir.",
             "enum": [
               "PENDING",
               "DISPATCHED",
@@ -1610,6 +1830,7 @@
             "type": "string"
           },
           "trackingNumber": {
+            "description": "El número de guía; `null` mientras no se capture o en una entrega de la tienda.",
             "nullable": true,
             "type": "string"
           },
@@ -1618,10 +1839,15 @@
             "type": "number"
           },
           "warehouseId": {
+            "description": "El almacén desde el que sale.",
+            "format": "uuid",
             "type": "string"
           }
         },
         "required": [
+          "id",
+          "orderId",
+          "warehouseId",
           "status",
           "destination",
           "blockedAt",
@@ -1636,10 +1862,7 @@
           "failureNote",
           "returnNote",
           "createdAt",
-          "id",
-          "orderId",
           "orderCode",
-          "warehouseId",
           "ownDelivery",
           "version"
         ],
@@ -1670,13 +1893,16 @@
             "type": "boolean"
           },
           "heightCm": {
+            "description": "Centímetros, un decimal; `null` si no se dio.",
             "nullable": true,
             "type": "number"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "lengthCm": {
+            "description": "Centímetros, un decimal; `null` si no se dio.",
             "nullable": true,
             "type": "number"
           },
@@ -1684,6 +1910,7 @@
             "additionalProperties": {
               "type": "string"
             },
+            "description": "Sus valores de las opciones del producto, por nombre.",
             "example": {
               "color": "Azul",
               "talla": "M"
@@ -1695,6 +1922,7 @@
             "type": "string"
           },
           "status": {
+            "description": "`ACTIVE` o `DISCONTINUED`; una descontinuada no se vende.",
             "enum": [
               "ACTIVE",
               "DISCONTINUED"
@@ -1702,22 +1930,24 @@
             "type": "string"
           },
           "weightGrams": {
+            "description": "Gramos; `null` si no se dio.",
             "nullable": true,
             "type": "number"
           },
           "widthCm": {
+            "description": "Centímetros, un decimal; `null` si no se dio.",
             "nullable": true,
             "type": "number"
           }
         },
         "required": [
+          "id",
           "options",
           "status",
           "weightGrams",
           "lengthCm",
           "widthCm",
           "heightCm",
-          "id",
           "sku",
           "editableIdentity"
         ],
@@ -1781,15 +2011,18 @@
       "AuditEntryDto": {
         "properties": {
           "action": {
+            "description": "Código de la acción, como `orders.cancel`.",
             "example": "orders.cancel",
             "type": "string"
           },
           "actorId": {
             "description": "El usuario, cuando `actorType` es USER.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
           "actorType": {
+            "description": "Quién actuó: `USER` con sesión, `SYSTEM` en jobs y eventos, o `ANONYMOUS` sin sesión.",
             "enum": [
               "USER",
               "SYSTEM",
@@ -1810,13 +2043,16 @@
             "type": "object"
           },
           "correlationId": {
+            "description": "El identificador de la solicitud (`X-Correlation-Id`) o del job; `null` si no hubo.",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "ip": {
+            "description": "IP de la solicitud; `null` fuera de una.",
             "example": "203.0.113.7",
             "nullable": true,
             "type": "string"
@@ -1831,15 +2067,18 @@
             "type": "string"
           },
           "resourceId": {
+            "description": "ID del recurso; `null` si la acción no tiene uno.",
             "nullable": true,
             "type": "string"
           },
           "resourceType": {
+            "description": "Tipo del recurso; `null` si la acción no tiene uno.",
             "example": "order",
             "nullable": true,
             "type": "string"
           },
           "result": {
+            "description": "`SUCCESS`, `DENIED` o `FAILED`.",
             "enum": [
               "SUCCESS",
               "DENIED",
@@ -1848,11 +2087,13 @@
             "type": "string"
           },
           "userAgent": {
+            "description": "Navegador o cliente de la solicitud; `null` fuera de una.",
             "nullable": true,
             "type": "string"
           }
         },
         "required": [
+          "id",
           "occurredAt",
           "actorType",
           "actorId",
@@ -1864,7 +2105,6 @@
           "userAgent",
           "changes",
           "reason",
-          "id",
           "action"
         ],
         "type": "object"
@@ -1891,10 +2131,12 @@
       "AuditTrailRetentionDto": {
         "properties": {
           "archiveMonths": {
+            "description": "Meses en los archivos comprimidos, fuera de la API.",
             "example": 24,
             "type": "number"
           },
           "databaseMonths": {
+            "description": "Meses en la base de datos, consultables con la API.",
             "example": 3,
             "type": "number"
           }
@@ -1908,19 +2150,21 @@
       "AuthResultDto": {
         "properties": {
           "accessToken": {
+            "description": "Token de acceso (JWT) para el encabezado `Authorization: Bearer`.",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…",
             "type": "string"
           },
           "accessTokenExpiresIn": {
-            "description": "Seconds until the access token expires.",
+            "description": "Segundos hasta que vence el token de acceso.",
             "example": 900,
             "type": "number"
           },
           "mustChangePassword": {
-            "description": "Staff with a temporary password: the token only allows `GET /v1/me`, `POST /v1/me/password` and logout.",
+            "description": "Staff con contraseña temporal: el token solo permite `GET /v1/me`, `POST /v1/me/password` y cerrar sesión.",
             "type": "boolean"
           },
           "outcome": {
+            "description": "Cómo terminó el inicio de sesión. Hoy siempre `AUTHENTICATED`; un segundo factor agregaría otro resultado\n(ADR-0048).",
             "enum": [
               "AUTHENTICATED"
             ],
@@ -1928,15 +2172,17 @@
             "type": "string"
           },
           "refreshToken": {
+            "description": "Token para renovar la sesión con `POST /v1/auth/refresh`. Cada renovación entrega otro y el usado deja de servir;\npresentar uno usado revoca la sesión (ADR-0023).",
             "example": "rt_2Qm9…",
             "type": "string"
           },
           "refreshTokenExpiresIn": {
-            "description": "Seconds until the refresh token expires unless it is used first.",
+            "description": "Segundos hasta que vence el refresh token, si no se usa antes.",
             "example": 604800,
             "type": "number"
           },
           "tokenType": {
+            "description": "Esquema del encabezado `Authorization`.",
             "enum": [
               "Bearer"
             ],
@@ -1958,6 +2204,7 @@
       "BlockedOrderDataDto": {
         "properties": {
           "contactEmail": {
+            "description": "El email de contacto de la orden.",
             "example": "cliente@example.com",
             "type": "string"
           },
@@ -1972,7 +2219,12 @@
             "type": "object"
           },
           "shippingAddress": {
-            "$ref": "#/components/schemas/PostalAddressDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostalAddressDto"
+              }
+            ],
+            "description": "La dirección de envío de la orden."
           }
         },
         "required": [
@@ -2028,6 +2280,7 @@
         "properties": {
           "id": {
             "description": "`null` en `GET /v1/me/cart` cuando el cliente aún no tiene carrito.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
@@ -2036,6 +2289,7 @@
             "type": "number"
           },
           "lastActivityAt": {
+            "description": "El último cambio del carrito; `null` si el cliente aún no tiene uno.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -2047,6 +2301,7 @@
             "type": "array"
           },
           "status": {
+            "description": "`ACTIVE`; `CHECKED_OUT` o `MERGED` dicen que ese carrito ya no se usa y hay que pasar a otro.",
             "enum": [
               "ACTIVE",
               "CHECKED_OUT",
@@ -2076,27 +2331,32 @@
       "CartImageDto": {
         "properties": {
           "altText": {
+            "description": "Texto alternativo; `null` sin él.",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "position": {
+            "description": "Orden entre las imágenes del producto, desde 1.",
             "type": "number"
           },
           "url": {
             "type": "string"
           },
           "variantId": {
+            "description": "Variante que muestra; `null` si es del producto.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           }
         },
         "required": [
+          "id",
           "altText",
           "variantId",
-          "id",
           "url",
           "position"
         ],
@@ -2114,6 +2374,7 @@
                 "$ref": "#/components/schemas/CartImageDto"
               }
             ],
+            "description": "La imagen principal de la variante o, sin ella, la del producto (ADR-0131); `null` sin imágenes.",
             "nullable": true,
             "type": "object"
           },
@@ -2123,6 +2384,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
+            "description": "Precio por cantidad; `null` si la línea no es vendible, y entonces no suma al subtotal.",
             "nullable": true,
             "type": "object"
           },
@@ -2130,6 +2392,7 @@
             "additionalProperties": {
               "type": "string"
             },
+            "description": "Los valores de las opciones de la variante, por nombre.",
             "example": {
               "talla": "M"
             },
@@ -2156,20 +2419,22 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
+            "description": "Precio vigente, con IVA; `null` si la línea no es vendible.",
             "nullable": true,
             "type": "object"
           },
           "variantId": {
+            "format": "uuid",
             "type": "string"
           }
         },
         "required": [
+          "variantId",
           "product",
           "options",
           "image",
           "unitPrice",
           "lineTotal",
-          "variantId",
           "quantity",
           "sku",
           "sellable",
@@ -2180,6 +2445,7 @@
       "CartProductDto": {
         "properties": {
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "slug": {
@@ -2216,6 +2482,7 @@
       "ChangeEmailDto": {
         "properties": {
           "currentPassword": {
+            "description": "La contraseña actual, para confirmar el cambio.",
             "example": "una frase larga y segura",
             "maxLength": 256,
             "type": "string"
@@ -2237,13 +2504,13 @@
       "ChangePasswordDto": {
         "properties": {
           "currentPassword": {
-            "description": "The current password; the temporary one for staff who must change it.",
+            "description": "La contraseña actual; la temporal, en el cambio obligatorio del staff.",
             "example": "una frase larga y segura",
             "maxLength": 256,
             "type": "string"
           },
           "newPassword": {
-            "description": "15 to 64 characters, not a common password and not the current one (ADR-0047). Checked by the password\npolicy, which answers `password-policy-violation`.",
+            "description": "De 15 a 64 caracteres, no una contraseña común y distinta de la actual (ADR-0047). Si no cumple,\n`password-policy-violation`.",
             "example": "otra frase larga y distinta",
             "type": "string"
           }
@@ -2265,7 +2532,12 @@
             "description": "Siempre 0 en el MVP."
           },
           "estimatedDelivery": {
-            "$ref": "#/components/schemas/EstimatedDeliveryDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedDeliveryDto"
+              }
+            ],
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
           },
           "freeShippingThreshold": {
             "allOf": [
@@ -2286,6 +2558,7 @@
             "description": "Su `amount` es el `expectedTotal` para colocar la orden."
           },
           "lines": {
+            "description": "Las líneas del carrito, también las que no se pueden comprar, marcadas.",
             "items": {
               "$ref": "#/components/schemas/CheckoutQuoteLineDto"
             },
@@ -2304,7 +2577,12 @@
             "description": "Con IVA incluido; 0 desde `freeShippingThreshold`."
           },
           "shippingTaxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `shippingCost`."
           },
           "subtotal": {
             "allOf": [
@@ -2349,6 +2627,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
+            "description": "Precio por cantidad; `null` si la línea no es vendible, y entonces no suma.",
             "nullable": true,
             "type": "object"
           },
@@ -2356,6 +2635,7 @@
             "additionalProperties": {
               "type": "string"
             },
+            "description": "Los valores de las opciones de la variante, por nombre.",
             "example": {
               "talla": "M"
             },
@@ -2399,20 +2679,22 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
+            "description": "Precio vigente, con IVA; `null` si la línea no es vendible.",
             "nullable": true,
             "type": "object"
           },
           "variantId": {
+            "format": "uuid",
             "type": "string"
           }
         },
         "required": [
+          "variantId",
           "options",
           "unitPrice",
           "lineTotal",
           "taxRateBp",
           "taxAmount",
-          "variantId",
           "quantity",
           "sku",
           "productTitle",
@@ -2424,7 +2706,8 @@
       "ConfirmEmailDto": {
         "properties": {
           "token": {
-            "description": "El token del enlace.",
+            "description": "El token del parámetro `token` del enlace: 43 caracteres en base64url.",
+            "example": "q8Xz3Lr0VbN7kT2mWc9YhD4sFj6Ae1Pu5Gi8Ko0RnSv",
             "maxLength": 256,
             "type": "string"
           }
@@ -2437,6 +2720,7 @@
       "CreateAddressDto": {
         "properties": {
           "city": {
+            "description": "Ciudad o localidad, de 1 a 120 caracteres; opcional.",
             "example": "Morelia",
             "maxLength": 120,
             "minLength": 1,
@@ -2452,6 +2736,7 @@
             "type": "string"
           },
           "interiorNumber": {
+            "description": "De 1 a 20 caracteres; opcional.",
             "example": "4B",
             "maxLength": 20,
             "minLength": 1,
@@ -2497,6 +2782,7 @@
             "type": "string"
           },
           "references": {
+            "description": "Referencias para encontrar el domicilio, hasta 250 caracteres; opcional.",
             "example": "Entre Galeana e Hidalgo",
             "maxLength": 250,
             "minLength": 1,
@@ -2510,6 +2796,7 @@
             "type": "string"
           },
           "street": {
+            "description": "Calle, de 1 a 150 caracteres.",
             "example": "Av. Madero Poniente",
             "maxLength": 150,
             "minLength": 1,
@@ -2532,6 +2819,7 @@
       "CreateBrandDto": {
         "properties": {
           "name": {
+            "description": "De 1 a 100 caracteres; no se repite entre marcas, sin distinguir mayúsculas.",
             "example": "Marca",
             "maxLength": 100,
             "minLength": 1,
@@ -2554,6 +2842,7 @@
       "CreateCategoryDto": {
         "properties": {
           "name": {
+            "description": "De 1 a 100 caracteres; no se repite entre categorías hermanas, sin distinguir mayúsculas.",
             "example": "Camisas",
             "maxLength": 100,
             "minLength": 1,
@@ -2603,6 +2892,7 @@
             "type": "array"
           },
           "description": {
+            "description": "Hasta 10,000 caracteres; opcional.",
             "maxLength": 10000,
             "nullable": true,
             "type": "string"
@@ -2615,6 +2905,7 @@
             "type": "string"
           },
           "title": {
+            "description": "De 1 a 200 caracteres.",
             "example": "Camisa de lino",
             "maxLength": 200,
             "minLength": 1,
@@ -2630,6 +2921,7 @@
       "CreateRoleDto": {
         "properties": {
           "description": {
+            "description": "De 1 a 250 caracteres; opcional.",
             "example": "Atiende a clientes y consulta pedidos",
             "maxLength": 250,
             "minLength": 1,
@@ -2637,6 +2929,7 @@
             "type": "string"
           },
           "name": {
+            "description": "Nombre único, de 1 a 50 caracteres.",
             "example": "Soporte",
             "maxLength": 50,
             "minLength": 1,
@@ -2690,6 +2983,7 @@
             "type": "string"
           },
           "firstNames": {
+            "description": "Nombres, de 1 a 100 caracteres.",
             "example": "Ana",
             "maxLength": 100,
             "minLength": 1,
@@ -2697,6 +2991,7 @@
             "type": "string"
           },
           "lastNames": {
+            "description": "Apellidos, de 1 a 100 caracteres.",
             "example": "Pérez Gómez",
             "maxLength": 100,
             "minLength": 1,
@@ -2787,6 +3082,7 @@
       "CustomerAnonymizationDto": {
         "properties": {
           "anonymizedAt": {
+            "description": "Cuándo se anonimizó.",
             "format": "date-time",
             "type": "string"
           },
@@ -2796,12 +3092,13 @@
             "type": "number"
           },
           "userId": {
+            "format": "uuid",
             "type": "string"
           }
         },
         "required": [
-          "anonymizedAt",
           "userId",
+          "anonymizedAt",
           "anonymizedOrderCount"
         ],
         "type": "object"
@@ -2859,10 +3156,12 @@
       "EstimatedDeliveryDto": {
         "properties": {
           "maxBusinessDays": {
+            "description": "Días hábiles máximos desde la confirmación del pago.",
             "example": 7,
             "type": "number"
           },
           "minBusinessDays": {
+            "description": "Días hábiles mínimos desde la confirmación del pago.",
             "example": 3,
             "type": "number"
           }
@@ -2880,6 +3179,7 @@
             "type": "number"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no se ha entregado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -2890,17 +3190,22 @@
             "type": "object"
           },
           "eventId": {
+            "description": "El evento que se entrega.",
+            "format": "uuid",
             "type": "string"
           },
           "eventType": {
+            "description": "El tipo del evento.",
             "example": "PaymentCaptured",
             "type": "string"
           },
           "handler": {
+            "description": "El manejador que lo recibe, como clase y método.",
             "example": "PaymentCapturedHandler.onPaymentCaptured",
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "lastError": {
@@ -2914,10 +3219,12 @@
             "type": "string"
           },
           "occurredAt": {
+            "description": "Cuándo ocurrió el evento.",
             "format": "date-time",
             "type": "string"
           },
           "status": {
+            "description": "`PENDING` mientras le quedan intentos, `DELIVERED` al entregarse y `FAILED` al agotar los 8.",
             "enum": [
               "PENDING",
               "DELIVERED",
@@ -2927,14 +3234,14 @@
           }
         },
         "required": [
+          "id",
+          "eventId",
           "occurredAt",
           "status",
           "nextAttemptAt",
           "lastError",
           "deliveredAt",
           "event",
-          "id",
-          "eventId",
           "eventType",
           "handler",
           "attempts"
@@ -3132,13 +3439,16 @@
       "ImageDto": {
         "properties": {
           "altText": {
+            "description": "Texto alternativo; `null` sin él.",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "position": {
+            "description": "Orden entre las imágenes del producto, desde 1; la primera es la principal.",
             "type": "number"
           },
           "url": {
@@ -3146,14 +3456,16 @@
             "type": "string"
           },
           "variantId": {
+            "description": "Variante que muestra; `null` si es del producto.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           }
         },
         "required": [
+          "id",
           "altText",
           "variantId",
-          "id",
           "url",
           "position"
         ],
@@ -3192,13 +3504,14 @@
       "LoginDto": {
         "properties": {
           "email": {
+            "description": "Email de la cuenta, sin distinguir mayúsculas.",
             "example": "cliente@example.com",
             "format": "email",
             "maxLength": 254,
             "type": "string"
           },
           "password": {
-            "description": "Up to 256 characters as typed: the policy allows 64 after normalizing to NFKC (ADR-0047, ADR-0115), and a\npassword typed in a decomposed form takes more (T-310).",
+            "description": "Hasta 256 caracteres tal como se escribe; la política cuenta 64 después de normalizar a NFKC (ADR-0115).",
             "example": "una frase larga y segura",
             "maxLength": 256,
             "type": "string"
@@ -3281,6 +3594,7 @@
             "type": "number"
           },
           "currency": {
+            "description": "Siempre `MXN` (ADR-0026).",
             "enum": [
               "MXN"
             ],
@@ -3297,6 +3611,7 @@
       "NamedReferenceDto": {
         "properties": {
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -3348,7 +3663,8 @@
       "OrderAccessRequestDto": {
         "properties": {
           "token": {
-            "description": "El token del enlace.",
+            "description": "El token del parámetro `token` del enlace: 43 caracteres en base64url.",
+            "example": "q8Xz3Lr0VbN7kT2mWc9YhD4sFj6Ae1Pu5Gi8Ko0RnSv",
             "maxLength": 256,
             "type": "string"
           }
@@ -3361,6 +3677,7 @@
       "OrderDto": {
         "properties": {
           "cancelledAt": {
+            "description": "Cuándo se canceló; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3372,35 +3689,54 @@
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "discountTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Siempre 0 en el MVP."
           },
           "estimatedDelivery": {
-            "$ref": "#/components/schemas/EstimatedDeliveryDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedDeliveryDto"
+              }
+            ],
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
           },
           "expiredAt": {
+            "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "grandTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total por pagar: subtotal más envío menos descuento."
           },
           "itemCount": {
             "description": "Unidades de todas las líneas.",
             "type": "number"
           },
           "lines": {
+            "description": "En el orden en que se colocaron.",
             "items": {
               "$ref": "#/components/schemas/OrderLineDto"
             },
             "type": "array"
           },
           "paidAt": {
+            "description": "Cuándo se pagó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3422,14 +3758,17 @@
             "type": "string"
           },
           "placedAt": {
+            "description": "Cuándo se colocó.",
             "format": "date-time",
             "type": "string"
           },
           "publicCode": {
+            "description": "Código público: con él y el email, quien compra consulta su pedido.",
             "example": "K7M4-Q9XA",
             "type": "string"
           },
           "refundedAt": {
+            "description": "Cuándo se completó su reembolso; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3445,20 +3784,37 @@
             "type": "object"
           },
           "shippedAt": {
+            "description": "Cuándo salió su envío; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "shippingAddress": {
-            "$ref": "#/components/schemas/PostalAddressDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostalAddressDto"
+              }
+            ],
+            "description": "La dirección de envío al colocar la orden."
           },
           "shippingCost": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Con IVA; 0 con envío gratis."
           },
           "shippingTaxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `shippingCost`."
           },
           "status": {
+            "description": "`PENDING_PAYMENT` espera su pago hasta `paymentDueAt`, y si no llega pasa a `EXPIRED`.\n`AWAITING_MANUAL_FULFILLMENT` se pagó sin stock suficiente y espera surtido (ADR-0012). `REFUNDED`, cancelada y\nreembolsada.",
             "enum": [
               "PENDING_PAYMENT",
               "PAID",
@@ -3472,10 +3828,20 @@
             "type": "string"
           },
           "subtotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Suma de las líneas, con IVA."
           },
           "taxTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Informativo: IVA contenido en el subtotal y en el envío."
           }
         },
         "required": [
@@ -3508,13 +3874,20 @@
       "OrderLineDto": {
         "properties": {
           "lineNumber": {
+            "description": "Número de la línea en la orden, desde 1.",
             "example": 1,
             "type": "number"
           },
           "lineTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio por cantidad, con IVA."
           },
           "productName": {
+            "description": "El nombre del producto al colocar la orden.",
             "example": "Camisa de lino",
             "type": "string"
           },
@@ -3527,7 +3900,12 @@
             "type": "string"
           },
           "taxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `lineTotal`."
           },
           "taxRateBp": {
             "description": "Tasa de IVA en puntos base.",
@@ -3535,12 +3913,18 @@
             "type": "number"
           },
           "unitPrice": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio con IVA al colocar la orden; no cambia aunque cambie el precio."
           },
           "variantOptions": {
             "additionalProperties": {
               "type": "string"
             },
+            "description": "Las opciones de la variante al colocar la orden.",
             "example": {
               "talla": "M"
             },
@@ -3581,6 +3965,7 @@
       "OrderPaymentDto": {
         "properties": {
           "provider": {
+            "description": "`MANUAL` es el pago en la tienda (ADR-0055); PayPal aún no está habilitado (ADR-0040).",
             "enum": [
               "MANUAL",
               "PAYPAL"
@@ -3588,6 +3973,7 @@
             "type": "string"
           },
           "status": {
+            "description": "Estado del pago: `PENDING` mientras no se paga, `CAPTURED` al cobrarse, y `PARTIALLY_REFUNDED` o `REFUNDED` según\nsus reembolsos.",
             "enum": [
               "PENDING",
               "REQUIRES_ACTION",
@@ -3613,6 +3999,7 @@
             "$ref": "#/components/schemas/MoneyDto"
           },
           "completedAt": {
+            "description": "Cuándo se completó; `null` si no se ha completado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3622,9 +4009,11 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "status": {
+            "description": "`PENDING` hasta que el dinero se devuelve; `COMPLETED` o `FAILED` después.",
             "enum": [
               "PENDING",
               "COMPLETED",
@@ -3634,34 +4023,39 @@
           }
         },
         "required": [
+          "id",
           "amount",
           "status",
           "createdAt",
-          "completedAt",
-          "id"
+          "completedAt"
         ],
         "type": "object"
       },
       "OrderShipmentDto": {
         "properties": {
           "carrierName": {
+            "description": "La paquetería; `null` mientras no se capture o en una entrega de la tienda.",
             "nullable": true,
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "dispatchedAt": {
+            "description": "Cuándo salió; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "ownDelivery": {
+            "description": "Si lo entrega la tienda, sin paquetería (ADR-0078).",
             "type": "boolean"
           },
           "status": {
+            "description": "`PENDING` hasta que sale; luego `DISPATCHED`, y `DELIVERED`, `DELIVERY_FAILED` o `RETURNED`. `CANCELLED` si se\ncanceló la orden antes de salir.",
             "enum": [
               "PENDING",
               "DISPATCHED",
@@ -3673,6 +4067,7 @@
             "type": "string"
           },
           "trackingNumber": {
+            "description": "El número de guía; `null` mientras no se capture o en una entrega de la tienda.",
             "nullable": true,
             "type": "string"
           }
@@ -3690,6 +4085,7 @@
       "OrderSummaryDto": {
         "properties": {
           "cancelledAt": {
+            "description": "Cuándo se canceló; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3701,29 +4097,47 @@
             "type": "string"
           },
           "deliveredAt": {
+            "description": "Cuándo se entregó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "discountTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Siempre 0 en el MVP."
           },
           "estimatedDelivery": {
-            "$ref": "#/components/schemas/EstimatedDeliveryDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedDeliveryDto"
+              }
+            ],
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
           },
           "expiredAt": {
+            "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "grandTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total por pagar: subtotal más envío menos descuento."
           },
           "itemCount": {
             "description": "Unidades de todas las líneas.",
             "type": "number"
           },
           "paidAt": {
+            "description": "Cuándo se pagó; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3745,14 +4159,17 @@
             "type": "string"
           },
           "placedAt": {
+            "description": "Cuándo se colocó.",
             "format": "date-time",
             "type": "string"
           },
           "publicCode": {
+            "description": "Código público: con él y el email, quien compra consulta su pedido.",
             "example": "K7M4-Q9XA",
             "type": "string"
           },
           "refundedAt": {
+            "description": "Cuándo se completó su reembolso; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3768,17 +4185,29 @@
             "type": "object"
           },
           "shippedAt": {
+            "description": "Cuándo salió su envío; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "shippingCost": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Con IVA; 0 con envío gratis."
           },
           "shippingTaxAmount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "IVA contenido en `shippingCost`."
           },
           "status": {
+            "description": "`PENDING_PAYMENT` espera su pago hasta `paymentDueAt`, y si no llega pasa a `EXPIRED`.\n`AWAITING_MANUAL_FULFILLMENT` se pagó sin stock suficiente y espera surtido (ADR-0012). `REFUNDED`, cancelada y\nreembolsada.",
             "enum": [
               "PENDING_PAYMENT",
               "PAID",
@@ -3792,10 +4221,20 @@
             "type": "string"
           },
           "subtotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Suma de las líneas, con IVA."
           },
           "taxTotal": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Informativo: IVA contenido en el subtotal y en el envío."
           }
         },
         "required": [
@@ -3826,10 +4265,12 @@
       "PageMetaDto": {
         "properties": {
           "page": {
+            "description": "La página de esta respuesta, desde 1.",
             "example": 1,
             "type": "number"
           },
           "pageSize": {
+            "description": "Elementos por página.",
             "example": 20,
             "type": "number"
           },
@@ -3839,6 +4280,7 @@
             "type": "number"
           },
           "totalPages": {
+            "description": "Páginas en total; 0 sin resultados.",
             "example": 3,
             "type": "number"
           }
@@ -3859,7 +4301,8 @@
             "type": "string"
           },
           "token": {
-            "description": "El token del enlace.",
+            "description": "El token del parámetro `token` del enlace: 43 caracteres en base64url.",
+            "example": "q8Xz3Lr0VbN7kT2mWc9YhD4sFj6Ae1Pu5Gi8Ko0RnSv",
             "maxLength": 256,
             "type": "string"
           }
@@ -3873,6 +4316,7 @@
       "PasswordResetRequestDto": {
         "properties": {
           "email": {
+            "description": "Email de la cuenta.",
             "example": "cliente@example.com",
             "format": "email",
             "maxLength": 254,
@@ -3887,13 +4331,20 @@
       "PaymentActionDto": {
         "properties": {
           "amount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El monto por pagar."
           },
           "instructions": {
+            "description": "Qué hacer para pagar, para mostrarlo a quien compra.",
             "example": "Presenta este código en la tienda para pagar.",
             "type": "string"
           },
           "orderCode": {
+            "description": "El código público de la orden, para presentarlo en la tienda.",
             "example": "K7M4-Q9XA",
             "type": "string"
           },
@@ -3920,6 +4371,7 @@
             "type": "string"
           },
           "failureCode": {
+            "description": "El código de error del proveedor; `null` si no falló.",
             "nullable": true,
             "type": "string"
           },
@@ -3934,6 +4386,7 @@
             "type": "string"
           },
           "status": {
+            "description": "El estado al que llevó el intento.",
             "enum": [
               "PENDING",
               "REQUIRES_ACTION",
@@ -3959,15 +4412,28 @@
       "PaymentStartDto": {
         "properties": {
           "action": {
-            "$ref": "#/components/schemas/PaymentActionDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentActionDto"
+              }
+            ],
+            "description": "Lo que quien compra debe hacer para pagar."
           },
           "amount": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de la orden."
           },
           "paymentId": {
+            "description": "El pago de la orden.",
+            "format": "uuid",
             "type": "string"
           },
           "provider": {
+            "description": "`MANUAL`, el pago en la tienda.",
             "enum": [
               "MANUAL",
               "PAYPAL"
@@ -3975,6 +4441,7 @@
             "type": "string"
           },
           "status": {
+            "description": "Siempre `PENDING`: el pago todavía no se hace.",
             "enum": [
               "PENDING"
             ],
@@ -3982,11 +4449,11 @@
           }
         },
         "required": [
+          "paymentId",
           "provider",
           "status",
           "amount",
-          "action",
-          "paymentId"
+          "action"
         ],
         "type": "object"
       },
@@ -4103,7 +4570,12 @@
             "type": "string"
           },
           "shippingAddress": {
-            "$ref": "#/components/schemas/AddressInputDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AddressInputDto"
+              }
+            ],
+            "description": "La dirección de envío, con el formato de `AddressInput`."
           }
         },
         "required": [
@@ -4118,11 +4590,13 @@
       "PostalAddressDto": {
         "properties": {
           "city": {
+            "description": "Ciudad o localidad; `null` si no se dio.",
             "example": "Morelia",
             "nullable": true,
             "type": "string"
           },
           "country": {
+            "description": "Siempre `MX`: la tienda solo envía a México (ADR-0026).",
             "example": "MX",
             "type": "string"
           },
@@ -4131,11 +4605,13 @@
             "type": "string"
           },
           "interiorNumber": {
+            "description": "`null` sin número interior.",
             "example": "4B",
             "nullable": true,
             "type": "string"
           },
           "municipalityCode": {
+            "description": "Clave del INEGI del municipio.",
             "example": "16053",
             "type": "string"
           },
@@ -4160,11 +4636,13 @@
             "type": "string"
           },
           "references": {
+            "description": "Referencias para encontrar el domicilio; `null` si no se dieron.",
             "example": "Entre Galeana e Hidalgo",
             "nullable": true,
             "type": "string"
           },
           "stateCode": {
+            "description": "Clave del INEGI del estado.",
             "example": "16",
             "type": "string"
           },
@@ -4202,6 +4680,7 @@
             "type": "number"
           },
           "dryRun": {
+            "description": "`true` si solo se validó el archivo, sin guardar precios.",
             "type": "boolean"
           },
           "rows": {
@@ -4228,6 +4707,7 @@
             "type": "string"
           },
           "currency": {
+            "description": "Siempre `MXN` (ADR-0026).",
             "enum": [
               "MXN"
             ],
@@ -4235,9 +4715,11 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "isDefault": {
+            "description": "La lista que usa la tienda; en el MVP, la única (ADR-0039).",
             "type": "boolean"
           },
           "name": {
@@ -4245,10 +4727,12 @@
             "type": "string"
           },
           "priority": {
+            "description": "Prioridad entre listas, para cuando haya más de una (ADR-0039).",
             "example": 0,
             "type": "number"
           },
           "status": {
+            "description": "`ACTIVE` o `INACTIVE`.",
             "enum": [
               "ACTIVE",
               "INACTIVE"
@@ -4261,9 +4745,9 @@
           }
         },
         "required": [
+          "id",
           "currency",
           "status",
-          "id",
           "code",
           "name",
           "priority",
@@ -4315,6 +4799,7 @@
             "type": "string"
           },
           "effectiveFrom": {
+            "description": "Desde cuándo rige el precio.",
             "format": "date-time",
             "type": "string"
           },
@@ -4325,9 +4810,11 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "state": {
+            "description": "`PAST`, `CURRENT` o `SCHEDULED`, al momento de responder.",
             "enum": [
               "PAST",
               "CURRENT",
@@ -4337,13 +4824,13 @@
           }
         },
         "required": [
+          "id",
           "amount",
           "compareAtAmount",
           "effectiveFrom",
           "effectiveTo",
           "state",
           "createdAt",
-          "id",
           "createdBy"
         ],
         "type": "object"
@@ -4476,6 +4963,7 @@
                 "$ref": "#/components/schemas/StoreBrandDto"
               }
             ],
+            "description": "`null` sin marca.",
             "nullable": true,
             "type": "object"
           },
@@ -4497,6 +4985,7 @@
             "type": "object"
           },
           "description": {
+            "description": "`null` sin descripción.",
             "nullable": true,
             "type": "string"
           },
@@ -4509,6 +4998,7 @@
             "description": "Precio más bajo entre sus variantes vendibles (BR-PRD-15)."
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "image": {
@@ -4517,16 +5007,19 @@
                 "$ref": "#/components/schemas/ImageDto"
               }
             ],
+            "description": "La imagen principal; `null` sin imágenes.",
             "nullable": true,
             "type": "object"
           },
           "images": {
+            "description": "En orden; sin las de variantes que no se venden.",
             "items": {
               "$ref": "#/components/schemas/ImageDto"
             },
             "type": "array"
           },
           "optionNames": {
+            "description": "Nombres de las opciones de sus variantes, en orden alfabético.",
             "example": [
               "color",
               "talla"
@@ -4557,6 +5050,7 @@
           }
         },
         "required": [
+          "id",
           "brand",
           "fromPrice",
           "compareAtPrice",
@@ -4567,7 +5061,6 @@
           "images",
           "optionNames",
           "variants",
-          "id",
           "slug",
           "title",
           "available"
@@ -4586,6 +5079,7 @@
                 "$ref": "#/components/schemas/StoreBrandDto"
               }
             ],
+            "description": "`null` sin marca.",
             "nullable": true,
             "type": "object"
           },
@@ -4608,6 +5102,7 @@
             "description": "Precio más bajo entre sus variantes vendibles (BR-PRD-15)."
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "image": {
@@ -4616,6 +5111,7 @@
                 "$ref": "#/components/schemas/ImageDto"
               }
             ],
+            "description": "La imagen principal; `null` sin imágenes.",
             "nullable": true,
             "type": "object"
           },
@@ -4633,12 +5129,12 @@
           }
         },
         "required": [
+          "id",
           "brand",
           "fromPrice",
           "compareAtPrice",
           "image",
           "publishedAt",
-          "id",
           "slug",
           "title",
           "available"
@@ -4679,12 +5175,14 @@
       "PublicCategoryDto": {
         "properties": {
           "children": {
+            "description": "Subcategorías visibles.",
             "items": {
               "$ref": "#/components/schemas/PublicCategoryDto"
             },
             "type": "array"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -4701,8 +5199,8 @@
           }
         },
         "required": [
-          "children",
           "id",
+          "children",
           "name",
           "slug",
           "position"
@@ -4748,6 +5246,7 @@
       "ReceiptDto": {
         "properties": {
           "note": {
+            "description": "Nota opcional, como el número de remisión.",
             "example": "Remisión 1234",
             "maxLength": 500,
             "nullable": true,
@@ -4761,6 +5260,7 @@
             "type": "number"
           },
           "variantId": {
+            "description": "La variante que entra, en cualquier estado.",
             "format": "uuid",
             "type": "string"
           },
@@ -4813,6 +5313,7 @@
       "RefreshTokenDto": {
         "properties": {
           "refreshToken": {
+            "description": "El refresh token de la sesión, recibido al iniciarla o al renovarla.",
             "example": "rt_2Qm9…",
             "maxLength": 256,
             "type": "string"
@@ -4829,6 +5330,7 @@
             "$ref": "#/components/schemas/MoneyDto"
           },
           "completedAt": {
+            "description": "Cuándo se completó; `null` si no se ha completado.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -4838,17 +5340,22 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "providerRefundId": {
+            "description": "Comprobante del reembolso: el del proveedor o, en uno manual, el que registró el staff; `null` mientras está\npendiente.",
             "nullable": true,
             "type": "string"
           },
           "registeredBy": {
+            "description": "Staff que registró el reembolso manual; `null` en los demás.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
           "status": {
+            "description": "`PENDING` hasta que el dinero se devuelve; `COMPLETED` o `FAILED` después.",
             "enum": [
               "PENDING",
               "COMPLETED",
@@ -4858,13 +5365,13 @@
           }
         },
         "required": [
+          "id",
           "amount",
           "status",
           "providerRefundId",
           "registeredBy",
           "createdAt",
-          "completedAt",
-          "id"
+          "completedAt"
         ],
         "type": "object"
       },
@@ -4878,6 +5385,7 @@
             "type": "string"
           },
           "firstNames": {
+            "description": "Nombres, de 1 a 100 caracteres.",
             "example": "María",
             "maxLength": 100,
             "minLength": 1,
@@ -4885,6 +5393,7 @@
             "type": "string"
           },
           "lastNames": {
+            "description": "Apellidos, de 1 a 100 caracteres.",
             "example": "López Hernández",
             "maxLength": 100,
             "minLength": 1,
@@ -4918,6 +5427,7 @@
         "properties": {
           "cartId": {
             "description": "El carrito que recibió las líneas.",
+            "format": "uuid",
             "type": "string"
           },
           "skippedVariantIds": {
@@ -4929,8 +5439,8 @@
           }
         },
         "required": [
-          "skippedVariantIds",
-          "cartId"
+          "cartId",
+          "skippedVariantIds"
         ],
         "type": "object"
       },
@@ -4961,6 +5471,7 @@
       "ResendEmailVerificationDto": {
         "properties": {
           "email": {
+            "description": "Email de la cuenta por verificar.",
             "example": "cliente@example.com",
             "format": "email",
             "maxLength": 254,
@@ -5010,6 +5521,8 @@
       "RestockMovementDto": {
         "properties": {
           "actorId": {
+            "description": "Staff que lo registró.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
@@ -5018,20 +5531,27 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "note": {
+            "description": "Nota del staff; `null` sin ella.",
             "nullable": true,
             "type": "string"
           },
           "onHandAfter": {
+            "description": "Unidades físicas después del reintegro.",
             "type": "number"
           },
           "orderId": {
+            "description": "La orden del reintegro.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
           "orderLineId": {
+            "description": "La línea de la orden que se reintegra.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
@@ -5040,6 +5560,7 @@
             "type": "number"
           },
           "reasonCode": {
+            "description": "`ORDER_CANCELLED` o `SHIPMENT_RETURNED`.",
             "enum": [
               "ORDER_CANCELLED",
               "SHIPMENT_RETURNED"
@@ -5048,6 +5569,7 @@
             "type": "string"
           },
           "stockItemId": {
+            "format": "uuid",
             "type": "string"
           },
           "type": {
@@ -5058,6 +5580,8 @@
           }
         },
         "required": [
+          "id",
+          "stockItemId",
           "type",
           "reasonCode",
           "note",
@@ -5065,8 +5589,6 @@
           "orderLineId",
           "actorId",
           "createdAt",
-          "id",
-          "stockItemId",
           "quantity",
           "onHandAfter"
         ],
@@ -5108,7 +5630,12 @@
       "RetentionPolicyDto": {
         "properties": {
           "auditTrail": {
-            "$ref": "#/components/schemas/AuditTrailRetentionDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuditTrailRetentionDto"
+              }
+            ],
+            "description": "Cuánto se conserva la auditoría (ADR-0146)."
           },
           "inactiveCustomerMonths": {
             "description": "Meses sin actividad (registrarse, iniciar sesión o renovarla) tras los que se anonimiza la cuenta de un cliente; `null` si nunca se anonimiza por inactividad.",
@@ -5122,7 +5649,12 @@
             "type": "number"
           },
           "personalData": {
-            "$ref": "#/components/schemas/PersonalDataRetentionDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PersonalDataRetentionDto"
+              }
+            ],
+            "description": "El ciclo de los datos personales de órdenes y envíos (ADR-0151)."
           },
           "processedWebhookEventDays": {
             "description": "Días que se conserva un evento de webhook de pagos procesado.",
@@ -5196,10 +5728,12 @@
             "type": "string"
           },
           "description": {
+            "description": "`null` sin descripción.",
             "nullable": true,
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "isSuperadmin": {
@@ -5211,6 +5745,7 @@
             "type": "string"
           },
           "permissions": {
+            "description": "Permisos del rol, del catálogo; todos en el rol superadministrador.",
             "example": [
               "catalog.read",
               "orders.read"
@@ -5248,15 +5783,16 @@
             "type": "number"
           },
           "version": {
+            "description": "Versión para el bloqueo optimista: se envía al cambiarlo.",
             "type": "number"
           }
         },
         "required": [
+          "id",
           "description",
           "permissions",
           "createdAt",
           "updatedAt",
-          "id",
           "name",
           "isSuperadmin",
           "userCount",
@@ -5315,10 +5851,12 @@
       "ShipmentAddressDto": {
         "properties": {
           "city": {
+            "description": "`null` si no se dio, o con los datos bloqueados o anonimizados.",
             "nullable": true,
             "type": "string"
           },
           "country": {
+            "description": "Siempre `MX` (ADR-0026).",
             "example": "MX",
             "type": "string"
           },
@@ -5328,10 +5866,12 @@
             "type": "string"
           },
           "interiorNumber": {
+            "description": "`null` sin número interior, o con los datos bloqueados o anonimizados.",
             "nullable": true,
             "type": "string"
           },
           "municipalityCode": {
+            "description": "Clave del INEGI del municipio.",
             "type": "string"
           },
           "municipalityName": {
@@ -5356,10 +5896,12 @@
             "type": "string"
           },
           "references": {
+            "description": "`null` si no se dieron, o con los datos bloqueados o anonimizados.",
             "nullable": true,
             "type": "string"
           },
           "stateCode": {
+            "description": "Clave del INEGI del estado.",
             "type": "string"
           },
           "stateName": {
@@ -5392,12 +5934,16 @@
       "ShipmentItemDto": {
         "properties": {
           "orderLineId": {
+            "description": "La línea de la orden.",
+            "format": "uuid",
             "type": "string"
           },
           "productName": {
+            "description": "El nombre del producto al colocar la orden.",
             "type": "string"
           },
           "quantity": {
+            "description": "Unidades de la línea.",
             "type": "number"
           },
           "sku": {
@@ -5447,6 +5993,7 @@
       "ShippingMethodDto": {
         "properties": {
           "deliveryMaxBusinessDays": {
+            "description": "Plazo máximo de entrega, en días hábiles desde la confirmación del pago.",
             "example": 7,
             "type": "number"
           },
@@ -5474,9 +6021,11 @@
             "type": "object"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "isActive": {
+            "description": "Si se usa; en el MVP, el único método está activo.",
             "type": "boolean"
           },
           "name": {
@@ -5489,14 +6038,15 @@
             "type": "string"
           },
           "version": {
+            "description": "Versión para el bloqueo optimista: se envía al cambiarlo.",
             "type": "number"
           }
         },
         "required": [
+          "id",
           "flatFee",
           "freeShippingThreshold",
           "updatedAt",
-          "id",
           "name",
           "deliveryMinBusinessDays",
           "deliveryMaxBusinessDays",
@@ -5526,6 +6076,7 @@
       "StaffRoleDto": {
         "properties": {
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -5553,9 +6104,11 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "lastLoginAt": {
+            "description": "Último inicio de sesión; `null` si nunca entró.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -5574,6 +6127,7 @@
             "type": "array"
           },
           "status": {
+            "description": "`ACTIVE` o `SUSPENDED`; el staff suspendido no inicia sesión.",
             "enum": [
               "ACTIVE",
               "SUSPENDED"
@@ -5581,15 +6135,16 @@
             "type": "string"
           },
           "version": {
+            "description": "Versión para el bloqueo optimista: se envía al cambiarlo.",
             "type": "number"
           }
         },
         "required": [
+          "id",
           "status",
           "roles",
           "lastLoginAt",
           "createdAt",
-          "id",
           "email",
           "firstNames",
           "lastNames",
@@ -5657,6 +6212,7 @@
         "properties": {
           "actorId": {
             "description": "Staff o cliente; `null` si fue el sistema.",
+            "format": "uuid",
             "nullable": true,
             "type": "string"
           },
@@ -5676,14 +6232,17 @@
             "type": "string"
           },
           "occurredAt": {
+            "description": "Cuándo ocurrió.",
             "format": "date-time",
             "type": "string"
           },
           "reason": {
+            "description": "Motivo que dio el staff; `null` sin él.",
             "nullable": true,
             "type": "string"
           },
           "toStatus": {
+            "description": "El estado al que pasó.",
             "enum": [
               "PENDING_PAYMENT",
               "PAID",
@@ -5729,9 +6288,11 @@
             "type": "number"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "onHand": {
+            "description": "Unidades físicas en el almacén.",
             "example": 25,
             "type": "number"
           },
@@ -5740,6 +6301,7 @@
             "type": "string"
           },
           "reserved": {
+            "description": "Unidades apartadas por órdenes que esperan su pago.",
             "example": 3,
             "type": "number"
           },
@@ -5752,19 +6314,21 @@
             "type": "string"
           },
           "variantId": {
+            "format": "uuid",
             "type": "string"
           },
           "warehouseId": {
+            "format": "uuid",
             "type": "string"
           }
         },
         "required": [
-          "updatedAt",
           "id",
           "variantId",
+          "warehouseId",
+          "updatedAt",
           "sku",
           "productTitle",
-          "warehouseId",
           "onHand",
           "reserved",
           "available"
@@ -5802,22 +6366,27 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "note": {
+            "description": "Nota del staff; `null` sin ella.",
             "nullable": true,
             "type": "string"
           },
           "onHandAfter": {
+            "description": "Unidades físicas después del movimiento.",
             "example": 23,
             "type": "number"
           },
           "orderId": {
+            "description": "La orden de una venta o un reintegro; `null` en los demás.",
             "format": "uuid",
             "nullable": true,
             "type": "string"
           },
           "orderLineId": {
+            "description": "La línea de la orden de una venta o un reintegro; `null` en los demás.",
             "format": "uuid",
             "nullable": true,
             "type": "string"
@@ -5828,6 +6397,7 @@
             "type": "number"
           },
           "reasonCode": {
+            "description": "El motivo de un ajuste; `null` en los demás movimientos.",
             "enum": [
               "PHYSICAL_COUNT",
               "DAMAGED",
@@ -5842,6 +6412,7 @@
             "type": "string"
           },
           "type": {
+            "description": "`RECEIPT`, `ADJUSTMENT`, `SALE` o `RESTOCK`.",
             "enum": [
               "RECEIPT",
               "ADJUSTMENT",
@@ -5852,6 +6423,7 @@
           }
         },
         "required": [
+          "id",
           "type",
           "reasonCode",
           "note",
@@ -5859,7 +6431,6 @@
           "orderLineId",
           "actorId",
           "createdAt",
-          "id",
           "quantity",
           "onHandAfter"
         ],
@@ -5887,6 +6458,7 @@
       "StoreBrandDto": {
         "properties": {
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -5922,6 +6494,7 @@
       "StoreCategoryDto": {
         "properties": {
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -5943,6 +6516,7 @@
       "StoreVariantDto": {
         "properties": {
           "available": {
+            "description": "Si tiene existencias para comprarla ahora.",
             "type": "boolean"
           },
           "compareAtPrice": {
@@ -5951,16 +6525,19 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
+            "description": "Precio anterior, para mostrar el descuento; `null` sin él.",
             "nullable": true,
             "type": "object"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "options": {
             "additionalProperties": {
               "type": "string"
             },
+            "description": "Sus valores de las opciones del producto, por nombre.",
             "example": {
               "color": "Azul",
               "talla": "M"
@@ -5968,7 +6545,12 @@
             "type": "object"
           },
           "price": {
-            "$ref": "#/components/schemas/MoneyDto"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio vigente, con IVA."
           },
           "sku": {
             "example": "CAM-LIN-AZ-M",
@@ -5976,10 +6558,10 @@
           }
         },
         "required": [
+          "id",
           "options",
           "price",
           "compareAtPrice",
-          "id",
           "sku",
           "available"
         ],
@@ -5988,6 +6570,7 @@
       "UpdateAccountDto": {
         "properties": {
           "firstNames": {
+            "description": "Nombres, de 1 a 100 caracteres; no admite `null`.",
             "example": "María José",
             "maxLength": 100,
             "minLength": 1,
@@ -5995,6 +6578,7 @@
             "type": "string"
           },
           "lastNames": {
+            "description": "Apellidos, de 1 a 100 caracteres; no admite `null`.",
             "example": "López Hernández",
             "maxLength": 100,
             "minLength": 1,
@@ -6007,18 +6591,21 @@
       "UpdateAddressDto": {
         "properties": {
           "city": {
+            "description": "Ciudad o localidad, de 1 a 120 caracteres; `null` la quita.",
             "maxLength": 120,
             "minLength": 1,
             "nullable": true,
             "type": "string"
           },
           "exteriorNumber": {
+            "description": "De 1 a 20 caracteres; admite \"S/N\" y letras.",
             "maxLength": 20,
             "minLength": 1,
             "pattern": "\\S",
             "type": "string"
           },
           "interiorNumber": {
+            "description": "De 1 a 20 caracteres; `null` lo quita.",
             "maxLength": 20,
             "minLength": 1,
             "nullable": true,
@@ -6029,41 +6616,48 @@
             "type": "boolean"
           },
           "municipalityCode": {
-            "description": "Obligatorio si cambia `stateCode`.",
+            "description": "Clave del INEGI de un municipio vigente del estado; obligatoria si cambia `stateCode`.",
             "pattern": "^[0-9]{5}$",
             "type": "string"
           },
           "neighborhood": {
+            "description": "Colonia, de 1 a 120 caracteres.",
             "maxLength": 120,
             "minLength": 1,
             "pattern": "\\S",
             "type": "string"
           },
           "phone": {
+            "description": "Exactamente 10 dígitos.",
             "pattern": "^[0-9]{10}$",
             "type": "string"
           },
           "postalCode": {
+            "description": "5 dígitos; solo se valida el formato.",
             "pattern": "^[0-9]{5}$",
             "type": "string"
           },
           "recipientName": {
+            "description": "Nombre completo de quien recibe, de 1 a 120 caracteres.",
             "maxLength": 120,
             "minLength": 1,
             "pattern": "\\S",
             "type": "string"
           },
           "references": {
+            "description": "Referencias para encontrar el domicilio, hasta 250 caracteres; `null` las quita.",
             "maxLength": 250,
             "minLength": 1,
             "nullable": true,
             "type": "string"
           },
           "stateCode": {
+            "description": "Clave del INEGI del estado.",
             "pattern": "^[0-9]{2}$",
             "type": "string"
           },
           "street": {
+            "description": "Calle, de 1 a 150 caracteres.",
             "maxLength": 150,
             "minLength": 1,
             "pattern": "\\S",
@@ -6075,6 +6669,7 @@
       "UpdateBrandDto": {
         "properties": {
           "name": {
+            "description": "De 1 a 100 caracteres; no se repite entre marcas, sin distinguir mayúsculas.",
             "maxLength": 100,
             "minLength": 1,
             "pattern": "\\S",
@@ -6092,6 +6687,7 @@
       "UpdateCategoryDto": {
         "properties": {
           "name": {
+            "description": "De 1 a 100 caracteres; no se repite entre categorías hermanas, sin distinguir mayúsculas.",
             "maxLength": 100,
             "minLength": 1,
             "pattern": "\\S",
@@ -6152,6 +6748,7 @@
             "type": "array"
           },
           "description": {
+            "description": "Hasta 10,000 caracteres; `null` la quita.",
             "maxLength": 10000,
             "nullable": true,
             "type": "string"
@@ -6163,6 +6760,7 @@
             "type": "string"
           },
           "title": {
+            "description": "De 1 a 200 caracteres.",
             "maxLength": 200,
             "minLength": 1,
             "pattern": "\\S",
@@ -6189,6 +6787,7 @@
             "type": "string"
           },
           "name": {
+            "description": "Nombre único, de 1 a 50 caracteres.",
             "maxLength": 50,
             "minLength": 1,
             "pattern": "\\S",
@@ -6263,6 +6862,7 @@
             "type": "number"
           },
           "name": {
+            "description": "De 1 a 100 caracteres; solo lo ve el staff.",
             "example": "Envío Estándar",
             "maxLength": 100,
             "minLength": 1,
@@ -6288,12 +6888,14 @@
       "UpdateVariantDto": {
         "properties": {
           "heightCm": {
+            "description": "Centímetros, mayor que 0, un decimal; `null` lo quita.",
             "maximum": 999999.9,
             "minimum": 0.1,
             "nullable": true,
             "type": "number"
           },
           "lengthCm": {
+            "description": "Centímetros, mayor que 0, un decimal; `null` lo quita.",
             "maximum": 999999.9,
             "minimum": 0.1,
             "nullable": true,
@@ -6327,6 +6929,7 @@
             "type": "number"
           },
           "widthCm": {
+            "description": "Centímetros, mayor que 0, un decimal; `null` lo quita.",
             "maximum": 999999.9,
             "minimum": 0.1,
             "nullable": true,
@@ -6369,6 +6972,7 @@
                 "$ref": "#/components/schemas/PostalAddressDto"
               }
             ],
+            "description": "`null` mientras no se capture.",
             "nullable": true,
             "type": "object"
           },
@@ -6381,6 +6985,7 @@
             "type": "string"
           },
           "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -6388,6 +6993,7 @@
             "type": "string"
           },
           "status": {
+            "description": "`ACTIVE` o `INACTIVE`; en el MVP, el único almacén está activo (ADR-0081).",
             "enum": [
               "ACTIVE",
               "INACTIVE"
@@ -6400,11 +7006,11 @@
           }
         },
         "required": [
+          "id",
           "address",
           "status",
           "createdAt",
           "updatedAt",
-          "id",
           "code",
           "name"
         ],
@@ -6483,6 +7089,7 @@
             }
           },
           {
+            "description": "Solo las acciones de este usuario.",
             "in": "query",
             "name": "actorId",
             "required": false,
@@ -6502,6 +7109,7 @@
             }
           },
           {
+            "description": "Solo las acciones sobre recursos de este tipo.",
             "in": "query",
             "name": "resourceType",
             "required": false,
@@ -6514,6 +7122,7 @@
             }
           },
           {
+            "description": "Solo las de este recurso, por su ID exacto; con `resourceType`, de ese tipo.",
             "in": "query",
             "name": "resourceId",
             "required": false,
@@ -6623,6 +7232,7 @@
     },
     "/v1/admin/catalog/brands": {
       "get": {
+        "description": "Paginado, con las inactivas. Filtros por parte del nombre y por estado; orden por nombre.",
         "operationId": "AdminBrandsController_list_v1",
         "parameters": [
           {
@@ -6765,6 +7375,7 @@
         ]
       },
       "post": {
+        "description": "Activa. Sin `slug`, se genera del nombre. El nombre, sin distinguir mayúsculas, y el slug no se repiten entre marcas.",
         "operationId": "AdminBrandsController_create_v1",
         "parameters": [],
         "requestBody": {
@@ -6869,10 +7480,12 @@
         "operationId": "AdminBrandsController_remove_v1",
         "parameters": [
           {
+            "description": "ID de la marca.",
             "in": "path",
             "name": "brandId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -6966,13 +7579,16 @@
         ]
       },
       "patch": {
+        "description": "Cambian solo los campos enviados. Un slug nuevo deja libre el anterior, que deja de funcionar (ADR-0072). Sin bloqueo optimista: gana el último cambio.",
         "operationId": "AdminBrandsController_update_v1",
         "parameters": [
           {
+            "description": "ID de la marca.",
             "in": "path",
             "name": "brandId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7089,10 +7705,12 @@
         "operationId": "AdminBrandsController_deactivate_v1",
         "parameters": [
           {
+            "description": "ID de la marca.",
             "in": "path",
             "name": "brandId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7195,13 +7813,16 @@
     },
     "/v1/admin/catalog/brands/{brandId}/reactivate": {
       "post": {
+        "description": "De `INACTIVE` a `ACTIVE`; una marca activa responde 409.",
         "operationId": "AdminBrandsController_reactivate_v1",
         "parameters": [
           {
+            "description": "ID de la marca.",
             "in": "path",
             "name": "brandId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7304,6 +7925,7 @@
     },
     "/v1/admin/catalog/categories": {
       "get": {
+        "description": "Todo el árbol, sin paginar. Con `status`, solo las categorías de esos estados y los ancestros que llevan a ellas.",
         "operationId": "AdminCategoriesController_tree_v1",
         "parameters": [
           {
@@ -7400,6 +8022,7 @@
         ]
       },
       "post": {
+        "description": "Activa, en la raíz o bajo una categoría activa. Sin `slug`, se genera del nombre. El nombre no se repite entre categorías hermanas, y el slug, en ninguna.",
         "operationId": "AdminCategoriesController_create_v1",
         "parameters": [],
         "requestBody": {
@@ -7504,10 +8127,12 @@
         "operationId": "AdminCategoriesController_remove_v1",
         "parameters": [
           {
+            "description": "ID de la categoría.",
             "in": "path",
             "name": "categoryId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7605,10 +8230,12 @@
         "operationId": "AdminCategoriesController_update_v1",
         "parameters": [
           {
+            "description": "ID de la categoría.",
             "in": "path",
             "name": "categoryId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7725,10 +8352,12 @@
         "operationId": "AdminCategoriesController_deactivate_v1",
         "parameters": [
           {
+            "description": "ID de la categoría.",
             "in": "path",
             "name": "categoryId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7835,10 +8464,12 @@
         "operationId": "AdminCategoriesController_reactivate_v1",
         "parameters": [
           {
+            "description": "ID de la categoría.",
             "in": "path",
             "name": "categoryId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7941,6 +8572,7 @@
     },
     "/v1/admin/catalog/products": {
       "get": {
+        "description": "Paginado, sin la descripción de cada producto. Filtros por parte del título o del SKU, por estado, marca y categoría; orden por última modificación, la más reciente primero por defecto, título, alta o publicación.",
         "operationId": "AdminProductsController_list_v1",
         "parameters": [
           {
@@ -7973,6 +8605,7 @@
             }
           },
           {
+            "description": "Solo los productos de esta marca.",
             "in": "query",
             "name": "brandId",
             "required": false,
@@ -8103,6 +8736,7 @@
         ]
       },
       "post": {
+        "description": "En `DRAFT` y sin variantes: se publica después de agregarle al menos una. Sin `slug`, se genera del título.",
         "operationId": "AdminProductsController_create_v1",
         "parameters": [],
         "requestBody": {
@@ -8203,13 +8837,16 @@
     },
     "/v1/admin/catalog/products/{productId}": {
       "get": {
+        "description": "En cualquier estado, con sus variantes, imágenes, categorías y `storeVisibility`, que dice si la tienda lo muestra.",
         "operationId": "AdminProductsController_get_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -8304,10 +8941,12 @@
         "operationId": "AdminProductsController_update_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -8424,10 +9063,12 @@
         "operationId": "AdminProductsController_archive_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -8544,10 +9185,12 @@
         "operationId": "AdminProductImagesController_upload_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -8701,10 +9344,12 @@
         "operationId": "AdminProductImagesController_reorder_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -8821,18 +9466,22 @@
         "operationId": "AdminProductImagesController_remove_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la imagen.",
             "in": "path",
             "name": "imageId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -8926,21 +9575,26 @@
         ]
       },
       "patch": {
+        "description": "Cambian solo los campos enviados; `null` quita el texto alternativo o la variante, y la imagen queda del producto. Un producto archivado responde 409.",
         "operationId": "AdminProductImagesController_describe_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la imagen.",
             "in": "path",
             "name": "imageId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -9057,10 +9711,12 @@
         "operationId": "AdminProductsController_publish_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -9177,10 +9833,12 @@
         "operationId": "AdminProductsController_reactivate_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -9293,13 +9951,16 @@
     },
     "/v1/admin/catalog/products/{productId}/variants": {
       "post": {
+        "description": "Con la `version` del producto. El SKU no se repite ni se reutiliza (BR-PRD-09), y la combinación de opciones tampoco (BR-PRD-02). Responde el producto con la variante.",
         "operationId": "AdminProductsController_addVariant_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -9416,18 +10077,22 @@
         "operationId": "AdminProductsController_updateVariant_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -9540,21 +10205,26 @@
     },
     "/v1/admin/catalog/products/{productId}/variants/{variantId}/discontinue": {
       "post": {
+        "description": "De `ACTIVE` a `DISCONTINUED`: deja de venderse y sale de la tienda. Su SKU queda reservado.",
         "operationId": "AdminProductsController_discontinueVariant_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -9671,18 +10341,22 @@
         "operationId": "AdminProductsController_reactivateVariant_v1",
         "parameters": [
           {
+            "description": "ID del producto.",
             "in": "path",
             "name": "productId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -10050,10 +10724,12 @@
         "operationId": "EventDeliveriesController_retry_v1",
         "parameters": [
           {
+            "description": "ID de la entrega de un evento a su manejador.",
             "in": "path",
             "name": "deliveryId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -10149,6 +10825,7 @@
     },
     "/v1/admin/identity/customers": {
       "get": {
+        "description": "Paginado. Filtros por parte del email, los nombres o los apellidos, por estado, por email verificado y por fecha de alta. Sin las direcciones, que trae el detalle.",
         "operationId": "AdminCustomersController_list_v1",
         "parameters": [
           {
@@ -10170,6 +10847,7 @@
             }
           },
           {
+            "description": "`true`, solo los clientes con el email verificado; `false`, solo los que no lo han verificado.",
             "in": "query",
             "name": "emailVerified",
             "required": false,
@@ -10325,10 +11003,12 @@
         "operationId": "AdminCustomersController_get_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -10425,10 +11105,12 @@
         "operationId": "AnonymizationsController_anonymizeCustomer_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -10545,10 +11227,12 @@
         "operationId": "AdminCustomersController_reactivate_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -10665,10 +11349,12 @@
         "operationId": "AdminCustomersController_suspend_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -10892,6 +11578,7 @@
     },
     "/v1/admin/identity/permissions": {
       "get": {
+        "description": "Los permisos del catálogo en código, con su descripción (ADR-0017): los únicos que puede tener un rol.",
         "operationId": "AdminPermissionsController_list_v1",
         "parameters": [],
         "responses": {
@@ -10972,6 +11659,7 @@
     },
     "/v1/admin/identity/roles": {
       "get": {
+        "description": "Paginado. Filtro por parte del nombre; orden por nombre, el predeterminado, o por fecha de alta. Cada rol dice cuántos miembros del staff lo tienen.",
         "operationId": "AdminRolesController_list_v1",
         "parameters": [
           {
@@ -11197,13 +11885,16 @@
     },
     "/v1/admin/identity/roles/{roleId}": {
       "delete": {
+        "description": "Solo si ningún miembro del staff lo tiene (BR-USR-07). El rol superadministrador nunca se borra (BR-USR-03).",
         "operationId": "AdminRolesController_remove_v1",
         "parameters": [
           {
+            "description": "ID del rol.",
             "in": "path",
             "name": "roleId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -11297,13 +11988,16 @@
         ]
       },
       "get": {
+        "description": "Con sus permisos y cuántos miembros del staff lo tienen. El rol superadministrador tiene todos los permisos.",
         "operationId": "AdminRolesController_get_v1",
         "parameters": [
           {
+            "description": "ID del rol.",
             "in": "path",
             "name": "roleId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -11398,10 +12092,12 @@
         "operationId": "AdminRolesController_update_v1",
         "parameters": [
           {
+            "description": "ID del rol.",
             "in": "path",
             "name": "roleId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -11514,6 +12210,7 @@
     },
     "/v1/admin/identity/staff": {
       "get": {
+        "description": "Paginado. Filtros por parte del email o de los nombres, por estado y por rol; orden por fecha de alta, la más reciente primero por defecto, o por email.",
         "operationId": "AdminStaffController_list_v1",
         "parameters": [
           {
@@ -11766,13 +12463,16 @@
     },
     "/v1/admin/identity/staff/{userId}": {
       "get": {
+        "description": "Con sus roles, su estado y su último inicio de sesión. Una cuenta de cliente responde 404.",
         "operationId": "AdminStaffController_get_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -11869,10 +12569,12 @@
         "operationId": "AdminStaffController_reactivate_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -11989,10 +12691,12 @@
         "operationId": "AdminStaffController_replaceRoles_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -12109,10 +12813,12 @@
         "operationId": "AdminStaffController_suspend_v1",
         "parameters": [
           {
+            "description": "ID de la cuenta.",
             "in": "path",
             "name": "userId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -12441,6 +13147,7 @@
         "operationId": "AdminStockController_list_v1",
         "parameters": [
           {
+            "description": "Solo las existencias de esta variante.",
             "in": "query",
             "name": "variantId",
             "required": false,
@@ -12460,6 +13167,7 @@
             }
           },
           {
+            "description": "Solo las existencias de este almacén.",
             "in": "query",
             "name": "warehouseId",
             "required": false,
@@ -12608,10 +13316,12 @@
         "operationId": "AdminStockController_movements_v1",
         "parameters": [
           {
+            "description": "ID de las existencias de una variante en un almacén.",
             "in": "path",
             "name": "stockItemId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -12743,6 +13453,7 @@
     },
     "/v1/admin/inventory/warehouses": {
       "get": {
+        "description": "Sin paginar. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081).",
         "operationId": "AdminWarehousesController_list_v1",
         "parameters": [],
         "responses": {
@@ -12827,10 +13538,12 @@
         "operationId": "AdminWarehousesController_update_v1",
         "parameters": [
           {
+            "description": "ID del almacén.",
             "in": "path",
             "name": "warehouseId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13131,13 +13844,16 @@
     },
     "/v1/admin/orders/{orderId}": {
       "get": {
+        "description": "La vista del staff: líneas, totales, dirección, pago con sus reembolsos, envío e historial de estados. Una orden bloqueada no muestra su email ni su dirección exacta, que se consultan con `POST …/blocked-data` (ADR-0070).",
         "operationId": "AdminOrdersController_get_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13234,10 +13950,12 @@
         "operationId": "AdminOrdersController_readBlockedData_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13354,10 +14072,12 @@
         "operationId": "AdminOrdersController_cancel_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13474,10 +14194,12 @@
         "operationId": "AdminOrdersController_captureManually_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13594,10 +14316,12 @@
         "operationId": "AdminOrdersController_reorder_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13704,10 +14428,12 @@
         "operationId": "AdminOrdersController_restock_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -13717,6 +14443,7 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
               "type": "string"
             }
           }
@@ -13843,10 +14570,12 @@
         "operationId": "AdminOrdersController_retryFulfillment_v1",
         "parameters": [
           {
+            "description": "ID interno del pedido; quien compra usa el código público.",
             "in": "path",
             "name": "orderId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -13959,6 +14688,7 @@
     },
     "/v1/admin/payments": {
       "get": {
+        "description": "Paginado. Filtros por estado, proveedor, orden y fecha de captura, con varios valores separados por comas; orden por fecha de alta, la más reciente primero por defecto, o monto.",
         "operationId": "AdminPaymentsController_list_v1",
         "parameters": [
           {
@@ -14145,13 +14875,16 @@
     },
     "/v1/admin/payments/{paymentId}": {
       "get": {
+        "description": "Los intentos, del más antiguo al más reciente, y los reembolsos del pago.",
         "operationId": "AdminPaymentsController_get_v1",
         "parameters": [
           {
+            "description": "ID del pago.",
             "in": "path",
             "name": "paymentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -14248,10 +14981,12 @@
         "operationId": "AdminPaymentsController_registerManualRefund_v1",
         "parameters": [
           {
+            "description": "ID del pago.",
             "in": "path",
             "name": "paymentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -14364,6 +15099,7 @@
     },
     "/v1/admin/pricing/price-lists": {
       "get": {
+        "description": "Sin paginar. En el MVP solo existe la lista general, la predeterminada (ADR-0039).",
         "operationId": "AdminPricingController_list_v1",
         "parameters": [],
         "responses": {
@@ -14448,10 +15184,12 @@
         "operationId": "AdminPricingController_import_v1",
         "parameters": [
           {
+            "description": "ID de la lista de precios.",
             "in": "path",
             "name": "priceListId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -14587,18 +15325,22 @@
         "operationId": "AdminPricingController_history_v1",
         "parameters": [
           {
+            "description": "ID de la lista de precios.",
             "in": "path",
             "name": "priceListId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -14711,18 +15453,22 @@
         "operationId": "AdminPricingController_set_v1",
         "parameters": [
           {
+            "description": "ID de la lista de precios.",
             "in": "path",
             "name": "priceListId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -14849,26 +15595,32 @@
         "operationId": "AdminPricingController_cancel_v1",
         "parameters": [
           {
+            "description": "ID de la lista de precios.",
             "in": "path",
             "name": "priceListId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID del periodo de precio.",
             "in": "path",
             "name": "periodId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -14964,6 +15716,7 @@
     },
     "/v1/admin/shipping/method": {
       "get": {
+        "description": "El único método de envío, con su costo, el umbral de envío gratis y el plazo de entrega (ADR-0041, ADR-0092).",
         "operationId": "AdminShippingMethodController_get_v1",
         "parameters": [],
         "responses": {
@@ -15342,13 +16095,16 @@
     },
     "/v1/admin/shipping/shipments/{shipmentId}": {
       "get": {
+        "description": "Con sus líneas, su destino, la paquetería y la guía, y las fechas de cada cambio de estado.",
         "operationId": "AdminShipmentsController_get_v1",
         "parameters": [
           {
+            "description": "ID del envío.",
             "in": "path",
             "name": "shipmentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -15443,10 +16199,12 @@
         "operationId": "AdminShipmentsController_recordTracking_v1",
         "parameters": [
           {
+            "description": "ID del envío.",
             "in": "path",
             "name": "shipmentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -15563,10 +16321,12 @@
         "operationId": "AdminShipmentsController_deliver_v1",
         "parameters": [
           {
+            "description": "ID del envío.",
             "in": "path",
             "name": "shipmentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -15683,10 +16443,12 @@
         "operationId": "AdminShipmentsController_failDelivery_v1",
         "parameters": [
           {
+            "description": "ID del envío.",
             "in": "path",
             "name": "shipmentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -15803,10 +16565,12 @@
         "operationId": "AdminShipmentsController_dispatch_v1",
         "parameters": [
           {
+            "description": "ID del envío.",
             "in": "path",
             "name": "shipmentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -15923,10 +16687,12 @@
         "operationId": "AdminShipmentsController_markReturned_v1",
         "parameters": [
           {
+            "description": "ID del envío.",
             "in": "path",
             "name": "shipmentId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -16627,10 +17393,12 @@
         "operationId": "CartsController_view_v1",
         "parameters": [
           {
+            "description": "ID del carrito de invitado; es la única credencial del carrito (ADR-0059).",
             "in": "path",
             "name": "cartId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -16699,10 +17467,12 @@
         "operationId": "CartsController_addLine_v1",
         "parameters": [
           {
+            "description": "ID del carrito de invitado; es la única credencial del carrito (ADR-0059).",
             "in": "path",
             "name": "cartId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -16801,18 +17571,22 @@
         "operationId": "CartsController_removeLine_v1",
         "parameters": [
           {
+            "description": "ID del carrito de invitado; es la única credencial del carrito (ADR-0059).",
             "in": "path",
             "name": "cartId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -16895,21 +17669,26 @@
         ]
       },
       "patch": {
+        "description": "Fija la cantidad de la línea, de 1 a 30 (BR-CRT-02); para quitarla se usa `DELETE`. Responde el carrito.",
         "operationId": "CartsController_changeLine_v1",
         "parameters": [
           {
+            "description": "ID del carrito de invitado; es la única credencial del carrito (ADR-0059).",
             "in": "path",
             "name": "cartId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -17279,6 +18058,8 @@
         "operationId": "CatalogController_product_v1",
         "parameters": [
           {
+            "description": "Slug del producto publicado.",
+            "example": "camisa-de-lino",
             "in": "path",
             "name": "slug",
             "required": true,
@@ -17440,6 +18221,7 @@
     },
     "/v1/geo/states": {
       "get": {
+        "description": "Los 32 estados, por nombre, sin paginar. Datos de referencia que se pueden guardar en cache.",
         "operationId": "GeoCatalogController_listStates_v1",
         "parameters": [],
         "responses": {
@@ -17492,9 +18274,12 @@
     },
     "/v1/geo/states/{stateCode}/municipalities": {
       "get": {
+        "description": "Solo los municipios vigentes, por nombre, sin paginar. Un estado que no existe responde 404.",
         "operationId": "GeoCatalogController_listMunicipalities_v1",
         "parameters": [
           {
+            "description": "Clave del estado en el catálogo del INEGI, de dos dígitos.",
+            "example": "16",
             "in": "path",
             "name": "stateCode",
             "required": true,
@@ -17717,6 +18502,7 @@
     },
     "/v1/me/addresses": {
       "get": {
+        "description": "Todas, sin paginar: la predeterminada primero y después las más recientes. Un cliente tiene a lo sumo `MAX_ADDRESSES_PER_CUSTOMER` (10 por defecto).",
         "operationId": "MeAddressesController_list_v1",
         "parameters": [],
         "responses": {
@@ -17894,10 +18680,12 @@
         "operationId": "MeAddressesController_remove_v1",
         "parameters": [
           {
+            "description": "ID de la dirección.",
             "in": "path",
             "name": "addressId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -17982,10 +18770,12 @@
         "operationId": "MeAddressesController_update_v1",
         "parameters": [
           {
+            "description": "ID de la dirección.",
             "in": "path",
             "name": "addressId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -18275,10 +19065,12 @@
         "operationId": "MeCartController_removeLine_v1",
         "parameters": [
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -18376,13 +19168,16 @@
         ]
       },
       "patch": {
+        "description": "Fija la cantidad de la línea, de 1 a 30 (BR-CRT-02); para quitarla se usa `DELETE`. Responde el carrito.",
         "operationId": "MeCartController_changeLine_v1",
         "parameters": [
           {
+            "description": "ID de la variante.",
             "in": "path",
             "name": "variantId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -18950,6 +19745,7 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
               "type": "string"
             }
           }
@@ -19073,6 +19869,8 @@
         "operationId": "MeOrdersController_get_v1",
         "parameters": [
           {
+            "description": "Código público del pedido, de 8 caracteres, con o sin el guion del medio y sin distinguir mayúsculas.",
+            "example": "K7M4-Q9XA",
             "in": "path",
             "name": "publicCode",
             "required": true,
@@ -19170,6 +19968,8 @@
         "operationId": "MeOrdersController_startPayment_v1",
         "parameters": [
           {
+            "description": "Código público del pedido, de 8 caracteres, con o sin el guion del medio y sin distinguir mayúsculas.",
+            "example": "K7M4-Q9XA",
             "in": "path",
             "name": "publicCode",
             "required": true,
@@ -19183,6 +19983,7 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
               "type": "string"
             }
           }
@@ -19316,6 +20117,8 @@
         "operationId": "MeOrdersController_reorder_v1",
         "parameters": [
           {
+            "description": "Código público del pedido, de 8 caracteres, con o sin el guion del medio y sin distinguir mayúsculas.",
+            "example": "K7M4-Q9XA",
             "in": "path",
             "name": "publicCode",
             "required": true,
@@ -19499,6 +20302,7 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
               "type": "string"
             }
           }
@@ -19892,6 +20696,8 @@
         "operationId": "OrdersController_startPayment_v1",
         "parameters": [
           {
+            "description": "Código público del pedido, de 8 caracteres, con o sin el guion del medio y sin distinguir mayúsculas.",
+            "example": "K7M4-Q9XA",
             "in": "path",
             "name": "publicCode",
             "required": true,
@@ -19905,6 +20711,7 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
               "type": "string"
             }
           }

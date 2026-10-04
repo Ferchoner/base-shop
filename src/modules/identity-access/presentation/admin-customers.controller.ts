@@ -46,7 +46,11 @@ export class AdminCustomersController {
     private readonly reactivateCustomer: ReactivateCustomer,
   ) {}
 
-  @ApiOperation({ summary: 'Listar clientes' })
+  @ApiOperation({
+    summary: 'Listar clientes',
+    description:
+      'Paginado. Filtros por parte del email, los nombres o los apellidos, por estado, por email verificado y por fecha de alta. Sin las direcciones, que trae el detalle.',
+  })
   @ApiOkResponse({ type: CustomerListDto })
   @RequirePermissions('customers.read')
   @Get()

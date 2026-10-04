@@ -28,6 +28,7 @@ export function Idempotent(scope: IdempotencyScopeResolver): MethodDecorator {
       required: true,
       description:
         'Llave de idempotencia de 1 a 255 caracteres; se recomienda un UUID (API_SPEC.md, sección 4).',
+      example: '0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b',
     }),
     ApiProblemResponses(
       'idempotency-key-missing',

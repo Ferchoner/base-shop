@@ -245,3 +245,11 @@
   - En un worktree de git, gitleaks no encontraba el repositorio, revisaba 0 commits y terminaba con 0 y sin hallazgos. Ahora se montan en solo lectura el directorio de trabajo y el directorio de git compartido, con `GIT_DIR` y `GIT_WORK_TREE`.
   - El escaneo falla si git, dentro del contenedor, no lee el mismo `HEAD` que en el equipo, o si gitleaks registra un error de git, aunque diga "no leaks found".
   - La misma imagen fijada por digest y los mismos argumentos de gitleaks; `npm run lint:code` revisa también `scripts/`.
+- T-320 parte b (ADR-0155): descripciones del OpenAPI.
+  - Toda operación, todo parámetro y cada campo de los cuerpos que envía el cliente tienen descripción, y la prueba de contrato lo exige.
+  - Los parámetros de ruta se describen una vez por nombre (`PATH_PARAMETERS`), con `format: uuid` en los IDs.
+  - Los IDs de las respuestas declaran `format: uuid`.
+  - Las respuestas describen estados, montos, el significado de `null` y de qué es cada fecha.
+  - Las descripciones que estaban en inglés pasan al español.
+  - Los tokens de los enlaces y `Idempotency-Key` tienen ejemplo.
+  - La revisión de los errores de cada ruta contra `API_SPEC.md` no encontró diferencias.

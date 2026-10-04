@@ -60,7 +60,11 @@ export class AdminCategoriesController {
     private readonly deleteCategory: DeleteCategory,
   ) {}
 
-  @ApiOperation({ summary: 'Árbol completo de categorías, con inactivas' })
+  @ApiOperation({
+    summary: 'Árbol completo de categorías, con inactivas',
+    description:
+      'Todo el árbol, sin paginar. Con `status`, solo las categorías de esos estados y los ancestros que llevan a ellas.',
+  })
   @ApiOkResponse({ type: AdminCategoryTreeDto })
   @RequirePermissions('catalog.read')
   @Get()
@@ -76,7 +80,11 @@ export class AdminCategoriesController {
     };
   }
 
-  @ApiOperation({ summary: 'Crear una categoría' })
+  @ApiOperation({
+    summary: 'Crear una categoría',
+    description:
+      'Activa, en la raíz o bajo una categoría activa. Sin `slug`, se genera del nombre. El nombre no se repite entre categorías hermanas, y el slug, en ninguna.',
+  })
   @ApiCreatedResponse({ type: AdminCategoryDto })
   @ApiProblemResponses('duplicate-value')
   @RequirePermissions('catalog.write')
