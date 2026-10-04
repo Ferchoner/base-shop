@@ -61,7 +61,11 @@ export class AdminStaffController {
     private readonly reactivateStaff: ReactivateStaff,
   ) {}
 
-  @ApiOperation({ summary: 'Listar el staff' })
+  @ApiOperation({
+    summary: 'Listar el staff',
+    description:
+      'Paginado. Filtros por parte del email o de los nombres, por estado y por rol; orden por fecha de alta, la más reciente primero por defecto, o por email.',
+  })
   @ApiOkResponse({ type: StaffListDto })
   @Get()
   async list(@Query() query: StaffListQueryDto): Promise<StaffListDto> {
@@ -103,7 +107,11 @@ export class AdminStaffController {
     return { user: await this.read(userId), temporaryPassword };
   }
 
-  @ApiOperation({ summary: 'Consultar un miembro del staff' })
+  @ApiOperation({
+    summary: 'Consultar un miembro del staff',
+    description:
+      'Con sus roles, su estado y su último inicio de sesión. Una cuenta de cliente responde 404.',
+  })
   @ApiOkResponse({ type: StaffUserDto })
   @ApiProblemResponses('not-found')
   @Get(':userId')

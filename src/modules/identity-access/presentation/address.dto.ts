@@ -30,8 +30,10 @@ const MUNICIPALITY_CODE = {
 
 /** An address of the book as the API answers it (API_SPEC.md §8.2). */
 export class AddressDto extends PostalAddressDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** La dirección predeterminada del cliente; solo una lo es. */
   isDefault: boolean;
 
   @ApiProperty(DATE_TIME)
@@ -62,49 +64,57 @@ export class CreateAddressDto extends AddressInputDto {
  * are cleared with `null`. Changing `stateCode` requires `municipalityCode` (API_SPEC.md §9.14).
  */
 export class UpdateAddressDto {
+  /** Nombre completo de quien recibe, de 1 a 120 caracteres. */
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 120)
   @Matches(/\S/, NOT_BLANK)
   recipientName?: string;
 
+  /** Exactamente 10 dígitos. */
   @ValidateIf((_, value) => value !== undefined)
   @Matches(/^[0-9]{10}$/, PHONE)
   phone?: string;
 
+  /** Calle, de 1 a 150 caracteres. */
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 150)
   @Matches(/\S/, NOT_BLANK)
   street?: string;
 
+  /** De 1 a 20 caracteres; admite "S/N" y letras. */
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 20)
   @Matches(/\S/, NOT_BLANK)
   exteriorNumber?: string;
 
+  /** De 1 a 20 caracteres; `null` lo quita. */
   @ApiPropertyOptional(NULLABLE_TEXT)
   @IsOptional()
   @IsString()
   @Length(1, 20)
   interiorNumber?: string | null;
 
+  /** Colonia, de 1 a 120 caracteres. */
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 120)
   @Matches(/\S/, NOT_BLANK)
   neighborhood?: string;
 
+  /** 5 dígitos; solo se valida el formato. */
   @ValidateIf((_, value) => value !== undefined)
   @Matches(/^[0-9]{5}$/, POSTAL_CODE)
   postalCode?: string;
 
+  /** Clave del INEGI del estado. */
   @ValidateIf((_, value) => value !== undefined)
   @Matches(/^[0-9]{2}$/, STATE_CODE)
   stateCode?: string;
 
-  /** Obligatorio si cambia `stateCode`. */
+  /** Clave del INEGI de un municipio vigente del estado; obligatoria si cambia `stateCode`. */
   @ValidateIf(
     (dto: UpdateAddressDto) =>
       dto.stateCode !== undefined || dto.municipalityCode !== undefined,
@@ -113,12 +123,14 @@ export class UpdateAddressDto {
   @Matches(/^[0-9]{5}$/, MUNICIPALITY_CODE)
   municipalityCode?: string;
 
+  /** Ciudad o localidad, de 1 a 120 caracteres; `null` la quita. */
   @ApiPropertyOptional(NULLABLE_TEXT)
   @IsOptional()
   @IsString()
   @Length(1, 120)
   city?: string | null;
 
+  /** Referencias para encontrar el domicilio, hasta 250 caracteres; `null` las quita. */
   @ApiPropertyOptional(NULLABLE_TEXT)
   @IsOptional()
   @IsString()
