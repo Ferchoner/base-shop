@@ -2452,7 +2452,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Renombrar un job de la CI exige actualizar `.github/rulesets/main.json` y volver a aplicarlo; el test lo detecta antes.
   - El archivo del ruleset no se sincroniza solo: un cambio hecho en la interfaz de GitHub debe copiarse al archivo, y un cambio en el archivo se aplica con `gh api` (`DEVELOPMENT_GUIDE.md`).
   - Los pull requests de Dependabot pasan por la CI como cualquier otro; los de versión mayor pueden requerir cambios de código.
-- **Estado:** Aceptada (plan de T-107 aprobado el 2026-09-28; ruleset y ajustes aplicados ese mismo día). ADR-0107 suma `typescript` a las versiones mayores ignoradas.
+- **Estado:** Aceptada (plan de T-107 aprobado el 2026-09-28; ruleset y ajustes aplicados ese mismo día). ADR-0107 suma `typescript` a las versiones mayores ignoradas. Modificada por ADR-0158: las actualizaciones de versión están en pausa mientras el MVP esté cerrado; las de seguridad siguen activas.
 
 ---
 

@@ -109,6 +109,14 @@ describe('GitHub repository settings (ADR-0106)', () => {
       expect([...config.matchAll(/^ {6}default-days: 7$/gm)]).toHaveLength(2);
     });
 
+    it('pauses the version updates of both ecosystems while the project is closed as an MVP (ADR-0158)', () => {
+      expect(
+        [...config.matchAll(/^ {4}open-pull-requests-limit: (\d+)$/gm)].map(
+          (match) => match[1],
+        ),
+      ).toEqual(['0', '0']);
+    });
+
     /** Packages whose major versions Dependabot must not propose. */
     function ignoredMajors(): string[] {
       return [
