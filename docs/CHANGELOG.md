@@ -259,3 +259,4 @@
   - `MigrationDatabase` (`test/integration/`) prueba los rellenos de `orders.concluded_at` y `users.last_active_at` en una base migrada hasta antes de cada uno.
   - Pruebas nuevas de los huecos que son lógica; las líneas que quedan sin cubrir están justificadas en ADR-0157.
   - El interceptor de idempotencia ya no tiene los respaldos del código de respuesta y de la ruta, que Express nunca usaba.
+- Sprint 9 cerrado (2026-10-04) con el objetivo cumplido: T-310 y T-320 en dos partes cada una, y T-300, en 8 pull requests (#90 a #97) con el pipeline en verde a la primera; 2,409 tests, cobertura con umbral en la CI y 5 ADR nuevos (ADR-0153 a ADR-0157). Review en el historial de `SPRINT.md`.

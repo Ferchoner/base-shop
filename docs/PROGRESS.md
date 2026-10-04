@@ -171,7 +171,7 @@ Sprint 9 — Calidad antes de operar (desde el 2026-10-03). El Sprint 8 (ciclo d
 
 - [x] Sprint 7: entrega garantizada de eventos (paso 0 y T-109 en dos partes, y P-61 cerrada), cerrado el 2026-10-03
 - [x] Sprint 8: ciclo de conservación de datos personales (paso 0 y T-232 en dos partes), cerrado el 2026-10-03
-- [ ] Sprint 9: calidad antes de operar (paso 0, T-310, T-320 y T-300); plan en `SPRINT.md`
+- [x] Sprint 9: calidad antes de operar (paso 0, T-310 y T-320 en dos partes cada una, y T-300), cerrado el 2026-10-04
 - [ ] PayPal y conciliación de pagos (T-192), cuando haya cuenta y sandbox (P-31), y el despliegue (T-330), cuando haya hosting
 
 ## Blocked
