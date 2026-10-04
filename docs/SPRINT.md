@@ -72,6 +72,17 @@ T-310 parte b, con el nuevo ADR-0154, que cambia decisiones de rate limiting, lo
 - **Correo:** en producción, TLS obligatorio en SMTP y `https` en `FRONTEND_BASE_URL` (SA-05; la autenticación SMTP, con P-24); la recuperación y el reenvío envían el enlace en segundo plano (SA-16); los nombres y direcciones van en una línea y sin enlaces (SA-17).
 - **Conteo corregido:** el informe de la parte a decía 12 bajos y 10 informativos; son 13 y 9.
 
+### Resultado del paso 2 (parte a)
+
+T-320 parte a, con el nuevo ADR-0155:
+
+- **Prueba de contrato:** las tablas de resumen de `API_SPEC.md` listan las mismas 126 rutas y los mismos accesos que la aplicación, y cada operación del OpenAPI documenta su autenticación, sus accesos denegados, la idempotencia y los errores comunes según la matriz de rutas.
+- **`docs/openapi/v1.json`:** el documento de `v1`, comprobado en cada corrida de la CI; `npm run openapi:update` lo regenera.
+- **Diferencias corregidas:**
+  - 10 rutas que faltaban en las tablas de `API_SPEC.md`;
+  - los errores de un controlador que OpenAPI perdía cuando un manejador declaraba otros del mismo estado, como el 401 de `/v1/me/password`;
+  - los errores de tres rutas que no tenían y los de idempotencia del reintegro.
+
 ## Risks
 
 - **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.

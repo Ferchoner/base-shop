@@ -59,6 +59,7 @@ La fuente de verdad del proyecto está en `docs/`:
 | `ARCHITECTURE.md` | Arquitectura y convenciones técnicas |
 | `DATABASE.md` | Modelo de datos |
 | `API_SPEC.md` | Contratos de la API |
+| `openapi/v1.json` | Documento OpenAPI de `v1`, generado y comprobado en la CI |
 | `SECURITY.md` | Seguridad |
 | `DECISIONS.md` | Registro de decisiones (ADR) |
 | `TASKS.md`, `PROGRESS.md` | Plan de trabajo y estado |

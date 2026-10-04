@@ -8,7 +8,7 @@
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
-7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
+7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una ruta nueva va también en la tabla de resumen de su sección de `API_SPEC.md`, y todo cambio del contrato (rutas, DTOs, descripciones o errores) se guarda con `npm run openapi:update` en `docs/openapi/v1.json`: la prueba de contrato falla hasta entonces (ADR-0155). Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
 8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
@@ -156,7 +156,8 @@ Versionado y documentación OpenAPI (ADR-0096):
   - la respuesta de éxito de cada endpoint, con `@ApiOkResponse({ type })` o `@ApiCreatedResponse({ type })`;
   - los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type: () => [OtroDto] })`;
   - las listas, las fechas y los campos que pueden ser `null` (ADR-0112), por ejemplo `@ApiProperty({ type: String, format: 'date-time', nullable: true })`.
-- Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos.
+- Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos. Los de un controlador se suman a los de cada manejador, y `@Idempotent` agrega los de idempotencia (ADR-0155).
+- El documento de `v1` está versionado en `docs/openapi/v1.json` (ADR-0155). `test/api-contract.e2e-spec.ts` lo compara con el generado, y comprueba que las tablas de `API_SPEC.md` listen las mismas rutas y accesos que la aplicación y que cada operación documente su autenticación, sus accesos denegados y sus errores según la matriz de rutas. `npm run openapi:update` lo regenera, con Docker en marcha.
 - Un DTO no redeclara con decorador un campo de su clase base: TypeScript lo rechaza (TS2612), y `declare` no admite decoradores. Cada vista que necesita otro tipo declara su propio campo, como `payment` y `shipment` en las vistas de la orden (T-195).
 - Los tests end-to-end aplican el mismo plugin (`test/swagger-plugin.cjs`). Como ts-jest compila archivo por archivo, el plugin no deduce ahí los tipos de retorno ni los campos con otros DTO; declarándolos de forma explícita, el documento de los tests coincide con el real.
 

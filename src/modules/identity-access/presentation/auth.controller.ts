@@ -99,6 +99,7 @@ export class AuthController {
       'Responde 202 sin cuerpo en cuanto recibe la solicitud: el enlace se emite y se envía después, solo si el email es de un cliente activo sin verificar, así que ni la respuesta ni su tiempo dicen si existe o está verificado. El enlace nuevo invalida los anteriores. Límite: 3 por email por hora.',
   })
   @ApiAcceptedResponse()
+  @ApiProblemResponses()
   @RateLimit('email-verification')
   @Post('email-verification/resend')
   @HttpCode(202)
@@ -176,6 +177,7 @@ export class AuthController {
       'Responde 202 sin cuerpo en cuanto recibe la solicitud: el enlace se emite y se envía después, solo si el email es de una cuenta que puede iniciar sesión, así que ni la respuesta ni su tiempo dicen si existe. Las cuentas suspendidas no reciben el correo. El enlace nuevo invalida los anteriores. Límite: 3 por email y 10 por IP por hora.',
   })
   @ApiAcceptedResponse()
+  @ApiProblemResponses()
   @RateLimit('password-reset-email', 'password-reset-ip')
   @Post('password-reset/request')
   @HttpCode(202)

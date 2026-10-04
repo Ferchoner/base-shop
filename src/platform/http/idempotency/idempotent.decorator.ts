@@ -1,5 +1,6 @@
 import { applyDecorators, SetMetadata, UseInterceptors } from '@nestjs/common';
 import { ApiHeader } from '@nestjs/swagger';
+import { ApiProblemResponses } from '../problem-details/api-problem-responses.decorator.js';
 import type { IdempotencyScopeResolver } from './idempotency-scope.js';
 import {
   IDEMPOTENCY_KEY_HEADER,
@@ -9,7 +10,8 @@ import {
 
 /**
  * Makes an endpoint require `Idempotency-Key` (ADR-0063, ADR-0099). `scope` says who the key belongs to:
- * `cartScope` for guest routes and `userScope` for customer routes.
+ * `cartScope` for guest routes and `userScope` for customer routes. It documents the header and its errors in
+ * OpenAPI (ADR-0155).
  *
  * ```ts
  * @Post()
@@ -27,5 +29,10 @@ export function Idempotent(scope: IdempotencyScopeResolver): MethodDecorator {
       description:
         'Llave de idempotencia de 1 a 255 caracteres; se recomienda un UUID (API_SPEC.md, sección 4).',
     }),
+    ApiProblemResponses(
+      'idempotency-key-missing',
+      'idempotency-key-mismatch',
+      'idempotency-request-in-progress',
+    ),
   );
 }
