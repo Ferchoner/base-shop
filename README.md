@@ -4,7 +4,9 @@ API REST de comercio electrónico: catálogo, precios, inventario, carrito, chec
 
 ## Estado
 
-Sprint 2 (Identity & Access) cerrado: registro de clientes, verificación de email, sesiones, recuperación de contraseña, alta del staff, roles, permisos y direcciones, sobre las fundaciones técnicas del Sprint 1. Sprint 3 (catálogo vendible) cerrado: tienda pública con búsqueda y filtros, precios, stock con reservas y costo de envío. Sprint 4 (compra con pago en tienda) cerrado: carrito, checkout, órdenes, pago y reembolso en tienda, vencimiento de órdenes y recompra. Sprint 5 (entrega del pedido) cerrado: envíos, reintegro de stock, correos al cliente y limpieza diaria. Sprint 6 (privacidad y operación) cerrado: anonimización, consulta y archivo de la auditoría, imagen de producción reducida y enlace de acceso a los pedidos de invitado. Sprint 7 (entrega garantizada de eventos) cerrado: outbox transaccional con reintentos y consulta del staff, y plazos de conservación configurables. Sprint 8 (ciclo de conservación de datos personales) cerrado: bloqueo y anonimización automáticos de los datos personales de las órdenes, su consulta auditada, cuentas inactivas y política de conservación pública. En curso: Sprint 9 (calidad antes de operar). Ver `docs/SPRINT.md`, `docs/PROGRESS.md` y `docs/TASKS.md`.
+MVP cerrado el 2026-10-04 (ADR-0158), después de 10 sprints: identidad y acceso, catálogo con tienda pública, precios, inventario con reservas, carrito, checkout y órdenes, pago manual en tienda (solo para pruebas), envíos, correos al cliente, auditoría, privacidad con conservación y anonimización de datos personales, entrega garantizada de eventos, y una revisión de seguridad, documentación y pruebas. Corre solo en el entorno local.
+
+Fuera del MVP, hasta que una entidad quiera usar el proyecto: los proveedores de pago en línea, el despliegue, las promociones y las decisiones que dependen del hosting o del negocio. Para retomarlo, ver "Antes de operar con clientes reales" en `docs/PROJECT.md` y ADR-0158. El historial de los sprints está en `docs/SPRINT.md`.
 
 ## Requisitos
 

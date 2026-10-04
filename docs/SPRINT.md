@@ -4,6 +4,25 @@
 
 Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9 (ADR-0158): no habrá otro sprint hasta que una entidad quiera usarlo.
 
+## Cierre del MVP
+
+- **Periodo:** 10 sprints, del Sprint 0 (desde el 2026-09-24) al Sprint 9 (hasta el 2026-10-04).
+- **Qué incluye:** el alcance de `PROJECT.md` (§3), en 126 rutas de `/v1`:
+  - identidad y acceso, con roles y permisos;
+  - catálogo con tienda pública, precios con historial, e inventario con reservas;
+  - carrito, checkout y órdenes, también de invitados;
+  - el pago manual en tienda, solo para pruebas, con reembolsos;
+  - envíos, correos al cliente y auditoría técnica;
+  - privacidad: aviso versionado, anonimización y ciclo de conservación de los datos personales;
+  - entrega garantizada de eventos.
+- **Cómo se construyó:** 96 pull requests fusionados en `main`, cada uno con la CI en verde; 2,409 tests, con la cobertura de la suite sobre su umbral; y 158 ADR.
+- **Fuera del MVP:** las tareas T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69 (ADR-0158).
+- **Riesgos del cierre:**
+  - el MVP no cobra a clientes reales: no tiene proveedor de pago en línea;
+  - mientras dure la pausa de Dependabot, solo llegan las actualizaciones de seguridad, y las dependencias se atrasan;
+  - los riesgos de las reviews de los sprints siguen vigentes al retomar el proyecto.
+- **Para retomarlo:** los cuatro pasos de ADR-0158. Primero, la lista de `PROJECT.md` (§9) con la entidad que lo use; después, quitar la pausa de Dependabot y poner al día las dependencias; luego, una revisión contra los ADR; y al final, el primer sprint, con las tareas diferidas que esa entidad necesite.
+
 ---
 
 ## Historial

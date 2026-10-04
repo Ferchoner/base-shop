@@ -175,6 +175,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0155 | Contrato de la API comprobado y documento OpenAPI versionado | Aceptada |
 | ADR-0156 | Detección de secretos en worktrees de git, sin falsos aprobados | Aceptada |
 | ADR-0157 | Cobertura de toda la suite con umbral en la CI, y prueba de los rellenos de datos | Aceptada |
+| ADR-0158 | Cierre del proyecto como MVP | Aceptada |
 
 ---
 
@@ -349,7 +350,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Autorizar al pagar y capturar al despachar; autorizar y capturar tras validar.
 - **Revisar si:** los casos de AwaitingManualFulfillment dejan de ser raros, hay muchas cancelaciones de órdenes pagadas antes del envío, o se habilitan métodos asíncronos.
 - **Pendiente:** orden de integración de los proveedores y cuáles entran en el MVP; verificar ventanas de autorización y devolución de comisiones de cada proveedor.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. ADR-0158: ningún proveedor entra en el MVP; el orden de integración se decide cuando una entidad quiera usar el proyecto.
 
 ---
 
@@ -408,7 +409,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Notificaciones como módulo que reacciona a eventos.
   - Libreta de direcciones en Identity & Access como aggregate separado; se extrae si crece.
   - Sin envíos parciales: una orden genera un envío, con el modelo Shipment → ítems preparado para envíos parciales.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. Modificada por ADR-0158: el MVP se cierra con lo construido hasta el Sprint 9, sin proveedores de pago en línea ni despliegue.
 
 ---
 
@@ -855,7 +856,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El pago manual suele registrarse después del TTL de la reserva (20 minutos). En ese caso aplica ADR-0012: se intenta reservar de nuevo y, si no hay stock, la orden pasa a AwaitingManualFulfillment. Para pruebas, el TTL puede ampliarse por configuración.
   - El adaptador de PayPal requiere verificación completa (T-191, P-31) antes de habilitarse.
 - **Revisar cuando:** se tenga la cuenta y el sandbox de PayPal, o se decida integrar Mercado Pago o Stripe.
-- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto.
+- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto. Modificada por ADR-0158: el adaptador de PayPal (T-192) queda fuera del MVP, sin construir; el método manual sigue siendo solo para pruebas.
 
 ---
 
@@ -4784,3 +4785,40 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Modifica ADR-0030, que no fijaba un porcentaje mínimo, y ADR-0105 en los pasos 5 y 6.
 - **Revisar si:** la cobertura sube de forma estable (se suben los umbrales), una suite se divide en otra corrida, o Jest cambia el formato de su cobertura.
 - **Estado:** Aceptada (plan de T-300 aprobado el 2026-10-04, con sus 5 recomendaciones). Modifica ADR-0030 y ADR-0105.
+
+## ADR-0158 — Cierre del proyecto como MVP
+
+- **Fecha:** 2026-10-04
+- **Contexto:** Review del Sprint 9. El backlog ya no tiene tareas sin bloquear. Quedan:
+  - T-192, el adaptador de PayPal semiimplementado, con la conciliación de pagos y el reintento de reembolsos fallidos;
+  - T-191, su verificación, bloqueada por P-31 y por la falta de cuenta y sandbox;
+  - T-193 (Mercado Pago y Stripe) y T-200 (promociones), ya diferidas;
+  - T-330, el despliegue, sin hosting (ADR-0031).
+
+  Las 8 decisiones abiertas dependen del hosting, de PayPal, de validaciones externas o del negocio, y todavía no hay una entidad que vaya a usar el proyecto.
+- **Decisión** (del usuario, en la review del Sprint 9):
+  - **El MVP es lo construido hasta el Sprint 9:** la API del alcance de `PROJECT.md` (§3), en el entorno local (ADR-0031).
+  - **Pagos en el MVP:** el puerto `PaymentGateway` con el método manual, que sigue siendo solo para pruebas (ADR-0040, ADR-0055). Ningún proveedor de pago en línea entra en el MVP.
+  - **Fuera del MVP, hasta que una entidad quiera usar el proyecto:**
+    - las tareas T-191, T-192, T-193, T-200 y T-330, todas en DEFERRED;
+    - las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69, que siguen abiertas sin bloquear nada de lo construido.
+  - **Sin sprints nuevos:** `SPRINT.md` queda sin sprint actual.
+  - **Dependabot:** se pausan las actualizaciones de versión, con `open-pull-requests-limit: 0` en npm y en GitHub Actions. Las alertas y las actualizaciones de seguridad siguen activas: tienen su propio límite y no dependen de esa opción.
+  - **Para retomarlo:**
+    1. La entidad que use el proyecto resuelve la lista de "Antes de operar con clientes reales" (`PROJECT.md` §9) y las decisiones abiertas que le apliquen.
+    2. Se quita la pausa de Dependabot y se ponen al día las dependencias.
+    3. Una revisión contra los ADR, como el paso 0 de cada sprint.
+    4. El primer sprint se planea con las tareas diferidas que esa entidad necesite.
+- **Alternativas consideradas:**
+  - **Preparar las decisiones para operar (hosting, correo, secretos y observabilidad):** dependen de quién opere el proyecto y de su presupuesto.
+  - **Construir el adaptador de PayPal sin verificarlo (T-192):** sin cuenta ni sandbox se desactualizaría antes de poder probarlo, como ya advertía ADR-0040.
+  - **Preparar varias instancias** (bloqueos en los jobs, contadores compartidos del rate limit): solo sirve con un hosting de más de una instancia.
+  - **Dejar Dependabot como estaba:** abriría cada semana pull requests de versiones que nadie revisaría.
+  - **Apagar Dependabot por completo:** dejaría de proponer las correcciones de seguridad.
+- **Consecuencias:**
+  - El MVP no cobra a clientes reales: el pago manual es solo para pruebas, y no hay proveedor en línea.
+  - Las rutas de PayPal siguen marcadas como pendientes en `API_SPEC.md`, y el webhook responde 404 mientras PayPal no esté habilitado (§19).
+  - Las dependencias se atrasan mientras dure la pausa. Las vulnerabilidades siguen llegando como pull requests de seguridad, que pasan por la CI.
+  - Modifica ADR-0018 (alcance del MVP), ADR-0040 (PayPal) y ADR-0106 (Dependabot), y resuelve el pendiente de ADR-0013 sobre qué proveedores entran en el MVP.
+- **Revisar cuando:** una entidad quiera usar el proyecto.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-04, en la review del Sprint 9).
