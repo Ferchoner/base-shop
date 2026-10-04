@@ -1691,16 +1691,6 @@ Representación `EventDelivery`:
 
 ---
 
-## OpenAPI
-
-Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Presentation; documenta cada endpoint de este documento, sus esquemas y sus `type` de error. Se expone solo en el entorno local (ADR-0031). Este documento es la especificación de referencia hasta que exista la implementación; después, la especificación generada debe coincidir con él.
-
-- Swagger UI en `/docs/v1` y el documento OpenAPI de `v1` en `/docs/v1/openapi.json`, fuera del prefijo `/v1`. Solo se sirven con `NODE_ENV=development` (ADR-0096); con `NODE_ENV=test` el documento se construye y se revisa sin servirlo, para que un DTO que lo rompa falle en cualquier suite (paso 0 del Sprint 6).
-- Los errores de cada endpoint usan el esquema común `ProblemDetails`, cuyo `type` admite solo los tipos de la sección 6.2.
-- Autenticación declarada como `bearer` para las rutas `/v1/me` y `/v1/admin`.
-
----
-
 ## 23. Endpoints — Privacidad (ADR-0152)
 
 | Método | Ruta | Acceso | UC |
@@ -1727,3 +1717,15 @@ Pública, para que el frontend muestre los plazos reales en el aviso de privacid
 - `personalData`: el ciclo de los datos personales de órdenes y envíos (ADR-0151); con `enabled` en `false`, se conservan.
 - `inactiveCustomerMonths`: meses sin actividad tras los que se anonimiza la cuenta de un cliente; `null` si nunca (el valor por defecto).
 - Los eventos de dominio no aparecen: no llevan datos personales (ADR-0150).
+
+---
+
+## 24. OpenAPI
+
+Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Presentation; documenta cada endpoint de este documento, sus esquemas y sus `type` de error. Se expone solo en el entorno local (ADR-0031). Este documento es la especificación de referencia, y el documento generado debe coincidir con él: la prueba de contrato lo comprueba en cada corrida de la CI (ADR-0155).
+
+- Swagger UI en `/docs/v1` y el documento OpenAPI de `v1` en `/docs/v1/openapi.json`, fuera del prefijo `/v1`. Solo se sirven con `NODE_ENV=development` (ADR-0096); con `NODE_ENV=test` el documento se construye y se revisa sin servirlo, para que un DTO que lo rompa falle en cualquier suite (paso 0 del Sprint 6).
+- Los errores de cada endpoint usan el esquema común `ProblemDetails`, cuyo `type` admite solo los tipos de la sección 6.2. Cada respuesta de error lista sus tipos; los de un controlador se suman a los de cada ruta (ADR-0155).
+- Autenticación declarada como `bearer` en toda ruta protegida, y solo en ellas.
+- **Documento versionado (ADR-0155):** `docs/openapi/v1.json` guarda el documento de `v1`, con las claves ordenadas. Una prueba lo compara con el generado, así que todo cambio del contrato se ve en el diff; `npm run openapi:update` lo regenera.
+- **Lista de rutas:** las tablas de resumen de cada sección (`| Método | Ruta | Acceso | UC |`) son la lista de rutas de este documento. La prueba de contrato comprueba que coincidan con las de la aplicación, con el mismo acceso y la misma exigencia de `Idempotency-Key`; una fila marcada "pendiente" es una ruta por construir.

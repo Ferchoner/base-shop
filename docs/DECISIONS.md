@@ -172,6 +172,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0152 | Consulta de datos bloqueados, cuentas inactivas y política pública | Aceptada |
 | ADR-0153 | Auditoría de seguridad y matriz de rutas como control permanente | Aceptada |
 | ADR-0154 | Correcciones de la auditoría de seguridad que cambian decisiones | Aceptada |
+| ADR-0155 | Contrato de la API comprobado y documento OpenAPI versionado | Aceptada |
 
 ---
 
@@ -2123,7 +2124,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las opciones del plugin se repiten en `nest-cli.json` y en `test/swagger-plugin.cjs`; cambian juntas.
   - Una aplicación de test que no llama a `configureHttp` no tiene el prefijo `/v1`.
   - Cuando existan endpoints, el documento generado debe coincidir con `API_SPEC.md` (sección OpenAPI).
-- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0109 agrega una convención: la respuesta de éxito y los campos que contienen otros DTO se declaran de forma explícita. Desde el paso 0 del Sprint 6, el documento se construye y se revisa en todo entorno salvo producción (que cada `$ref` tenga su esquema), y solo se sirve en desarrollo.
+- **Estado:** Aceptada (aprobación formal 2026-09-27). ADR-0109 agrega una convención: la respuesta de éxito y los campos que contienen otros DTO se declaran de forma explícita. Desde el paso 0 del Sprint 6, el documento se construye y se revisa en todo entorno salvo producción (que cada `$ref` tenga su esquema), y solo se sirve en desarrollo. ADR-0155: el documento de `v1` se guarda en `docs/openapi/v1.json`, y una prueba lo compara con el generado, con `API_SPEC.md` y con la matriz de rutas; `@ApiProblemResponses` de un controlador se suma al de cada manejador.
 
 ---
 
@@ -4677,3 +4678,40 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - SA-05 queda parcial hasta P-24, que decide la autenticación SMTP.
 - **Revisar si:** se agrega un segundo factor o un CAPTCHA, con los que un límite por email podría volver sin bloquear al titular; se elige el proveedor de correo (P-24); o la API pasa a varias instancias (ADR-0065).
 - **Estado:** Aceptada (recomendaciones de la parte b de T-310 aprobadas el 2026-10-03). Modifica ADR-0065, ADR-0102, ADR-0110, ADR-0112, ADR-0114, ADR-0116, ADR-0117 y ADR-0118.
+
+## ADR-0155 — Contrato de la API comprobado y documento OpenAPI versionado
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-320, Sprint 9, paso 2. ADR-0096 genera el OpenAPI desde el código y solo lo sirve en local. `API_SPEC.md` pide que el documento generado coincida con él, pero nada lo comprobaba, y el documento no estaba en el repositorio. Al compararlos aparecieron diferencias:
+  - 10 rutas no estaban en las tablas de resumen de `API_SPEC.md`: geografía, auditoría, entregas de eventos, privacidad y las tres de recompra;
+  - Swagger deja que la respuesta de un manejador reemplace la de su controlador con el mismo estado. Por eso, en OpenAPI, `/v1/me/password` y `/v1/me/email` perdían el 401 `unauthenticated`, y la captura manual y el reembolso manual, su 403 `forbidden`;
+  - tres rutas no documentaban ningún error, y el reintegro de stock no documentaba los de idempotencia.
+- **Decisión** (plan de T-320, con sus 5 recomendaciones):
+  - **Dos partes:** la a, con los controles automáticos y el documento versionado; la b, con la revisión manual de descripciones, ejemplos y errores ruta por ruta.
+  - **Prueba de contrato** (`test/api-contract.e2e-spec.ts`), dentro de las e2e de la CI:
+    - **`API_SPEC.md`:** las tablas de resumen de cada sección (`| Método | Ruta | Acceso | UC |`) listan exactamente las rutas de la aplicación. Una fila marcada "pendiente" es una ruta por construir, que todavía no debe existir. La columna de acceso coincide con lo que exige cada ruta, incluido `Idempotency-Key`; "Solo cliente" también describe una ruta de cuenta que el staff no puede usar para comprar.
+    - **Documento OpenAPI:**
+      - una operación por ruta, con resumen y una respuesta de éxito con esquema, salvo 202 y 204;
+      - en todas, los errores comunes;
+      - cada respuesta de error lista tipos del catálogo con su estado, una vez cada uno, con el esquema `ProblemDetails`;
+      - la autenticación y los accesos denegados siguen la matriz de rutas de ADR-0153: `bearer` y 401 en las protegidas; 403 `forbidden` en las de staff y en las de solo clientes; `password-change-required` donde aplica; `staff-cannot-purchase` en las de compras;
+      - `Idempotency-Key` y sus tres errores, solo en las rutas idempotentes.
+  - **Documento versionado:** `docs/openapi/v1.json` es el documento de `v1`, con las claves ordenadas para que sus cambios se lean línea por línea. La prueba lo compara con el que genera la aplicación, y `npm run openapi:update` lo reescribe.
+  - **Correcciones de la parte a:**
+    - `@ApiProblemResponses` en un controlador se suma a los tipos de cada manejador, sin repetir ninguno;
+    - `@Idempotent` documenta los tres errores de idempotencia;
+    - se documentan los errores de las tres rutas que no tenían;
+    - las tablas de `API_SPEC.md` incluyen las 10 rutas que faltaban.
+  - **Ejemplos:** por campo, solo donde el formato no se deduce del esquema, en el comentario de la propiedad del DTO. Se agregan en la parte b.
+  - **Diferencias:** manda `API_SPEC.md`, salvo que un ADR posterior la haya cambiado; entonces se corrige el documento. Una corrección que cambie el contrato se presenta antes de implementarla.
+- **Alternativas consideradas:**
+  - **Un script y un job propio en la CI con `git diff --exit-code`:** tendría que arrancar la API con base de datos en otro job.
+  - **Un snapshot de Jest:** el documento quedaría en `__snapshots__`, sin una ruta estable para leerlo ni compartirlo.
+  - **Comparar las descripciones de OpenAPI con el texto de `API_SPEC.md`:** el lenguaje no se compara de forma automática; queda para la revisión manual.
+  - **Servir el documento en producción:** ADR-0096 lo descartó.
+- **Consecuencias:**
+  - Un cambio en un DTO, una descripción o un error obliga a regenerar `v1.json`, así que el cambio del contrato se ve en el diff del pull request.
+  - Una ruta nueva va en la tabla de resumen de su sección de `API_SPEC.md`, además de la matriz de rutas.
+  - Regenerar el documento necesita Docker, como cualquier prueba e2e.
+- **Revisar si:** aparece `v2`, cambia la forma de las tablas de `API_SPEC.md`, o `@nestjs/swagger` cambia cómo combina las respuestas de un controlador y sus manejadores.
+- **Estado:** Aceptada (plan de T-320 aprobado el 2026-10-03, con sus 5 recomendaciones). Implementada en la parte a de T-320; modifica ADR-0096.

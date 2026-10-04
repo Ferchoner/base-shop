@@ -236,3 +236,8 @@
   - En producción, `FRONTEND_BASE_URL` debe usar `https` y el SMTP exige TLS con certificado verificado.
   - Los correos citan nombres y direcciones en una línea, sin caracteres invisibles y con los enlaces rotos (`tienda. com`).
   - `SECURITY_AUDIT.md` corrige el conteo de la parte a: 13 hallazgos bajos y 9 informativos.
+- T-320 parte a (nuevo ADR-0155): contrato de la API comprobado.
+  - `test/api-contract.e2e-spec.ts` compara las tablas de resumen de `API_SPEC.md` y el documento OpenAPI con las rutas de la aplicación y su matriz de rutas.
+  - `docs/openapi/v1.json` guarda el documento de `v1` y se comprueba en la CI; `npm run openapi:update` lo regenera.
+  - OpenAPI documenta los errores de un controlador junto con los de cada manejador: `/v1/me/password` y `/v1/me/email` recuperan el 401 `unauthenticated`, y la captura y el reembolso manuales, el 403 `forbidden`. `@Idempotent` documenta sus tres errores, y la recuperación de contraseña, el reenvío de verificación y la política de conservación, los comunes.
+  - `API_SPEC.md` agrega a sus tablas de resumen las rutas de geografía, auditoría, entregas de eventos, privacidad y recompra.
