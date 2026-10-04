@@ -8,7 +8,7 @@
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
-7. Actualizar documentación. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
+7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
 8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 

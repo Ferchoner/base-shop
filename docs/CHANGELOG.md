@@ -217,3 +217,12 @@
 - La descripción OpenAPI de `GET /v1/admin/orders` ya no dice que `payment` y `shipment` son `null` hasta T-190 y T-195: cada pedido del listado los trae, y son `null` solo si aún no los tiene.
 - Sprint 8 cerrado (2026-10-03) con el objetivo cumplido: T-232 en dos partes, en 3 pull requests (#87 a #89) con la CI verde a la primera; 2,314 tests y 2 ADR nuevos (ADR-0151 y ADR-0152). Review en el historial de `SPRINT.md`. Sprint 9 aprobado: calidad antes de operar (T-310, T-320 y T-300).
 - Paso 0 del Sprint 9: revisión contra los ADR, con `PROJECT.md` y `README.md`, sin desajustes; Prisma 7.10.0 sigue siendo la última versión estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 8, y `TASKS.md` describe T-300, T-310 y T-320.
+- T-310 parte a (nuevo ADR-0153): auditoría de seguridad contra el OWASP API Security Top 10 (2023), sin hallazgos críticos ni altos; informe en `SECURITY_AUDIT.md`.
+  - Matriz de rutas (`test/security/route-matrix.ts`): una e2e compara cómo se protegen las 126 rutas con lo revisado y llama a las 100 protegidas sin token y con permisos insuficientes.
+  - `Cache-Control: no-store` en las respuestas públicas de carritos, cotización y órdenes de invitado, también en sus errores.
+  - `/V1/ADMIN/...` y `/V1/ME/...` se tratan como sus rutas en minúsculas: su 403 se audita y su guard falla cerrado.
+  - El 415 lleva los encabezados de seguridad y CORS, sin `X-Powered-By`.
+  - 400 en lugar de 500: `page` de más de 1,000,000, `availableMax` de más de 2,147,483,647 y cuerpos JSON anidados a más de 32 niveles.
+  - Longitudes máximas en `q` de roles (100), staff y clientes (254) y existencias (100), y en `sku` (64); de 1 a 50 roles por lista.
+  - El login, el cambio de contraseña y el de email aceptan 256 caracteres tal como se escriben, para las contraseñas registradas en forma descompuesta.
+  - Docker Compose publica sus puertos solo en `127.0.0.1`, y la API no arranca con `IMAGE_STORAGE_DIR` en la carpeta de trabajo o una que la contenga.

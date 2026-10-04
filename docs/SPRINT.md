@@ -50,6 +50,15 @@ Detalle en `docs/TASKS.md`, sección "Calidad". Orden:
   - decir en el plan cómo se prueba el relleno de datos de una migración.
 - **Descripción del listado de pedidos:** la de `GET /v1/admin/orders` en el OpenAPI ya no dice que `payment` y `shipment` son `null` hasta T-190 y T-195. Va en un commit `fix` aparte.
 
+### Resultado del paso 1 (parte a)
+
+T-310 parte a, con el nuevo ADR-0153:
+
+- **Matriz de rutas:** una prueba compara cómo se protegen las 126 rutas con `test/security/route-matrix.ts` y llama a las 100 protegidas sin credenciales; una ruta nueva falla hasta revisarse.
+- **Informe `SECURITY_AUDIT.md`:** sin hallazgos críticos ni altos; 5 medios y 3 bajos van a la parte b, 9 bajos se corrigieron, 2 se posponen con el hosting y 10 son informativos.
+- **Correcciones:** `no-store` en las respuestas públicas con datos personales o el `cartId`; rutas comparadas sin distinguir mayúsculas; encabezados en el 415; 400 en lugar de 500 para páginas enormes y cuerpos JSON muy anidados; longitudes máximas en filtros del staff; contraseñas escritas en forma descompuesta; puertos de Docker Compose en `127.0.0.1`; y la carpeta de imágenes, fuera de la de trabajo.
+- **Semgrep:** 2 resultados en 690 archivos, los dos informativos (SA-24 y SA-25).
+
 ## Risks
 
 - **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.

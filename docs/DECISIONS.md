@@ -170,6 +170,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0150 | Entrega garantizada de eventos (outbox transaccional) | Aceptada |
 | ADR-0151 | Ciclo de conservación: bloqueo y anonimización automáticos | Aceptada |
 | ADR-0152 | Consulta de datos bloqueados, cuentas inactivas y política pública | Aceptada |
+| ADR-0153 | Auditoría de seguridad y matriz de rutas como control permanente | Aceptada |
 
 ---
 
@@ -745,7 +746,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un listado que crezca mucho (por ejemplo, auditoría o movimientos de stock) puede usar paginación por cursor sin afectar a los demás.
   - Algunos recursos tienen vista pública y vista administrativa con respuestas distintas.
   - El envoltorio `data` / `meta` permite agregar información a los listados sin romper clientes de `v1`.
-- **Estado:** Aceptada. Implementada en ADR-0111; la paginación por cursor, en ADR-0127.
+- **Estado:** Aceptada. Implementada en ADR-0111; la paginación por cursor, en ADR-0127. ADR-0153 limita `page` a 1,000,000: un valor mayor respondía 500.
 
 ---
 
@@ -1829,7 +1830,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los encabezados se configuran en T-100; la política de Swagger UI, en T-114.
   - Al elegir hosting (P-06) se configuran HSTS, TLS y la redirección a HTTPS, y se revisa que las imágenes lleven `X-Content-Type-Options: nosniff` las sirva quien las sirva.
 - **Revisar si:** la API empieza a servir HTML, se usan cookies o cambia quién sirve las imágenes.
-- **Estado:** Aceptada (aprobación formal 2026-09-26).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). ADR-0153 pone helmet antes del rechazo de tipos de contenido, así que el 415 también lleva los encabezados.
 
 ---
 
@@ -2635,7 +2636,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
   - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
   - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
-- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity.
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity. ADR-0153 compara las rutas sin distinguir mayúsculas, como enruta Express, y una matriz revisada comprueba en la CI cómo se protege cada ruta.
 
 ---
 
@@ -4588,3 +4589,37 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Renovar la sesión escribe en `users` a lo más una vez al día por cuenta.
 - **Revisar si:** un operador necesita avisar antes de anonimizar una cuenta, o la ley pide otro tratamiento para las cuentas inactivas.
 - **Estado:** Aceptada (plan de T-232 parte b aprobado el 2026-10-03, con sus 4 recomendaciones). Completa ADR-0070 y ADR-0149, después de ADR-0151.
+
+---
+
+## ADR-0153 — Auditoría de seguridad y matriz de rutas como control permanente
+
+- **Fecha:** 2026-10-03
+- **Contexto:** T-310, Sprint 9. La API tiene muchos controles de seguridad, descritos en `SECURITY.md`, pero nunca se habían revisado juntos contra una referencia externa. Cómo se protege cada ruta solo se comprobaba al recibir una solicitud: el guard falla cerrado en `/v1/admin` y `/v1/me` (ADR-0111), pero nada avisaba de una ruta pública nueva sin límite propio, ni de un permiso equivocado.
+- **Decisión** (plan de T-310, con sus 5 recomendaciones):
+  - **Método:** revisión de cada ruta contra el OWASP API Security Top 10 (2023), contraste de cada afirmación de `SECURITY.md` con el código y una prueba, y una pasada única de Semgrep con su imagen oficial de Docker, sin agregarlo al repositorio ni a la CI.
+  - **Matriz de rutas como control permanente:** `test/security/route-matrix.e2e-spec.ts` lee las rutas de la aplicación con los metadatos que leen sus guards e interceptores (acceso, límites propios e idempotencia) y las compara con `test/security/route-matrix.ts`, revisada a mano. Una ruta nueva, o un cambio en cómo se protege, falla hasta revisarse y escribirse allí. La misma prueba llama a cada ruta protegida: 401 sin token, 403 al staff sin sus permisos y a los clientes en las administrativas, y 403 al staff en las de solo clientes.
+  - **Informe:** `docs/SECURITY_AUDIT.md`, con los hallazgos SA-01 en adelante, su categoría OWASP, su severidad (crítica, alta, media, baja o informativa) y su estado.
+  - **Qué se corrige:** las críticas, altas y medias, cada una con su prueba. Las bajas e informativas quedan como riesgo aceptado, con su razón, o como tarea nueva; se corrigen las que contradicen lo que dice `SECURITY.md` o provocan un 500. Una corrección que cambie el contrato o una decisión se presenta con su recomendación antes de implementarla.
+  - **Entrega en dos partes:** la a, con la matriz, el informe y las correcciones que no cambian contratos; la b, con las que necesitan diseño, y ADR-0154 si alguna cambia una decisión vigente.
+  - **Correcciones de la parte a** (bajas, sin hallazgos críticos ni altos):
+    - `Cache-Control: no-store` en las respuestas públicas de carritos, cotización y órdenes de invitado, también en sus errores (`@NoStore()`);
+    - el guard de autorización y el filtro de errores comparan `/v1/admin` y `/v1/me` sin distinguir mayúsculas, como enruta Express;
+    - helmet y CORS van antes del rechazo de tipos de contenido, así que el 415 lleva sus encabezados;
+    - `page` va de 1 a 1,000,000, y `availableMax` llega al entero mayor de PostgreSQL: fuera de rango, 400 en lugar de 500;
+    - el parser JSON rechaza con 400 un cuerpo anidado a más de 32 niveles, antes de la validación y de la huella de idempotencia, que son recursivas;
+    - longitudes máximas en los filtros `q` y `sku` del staff, y de 1 a 50 roles por lista;
+    - las contraseñas que se comparan admiten 256 caracteres tal como se escriben, porque la política cuenta 64 después de NFKC (ADR-0115);
+    - Docker Compose publica sus puertos solo en `127.0.0.1`;
+    - la API no arranca si `IMAGE_STORAGE_DIR` es la carpeta de trabajo o la contiene.
+- **Alternativas consideradas:**
+  - **Revisión manual sin control permanente:** el resultado envejece con la siguiente ruta nueva.
+  - **Comprobar solo la configuración, sin llamar a las rutas:** no detecta un guard que no se aplique.
+  - **Agregar Semgrep a la CI:** con 2 resultados en 690 archivos, ninguno del código, no compensa el tiempo de cada corrida ni una herramienta más que mantener.
+  - **Activar el enrutado que distingue mayúsculas en Express:** `/V1/ADMIN` respondería 404, un cambio de contrato sin ganancia frente a comparar sin distinguirlas.
+- **Consecuencias:**
+  - Agregar o cambiar una ruta exige actualizar la matriz (`DEVELOPMENT_GUIDE.md`), y quien revisa el pull request ve el cambio de protección en el diff.
+  - Las 100 rutas protegidas se prueban sin credenciales en cada corrida de la CI.
+  - Quedan 5 hallazgos medios y 3 bajos para la parte b, y 2 bajos pospuestos con el hosting (P-06).
+- **Revisar si:** cambia el OWASP API Security Top 10, se agrega otro tipo de autenticación, o una ruta deja de poder clasificarse con la matriz.
+- **Estado:** Aceptada (plan de T-310 aprobado el 2026-10-03, con sus 5 recomendaciones). Implementada en la parte a de T-310.
