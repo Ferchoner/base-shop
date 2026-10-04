@@ -801,6 +801,11 @@ Implementado en T-132 (ADR-0145):
 
 ## 10. Endpoints — Catálogo geográfico (UC-IAM-22)
 
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/geo/states` | Público | UC-IAM-22 |
+| GET | `/v1/geo/states/{stateCode}/municipalities` | Público | UC-IAM-22 |
+
 | Endpoint | Detalle |
 |---|---|
 | `GET /v1/geo/states` | Público. 200 `{ "data": [ { "code": "16", "name": "Michoacán de Ocampo" } ] }`. Sin paginación (32 registros). Orden por nombre |
@@ -1160,6 +1165,9 @@ Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva t
 | POST | `/v1/me/cart/lines` | Solo cliente | UC-CRT-01, 02 |
 | PATCH, DELETE | `/v1/me/cart/lines/{variantId}` | Solo cliente | UC-CRT-03, 04 |
 | POST | `/v1/me/cart/merge` | Solo cliente | UC-CRT-06 |
+| POST | `/v1/me/orders/{publicCode}/reorder` | Solo cliente | UC-CRT-09 (14.3) |
+| POST | `/v1/orders/reorder` | Público | UC-CRT-09 (14.3) |
+| POST | `/v1/admin/orders/{orderId}/reorder` | `orders.manage` | UC-CRT-09 (14.3) |
 
 Las rutas `/v1/carts/{cartId}` solo operan sobre carritos de invitado (sin dueño). Un `cartId` de un carrito con dueño responde 404 (ADR-0071), para que conocer el identificador no dé acceso al carrito de una cuenta.
 
@@ -1558,6 +1566,10 @@ Implementado en T-195 parte b (ADR-0141):
 
 ## 18. Endpoints — Auditoría (UC-AUD-02, ADR-0037)
 
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/admin/audit` | `audit.read` | UC-AUD-02 |
+
 **`GET /v1/admin/audit`** — `audit.read`.
 
 - Paginación por cursor (sección 5.2); orden fijo, más reciente primero.
@@ -1633,6 +1645,12 @@ Las entregas de eventos (sección 22) son una herramienta de operación, sin cas
 
 Las entregas de los eventos de dominio a sus manejadores (sección 2.5), para diagnosticar y reintentar las que agotaron sus 8 intentos. Implementado en T-109 parte b.
 
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/admin/event-deliveries` | `events.manage` | Operación |
+| POST | `/v1/admin/event-deliveries/{deliveryId}/retry` | `events.manage` | Operación |
+| POST | `/v1/admin/event-deliveries/retry` | `events.manage` | Operación |
+
 ### 22.1 `GET /v1/admin/event-deliveries` — `events.manage`
 
 Paginado (ADR-0036). Filtros: `status` (uno o más de `PENDING`, `DELIVERED` y `FAILED`; por defecto, `FAILED`), `eventType` (como `PaymentCaptured`) y `handler` (como `PaymentCapturedHandler.onPaymentCaptured`). Orden: `occurredAt` (defecto `-occurredAt`) o `nextAttemptAt`, con desempate por ID.
@@ -1673,17 +1691,11 @@ Representación `EventDelivery`:
 
 ---
 
-## OpenAPI
-
-Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Presentation; documenta cada endpoint de este documento, sus esquemas y sus `type` de error. Se expone solo en el entorno local (ADR-0031). Este documento es la especificación de referencia hasta que exista la implementación; después, la especificación generada debe coincidir con él.
-
-- Swagger UI en `/docs/v1` y el documento OpenAPI de `v1` en `/docs/v1/openapi.json`, fuera del prefijo `/v1`. Solo se sirven con `NODE_ENV=development` (ADR-0096); con `NODE_ENV=test` el documento se construye y se revisa sin servirlo, para que un DTO que lo rompa falle en cualquier suite (paso 0 del Sprint 6).
-- Los errores de cada endpoint usan el esquema común `ProblemDetails`, cuyo `type` admite solo los tipos de la sección 6.2.
-- Autenticación declarada como `bearer` para las rutas `/v1/me` y `/v1/admin`.
-
----
-
 ## 23. Endpoints — Privacidad (ADR-0152)
+
+| Método | Ruta | Acceso | UC |
+|---|---|---|---|
+| GET | `/v1/privacy/retention-policy` | Público | UC-IAM-23 |
 
 ### 23.1 `GET /v1/privacy/retention-policy` — Política de conservación vigente (UC-IAM-23)
 
@@ -1705,3 +1717,15 @@ Pública, para que el frontend muestre los plazos reales en el aviso de privacid
 - `personalData`: el ciclo de los datos personales de órdenes y envíos (ADR-0151); con `enabled` en `false`, se conservan.
 - `inactiveCustomerMonths`: meses sin actividad tras los que se anonimiza la cuenta de un cliente; `null` si nunca (el valor por defecto).
 - Los eventos de dominio no aparecen: no llevan datos personales (ADR-0150).
+
+---
+
+## 24. OpenAPI
+
+Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Presentation; documenta cada endpoint de este documento, sus esquemas y sus `type` de error. Se expone solo en el entorno local (ADR-0031). Este documento es la especificación de referencia, y el documento generado debe coincidir con él: la prueba de contrato lo comprueba en cada corrida de la CI (ADR-0155).
+
+- Swagger UI en `/docs/v1` y el documento OpenAPI de `v1` en `/docs/v1/openapi.json`, fuera del prefijo `/v1`. Solo se sirven con `NODE_ENV=development` (ADR-0096); con `NODE_ENV=test` el documento se construye y se revisa sin servirlo, para que un DTO que lo rompa falle en cualquier suite (paso 0 del Sprint 6).
+- Los errores de cada endpoint usan el esquema común `ProblemDetails`, cuyo `type` admite solo los tipos de la sección 6.2. Cada respuesta de error lista sus tipos; los de un controlador se suman a los de cada ruta (ADR-0155).
+- Autenticación declarada como `bearer` en toda ruta protegida, y solo en ellas.
+- **Documento versionado (ADR-0155):** `docs/openapi/v1.json` guarda el documento de `v1`, con las claves ordenadas. Una prueba lo compara con el generado, así que todo cambio del contrato se ve en el diff; `npm run openapi:update` lo regenera.
+- **Lista de rutas:** las tablas de resumen de cada sección (`| Método | Ruta | Acceso | UC |`) son la lista de rutas de este documento. La prueba de contrato comprueba que coincidan con las de la aplicación, con el mismo acceso y la misma exigencia de `Idempotency-Key`; una fila marcada "pendiente" es una ruta por construir.

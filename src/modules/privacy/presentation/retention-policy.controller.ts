@@ -1,6 +1,7 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RetentionPolicyReader } from '../../../platform/config/retention-policy.js';
+import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { RetentionPolicyDto } from './retention-policy.dto.js';
 
 /**
@@ -18,6 +19,7 @@ export class RetentionPolicyController {
       'Los plazos que conservan o borran datos personales, configurados por el operador (ADR-0149, ADR-0152). Pública, con `Cache-Control: public, max-age=3600`.',
   })
   @ApiOkResponse({ type: RetentionPolicyDto })
+  @ApiProblemResponses()
   @Header('Cache-Control', 'public, max-age=3600')
   @Get('retention-policy')
   get(): RetentionPolicyDto {
