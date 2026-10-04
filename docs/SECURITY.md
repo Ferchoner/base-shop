@@ -15,7 +15,7 @@
 - La CI corre con permisos de solo lectura, actions de terceros fijadas por SHA y sin interpolar datos del pull request (como el título) en sus scripts (ADR-0105).
 - Autorización (ADR-0111):
   - Toda ruta de `/v1/admin` exige staff con los permisos del catálogo en código, y toda ruta de `/v1/me`, una cuenta.
-  - El guard falla cerrado: una ruta de esos grupos sin requisito responde 500 en lugar de quedar pública.
+  - El guard falla cerrado: una ruta de esos grupos sin requisito responde 500 en lugar de quedar pública. Compara las rutas sin distinguir mayúsculas, como las enruta Express (ADR-0153).
   - Los 403 de `/v1/admin` se auditan.
   - Toda respuesta autenticada lleva `Cache-Control: no-store`, errores incluidos (ADR-0071, ADR-0112).
   - El sistema nunca queda sin superadministrador activo: los cambios que podrían dejarlo sin ninguno bloquean el rol y se validan de a uno (ADR-0112).
@@ -26,6 +26,7 @@
   - Los enlaces al frontend se arman con `FrontendLinks`, que codifica los parámetros.
   - En producción, el servidor SMTP, el remitente y la URL del frontend son obligatorios.
 - Ninguna dependencia ejecuta scripts al instalarse: `allowScripts` los niega y `.npmrc` hace fallar la instalación ante uno sin revisar, en local, en la CI y en Docker. Esto también corta la telemetría de `@scarf/scarf` (ADR-0108).
+- Auditoría de seguridad (T-310, ADR-0153): el resultado y los hallazgos están en `SECURITY_AUDIT.md`. Una prueba compara cómo se protege cada ruta con la matriz revisada de `test/security/route-matrix.ts` y llama a cada ruta protegida sin credenciales; una ruta nueva se revisa y se escribe allí.
 - `main` solo recibe cambios por pull request con la CI en verde, sin excepciones para administradores. Dependabot espera 7 días antes de proponer una versión nueva, para evitar paquetes comprometidos recién publicados, y abre de inmediato las actualizaciones de seguridad (ADR-0106).
 
 ## Contratos de la API (ADR-0071)
@@ -35,7 +36,7 @@
 - Cuerpos con campos no declarados se rechazan (400).
 - Los errores de validación nunca repiten el valor rechazado, y la ruta de `instance` va sin la cadena de consulta (ADR-0095).
 - El identificador de correlación lo genera siempre el servidor; uno enviado por el cliente se ignora, para que no se pueda falsificar ni usar para inyectar texto en los logs (ADR-0095).
-- `Cache-Control: no-store` en respuestas autenticadas o con datos personales o tokens.
+- `Cache-Control: no-store` en respuestas autenticadas o con datos personales o tokens. Las públicas de carritos, cotización y órdenes de invitado lo llevan con `@NoStore()`, también en sus errores (ADR-0153).
 - La contraseña temporal del staff se muestra una sola vez, en la respuesta de creación o de reactivación (ADR-0076). Son 20 caracteres aleatorios (unos 100 bits), pasan la política de contraseñas y se guardan solo como hash (ADR-0116).
 - El primer superadministrador se crea con un script que muestra su contraseña temporal una sola vez en la terminal, nunca en el log, y que se niega a correr si ya hay un superadministrador activo (ADR-0116).
 - Un staff con cambio de contraseña pendiente solo accede a su cuenta, al cambio de contraseña y al cierre de sesión.

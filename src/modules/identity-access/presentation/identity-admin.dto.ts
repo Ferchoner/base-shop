@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -95,9 +96,10 @@ export class RoleListDto {
 }
 
 export class RoleListQueryDto extends PageQueryDto {
-  /** Parte del nombre, sin distinguir mayúsculas. */
+  /** Parte del nombre, sin distinguir mayúsculas; hasta 100 caracteres. */
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   q?: string;
 
   /** `name` (por defecto) o `createdAt`, con `-` para orden descendente; varios separados por comas. */
@@ -214,9 +216,10 @@ export class StaffListDto {
 }
 
 export class StaffListQueryDto extends PageQueryDto {
-  /** Parte del email o de los nombres, sin distinguir mayúsculas. */
+  /** Parte del email o de los nombres, sin distinguir mayúsculas; hasta 254 caracteres. */
   @IsOptional()
   @IsString()
+  @MaxLength(254)
   q?: string;
 
   @ApiPropertyOptional({
@@ -245,10 +248,11 @@ export class ReplaceRolesDto {
   @ApiProperty({
     type: [String],
     format: 'uuid',
-    description: 'Al menos un rol; reemplaza el conjunto.',
+    description: 'De 1 a 50 roles; reemplaza el conjunto.',
   })
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(50)
   @IsUUID('all', { each: true })
   roleIds: string[];
 
@@ -286,10 +290,11 @@ export class CreateStaffDto {
   @ApiProperty({
     type: [String],
     format: 'uuid',
-    description: 'Al menos un rol.',
+    description: 'De 1 a 50 roles.',
   })
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(50)
   @IsUUID('all', { each: true })
   roleIds: string[];
 }
@@ -374,9 +379,10 @@ export class CustomerListDto {
 }
 
 export class CustomerListQueryDto extends PageQueryDto {
-  /** Parte del email, los nombres o los apellidos, sin distinguir mayúsculas. */
+  /** Parte del email, los nombres o los apellidos, sin distinguir mayúsculas; hasta 254 caracteres. */
   @IsOptional()
   @IsString()
+  @MaxLength(254)
   q?: string;
 
   @ApiPropertyOptional({

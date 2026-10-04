@@ -141,18 +141,20 @@ export class StockItemQueryDto extends PageQueryDto {
   @IsUUID()
   variantId?: string;
 
-  /** SKU exacto, sin distinguir mayúsculas. */
+  /** SKU exacto, sin distinguir mayúsculas; un SKU tiene a lo sumo 64 caracteres. */
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   sku?: string;
 
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
 
-  /** Parte del SKU o del título del producto, sin distinguir mayúsculas. */
+  /** Parte del SKU o del título del producto, sin distinguir mayúsculas; hasta 100 caracteres. */
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   q?: string;
 
   /** A lo sumo esta cantidad disponible, para detectar existencias bajas. @example 5 */
@@ -160,6 +162,8 @@ export class StockItemQueryDto extends PageQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  // The largest integer of PostgreSQL: a larger one is a validation error and not a 500 (T-310).
+  @Max(2_147_483_647)
   availableMax?: number;
 
   /** `sku`, `available` o `updatedAt`, con `-` para orden descendente; por defecto `sku`. */

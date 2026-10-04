@@ -471,6 +471,7 @@ export function validateEnvironment(
     (error) => `- ${Object.values(error.constraints ?? {}).join('; ')}`,
   );
   problems.push(...auditArchiveProblems(environment));
+  problems.push(...imageStorageProblems(environment));
   if (environment.NODE_ENV === 'production') {
     for (const name of REQUIRED_IN_PRODUCTION) {
       if (raw[name] === undefined || raw[name] === '') {
@@ -511,6 +512,20 @@ function auditArchiveProblems(environment: EnvironmentVariables): string[] {
     );
   }
   return problems;
+}
+
+/**
+ * The API serves the whole image folder at /media (ADR-0121), so it must never hold the application: the working
+ * directory, where the code and `.env` live, cannot be the folder nor inside it (T-310). An empty folder already has
+ * its own problem.
+ */
+function imageStorageProblems(environment: EnvironmentVariables): string[] {
+  const images = environment.IMAGE_STORAGE_DIR;
+  return images !== '' && isSameOrInside(process.cwd(), path.resolve(images))
+    ? [
+        '- IMAGE_STORAGE_DIR must not be the working directory nor a folder that contains it, because the API serves it at /media',
+      ]
+    : [];
 }
 
 /** Whether `folder` is `parent` or inside it. */

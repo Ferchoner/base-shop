@@ -13,9 +13,12 @@ import {
   REQUIRED_PERMISSIONS,
 } from './authorization.decorators.js';
 
-/** Route groups that always need a token (ADR-0036); a route in them without a requirement is a bug. */
-const ADMIN_PATH = /^\/v\d+\/admin(\/|$)/;
-const ACCOUNT_PATH = /^\/v\d+\/me(\/|$)/;
+/**
+ * Route groups that always need a token (ADR-0036); a route in them without a requirement is a bug. Matched without
+ * case, as Express routes: `/V1/ADMIN` reaches the same controllers (T-310).
+ */
+const ADMIN_PATH = /^\/v\d+\/admin(\/|$)/i;
+const ACCOUNT_PATH = /^\/v\d+\/me(\/|$)/i;
 
 /**
  * Authorization of every request (ADR-0111), from the route metadata of `@RequirePermissions` and

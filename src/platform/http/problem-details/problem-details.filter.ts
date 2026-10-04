@@ -43,8 +43,11 @@ const STATUS_CODES: Readonly<Record<number, ProblemCode>> = {
   429: 'rate-limit-exceeded',
 };
 
-/** Administrative routes, where a 403 is an audited security event (ADR-0037, ADR-0100). */
-const ADMIN_PATH = /^\/v\d+\/admin(\/|$)/;
+/**
+ * Administrative routes, where a 403 is an audited security event (ADR-0037, ADR-0100). Matched without case, as
+ * Express routes, so `/V1/ADMIN` is audited too (T-310).
+ */
+const ADMIN_PATH = /^\/v\d+\/admin(\/|$)/i;
 
 /** Members of RFC 9457 and `correlationId`; an extension can never replace them. */
 const RESERVED_MEMBERS = new Set([

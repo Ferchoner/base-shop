@@ -1,10 +1,15 @@
 import { type INestApplication, VersioningType } from '@nestjs/common';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface.js';
 import { ConfigService } from '@nestjs/config';
+import type {
+  NestExpressApplication,
+  NestExpressBodyParserOptions,
+} from '@nestjs/platform-express';
 import helmet, { type HelmetOptions } from 'helmet';
 import type { EnvironmentVariables } from '../config/environment.js';
 import { buildApiDocument, setupApiDocs } from './api-docs.js';
 import { rejectUnsupportedContentType } from './content-type.js';
+import { rejectDeeplyNestedJson } from './json-depth.js';
 import { requestLoggingMiddleware } from '../logging/request-logging.middleware.js';
 import { correlationIdMiddleware } from './correlation-id.js';
 import { serveMedia } from './media.js';
@@ -57,11 +62,19 @@ export function configureHttp(app: INestApplication): void {
   app.use(correlationIdMiddleware());
   // Inside the correlation context, so each request line carries its id (ADR-0097).
   app.use(requestLoggingMiddleware);
-  app.use(rejectUnsupportedContentType);
+  // Before any rejection, so every response, a 415 included, carries the security and CORS headers (T-310).
   app.use(helmet(securityHeadersOptions));
   app.enableCors(
     buildCorsOptions(config.get('CORS_ALLOWED_ORIGINS', { infer: true })),
   );
+  app.use(rejectUnsupportedContentType);
+  // The JSON body parser of NestJS, with its 100 kB limit, which also rejects bodies nested too deep (T-310); NestJS
+  // then does not add its own. It keeps `verify` for raw bodies, which the API does not use.
+  const jsonOptions: NestExpressBodyParserOptions = {
+    limit: '100kb',
+    verify: rejectDeeplyNestedJson,
+  };
+  (app as NestExpressApplication).useBodyParser('json', jsonOptions);
   // Stored product images at /media, after helmet so they get its headers (ADR-0121).
   serveMedia(app, config.get('IMAGE_STORAGE_DIR', { infer: true }));
   // Every route lives under /v1; a future version is declared with @Version('2') (ADR-0034, ADR-0096).

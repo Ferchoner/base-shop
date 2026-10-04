@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import {
   isExactOrigin,
   isBaseUrl,
@@ -398,6 +400,28 @@ describe('Product images (ADR-0024, ADR-0121)', () => {
       ).toThrow('IMAGE_MAX_BYTES');
     },
   );
+
+  it('rejects an image folder that is the working directory or holds it, which /media would publish (T-310)', () => {
+    const holdsTheCode =
+      'IMAGE_STORAGE_DIR must not be the working directory nor a folder that contains it, because the API serves it at /media';
+    for (const folder of [
+      '.',
+      './',
+      '..',
+      process.cwd(),
+      path.dirname(process.cwd()),
+    ]) {
+      expect(() =>
+        validateEnvironment({ ...REQUIRED, IMAGE_STORAGE_DIR: folder }),
+      ).toThrow(holdsTheCode);
+    }
+    for (const folder of ['storage/images', path.join(os.tmpdir(), 'images')]) {
+      expect(
+        validateEnvironment({ ...REQUIRED, IMAGE_STORAGE_DIR: folder })
+          .IMAGE_STORAGE_DIR,
+      ).toBe(folder);
+    }
+  });
 
   it('rejects an empty folder and a base URL with a trailing slash', () => {
     expect(() =>

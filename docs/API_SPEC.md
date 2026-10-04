@@ -45,7 +45,7 @@
 | Tema | Convención | Fuente |
 |---|---|---|
 | Base | `/v1` | ADR-0034 |
-| Cuerpo | JSON UTF-8 (`application/json`); subida de imágenes con `multipart/form-data`; errores con `application/problem+json` | ADR-0035 |
+| Cuerpo | JSON UTF-8 (`application/json`) de hasta 100 kB y 32 niveles de anidación (más: 400 `validation-error`, ADR-0153); subida de imágenes con `multipart/form-data`; errores con `application/problem+json` | ADR-0035 |
 | Recursos | Plural, en inglés y separados por guion: `/v1/admin/pricing/price-lists` | ADR-0036 |
 | Campos | camelCase | ADR-0036 |
 | Identificadores | `uuid` en rutas y cuerpos; un ID de la ruta que no es UUID responde 404 (ADR-0112). Excepciones: producto público por `slug`; orden de cliente por código público (`publicCode`) | ADR-0049, ADR-0066 |
@@ -91,7 +91,7 @@ Las operaciones del cliente sobre su carrito no exigen `version`; el servidor re
 | `X-Correlation-Id` | Respuesta | En todas las respuestas; mismo valor que `correlationId` de los errores. Lo genera siempre el servidor (UUIDv7); uno enviado por el cliente se ignora (ADR-0033, ADR-0095) |
 | `Location` | Respuesta | En 201 cuando el recurso tiene ruta propia |
 | `Retry-After` | Respuesta | En 429 y en 409 `idempotency-request-in-progress` |
-| `Cache-Control: no-store` | Respuesta | En toda respuesta autenticada y en las que contienen datos personales o tokens (ADR-0071) |
+| `Cache-Control: no-store` | Respuesta | En toda respuesta autenticada y en las que contienen datos personales o tokens (ADR-0071), como las públicas de carritos, cotización y órdenes de invitado, también en sus errores (ADR-0153) |
 
 CORS (ADR-0085): solo los orígenes de `CORS_ALLOWED_ORIGINS` (vacía por defecto, sin comodín ni credenciales). Un navegador puede enviar `Authorization`, `Content-Type` e `Idempotency-Key`, y leer `Location`, `Retry-After` y `X-Correlation-Id`. Un encabezado nuevo de solicitud o de respuesta obliga a revisar esta lista.
 
@@ -138,7 +138,7 @@ Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Option
 
 | Grupo | Prefijo | Requisito | Guard |
 |---|---|---|---|
-| Público | `/v1/auth`, `/v1/geo`, `/v1/catalog`, `/v1/carts`, `/v1/checkout`, `/v1/orders` | Ninguno | Rate limiting |
+| Público | `/v1/auth`, `/v1/geo`, `/v1/catalog`, `/v1/carts`, `/v1/checkout`, `/v1/orders`, `/v1/privacy` | Ninguno | Rate limiting |
 | Cuenta | `/v1/me` | Token de acceso válido de una cuenta ACTIVE | Autenticación; algunas rutas solo para clientes (se indica con "Solo cliente") |
 | Administración | `/v1/admin/{contexto}` | Token de staff ACTIVE y el permiso indicado | Autenticación + tipo STAFF + permiso |
 | Webhooks | `/v1/webhooks/{proveedor}` | Firma del proveedor | Verificación de firma |
@@ -183,7 +183,7 @@ Obligatoria en:
 
 ### 5.1 Paginación por página (ADR-0036)
 
-- Parámetros: `page` (entero ≥ 1, por defecto 1) y `pageSize` (1 a 100, por defecto 20).
+- Parámetros: `page` (entero de 1 a 1,000,000, por defecto 1; ADR-0153) y `pageSize` (1 a 100, por defecto 20).
 - Respuesta:
 
 ```json
@@ -641,7 +641,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Response 200:** `AuthResult`. Si `mustChangePassword` es `true` (staff con contraseña temporal), el token solo permite las rutas de la sección 3.2.
 - **Errores:** 401 `invalid-credentials` para email inexistente, contraseña incorrecta o cuenta suspendida o anonimizada (ADR-0062).
 - **Auditoría:** éxito y fallo (ADR-0037).
-- **Implementado en T-120 (ADR-0114):** 400 `validation-error` ante un email mal formado, una contraseña de más de 64 caracteres o un campo desconocido. La respuesta lleva `Cache-Control: no-store`. Al agotar el límite de intentos fallidos, 429 `rate-limit-exceeded` con `Retry-After`, también con la contraseña correcta.
+- **Implementado en T-120 (ADR-0114):** 400 `validation-error` ante un email mal formado, una contraseña de más de 256 caracteres tal como se escribe (la política cuenta 64 tras NFKC, ADR-0153) o un campo desconocido. La respuesta lleva `Cache-Control: no-store`. Al agotar el límite de intentos fallidos, 429 `rate-limit-exceeded` con `Retry-After`, también con la contraseña correcta.
 
 ### 9.6 `POST /v1/auth/refresh` — Renovar sesión (UC-IAM-05)
 
@@ -733,7 +733,7 @@ Representación `Role`: `{ "id", "name", "description", "isSuperadmin", "permiss
 
 | Endpoint | Detalle |
 |---|---|
-| `GET /v1/admin/identity/roles` | Paginado. Filtros: `q` (nombre). Orden: `name` (defecto), `createdAt` |
+| `GET /v1/admin/identity/roles` | Paginado. Filtros: `q` (nombre, hasta 100 caracteres). Orden: `name` (defecto), `createdAt` |
 | `POST /v1/admin/identity/roles` | Request `{ "name", "description", "permissions": [] }`. `name` 1–50 caracteres, único; permisos del catálogo (BR-USR-04). 201 `Role`. Errores: 409 `duplicate-value` |
 | `GET /v1/admin/identity/roles/{roleId}` | 200 `Role` |
 | `PATCH /v1/admin/identity/roles/{roleId}` | Request `{ "name", "description", "permissions", "version" }` (`permissions` reemplaza el conjunto). El rol superadministrador no cambia sus permisos (siempre todos). 200 `Role`. Errores: 409 `duplicate-value` |
@@ -745,10 +745,10 @@ Representación `StaffUser`: `{ "id", "email", "firstNames", "lastNames", "statu
 
 | Endpoint | Detalle |
 |---|---|
-| `GET /v1/admin/identity/staff` | Paginado. Filtros: `q` (email o nombre), `status`, `roleId`. Orden: `createdAt` (defecto `-createdAt`), `email` |
+| `GET /v1/admin/identity/staff` | Paginado. Filtros: `q` (email o nombre, hasta 254 caracteres), `status`, `roleId`. Orden: `createdAt` (defecto `-createdAt`), `email` |
 | `POST /v1/admin/identity/staff` | Request `{ "email", "firstNames", "lastNames", "roleIds": [] }`. Genera contraseña temporal de al menos 15 caracteres (BR-USR-13). 201 `{ "user": StaffUser, "temporaryPassword": "…" }`; la contraseña temporal se muestra solo en esta respuesta, con `Cache-Control: no-store`. Errores: 409 `duplicate-value` |
 | `GET /v1/admin/identity/staff/{userId}` | 200 `StaffUser` |
-| `PUT /v1/admin/identity/staff/{userId}/roles` | Request `{ "roleIds": [], "version" }` (reemplaza el conjunto; mínimo uno). 200 `StaffUser`. Errores: 409 `last-superadmin` |
+| `PUT /v1/admin/identity/staff/{userId}/roles` | Request `{ "roleIds": [], "version" }` (reemplaza el conjunto; de 1 a 50 roles). 200 `StaffUser`. Errores: 409 `last-superadmin` |
 | `POST /v1/admin/identity/staff/{userId}/suspend` | Request `{ "reason", "version" }`. Revoca sus sesiones. 200 `StaffUser`. Errores: 409 `last-superadmin`; 409 `invalid-state-transition` si no está ACTIVE; un staff no puede suspenderse a sí mismo (409 `invalid-state-transition`) |
 | `POST /v1/admin/identity/staff/{userId}/reactivate` | Request `{ "reason", "version" }`. Desde SUSPENDED. Genera una contraseña temporal nueva (BR-USR-13) y marca `mustChangePassword`; conserva los roles (ADR-0076). 200 `{ "user": StaffUser, "temporaryPassword": "…" }`; la contraseña temporal se muestra solo en esta respuesta, con `Cache-Control: no-store`. Errores: 409 `invalid-state-transition` si no está SUSPENDED |
 
@@ -769,7 +769,7 @@ Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "s
 
 | Endpoint | Detalle |
 |---|---|
-| `GET /v1/admin/identity/customers` | `customers.read`. Paginado. Filtros: `q` (email, nombres o apellidos), `status`, `emailVerified`, `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `-createdAt`), `email`, `lastLoginAt` |
+| `GET /v1/admin/identity/customers` | `customers.read`. Paginado. Filtros: `q` (email, nombres o apellidos, hasta 254 caracteres), `status`, `emailVerified`, `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `-createdAt`), `email`, `lastLoginAt` |
 | `GET /v1/admin/identity/customers/{userId}` | `customers.read`. 200 `AdminCustomer` |
 | `POST /v1/admin/identity/customers/{userId}/suspend` | `customers.manage`. Request `{ "reason", "version" }`. Revoca sesiones. 200. Errores: 409 `invalid-state-transition` |
 | `POST /v1/admin/identity/customers/{userId}/reactivate` | `customers.manage`. Request `{ "reason", "version" }`. Desde SUSPENDED; conserva contraseña y verificación de email (ADR-0076). 200 `AdminCustomer`. Errores: 409 `invalid-state-transition` (no está SUSPENDED, incluido un cliente anonimizado) |
@@ -974,7 +974,7 @@ Implementado en T-140 parte b (ADR-0124):
   - un reorden trae cada imagen una vez (400 `imageOrder` en `imageIds`);
   - `altText` vacío se guarda como `null`, y en el `PATCH` `null` lo quita.
 - **Producto archivado:** no cambia sus imágenes: 409 `invalid-state-transition`.
-- **Respuestas:** `POST` responde con `Location: /v1/admin/catalog/products/{productId}/images/{imageId}`. Cada cambio actualiza `updatedAt` del producto, no su `version`.
+- **Respuestas:** `POST` responde con `Location: /v1/admin/catalog/products/{productId}/images/{imageId}`, que identifica la imagen para `PATCH` y `DELETE`; no tiene `GET`, porque la imagen viene en el detalle del producto. Cada cambio actualiza `updatedAt` del producto, no su `version`.
 - **Auditoría:** `products.image-add`, `image-update`, `image-reorder` e `image-delete`.
 
 ### 11.9 Categorías y marcas (UC-CAT-12, 13)
@@ -1093,7 +1093,7 @@ El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo ati
 
 **Almacenes.** `Warehouse { id, code, name, address: Address | null, status, createdAt, updatedAt }`. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081): `GET` devuelve `{ "data": [Warehouse] }` sin paginación y `PATCH` acepta `{ "name", "address" }`. La API no crea ni desactiva almacenes. En entradas y ajustes, `warehouseId` debe ser el almacén activo; otro valor → 404.
 
-**`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku`, `warehouseId`, `q` (SKU o título), `availableMax` (entero, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
+**`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
 
 **`GET …/stock-items/{stockItemId}/movements`** — Paginación por cursor. `StockMovement { id, type, quantity, onHandAfter, reasonCode, note, orderId, orderLineId, actorId, createdAt }`. Filtros: `type`, `from`, `to`. Orden fijo: más reciente primero.
 
@@ -1417,8 +1417,8 @@ Implementado en T-180 parte b (ADR-0133):
 | GET | `/v1/admin/payments/{paymentId}` | `orders.read` | Consulta |
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 | POST | `/v1/admin/payments/{paymentId}/refunds/manual` | `payments.manage` | UC-PAY-06 |
-| POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` | UC-PAY-07 |
-| POST | `/v1/webhooks/paypal` | Firma de PayPal | UC-PAY-04 |
+| POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` | UC-PAY-07 (pendiente: T-192) |
+| POST | `/v1/webhooks/paypal` | Firma de PayPal | UC-PAY-04 (pendiente: responde 404 mientras PayPal no esté habilitado, §19) |
 
 La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene uno de lectura de pagos y el pago forma parte de la vista de la orden (ADR-0071).
 

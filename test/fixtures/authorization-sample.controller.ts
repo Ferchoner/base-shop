@@ -79,6 +79,12 @@ export class AccountAuthorizationSampleController {
   password(): { ok: true } {
     return { ok: true };
   }
+
+  /** A mistake on purpose: an account route without a requirement. */
+  @Get('forgotten')
+  forgotten(): { ok: true } {
+    return { ok: true };
+  }
 }
 
 /** A test-only public route. */
