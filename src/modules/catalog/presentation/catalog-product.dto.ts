@@ -69,47 +69,59 @@ const ONE_DECIMAL = { maxDecimalPlaces: 1 };
 // --- Responses (API_SPEC.md §8.3 and §11.6) ---
 
 export class NamedReferenceDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   name: string;
 }
 
 export class ImageDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** URL absoluta, construida al responder (ADR-0024). */
   url: string;
 
+  /** Texto alternativo; `null` sin él. */
   @ApiProperty({ type: String, nullable: true })
   altText: string | null;
 
+  /** Orden entre las imágenes del producto, desde 1; la primera es la principal. */
   position: number;
 
-  @ApiProperty({ type: String, nullable: true })
+  /** Variante que muestra; `null` si es del producto. */
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   variantId: string | null;
 }
 
 export class AdminVariantDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'CAM-LIN-AZ-M' */
   sku: string;
 
+  /** Sus valores de las opciones del producto, por nombre. */
   @ApiProperty(OPTIONS)
   options: Record<string, string>;
 
+  /** `ACTIVE` o `DISCONTINUED`; una descontinuada no se vende. */
   @ApiProperty({ enum: VARIANT_STATUSES })
   status: string;
 
+  /** Gramos; `null` si no se dio. */
   @ApiProperty(NULLABLE_NUMBER)
   weightGrams: number | null;
 
+  /** Centímetros, un decimal; `null` si no se dio. */
   @ApiProperty(NULLABLE_NUMBER)
   lengthCm: number | null;
 
+  /** Centímetros, un decimal; `null` si no se dio. */
   @ApiProperty(NULLABLE_NUMBER)
   widthCm: number | null;
 
+  /** Centímetros, un decimal; `null` si no se dio. */
   @ApiProperty(NULLABLE_NUMBER)
   heightCm: number | null;
 
@@ -118,6 +130,7 @@ export class AdminVariantDto {
 }
 
 export class AdminProductDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Camisa de lino' */
@@ -133,12 +146,14 @@ export class AdminProductDto {
   })
   description?: string | null;
 
+  /** `null` sin marca. */
   @ApiProperty({ type: () => NamedReferenceDto, nullable: true })
   brand: NamedReferenceDto | null;
 
   @ApiProperty({ type: () => [NamedReferenceDto] })
   categories: NamedReferenceDto[];
 
+  /** `DRAFT`, `PUBLISHED` o `ARCHIVED`. */
   @ApiProperty({ enum: PRODUCT_STATUSES })
   status: string;
 
@@ -155,15 +170,22 @@ export class AdminProductDto {
   @ApiProperty({ type: () => [ImageDto] })
   images: ImageDto[];
 
+  /** Desde cuándo está publicado; `null` si no lo está. */
   @ApiProperty(NULLABLE_DATE_TIME)
   publishedAt: Date | null;
 
+  /**
+   * Su primera publicación. Desde ella, el slug y las opciones de las variantes no cambian (ADR-0068); `null` si nunca
+   * se publicó.
+   */
   @ApiProperty(NULLABLE_DATE_TIME)
   firstPublishedAt: Date | null;
 
+  /** Cuándo se archivó; `null` si no está archivado. */
   @ApiProperty(NULLABLE_DATE_TIME)
   archivedAt: Date | null;
 
+  /** Versión para el bloqueo optimista: se envía al cambiarlo. */
   version: number;
 
   @ApiProperty(DATE_TIME)
@@ -201,6 +223,7 @@ export class AdminProductListQueryDto extends PageQueryDto {
   @IsIn(PRODUCT_STATUSES, { each: true })
   status?: string[];
 
+  /** Solo los productos de esta marca. */
   @IsOptional()
   @IsUUID('all')
   brandId?: string;
@@ -220,7 +243,10 @@ export class AdminProductListQueryDto extends PageQueryDto {
 }
 
 export class CreateProductDto {
-  /** @example 'Camisa de lino' */
+  /**
+   * De 1 a 200 caracteres.
+   * @example 'Camisa de lino'
+   */
   @IsString()
   @Length(1, MAX_TITLE_LENGTH)
   @Matches(/\S/, NOT_BLANK)
@@ -236,6 +262,7 @@ export class CreateProductDto {
   @Matches(SLUG_PATTERN, SLUG_FORMAT)
   slug?: string;
 
+  /** Hasta 10,000 caracteres; opcional. */
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: 10_000 })
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
@@ -266,6 +293,7 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto {
+  /** De 1 a 200 caracteres. */
   @IsOptional()
   @IsString()
   @Length(1, MAX_TITLE_LENGTH)
@@ -279,6 +307,7 @@ export class UpdateProductDto {
   @Matches(SLUG_PATTERN, SLUG_FORMAT)
   slug?: string;
 
+  /** Hasta 10,000 caracteres; `null` la quita. */
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: 10_000 })
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
@@ -470,6 +499,7 @@ export class UpdateVariantDto {
   @Max(MAX_WEIGHT_GRAMS)
   weightGrams?: number | null;
 
+  /** Centímetros, mayor que 0, un decimal; `null` lo quita. */
   @ApiPropertyOptional(NULLABLE_NUMBER)
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
@@ -478,6 +508,7 @@ export class UpdateVariantDto {
   @Max(MAX_DIMENSION_CM)
   lengthCm?: number | null;
 
+  /** Centímetros, mayor que 0, un decimal; `null` lo quita. */
   @ApiPropertyOptional(NULLABLE_NUMBER)
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
@@ -486,6 +517,7 @@ export class UpdateVariantDto {
   @Max(MAX_DIMENSION_CM)
   widthCm?: number | null;
 
+  /** Centímetros, mayor que 0, un decimal; `null` lo quita. */
   @ApiPropertyOptional(NULLABLE_NUMBER)
   @IsOptional()
   @ValidateIf((_, value) => value !== null)

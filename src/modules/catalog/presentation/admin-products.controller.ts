@@ -82,7 +82,11 @@ export class AdminProductsController {
     private readonly storefront: Storefront,
   ) {}
 
-  @ApiOperation({ summary: 'Listar productos, con borradores y archivados' })
+  @ApiOperation({
+    summary: 'Listar productos, con borradores y archivados',
+    description:
+      'Paginado, sin la descripción de cada producto. Filtros por parte del título o del SKU, por estado, marca y categoría; orden por última modificación, la más reciente primero por defecto, título, alta o publicación.',
+  })
   @ApiOkResponse({ type: AdminProductListDto })
   @RequirePermissions('catalog.read')
   @Get()
@@ -113,7 +117,11 @@ export class AdminProductsController {
     );
   }
 
-  @ApiOperation({ summary: 'Crear un producto en borrador' })
+  @ApiOperation({
+    summary: 'Crear un producto en borrador',
+    description:
+      'En `DRAFT` y sin variantes: se publica después de agregarle al menos una. Sin `slug`, se genera del título.',
+  })
   @ApiCreatedResponse({ type: AdminProductDto })
   @ApiProblemResponses('duplicate-value')
   @RequirePermissions('catalog.write')
@@ -134,7 +142,11 @@ export class AdminProductsController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Consultar un producto' })
+  @ApiOperation({
+    summary: 'Consultar un producto',
+    description:
+      'En cualquier estado, con sus variantes, imágenes, categorías y `storeVisibility`, que dice si la tienda lo muestra.',
+  })
   @ApiOkResponse({ type: AdminProductDto })
   @ApiProblemResponses('not-found')
   @RequirePermissions('catalog.read')
@@ -230,7 +242,11 @@ export class AdminProductsController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Agregar una variante' })
+  @ApiOperation({
+    summary: 'Agregar una variante',
+    description:
+      'Con la `version` del producto. El SKU no se repite ni se reutiliza (BR-PRD-09), y la combinación de opciones tampoco (BR-PRD-02). Responde el producto con la variante.',
+  })
   @ApiCreatedResponse({ type: AdminProductDto })
   @ApiProblemResponses(
     'not-found',
@@ -283,7 +299,11 @@ export class AdminProductsController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Descontinuar una variante' })
+  @ApiOperation({
+    summary: 'Descontinuar una variante',
+    description:
+      'De `ACTIVE` a `DISCONTINUED`: deja de venderse y sale de la tienda. Su SKU queda reservado.',
+  })
   @ApiOkResponse({ type: AdminProductDto })
   @ApiProblemResponses(...LIFECYCLE_PROBLEMS)
   @RequirePermissions('catalog.write')

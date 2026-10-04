@@ -48,10 +48,12 @@ const STATUS_FILTER = {
 // --- Categories (API_SPEC.md §11.9) ---
 
 export class AdminCategoryDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description: '`null` en una categoría raíz.',
   })
@@ -63,6 +65,7 @@ export class AdminCategoryDto {
   /** @example 'camisas' */
   slug: string;
 
+  /** `ACTIVE` o `INACTIVE`; la tienda muestra una categoría si ella y todos sus ancestros están activos (ADR-0080). */
   @ApiProperty(STATUS)
   status: string;
 
@@ -83,6 +86,7 @@ export class AdminCategoryDto {
 }
 
 export class AdminCategoryNodeDto extends AdminCategoryDto {
+  /** Subcategorías, también las inactivas. */
   @ApiProperty({ type: () => [AdminCategoryNodeDto] })
   children: AdminCategoryNodeDto[];
 }
@@ -102,7 +106,10 @@ export class AdminCategoryTreeQueryDto {
 }
 
 export class CreateCategoryDto {
-  /** @example 'Camisas' */
+  /**
+   * De 1 a 100 caracteres; no se repite entre categorías hermanas, sin distinguir mayúsculas.
+   * @example 'Camisas'
+   */
   @IsString()
   @Length(1, MAX_NAME_LENGTH)
   @Matches(/\S/, NOT_BLANK)
@@ -141,6 +148,7 @@ export class CreateCategoryDto {
 }
 
 export class UpdateCategoryDto {
+  /** De 1 a 100 caracteres; no se repite entre categorías hermanas, sin distinguir mayúsculas. */
   @IsOptional()
   @IsString()
   @Length(1, MAX_NAME_LENGTH)
@@ -177,6 +185,7 @@ export class UpdateCategoryDto {
 // --- Brands (API_SPEC.md §11.9) ---
 
 export class AdminBrandDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Marca' */
@@ -185,6 +194,7 @@ export class AdminBrandDto {
   /** @example 'marca' */
   slug: string;
 
+  /** `ACTIVE` o `INACTIVE`; la tienda solo muestra las activas. */
   @ApiProperty(STATUS)
   status: string;
 
@@ -226,7 +236,10 @@ export class AdminBrandListQueryDto extends PageQueryDto {
 }
 
 export class CreateBrandDto {
-  /** @example 'Marca' */
+  /**
+   * De 1 a 100 caracteres; no se repite entre marcas, sin distinguir mayúsculas.
+   * @example 'Marca'
+   */
   @IsString()
   @Length(1, MAX_NAME_LENGTH)
   @Matches(/\S/, NOT_BLANK)
@@ -244,6 +257,7 @@ export class CreateBrandDto {
 }
 
 export class UpdateBrandDto {
+  /** De 1 a 100 caracteres; no se repite entre marcas, sin distinguir mayúsculas. */
   @IsOptional()
   @IsString()
   @Length(1, MAX_NAME_LENGTH)

@@ -108,6 +108,8 @@ export class AdminProductImagesController {
 
   @ApiOperation({
     summary: 'Editar el texto alternativo o la variante de una imagen',
+    description:
+      'Cambian solo los campos enviados; `null` quita el texto alternativo o la variante, y la imagen queda del producto. Un producto archivado responde 409.',
   })
   @ApiOkResponse({ type: ImageDto })
   @ApiProblemResponses('not-found', 'invalid-state-transition')

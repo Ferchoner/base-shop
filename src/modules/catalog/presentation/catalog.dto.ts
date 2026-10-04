@@ -32,6 +32,7 @@ const MAX_BRAND_FILTERS = 20;
 
 /** A visible category of the store, with its visible subcategories (API_SPEC.md §11.4). */
 export class PublicCategoryDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Camisas' */
@@ -43,6 +44,7 @@ export class PublicCategoryDto {
   /** Orden entre sus hermanas; los empates van por nombre. */
   position: number;
 
+  /** Subcategorías visibles. */
   @ApiProperty({ type: () => [PublicCategoryDto] })
   children: PublicCategoryDto[];
 }
@@ -166,6 +168,7 @@ export class StoreProductListQueryDto extends PageQueryDto {
 
 /** The brand of a product in the store, even when inactive (ADR-0080). */
 export class StoreBrandDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Marca' */
@@ -177,6 +180,7 @@ export class StoreBrandDto {
 
 /** `ProductSummary` of API_SPEC.md §8.4. */
 export class ProductSummaryDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'camisa-lino-azul' */
@@ -185,6 +189,7 @@ export class ProductSummaryDto {
   /** @example 'Camisa de lino' */
   title: string;
 
+  /** `null` sin marca. */
   @ApiProperty({ type: () => StoreBrandDto, nullable: true })
   brand: StoreBrandDto | null;
 
@@ -202,6 +207,7 @@ export class ProductSummaryDto {
   /** Alguna variante vendible está disponible (ADR-0061). */
   available: boolean;
 
+  /** La imagen principal; `null` sin imágenes. */
   @ApiProperty({ type: () => ImageDto, nullable: true })
   image: ImageDto | null;
 
@@ -218,6 +224,7 @@ export class ProductSummaryListDto {
 }
 
 export class StoreCategoryDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'Camisas' */
@@ -229,11 +236,13 @@ export class StoreCategoryDto {
 
 /** A sellable variant (BR-PRD-11): only whether it is available, never its units (ADR-0061). */
 export class StoreVariantDto {
+  @ApiProperty({ format: 'uuid' })
   id: string;
 
   /** @example 'CAM-LIN-AZ-M' */
   sku: string;
 
+  /** Sus valores de las opciones del producto, por nombre. */
   @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'string' },
@@ -241,17 +250,21 @@ export class StoreVariantDto {
   })
   options: Record<string, string>;
 
+  /** Precio vigente, con IVA. */
   @ApiProperty({ type: () => MoneyDto })
   price: MoneyDto;
 
+  /** Precio anterior, para mostrar el descuento; `null` sin él. */
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   compareAtPrice: MoneyDto | null;
 
+  /** Si tiene existencias para comprarla ahora. */
   available: boolean;
 }
 
 /** `ProductDetail` of API_SPEC.md §8.5. */
 export class ProductDetailDto extends ProductSummaryDto {
+  /** `null` sin descripción. */
   @ApiProperty({ type: String, nullable: true })
   description: string | null;
 
@@ -259,9 +272,11 @@ export class ProductDetailDto extends ProductSummaryDto {
   @ApiProperty({ type: () => [StoreCategoryDto] })
   categories: StoreCategoryDto[];
 
+  /** En orden; sin las de variantes que no se venden. */
   @ApiProperty({ type: () => [ImageDto] })
   images: ImageDto[];
 
+  /** Nombres de las opciones de sus variantes, en orden alfabético. */
   @ApiProperty({ type: [String], example: ['color', 'talla'] })
   optionNames: string[];
 

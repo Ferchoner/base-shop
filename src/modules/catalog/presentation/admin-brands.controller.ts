@@ -61,7 +61,11 @@ export class AdminBrandsController {
     private readonly deleteBrand: DeleteBrand,
   ) {}
 
-  @ApiOperation({ summary: 'Listar marcas' })
+  @ApiOperation({
+    summary: 'Listar marcas',
+    description:
+      'Paginado, con las inactivas. Filtros por parte del nombre y por estado; orden por nombre.',
+  })
   @ApiOkResponse({ type: AdminBrandListDto })
   @RequirePermissions('catalog.read')
   @Get()
@@ -76,7 +80,11 @@ export class AdminBrandsController {
     return toPageResponse(page, query, toAdminBrandDto);
   }
 
-  @ApiOperation({ summary: 'Crear una marca' })
+  @ApiOperation({
+    summary: 'Crear una marca',
+    description:
+      'Activa. Sin `slug`, se genera del nombre. El nombre, sin distinguir mayúsculas, y el slug no se repiten entre marcas.',
+  })
   @ApiCreatedResponse({ type: AdminBrandDto })
   @ApiProblemResponses('duplicate-value')
   @RequirePermissions('catalog.write')
@@ -91,7 +99,11 @@ export class AdminBrandsController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Editar una marca' })
+  @ApiOperation({
+    summary: 'Editar una marca',
+    description:
+      'Cambian solo los campos enviados. Un slug nuevo deja libre el anterior, que deja de funcionar (ADR-0072). Sin bloqueo optimista: gana el último cambio.',
+  })
   @ApiOkResponse({ type: AdminBrandDto })
   @ApiProblemResponses('not-found', 'duplicate-value')
   @RequirePermissions('catalog.write')
@@ -121,7 +133,10 @@ export class AdminBrandsController {
     return this.read(id);
   }
 
-  @ApiOperation({ summary: 'Reactivar una marca' })
+  @ApiOperation({
+    summary: 'Reactivar una marca',
+    description: 'De `INACTIVE` a `ACTIVE`; una marca activa responde 409.',
+  })
   @ApiOkResponse({ type: AdminBrandDto })
   @ApiProblemResponses('not-found', 'invalid-state-transition')
   @RequirePermissions('catalog.write')
