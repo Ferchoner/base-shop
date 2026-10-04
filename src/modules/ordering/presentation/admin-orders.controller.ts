@@ -94,7 +94,7 @@ export class AdminOrdersController {
   @ApiOperation({
     summary: 'Listar pedidos',
     description:
-      'Sin líneas ni historial. `payment` y `shipment` son `null` hasta T-190 y T-195.',
+      'Sin líneas ni historial, con el pago y el envío de cada pedido; `payment` o `shipment` es `null` si el pedido aún no lo tiene.',
   })
   @ApiOkResponse({ type: AdminOrderListDto })
   @RequirePermissions('orders.read')
