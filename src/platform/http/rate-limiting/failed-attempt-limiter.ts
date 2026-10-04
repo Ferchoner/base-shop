@@ -12,7 +12,7 @@ import { ProblemException } from '../problem-details/problem.exception.js';
 export type FailedAttemptLimit = 'login-ip' | 'password-change';
 
 /** Past this many keys, expired ones are swept on the next failure, so memory stays bounded. */
-const SWEEP_THRESHOLD = 10_000;
+export const SWEEP_THRESHOLD = 10_000;
 
 /**
  * Limits failed attempts rather than requests (ADR-0065, ADR-0102, ADR-0154), by default:

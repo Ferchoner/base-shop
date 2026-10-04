@@ -1,6 +1,8 @@
+import { jest } from '@jest/globals';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { Logger } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
@@ -236,12 +238,26 @@ describe('Geographic catalog import (T-124)', () => {
       expect(await prisma.geoState.count()).toBe(32);
     });
 
-    it('exits with 1 and writes nothing for a truncated file, a missing file or wrong arguments', async () => {
+    it('exits with 1 and writes nothing for a truncated or unreadable file, a missing file or wrong arguments', async () => {
       const truncated = path.join(tempDir, 'truncated.csv');
       const lines = (await readFileLines(INEGI_FILE)).slice(0, 100);
       await writeFile(truncated, lines.join('\r\n'));
+      // The Latin-1 CSV of INEGI, not the UTF-8 one.
+      const latin1 = path.join(tempDir, 'latin1.csv');
+      await writeFile(
+        latin1,
+        Buffer.from('CVE_ENT,NOM_ENT\r\n01,M\xe9xico', 'latin1'),
+      );
+      const errors = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
 
       expect(await run(truncated)).toBe(1);
+      expect(await run(latin1)).toBe(1);
+      expect(errors).toHaveBeenCalledWith(
+        'Nothing was imported: The file is not UTF-8. Use the CSV whose name ends in _utf8.csv.',
+      );
+      errors.mockRestore();
       expect(await run(path.join(tempDir, 'missing.csv'))).toBe(1);
       expect(await run()).toBe(1);
       expect(await run(INEGI_FILE, 'other.csv')).toBe(1);

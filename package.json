@@ -19,7 +19,8 @@
     "lint": "npm run lint:code && npm run lint:boundaries",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:cov": "npm test -- --coverage && npm run test:int -- --coverage && npm run test:e2e -- --coverage && npm run coverage:check",
+    "coverage:check": "node scripts/coverage.ts",
     "test:debug": "node --experimental-vm-modules --inspect-brk node_modules/jest/bin/jest.js --runInBand",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "format:check": "prettier --check .",
@@ -73,12 +74,18 @@
     "@nestjs/testing": "^12.0.4",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/express": "^5.0.0",
+    "@types/istanbul-lib-coverage": "^2.0.6",
+    "@types/istanbul-lib-report": "^3.0.3",
+    "@types/istanbul-reports": "^3.0.4",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.13.6",
     "@types/passport-jwt": "^4.0.1",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "dependency-cruiser": "^18.4.0",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0",
     "jest": "^30.5.2",
     "oxlint": "^1.85.0",
     "pg": "^8.23.0",
@@ -114,9 +121,16 @@
     },
     "collectCoverageFrom": [
       "**/*.ts",
-      "!platform/persistence/prisma/generated/**"
+      "!**/*.spec.ts",
+      "!**/*.int-spec.ts",
+      "!platform/persistence/prisma/generated/**",
+      "!main.ts",
+      "!scripts/**"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "../coverage/unit",
+    "coverageReporters": [
+      "json"
+    ],
     "testEnvironment": "node",
     "setupFilesAfterEnv": [
       "<rootDir>/../test/setup-esm-interop.ts"

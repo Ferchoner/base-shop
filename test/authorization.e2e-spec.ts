@@ -157,6 +157,14 @@ describe('Authorization (e2e, T-130)', () => {
       await expectProblem(response, 500, 'internal-error');
     });
 
+    it('fails closed on an administrative route that asks only for an account, without permissions', async () => {
+      const response = await http()
+        .get('/v1/admin/test-authorization/account-only')
+        .set(signedInAs(STAFF_MANAGER));
+
+      await expectProblem(response, 500, 'internal-error');
+    });
+
     it('fails closed on a route without a requirement reached in another case, as Express routes it (T-310)', async () => {
       for (const path of [
         '/V1/Admin/test-authorization/forgotten',

@@ -15,6 +15,7 @@ import {
   DuplicateValueError,
   InvalidStateTransitionError,
   newId,
+  TransactionManager,
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
@@ -34,6 +35,7 @@ import { UpdateProduct } from '../application/update-product.use-case.js';
 import { CatalogModule } from '../catalog.module.js';
 import type { BrandId } from '../domain/brand.js';
 import type { CategoryId } from '../domain/category.js';
+import { Product } from '../domain/product.js';
 import {
   FieldLockedError,
   NoActiveVariantError,
@@ -41,6 +43,7 @@ import {
   UnusableCategoriesError,
 } from '../domain/product-errors.js';
 import type { ProductId } from '../domain/product-id.js';
+import { ProductRepository } from '../domain/product.repository.js';
 import type { VariantId } from '../domain/variant.js';
 
 const AUDITED_ACTIONS = [
@@ -268,6 +271,27 @@ describe('Products and variants (T-140 part a)', () => {
         brand: { id: brandId, name: 'Acme' },
         categories: [{ id: active, name: 'Ropa' }],
       });
+    });
+
+    it('answers a category deleted after it was checked as an unknown category, and saves nothing', async () => {
+      // Saved straight away, as when the category is deleted between the check of the use case and the save.
+      const product = Product.create({
+        id: newId(),
+        title: 'Camisa',
+        slug: 'camisa',
+        description: null,
+        brandId: null,
+        categoryIds: [newId()],
+      });
+
+      await expect(
+        run(() =>
+          moduleRef
+            .get(TransactionManager)
+            .run(() => moduleRef.get(ProductRepository).save(product)),
+        ),
+      ).rejects.toEqual(new UnusableCategoriesError('unknown'));
+      expect(await queries.findProduct(product.id)).toBeNull();
     });
 
     it('rejects a change on an older version', async () => {

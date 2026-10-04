@@ -1,9 +1,11 @@
+import { jest } from '@jest/globals';
 import { randomUUID } from 'node:crypto';
 import {
   Controller,
   ForbiddenException,
   Get,
   type INestApplication,
+  Logger,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -12,6 +14,7 @@ import { AppModule } from '../src/app.module.js';
 import { RequirePermissions } from '../src/platform/auth/authorization.decorators.js';
 import { configureHttp } from '../src/platform/http/configure-http.js';
 import { PrismaService } from '../src/platform/persistence/prisma.service.js';
+import { AuditTrail } from '../src/shared-kernel/index.js';
 import {
   signedInAs,
   useTestAuthentication,
@@ -104,6 +107,28 @@ describe('Audit of denied administrative access (e2e, T-127)', () => {
       .expect(403);
 
     expect(response.body.type).toBe('/problems/forbidden');
+  });
+
+  it('answers the same 403 when the audit fails, and logs that it could not audit it', async () => {
+    jest
+      .spyOn(app.get(AuditTrail), 'recordIndependently')
+      .mockRejectedValueOnce(new Error('connection lost'));
+    const errors = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => {});
+
+    const response = await request(app.getHttpServer())
+      .get('/v1/admin/test-audit/secret/42')
+      .set(staffWithoutPermission(randomUUID()))
+      .expect(403);
+
+    expect(response.body.type).toBe('/problems/forbidden');
+    expect(errors).toHaveBeenCalledWith(
+      'Could not audit a denied access to GET /v1/admin/test-audit/secret/:id',
+      expect.stringContaining('connection lost'),
+    );
+    expect(await deniedEntries()).toHaveLength(0);
+    jest.restoreAllMocks();
   });
 
   it('does not audit a 403 outside /v1/admin', async () => {

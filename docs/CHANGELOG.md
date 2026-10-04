@@ -253,3 +253,9 @@
   - Las descripciones que estaban en inglés pasan al español.
   - Los tokens de los enlaces y `Idempotency-Key` tienen ejemplo.
   - La revisión de los errores de cada ruta contra `API_SPEC.md` no encontró diferencias.
+- T-300 (nuevo ADR-0157): cobertura de toda la suite, con umbral en la CI.
+  - Las suites unitaria, de integración y e2e miden su cobertura, y `npm run coverage:check` (`scripts/coverage.ts`) la une y falla bajo 98% de sentencias, 84% de ramas, 99% de funciones y 99% de líneas. `npm run test:cov` corre todo en local.
+  - Las e2e tienen la raíz del repositorio como directorio raíz, para que su cobertura vea `src/`.
+  - `MigrationDatabase` (`test/integration/`) prueba los rellenos de `orders.concluded_at` y `users.last_active_at` en una base migrada hasta antes de cada uno.
+  - Pruebas nuevas de los huecos que son lógica; las líneas que quedan sin cubrir están justificadas en ADR-0157.
+  - El interceptor de idempotencia ya no tiene los respaldos del código de respuesta y de la ruta, que Express nunca usaba.

@@ -1,6 +1,6 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
+  "rootDir": "..",
   "testRegex": ".e2e-spec.ts$",
   "extensionsToTreatAsEsm": [".ts"],
   "moduleNameMapper": {
@@ -12,15 +12,26 @@
       {
         "useESM": true,
         "astTransformers": {
-          "before": ["<rootDir>/swagger-plugin.cjs"]
+          "before": ["<rootDir>/test/swagger-plugin.cjs"]
         }
       }
     ]
   },
   "testEnvironment": "node",
-  "globalSetup": "<rootDir>/integration/global-setup.ts",
-  "globalTeardown": "<rootDir>/integration/global-teardown.ts",
+  "globalSetup": "<rootDir>/test/integration/global-setup.ts",
+  "globalTeardown": "<rootDir>/test/integration/global-teardown.ts",
   "testTimeout": 30000,
-  "setupFiles": ["<rootDir>/e2e-environment.ts"],
-  "setupFilesAfterEnv": ["<rootDir>/setup-esm-interop.ts"]
+  "setupFiles": ["<rootDir>/test/e2e-environment.ts"],
+  "setupFilesAfterEnv": ["<rootDir>/test/setup-esm-interop.ts"],
+  "roots": ["<rootDir>/test"],
+  "collectCoverageFrom": [
+    "src/**/*.ts",
+    "!src/**/*.spec.ts",
+    "!src/**/*.int-spec.ts",
+    "!src/platform/persistence/prisma/generated/**",
+    "!src/main.ts",
+    "!src/scripts/**"
+  ],
+  "coverageDirectory": "<rootDir>/coverage/e2e",
+  "coverageReporters": ["json"]
 }

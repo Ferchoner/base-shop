@@ -57,6 +57,13 @@ export class AdminAuthorizationSampleController {
   forgotten(): { ok: true } {
     return { ok: true };
   }
+
+  /** A mistake on purpose: an administrative route that asks only for an account, without permissions. */
+  @Get('account-only')
+  @RequireAccount()
+  accountOnly(): { ok: true } {
+    return { ok: true };
+  }
 }
 
 /** Test-only account routes (`/v1/me`). */

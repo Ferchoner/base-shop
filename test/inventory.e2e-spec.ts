@@ -402,6 +402,14 @@ describe('Inventory (e2e, T-160 part a)', () => {
         .get(`${movements}?cursor=otro`)
         .set(reader())
         .expect(400);
+      const wrongId = await http()
+        .get(
+          `${movements}?cursor=${Buffer.from(
+            JSON.stringify({ createdAt: '2026-10-04T12:00:00.000Z', id: 'x' }),
+          ).toString('base64url')}`,
+        )
+        .set(reader())
+        .expect(400);
       await http()
         .get(`${INVENTORY}/stock-items/${newId()}/movements`)
         .set(reader())
@@ -423,9 +431,11 @@ describe('Inventory (e2e, T-160 part a)', () => {
       ]);
       // A date alone covers the whole day.
       expect(untilToday.body.data).toHaveLength(3);
-      expect(wrongCursor.body.errors).toEqual([
-        expect.objectContaining({ field: 'cursor', code: 'cursor' }),
-      ]);
+      for (const wrong of [wrongCursor, wrongId]) {
+        expect(wrong.body.errors).toEqual([
+          expect.objectContaining({ field: 'cursor', code: 'cursor' }),
+        ]);
+      }
     });
   });
 

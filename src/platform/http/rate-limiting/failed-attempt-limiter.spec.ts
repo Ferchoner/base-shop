@@ -1,7 +1,10 @@
 import type { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../../config/environment.js';
 import { ProblemException } from '../problem-details/problem.exception.js';
-import { FailedAttemptLimiter } from './failed-attempt-limiter.js';
+import {
+  FailedAttemptLimiter,
+  SWEEP_THRESHOLD,
+} from './failed-attempt-limiter.js';
 
 /** A clock the test moves by hand. */
 class ManualClock {
@@ -88,6 +91,28 @@ describe('FailedAttemptLimiter (ADR-0102, ADR-0154)', () => {
     failTimes(3);
 
     expect(() => limiter.assertAllowed('login-ip', USER)).not.toThrow();
+  });
+
+  it('forgets the expired keys once it tracks too many, so memory stays bounded, and keeps the recent ones', () => {
+    const tracked = () =>
+      (limiter as unknown as { failures: Map<string, number[]> }).failures.size;
+    for (let key = 0; key <= SWEEP_THRESHOLD; key++) {
+      limiter.recordFailure(
+        'login-ip',
+        `ip:10.${key >> 16}.${(key >> 8) & 255}.${key & 255}`,
+      );
+    }
+    clock.advance(10 * 60_000);
+    limiter.recordFailure('login-ip', 'ip:192.0.2.1');
+    expect(tracked()).toBe(SWEEP_THRESHOLD + 2);
+
+    clock.advance(5 * 60_000 + 1);
+    limiter.recordFailure('login-ip', 'ip:192.0.2.2');
+
+    expect(tracked()).toBe(2);
+    expect(() =>
+      limiter.assertAllowed('login-ip', 'ip:10.0.0.1'),
+    ).not.toThrow();
   });
 
   it('only counts failures: checking alone never blocks', () => {

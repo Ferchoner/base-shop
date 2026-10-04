@@ -105,6 +105,23 @@ T-320 parte b; T-320 queda en DONE.
 - **Formatos y ejemplos:** 64 IDs más declaran `format: uuid`, 90 en total; los tokens de los enlaces y `Idempotency-Key` tienen ejemplo.
 - **Control:** la prueba de contrato exige descripción en toda operación, parámetro y campo que envía el cliente.
 
+### Resultado del paso 3
+
+T-300, con el nuevo ADR-0157; T-300 queda en DONE.
+
+- **Cobertura de toda la suite:** cada corrida de Jest escribe su cobertura, y `scripts/coverage.ts` las une. La de las e2e no veía `src/`, porque su directorio raíz era `test/`.
+- **Umbral en la CI:** 98% de sentencias, 84% de ramas, 99% de funciones y 99% de líneas, de lo medido al terminar y redondeado hacia abajo. Vale para el total.
+- **Rellenos de datos:** los de `orders.concluded_at` y `users.last_active_at` se prueban en una base propia, migrada hasta antes de cada uno, con filas como eran entonces.
+- **Huecos:** cada línea sin cubrir se revisó. Tienen prueba ahora, entre otras:
+  - las carreras con claves foráneas de categorías, productos y roles;
+  - los fallos del outbox y de la auditoría de un acceso denegado;
+  - el límite de memoria del contador de intentos fallidos;
+  - los cursores con un ID inválido;
+  - el detalle de un producto con categorías e imágenes.
+- **Quedan sin cubrir, justificados:** los relanzamientos de errores inesperados, las invariantes para el compilador y las funciones de decoradores de DTO.
+- **Código muerto:** se borraron dos respaldos del interceptor de idempotencia que Express nunca alcanza.
+- **Pruebas:** 2,409 (1,398 unitarias, 460 de integración y 551 end-to-end).
+
 ## Risks
 
 - **Alcance abierto:** una auditoría puede encontrar más de lo que cabe en un sprint. El plan de T-310 ordena los hallazgos por severidad, y lo que no quepa pasa a `TASKS.md` como tareas nuevas.

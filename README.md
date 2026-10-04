@@ -37,7 +37,7 @@ Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `np
 | `npm test` | Tests unitarios (Jest en modo ESM) |
 | `npm run test:int` | Tests de integración contra PostgreSQL 18 real (requiere Docker en marcha) |
 | `npm run test:e2e` | Tests end-to-end (requiere Docker en marcha) |
-| `npm run test:cov` | Cobertura |
+| `npm run test:cov` | Las tres suites con cobertura, unida y comparada con sus umbrales (requiere Docker en marcha) |
 | `npm run db:migrate:deploy` | Aplica las migraciones pendientes a la base de `DATABASE_URL` |
 | `npm run db:migrate:dev` | Crea una migración nueva (solo desarrollo) |
 | `npm run db:diff` | Verifica que la base coincide con el esquema de Prisma |

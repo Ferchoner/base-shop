@@ -169,14 +169,24 @@ describe('Audit query (e2e, T-220)', () => {
   });
 
   it('answers 400 for a cursor it did not give and for filters out of their rules', async () => {
-    const cursor = Buffer.from(JSON.stringify({ id: 'x' })).toString(
-      'base64url',
-    );
+    for (const position of [
+      { id: 'x' },
+      { occurredAt: 'ayer', id: newId() },
+      { occurredAt: '2026-10-04T12:00:00.000Z', id: 'x' },
+    ]) {
+      const cursor = Buffer.from(JSON.stringify(position)).toString(
+        'base64url',
+      );
 
-    expect((await audit(`?cursor=${cursor}`).expect(400)).body).toMatchObject({
-      type: '/problems/validation-error',
-      errors: [expect.objectContaining({ field: 'cursor', code: 'cursor' })],
-    });
+      expect((await audit(`?cursor=${cursor}`).expect(400)).body).toMatchObject(
+        {
+          type: '/problems/validation-error',
+          errors: [
+            expect.objectContaining({ field: 'cursor', code: 'cursor' }),
+          ],
+        },
+      );
+    }
     for (const query of [
       '?action=orders*',
       '?action=Orders.cancel',

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
@@ -7,6 +8,7 @@ import {
   type ExecutionContext,
   type INestApplication,
   Injectable,
+  Logger,
   Param,
   Post,
   Res,
@@ -364,6 +366,7 @@ describe('Idempotency-Key (e2e, T-115)', () => {
         status: 'IN_PROGRESS' | 'COMPLETED';
         createdAt: Date;
         expiresAt: Date;
+        response?: { status: number; body: object };
       },
     ) {
       await prisma.idempotencyKey.create({
@@ -374,13 +377,46 @@ describe('Idempotency-Key (e2e, T-115)', () => {
           key,
           requestHash: requestFingerprint({}, body),
           status: fields.status,
-          responseStatus: 201,
-          responseBody: { kind: 'success', status: 201, body: { stale: true } },
+          responseStatus: fields.response?.status ?? 201,
+          responseBody: fields.response?.body ?? {
+            kind: 'success',
+            status: 201,
+            body: { stale: true },
+          },
           createdAt: fields.createdAt,
           expiresAt: fields.expiresAt,
         },
       });
     }
+
+    it('answers 500 for a stored problem whose type left the catalog, without running again', async () => {
+      const key = randomUUID();
+      const body = order();
+      await storeKey(key, body, {
+        status: 'COMPLETED',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        response: {
+          status: 409,
+          body: { kind: 'problem', code: 'retired-problem', extensions: {} },
+        },
+      });
+      const errors = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+
+      const response = await placeOrder(key, body).expect(500);
+
+      expect(response.body.type).toBe('/problems/internal-error');
+      expect(errors).toHaveBeenCalledWith(
+        expect.stringContaining('Unhandled error'),
+        expect.stringContaining(
+          'Stored problem code retired-problem is not in the catalog',
+        ),
+      );
+      expect(IdempotencyTestController.executions).toBe(0);
+      errors.mockRestore();
+    });
 
     it('runs again after the 24-hour retention', async () => {
       const key = randomUUID();

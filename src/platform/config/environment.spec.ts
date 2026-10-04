@@ -77,6 +77,16 @@ describe('validateEnvironment', () => {
     ).toEqual([]);
   });
 
+  it('takes a null list as empty, and leaves a list that is not text for validation to reject', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, CORS_ALLOWED_ORIGINS: null })
+        .CORS_ALLOWED_ORIGINS,
+    ).toEqual([]);
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, CORS_ALLOWED_ORIGINS: 42 }),
+    ).toThrow(/CORS_ALLOWED_ORIGINS/);
+  });
+
   it.each([
     '*',
     'https://shop.example.com/',

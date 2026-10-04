@@ -846,5 +846,137 @@ describe('Domain events (T-116)', () => {
       expect((await dispatcher.deliverDue()).delivered).toBe(0);
       expect(handlers.received).toHaveLength(0);
     });
+
+    it('leaves to the retry job a delivery it could not take, and delivers the other handlers', async () => {
+      const errors = loggedErrors();
+      jest
+        .spyOn(moduleRef.get(EventOutbox), 'claim')
+        .mockRejectedValueOnce(new Error('connection lost'));
+      const event = brandCreated('untaken');
+
+      await transactions.run(async () => {
+        publisher.publish(event);
+      });
+      await dispatcher.whenIdle();
+
+      expect(handlers.received.map(({ handler }) => handler)).toEqual([
+        'second',
+      ]);
+      expect(await deliveries()).toEqual([
+        expect.objectContaining({
+          handler: 'ProbeHandlers.first',
+          status: 'PENDING',
+          attempts: 0,
+        }),
+        expect.objectContaining({
+          handler: 'ProbeHandlers.second',
+          status: 'DELIVERED',
+        }),
+      ]);
+      expect(errors.map(([message]) => String(message))).toEqual([
+        `Delivery of BrandCreated ${event.eventId} to ProbeHandlers.first could not be taken; the retry job will`,
+      ]);
+    });
+
+    it('logs a delivery that ran but could not be marked delivered, so it runs again', async () => {
+      const errors = loggedErrors();
+      jest
+        .spyOn(moduleRef.get(EventOutbox), 'markDelivered')
+        .mockRejectedValueOnce(new Error('connection lost'));
+      const event = brandCreated('unmarked');
+
+      await transactions.run(async () => {
+        publisher.publish(event);
+      });
+      await dispatcher.whenIdle();
+
+      expect(handlers.received.map(({ handler }) => handler)).toEqual([
+        'first',
+        'second',
+      ]);
+      expect(errors.map(([message]) => String(message))).toEqual([
+        `Delivery of BrandCreated ${event.eventId} to ProbeHandlers.first ran but could not be marked delivered; it will run again`,
+      ]);
+    });
+
+    it('logs a failure it could not record, and the failure itself', async () => {
+      const errors = loggedErrors();
+      jest
+        .spyOn(moduleRef.get(EventOutbox), 'markFailedAttempt')
+        .mockRejectedValueOnce(new Error('connection lost'));
+      handlers.failNext = true;
+      const event = brandCreated('unrecorded');
+
+      await transactions.run(async () => {
+        publisher.publish(event);
+      });
+      await dispatcher.whenIdle();
+
+      expect(errors.map(([message]) => String(message))).toEqual([
+        `Failure of ProbeHandlers.first for BrandCreated ${event.eventId} could not be recorded`,
+        `Handler ProbeHandlers.first failed for BrandCreated ${event.eventId} (attempt 1 of 8; its retry could not be recorded)`,
+      ]);
+    });
+  });
+
+  describe('volatile events and background work', () => {
+    it('logs a failing handler of a volatile event and still runs the others, without a retry', async () => {
+      const errors = loggedErrors();
+      handlers.failNext = true;
+      const event = brandCreated('volatile');
+
+      publisher.publishVolatile(event);
+      await dispatcher.whenIdle();
+
+      expect(handlers.received.map(({ handler }) => handler)).toEqual([
+        'first',
+        'second',
+      ]);
+      expect(errors.map(([message]) => String(message))).toEqual([
+        `Handler ProbeHandlers.first failed for BrandCreated ${event.eventId}`,
+      ]);
+      expect(await prisma.eventDelivery.count()).toBe(0);
+    });
+
+    it('notes a volatile event without handlers at the debug level', async () => {
+      const debug = jest
+        .spyOn(Logger.prototype, 'debug')
+        .mockImplementation(() => {});
+      const event = eventMetadata('NobodyListens', new Date());
+
+      publisher.publishVolatile(event);
+      await dispatcher.whenIdle();
+
+      expect(debug).toHaveBeenCalledWith(
+        `No handler for NobodyListens ${event.eventId}`,
+      );
+    });
+
+    it('logs background work that fails, and still becomes idle', async () => {
+      const errors = loggedErrors();
+
+      dispatcher.runInBackground(() =>
+        Promise.reject(new Error('background work failed')),
+      );
+      await dispatcher.whenIdle();
+
+      expect(errors).toEqual([
+        [
+          'Background event work failed',
+          expect.stringContaining('background work failed'),
+        ],
+      ]);
+    });
   });
 });
+
+/** Collects what `Logger.error` logs during a test, without printing it. */
+function loggedErrors(): unknown[][] {
+  const errors: unknown[][] = [];
+  jest
+    .spyOn(Logger.prototype, 'error')
+    .mockImplementation((...args: unknown[]) => {
+      errors.push(args);
+    });
+  return errors;
+}

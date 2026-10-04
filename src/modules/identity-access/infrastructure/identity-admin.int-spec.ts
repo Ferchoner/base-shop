@@ -34,6 +34,7 @@ import {
   UnknownRolesError,
 } from '../domain/identity-errors.js';
 import type { RoleId } from '../domain/role.js';
+import { RoleRepository } from '../domain/role.repository.js';
 import type { UserId, UserStatus, UserType } from '../domain/user.js';
 import { IdentityAccessModule } from '../identity-access.module.js';
 import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
@@ -208,6 +209,7 @@ describe('Identity & Access administration (T-130)', () => {
         moduleRef.get(UpdateRole).execute(id, {
           actorId,
           name: 'Atención',
+          description: 'Atiende a los clientes',
           permissions: ['orders.read'],
           version: 1,
         }),
@@ -215,6 +217,7 @@ describe('Identity & Access administration (T-130)', () => {
 
       expect(await queries.findRole(id)).toMatchObject({
         name: 'Atención',
+        description: 'Atiende a los clientes',
         permissions: ['orders.read'],
         version: 2,
       });
@@ -267,6 +270,20 @@ describe('Identity & Access administration (T-130)', () => {
       await expect(run(() => remove.execute(OPERATOR))).rejects.toThrow(
         ResourceInUseError,
       );
+    });
+
+    it('answers a role that someone took after it was checked as a role in use, and keeps it', async () => {
+      // Deleted straight away, as when a user gets the role between the count of the use case and the delete.
+      const id = await createRole('Temporal');
+      await insertUser('STAFF', { roleIds: [id] });
+      const role = (await run(() =>
+        moduleRef.get(RoleRepository).findById(id),
+      ))!;
+
+      await expect(
+        run(() => moduleRef.get(RoleRepository).delete(role)),
+      ).rejects.toEqual(new ResourceInUseError(`Role ${id} has users`));
+      expect(await queries.findRole(id)).not.toBeNull();
     });
 
     it('deletes an unused role with its permissions', async () => {
