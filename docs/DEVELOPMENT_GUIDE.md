@@ -198,6 +198,11 @@ Tests (Jest):
 | Integración (repositories y flujos transaccionales) | `*.int-spec.ts`, junto al código de `infrastructure` | `npm run test:int` | Sí |
 | End-to-end (la aplicación completa por HTTP) | `test/*.e2e-spec.ts` | `npm run test:e2e` | Sí |
 
+- **Cobertura (ADR-0157):** `npm run test:cov` corre las tres suites con cobertura, con Docker en marcha, y `npm run coverage:check` las une y las compara con los umbrales de `scripts/coverage.ts`: 98% de sentencias, 84% de ramas, 99% de funciones y 99% de líneas. El informe queda en `coverage/merged/index.html`.
+  - Cada suite cubre su parte de `src/`, así que el umbral vale para el total.
+  - Una línea sin cubrir se prueba si es lógica. Un `throw error` que relanza lo que no se esperaba, una invariante que solo existe para el compilador y la función de un decorador de DTO que solo corre cuando llega su campo pueden quedar sin cubrir.
+  - Si la cobertura sube de forma estable, se suben los umbrales; nunca se bajan para que pase la CI.
+
 - Integración y end-to-end contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución, le aplica todas las migraciones y expone su URL en `DATABASE_URL` (ADR-0090, ADR-0091). La infraestructura común está en `test/integration/`. Los tests corren en serie.
 - Cada test deja la base como la encontró, por ejemplo trabajando dentro de una transacción que se revierte al terminar.
 - Pruebas de concurrencia obligatorias para reservas de inventario y checkout. El patrón: un cliente `pg` aparte bloquea la fila, se lanzan las operaciones, `waitForLockWaiters(n)` (`test/support/lock-waiters.ts`) espera a que queden bloqueadas y se libera la fila. Esa espera consulta `pg_stat_activity` fuera de toda transacción: dentro de una, PostgreSQL responde con una foto tomada en la primera lectura.
@@ -236,7 +241,7 @@ Ramas e integración continua (ADR-0030):
 - Repositorio en GitHub con CI en GitHub Actions.
 - GitHub Flow: la rama principal siempre está en estado desplegable; cada tarea se trabaja en una rama corta y se integra mediante pull request.
 - La rama principal está protegida: no se fusiona un pull request si el pipeline no está en verde.
-- El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
+- El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, cobertura de toda la suite contra sus umbrales, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
 - Dependabot abre actualizaciones de dependencias agrupadas cada semana.
 
 Protección de `main` y Dependabot (ADR-0106):
@@ -256,7 +261,7 @@ Pipeline de CI (ADR-0105): `.github/workflows/ci.yml` corre en cada pull request
 npm ci
 npm run lint:code && npm run format:check && npm run lint:boundaries
 npx tsc --noEmit
-npm test && npm run test:int && npm run test:e2e
+npm run test:cov
 npm audit --audit-level=high
 npm run secrets:scan
 docker build --target production -t base-shop:ci . && docker build --target migrate -t base-shop-migrate:ci .
@@ -265,6 +270,7 @@ git log --no-merges --format=%s origin/main..HEAD | bash .github/scripts/check-c
 ```
 
 - La migración desde cero y la comparación con el esquema de Prisma (paso 7) van dentro de `npm run test:int`.
+- `npm run test:cov` corre las tres suites con cobertura y después `npm run coverage:check`, como los pasos 5 y 6 (ADR-0157).
 - `npm run secrets:scan` (ADR-0119, ADR-0156) corre gitleaks con Docker, igual que la CI: primero sobre los cambios preparados (`secrets:scan:staged`) y después sobre todo el historial (`secrets:scan:history`), y se detiene en el primer hallazgo. Oculta los secretos en la salida (`--redact`). La imagen está fijada por digest solo en `package.json`; para actualizarla se cambian los dos scripts, y el test `test/repository/secrets-scan.spec.ts` comprueba que la CI siga usando el mismo comando.
   - `scripts/secrets-scan.ts` arma el comando de Docker. Monta en solo lectura el directorio de trabajo y el directorio de git compartido (`git rev-parse --git-common-dir`), así que funciona igual en un clon normal y en un worktree de git (como los de `.claude/worktrees/`), desde PowerShell, Git Bash y Linux. Se corre con `npm run`: desde Git Bash, llamar al script directamente convierte `/repo` en una ruta de Windows.
   - Falla aunque gitleaks diga "no leaks found" si git, dentro del contenedor, no lee el mismo `HEAD` que en el equipo, o si gitleaks registra un error de git (líneas `[git] …` y `stderr is not empty`). Ese error significa que no se revisó todo: se corrige la causa, nunca se ignora. Un escaneo del historial que sí lee el repositorio dice cuántos commits revisó (`N commits scanned`, más de 0).
@@ -349,7 +355,10 @@ Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `
   4. `npm run db:migrate:dev` la aplica; después, `npm run db:diff` debe responder "No difference detected".
 - **SQL manual:** lo que el esquema de Prisma no expresa se escribe en la migración: extensiones, restricciones `CHECK` (nombre `<tabla>_<descripcion>_check`), restricciones de exclusión, índices de expresión y triggers. Prisma no los genera ni los borra, así que cambiarlos o quitarlos también requiere SQL manual en una migración nueva. Los índices parciales sí van en el esquema (`where: raw("...")`, función en vista previa `partialIndexes`).
 - **Datos iniciales:** los que el sistema necesita para funcionar van en migraciones de datos que no sobrescriben lo que ya exista, como los roles iniciales (ADR-0111) y el método de envío (ADR-0122). Al agregar una, conviene buscar las pruebas que crean la misma clase de filas, porque pueden chocar con ella; por ejemplo, con una segunda lista predeterminada o un segundo almacén activo.
-- **Rellenos de datos:** una migración que llena columnas de filas existentes, como `orders.concluded_at` y `users.last_active_at` en T-232, dice en su plan cómo se prueba ese relleno con filas preparadas como estaban antes. Las pruebas migran una base vacía, así que no lo ejercitan; T-300 define la forma.
+- **Rellenos de datos (ADR-0157):** una migración que llena columnas de filas existentes, como `orders.concluded_at` y `users.last_active_at` en T-232, se prueba en `test/integration/migration-backfills.int-spec.ts`. Las demás pruebas migran una base vacía, así que no ejercitan el relleno. El plan de la migración dice qué filas prueba.
+  1. `MigrationDatabase.create()` crea una base propia en el PostgreSQL de las pruebas, y `migrateUpTo(<migración>)` le aplica las anteriores, en orden.
+  2. La prueba inserta filas como eran antes de la migración, con SQL: las columnas de entonces, y los tipos de PostgreSQL con su nombre en la base (`$1::order_status`, no `OrderStatus`).
+  3. `apply(<migración>)` la aplica, la prueba revisa las filas y `drop()` borra la base.
 - Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
 - Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.

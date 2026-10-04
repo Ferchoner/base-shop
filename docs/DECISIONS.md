@@ -174,6 +174,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0154 | Correcciones de la auditoría de seguridad que cambian decisiones | Aceptada |
 | ADR-0155 | Contrato de la API comprobado y documento OpenAPI versionado | Aceptada |
 | ADR-0156 | Detección de secretos en worktrees de git, sin falsos aprobados | Aceptada |
+| ADR-0157 | Cobertura de toda la suite con umbral en la CI, y prueba de los rellenos de datos | Aceptada |
 
 ---
 
@@ -648,7 +649,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La protección de la rama principal y la activación de Dependabot se configuran en GitHub; requieren permisos de administrador del repositorio.
   - Herramientas concretas de lint, formato, límites y detección de secretos se eligen en las tareas correspondientes (T-103, T-104, T-106).
   - Despliegue continuo: pospuesto mientras no haya hosting (ADR-0031).
-- **Estado:** Aceptada. El pipeline se implementó en ADR-0105; la protección de la rama principal y Dependabot, en ADR-0106.
+- **Estado:** Aceptada. El pipeline se implementó en ADR-0105; la protección de la rama principal y Dependabot, en ADR-0106. Modificada por ADR-0157: la CI exige una cobertura mínima de toda la suite.
 
 ---
 
@@ -2407,7 +2408,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Una vulnerabilidad alta publicada en una dependencia hace fallar la CI aunque el pull request no la toque. Se actualiza la dependencia, o se registra la decisión si no hay arreglo.
   - Un commit con otro formato hace fallar `Commit messages`: se corrige reescribiendo los commits de la rama antes de fusionar. Dependabot (T-107) debe usar el prefijo `chore`.
   - Dependabot puede actualizar las actions fijadas por SHA. La imagen de gitleaks, por estar en una variable del workflow, se actualiza a mano.
-- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28). Modificada por ADR-0119: el paso 9 corre `npm run secrets:scan`, que también revisa los cambios preparados, y la imagen de gitleaks se fija en `package.json`, no en el workflow. ADR-0147: el paso 10 construye también la imagen `migrate` y prueba que las dos arranquen contra un PostgreSQL 18.
+- **Estado:** Aceptada (plan de T-106 aprobado el 2026-09-28). Modificada por ADR-0119: el paso 9 corre `npm run secrets:scan`, que también revisa los cambios preparados, y la imagen de gitleaks se fija en `package.json`, no en el workflow. ADR-0147: el paso 10 construye también la imagen `migrate` y prueba que las dos arranquen contra un PostgreSQL 18. ADR-0157: los pasos 5 y 6 miden la cobertura, y el 6 termina comprobando la de toda la suite contra sus umbrales.
 
 ---
 
@@ -4750,3 +4751,35 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Modifica ADR-0119 en el montaje, y adopta la alternativa del script de Node que ese ADR descartó.
 - **Revisar si:** gitleaks empieza a terminar con error cuando git falla, o git cambia cómo guarda los worktrees.
 - **Estado:** Aceptada (pedida por el usuario el 2026-10-03 como seguimiento de T-310). Modifica ADR-0119.
+
+## ADR-0157 — Cobertura de toda la suite con umbral en la CI, y prueba de los rellenos de datos
+
+- **Fecha:** 2026-10-04
+- **Contexto:** T-300, Sprint 9, paso 3. ADR-0030 no fijó un porcentaje mínimo de cobertura al inicio. `npm run test:cov` medía solo las pruebas unitarias, y cada suite cubre a propósito una parte de `src/`: los repositories se prueban en integración y los controladores en las e2e, así que ninguna, medida sola, dice qué queda sin probar. La suite e2e tenía `test/` como directorio raíz, y su cobertura no veía `src/`. Los rellenos de `orders.concluded_at` y `users.last_active_at` (T-232) no tenían prueba: las pruebas migran una base vacía.
+- **Decisión** (plan de T-300, con sus 5 recomendaciones):
+  - **Cobertura de toda la suite:** las tres corridas de Jest (unitarias, integración y e2e) escriben su `coverage-final.json` en `coverage/<suite>/`. `scripts/coverage.ts` los une con las bibliotecas de Istanbul (`istanbul-lib-coverage`, `istanbul-lib-report` e `istanbul-reports`, dependencias directas de desarrollo), escribe un resumen y un informe HTML en `coverage/merged/` y falla bajo los umbrales, o si falta el archivo de alguna suite.
+    - `npm run test:cov` corre las tres suites con cobertura y después `npm run coverage:check`.
+    - En la CI, los pasos 5 y 6 corren las suites con `--coverage`, y un paso más, después de las e2e, corre `npm run coverage:check`.
+  - **Umbrales globales,** tomados de la cobertura medida al terminar T-300 y redondeados hacia abajo: 98% de sentencias, 84% de ramas, 99% de funciones y 99% de líneas. Valen para el total, no por archivo ni por suite.
+  - **Qué se mide:** `src/` sin sus pruebas, sin el cliente generado de Prisma, sin `src/main.ts` y sin `src/scripts/`. El arranque y los scripts de operación se prueban al correrlos (la prueba de humo de las imágenes y `npm run geo:import`), no con Jest. Las tres configuraciones miden los mismos archivos, y `test/repository/coverage.spec.ts` lo comprueba.
+  - **Directorio raíz de las e2e:** pasa de `test/` a la raíz del repositorio, con `roots: ["<rootDir>/test"]`, para que su cobertura vea `src/`.
+  - **Rellenos de datos:** `test/integration/migration-database.ts` crea una base propia en el PostgreSQL de las pruebas y le aplica las migraciones anteriores a la que se prueba. La prueba inserta filas como eran entonces, aplica la migración, revisa las filas y borra la base. `migration-backfills.int-spec.ts` prueba así los dos rellenos de T-232.
+  - **Huecos:** se revisó cada línea sin cubrir. Las que son lógica tienen prueba ahora: carreras con claves foráneas en los repositories, fallos del outbox y del registro de auditoría, el límite de memoria del contador de intentos fallidos, cursores con un ID inválido, el detalle de un producto con categorías e imágenes, y otras. Las demás quedan sin cubrir, justificadas:
+    - el `throw error` que relanza un error que no se esperaba, después de reconocer los conocidos;
+    - las invariantes defensivas que solo existen para el compilador;
+    - las funciones de los decoradores de los DTO, que class-validator y class-transformer llaman solo cuando llega el campo;
+    - lo que solo corre en Linux, como sincronizar la carpeta de los archivos de auditoría, que la CI sí cubre.
+- **Alternativas consideradas:**
+  - **Un umbral por suite:** cada suite cubre su parte a propósito; exigirlo obligaría a duplicar pruebas.
+  - **Un umbral por archivo:** un archivo corto con un relanzamiento sin probar haría fallar la CI.
+  - **Un servicio externo de cobertura (Codecov, Coveralls):** otra cuenta y otro token, sin necesidad.
+  - **`nyc merge` o `c8`:** otra herramienta de línea de comandos; las bibliotecas de Istanbul son las que ya usa Jest.
+  - **Una sola corrida con `projects` de Jest:** las suites tienen preparaciones distintas (Testcontainers, `--runInBand`), y la CI corre cada una en su paso.
+  - **Probar los rellenos con `prisma migrate deploy`:** aplica todas las migraciones pendientes juntas, sin detenerse antes de una.
+- **Consecuencias:**
+  - Código nuevo sin probar puede dejar la cobertura bajo un umbral y hacer fallar la CI; el chequeo dice qué métrica y cuánto. Al fijarlos, el margen era pequeño en funciones (99.02%) y en ramas (84.03%): una función nueva sin probar ya hace fallar la CI.
+  - Medir la cobertura instrumenta el código: las suites tardan algo más.
+  - Una migración que llena columnas de filas existentes se prueba con `MigrationDatabase` (`DEVELOPMENT_GUIDE.md`).
+  - Modifica ADR-0030, que no fijaba un porcentaje mínimo, y ADR-0105 en los pasos 5 y 6.
+- **Revisar si:** la cobertura sube de forma estable (se suben los umbrales), una suite se divide en otra corrida, o Jest cambia el formato de su cobertura.
+- **Estado:** Aceptada (plan de T-300 aprobado el 2026-10-04, con sus 5 recomendaciones). Modifica ADR-0030 y ADR-0105.
