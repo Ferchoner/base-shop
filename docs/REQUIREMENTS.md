@@ -512,7 +512,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | Mercado Pago, Stripe | Pagos | Pospuestos | ADR-0040 |
 | Paqueterías | Envíos | Sin integración | ADR-0041 |
 | GitHub Actions, Dependabot | CI y dependencias | Definida | ADR-0030, ADR-0105, ADR-0106 |
-| gitleaks | Detección de secretos antes de cada commit y en la CI | Definida | ADR-0105, ADR-0119 |
+| gitleaks | Detección de secretos antes de cada commit y en la CI | Definida | ADR-0105, ADR-0119, ADR-0156 |
 | Hosting | Despliegue | Solo local; PENDIENTE (P-06) | ADR-0031 |
 
 ---
