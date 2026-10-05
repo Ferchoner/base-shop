@@ -9,7 +9,7 @@ import { AuditModule } from '../modules/audit/index.js';
 import { GeoCatalogImportCommand, GeoModule } from '../modules/geo/index.js';
 import { AppCacheModule } from '../platform/cache/app-cache.module.js';
 import { ClockModule } from '../platform/clock/clock.module.js';
-import { validateEnvironment } from '../platform/config/environment.js';
+import { configModuleOptions } from '../platform/config/config-module-options.js';
 import { AppLogger } from '../platform/logging/app-logger.js';
 import { LoggingModule } from '../platform/logging/logging.module.js';
 import { PersistenceModule } from '../platform/persistence/persistence.module.js';
@@ -17,11 +17,7 @@ import { PersistenceModule } from '../platform/persistence/persistence.module.js
 /** Only what the import needs: no HTTP server, scheduler or event bus. */
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
-      validate: validateEnvironment,
-    }),
+    ConfigModule.forRoot(configModuleOptions()),
     ClsModule.forRoot({ global: true }),
     LoggingModule,
     PersistenceModule,

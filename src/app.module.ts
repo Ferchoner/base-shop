@@ -16,7 +16,7 @@ import { ShoppingModule } from './modules/shopping/index.js';
 import { AuthorizationModule } from './platform/auth/authorization.module.js';
 import { AppCacheModule } from './platform/cache/app-cache.module.js';
 import { ClockModule } from './platform/clock/clock.module.js';
-import { validateEnvironment } from './platform/config/environment.js';
+import { configModuleOptions } from './platform/config/config-module-options.js';
 import { RetentionPolicyModule } from './platform/config/retention-policy.js';
 import { EventDeliveriesModule } from './platform/events/event-deliveries.module.js';
 import { EventsModule } from './platform/events/events.module.js';
@@ -30,13 +30,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
-      // Tests read their variables only from the process, so a local .env cannot change their results.
-      ignoreEnvFile: process.env.NODE_ENV === 'test',
-      validate: validateEnvironment,
-    }),
+    ConfigModule.forRoot(configModuleOptions()),
     // Async context per operation (ADR-0033): the active transaction and, for HTTP requests, the
     // correlation id, set by the middleware that configureHttp mounts (ADR-0095).
     ClsModule.forRoot({ global: true }),

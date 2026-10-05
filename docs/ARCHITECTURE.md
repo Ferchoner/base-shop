@@ -194,7 +194,7 @@ Requisitos mínimos ya identificados:
 
 ## Configuración
 
-`@nestjs/config` valida las variables de entorno al arrancar con class-validator (ADR-0032, ADR-0087); si falta una obligatoria o una es inválida, la API no inicia. El código lee la configuración tipada con `ConfigService`. Las políticas HTTP (CORS y encabezados de seguridad) se aplican en una función compartida por el arranque y los tests end-to-end.
+`@nestjs/config` valida las variables de entorno al arrancar con class-validator (ADR-0032, ADR-0087); si falta una obligatoria o una es inválida, la API no inicia. El código lee la configuración tipada con `ConfigService`. `ConfigService` responde solo con los valores ya validados, nunca con los crudos del proceso (`skipProcessEnv`): una variable vacía que la validación da por no definida sigue sin definir. La API y los scripts de operador comparten estas opciones (`src/platform/config/config-module-options.ts`). Las políticas HTTP (CORS y encabezados de seguridad) se aplican en una función compartida por el arranque y los tests end-to-end.
 
 ## CORS
 
