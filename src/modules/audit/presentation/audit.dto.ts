@@ -11,7 +11,7 @@ import {
 import {
   CursorMetaDto,
   CursorQueryDto,
-} from '../../../platform/http/pagination/cursor.js';
+} from '../../../platform/http/pagination/cursor.dto.js';
 import { CommaSeparated } from '../../../platform/http/pagination/pagination.js';
 import type { AuditActor, AuditResult } from '../../../shared-kernel/index.js';
 import { ACTOR_TYPES, AUDIT_RESULTS } from '../application/audit-entries.js';
