@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
-import { getMetadataStorage } from 'class-validator';
+import { getMetadataStorage, ValidationTypes } from 'class-validator';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { NoStaffPurchases } from '../src/platform/auth/no-staff-purchases.guard.js';
@@ -274,11 +274,16 @@ describe('API contract (e2e, T-320)', () => {
     });
 
     it('documents every field the validation pipe accepts in a body or a query string, optional ones as optional', () => {
-      /** The properties class-validator checks on instances of `type`, inherited ones included. */
-      const validated = (type: new () => object) =>
+      /** The properties class-validator checks on instances of `type`, inherited ones included; only `optional` ones with it. */
+      const validated = (type: new () => object, optional = false) =>
         new Set(
           getMetadataStorage()
             .getTargetValidationMetadatas(type, '', true, false)
+            .filter(
+              (metadata) =>
+                !optional ||
+                metadata.type === ValidationTypes.CONDITIONAL_VALIDATION,
+            )
             .map(({ propertyName }) => propertyName),
         );
       const schemas = (document.components?.schemas ?? {}) as Record<
@@ -307,12 +312,7 @@ describe('API contract (e2e, T-320)', () => {
             const documented = (operation.parameters ?? [])
               .filter((parameter) => parameter.in === 'query')
               .map((parameter) => parameter.name);
-            const optional = new Set(
-              getMetadataStorage()
-                .getTargetValidationMetadatas(query, '', true, false)
-                .filter(({ type }) => type === 'conditionalValidation')
-                .map(({ propertyName }) => propertyName),
-            );
+            const optional = validated(query, true);
             missing.push(
               ...[...validated(query)]
                 .filter((field) => !documented.includes(field))
