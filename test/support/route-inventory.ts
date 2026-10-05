@@ -3,8 +3,10 @@ import {
   GUARDS_METADATA,
   METHOD_METADATA,
   PATH_METADATA,
+  ROUTE_ARGS_METADATA,
   VERSION_METADATA,
 } from '@nestjs/common/constants.js';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum.js';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import {
   type AccountRequirement,
@@ -134,6 +136,42 @@ export function routesGuardedBy(
       targets,
     );
     if (guards.includes(guard)) routes.add(route);
+  });
+  return routes;
+}
+
+/** The DTOs of a route's whole body and whole query string, the classes the validation pipe validates them with. */
+export interface RouteInputs {
+  readonly body?: new () => object;
+  readonly query?: new () => object;
+}
+
+/** The routes that take their whole body or query string as a DTO, with those DTOs. */
+export function routeInputs(
+  app: INestApplication,
+): Record<string, RouteInputs> {
+  const routes: Record<string, RouteInputs> = {};
+  eachRoute(app, (route, [handler, controller]) => {
+    const parameters = (Reflect.getMetadata(
+      ROUTE_ARGS_METADATA,
+      controller,
+      handler.name,
+    ) ?? {}) as Record<string, { index: number; data?: unknown }>;
+    const types = (Reflect.getMetadata(
+      'design:paramtypes',
+      controller.prototype,
+      handler.name,
+    ) ?? []) as (new () => object)[];
+    const inputs: { body?: new () => object; query?: new () => object } = {};
+    for (const [key, { index, data }] of Object.entries(parameters)) {
+      if (data !== undefined) continue;
+      const kind = Number(key.split(':')[0]);
+      if (kind === Number(RouteParamtypes.BODY)) inputs.body = types[index];
+      if (kind === Number(RouteParamtypes.QUERY)) inputs.query = types[index];
+    }
+    if (inputs.body !== undefined || inputs.query !== undefined) {
+      routes[route] = inputs;
+    }
   });
   return routes;
 }

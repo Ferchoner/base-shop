@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import type { PageRequest } from '../../../shared-kernel/index.js';
@@ -13,13 +14,15 @@ export const MAX_PAGE = 1_000_000;
 
 /**
  * `page` and `pageSize` of a listing (ADR-0036). Each listing's query DTO extends it and adds its declared
- * filters and `sort`; any other query parameter is rejected by the validation pipe.
+ * filters and `sort`; any other query parameter is rejected by the validation pipe. `@ApiPropertyOptional` keeps
+ * the Swagger plugin from marking required a field that has a default.
  */
 export class PageQueryDto implements PageRequest {
   /**
    * Página, de 1 a 1,000,000.
    * @example 1
    */
+  @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -31,6 +34,7 @@ export class PageQueryDto implements PageRequest {
    * Resultados por página, de 1 a 100.
    * @example 20
    */
+  @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)
   @IsInt()

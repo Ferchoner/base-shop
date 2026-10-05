@@ -333,6 +333,13 @@
             "nullable": true,
             "type": "string"
           },
+          "quantity": {
+            "description": "Con signo, de −100,000 a 100,000 y distinta de 0.",
+            "example": -2,
+            "maximum": 100000,
+            "minimum": -100000,
+            "type": "integer"
+          },
           "reasonCode": {
             "description": "`DAMAGED`, `LOSS_OR_THEFT` e `INTERNAL_USE` solo con cantidad negativa; `OTHER` exige `note`.",
             "enum": [
@@ -357,6 +364,7 @@
           }
         },
         "required": [
+          "quantity",
           "reasonCode",
           "variantId",
           "warehouseId"
@@ -3076,7 +3084,23 @@
         "type": "object"
       },
       "CursorMetaDto": {
-        "properties": {},
+        "properties": {
+          "limit": {
+            "description": "Resultados por página que se pidieron.",
+            "example": 50,
+            "type": "number"
+          },
+          "nextCursor": {
+            "description": "El cursor de la página siguiente, para enviarlo como `cursor`; `null` en la última.",
+            "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTEwLTA1VDEyOjAwOjAwLjAwMFoifQ",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "nextCursor",
+          "limit"
+        ],
         "type": "object"
       },
       "CustomerAnonymizationDto": {
@@ -7053,6 +7077,19 @@
         "operationId": "AdminAuditController_list_v1",
         "parameters": [
           {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "example": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más, separados por comas: `USER`, `SYSTEM`, `ANONYMOUS`.",
             "in": "query",
             "name": "actorType",
@@ -7152,6 +7189,15 @@
               "example": "2026-10-31",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaco: el `nextCursor` de la respuesta anterior. Sin él, la primera página.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -7236,6 +7282,32 @@
         "operationId": "AdminBrandsController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `ACTIVE`, `INACTIVE`.",
             "in": "query",
             "name": "status",
@@ -7270,32 +7342,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -8576,6 +8622,32 @@
         "operationId": "AdminProductsController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `DRAFT`, `PUBLISHED`, `ARCHIVED`.",
             "in": "query",
             "name": "status",
@@ -8631,32 +8703,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -10473,6 +10519,32 @@
         "operationId": "EventDeliveriesController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `PENDING`, `DELIVERED`, `FAILED`. Por defecto, `FAILED`.",
             "in": "query",
             "name": "status",
@@ -10522,32 +10594,6 @@
               "maxLength": 200,
               "minLength": 1,
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -10829,6 +10875,32 @@
         "operationId": "AdminCustomersController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `ACTIVE`, `SUSPENDED`, `ANONYMIZED`.",
             "in": "query",
             "name": "status",
@@ -10892,32 +10964,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -11663,6 +11709,32 @@
         "operationId": "AdminRolesController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Parte del nombre, sin distinguir mayúsculas; hasta 100 caracteres.",
             "in": "query",
             "name": "q",
@@ -11679,32 +11751,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -12214,6 +12260,32 @@
         "operationId": "AdminStaffController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `ACTIVE`, `SUSPENDED`.",
             "in": "query",
             "name": "status",
@@ -12257,32 +12329,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -13147,6 +13193,32 @@
         "operationId": "AdminStockController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Solo las existencias de esta variante.",
             "in": "query",
             "name": "variantId",
@@ -13205,32 +13277,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -13326,6 +13372,19 @@
             }
           },
           {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "example": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más tipos separados por comas: `RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK`.",
             "in": "query",
             "name": "type",
@@ -13361,6 +13420,15 @@
             "required": false,
             "schema": {
               "example": "2026-10-31",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaco: el `nextCursor` de la respuesta anterior. Sin él, la primera página.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -13650,6 +13718,32 @@
         "operationId": "AdminOrdersController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `PENDING_PAYMENT`, `PAID`, `AWAITING_MANUAL_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`, `EXPIRED`, `REFUNDED`.",
             "in": "query",
             "name": "status",
@@ -13737,32 +13831,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -14692,6 +14760,32 @@
         "operationId": "AdminPaymentsController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `PENDING`, `REQUIRES_ACTION`, `AUTHORIZED`, `CAPTURED`, `FAILED`, `CANCELLED`, `PARTIALLY_REFUNDED`, `REFUNDED`.",
             "in": "query",
             "name": "status",
@@ -14768,32 +14862,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -15920,6 +15988,32 @@
         "operationId": "AdminShipmentsController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `PENDING`, `DISPATCHED`, `DELIVERED`, `DELIVERY_FAILED`, `RETURNED`, `CANCELLED`. Por defecto `PENDING`, los envíos por despachar.",
             "in": "query",
             "name": "status",
@@ -15988,32 +16082,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],
@@ -17893,6 +17961,32 @@
         "operationId": "CatalogController_products_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Hasta 20 slugs de marcas activas, separados por comas.",
             "in": "query",
             "name": "brand",
@@ -17974,32 +18068,6 @@
             "schema": {
               "maximum": 2147483647,
               "minimum": 0,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
               "type": "number"
             }
           }
@@ -19585,6 +19653,32 @@
         "operationId": "MeOrdersController_list_v1",
         "parameters": [
           {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
             "description": "Uno o más estados separados por comas: `PENDING_PAYMENT`, `PAID`, `AWAITING_MANUAL_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`, `EXPIRED`, `REFUNDED`.",
             "in": "query",
             "name": "status",
@@ -19634,32 +19728,6 @@
             "required": false,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Página, de 1 a 1,000,000.",
-            "in": "query",
-            "name": "page",
-            "required": true,
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "maximum": 1000000,
-              "minimum": 1,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Resultados por página, de 1 a 100.",
-            "in": "query",
-            "name": "pageSize",
-            "required": true,
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "number"
             }
           }
         ],

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import type { INestApplication } from '@nestjs/common';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
+import { getMetadataStorage, ValidationTypes } from 'class-validator';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { NoStaffPurchases } from '../src/platform/auth/no-staff-purchases.guard.js';
@@ -14,8 +15,10 @@ import {
 } from '../src/platform/http/problem-details/problem-types.js';
 import { apiSpecRoutes } from './support/api-spec-routes.js';
 import {
+  routeInputs,
   routeInventory,
   routesGuardedBy,
+  type RouteInputs,
   type RouteSecurity,
 } from './support/route-inventory.js';
 
@@ -45,13 +48,19 @@ interface Operation {
     description?: string;
   }[];
   readonly requestBody?: {
-    content?: Record<string, { schema?: unknown }>;
+    content?: Record<
+      string,
+      { schema?: { $ref?: string; properties?: Record<string, unknown> } }
+    >;
   };
   readonly responses: Record<
     string,
     {
       description?: string;
-      content?: Record<string, { schema?: { $ref?: string } }>;
+      content?: Record<
+        string,
+        { schema?: { $ref?: string; properties?: Record<string, unknown> } }
+      >;
     }
   >;
 }
@@ -111,6 +120,8 @@ describe('API contract (e2e, T-320)', () => {
   let app: INestApplication<App>;
   let document: OpenAPIObject;
   let routes: Record<string, RouteSecurity>;
+  /** The body and query DTOs of each route. */
+  let inputs: Record<string, RouteInputs>;
   /** Routes that answer 403 `staff-cannot-purchase` to staff (E-09). */
   let noStaff: Set<string>;
   /** Each operation of the document, keyed like the route inventory. */
@@ -125,6 +136,7 @@ describe('API contract (e2e, T-320)', () => {
     await app.init();
     document = buildApiDocument(app);
     routes = routeInventory(app);
+    inputs = routeInputs(app);
     noStaff = routesGuardedBy(app, NoStaffPurchases);
     operations = new Map();
     for (const [path, item] of Object.entries(document.paths)) {
@@ -258,6 +270,82 @@ describe('API contract (e2e, T-320)', () => {
             .filter(([, property]) => !property.description)
             .map(([property]) => `${name}.${property}`),
         ),
+      ).toEqual([]);
+    });
+
+    it('documents every field the validation pipe accepts in a body or a query string, optional ones as optional', () => {
+      /** The properties class-validator checks on instances of `type`, inherited ones included; only `optional` ones with it. */
+      const validated = (type: new () => object, optional = false) =>
+        new Set(
+          getMetadataStorage()
+            .getTargetValidationMetadatas(type, '', true, false)
+            .filter(
+              (metadata) =>
+                !optional ||
+                metadata.type === ValidationTypes.CONDITIONAL_VALIDATION,
+            )
+            .map(({ propertyName }) => propertyName),
+        );
+      const schemas = (document.components?.schemas ?? {}) as Record<
+        string,
+        { properties?: Record<string, unknown> }
+      >;
+      expect(
+        violations((route, operation) => {
+          const { body, query } = inputs[route] ?? {};
+          const missing: string[] = [];
+          if (body !== undefined) {
+            const schema = Object.values(
+              operation.requestBody?.content ?? {},
+            )[0]?.schema;
+            const name = schema?.$ref?.replace('#/components/schemas/', '');
+            const documented = Object.keys(
+              (name === undefined ? schema : schemas[name])?.properties ?? {},
+            );
+            missing.push(
+              ...[...validated(body)]
+                .filter((field) => !documented.includes(field))
+                .map((field) => `body ${field} undocumented`),
+            );
+          }
+          if (query !== undefined) {
+            const documented = (operation.parameters ?? [])
+              .filter((parameter) => parameter.in === 'query')
+              .map((parameter) => parameter.name);
+            const optional = validated(query, true);
+            missing.push(
+              ...[...validated(query)]
+                .filter((field) => !documented.includes(field))
+                .map((field) => `query ${field} undocumented`),
+              ...(operation.parameters ?? [])
+                .filter(
+                  (parameter) =>
+                    parameter.in === 'query' &&
+                    parameter.required === true &&
+                    optional.has(parameter.name),
+                )
+                .map((parameter) => `query ${parameter.name} required`),
+            );
+          }
+          return missing;
+        }),
+      ).toEqual([]);
+    });
+
+    it('declares the fields of every response object', () => {
+      const schemas = (document.components?.schemas ?? {}) as Record<
+        string,
+        { properties?: Record<string, unknown>; additionalProperties?: unknown }
+      >;
+      expect(
+        Object.entries(schemas)
+          .filter(
+            ([, schema]) =>
+              schema.properties !== undefined &&
+              Object.keys(schema.properties).length === 0 &&
+              schema.additionalProperties === undefined,
+          )
+          .map(([name]) => name),
       ).toEqual([]);
     });
 

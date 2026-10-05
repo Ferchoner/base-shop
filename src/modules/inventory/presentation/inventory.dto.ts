@@ -24,7 +24,7 @@ import {
 import {
   CursorMetaDto,
   CursorQueryDto,
-} from '../../../platform/http/pagination/cursor.js';
+} from '../../../platform/http/pagination/cursor.dto.js';
 import {
   PageMetaDto,
   PageQueryDto,
@@ -301,6 +301,15 @@ export class AdjustmentDto {
   warehouseId: string;
 
   /** Con signo, de −100,000 a 100,000 y distinta de 0. @example -2 */
+  // The Swagger plugin drops a property whose rule takes a negative constant, as `@Min(-MAX_STOCK_QUANTITY)`,
+  // so this one declares its schema.
+  @ApiProperty({
+    type: 'integer',
+    minimum: -MAX_STOCK_QUANTITY,
+    maximum: MAX_STOCK_QUANTITY,
+    description: 'Con signo, de −100,000 a 100,000 y distinta de 0.',
+    example: -2,
+  })
   @IsInt()
   @NotEquals(0, { context: { message: 'No puede ser 0.' } })
   @Min(-MAX_STOCK_QUANTITY)
