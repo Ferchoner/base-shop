@@ -77,7 +77,7 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 - Cliente invitado (compra sin cuenta, identificado por email de contacto).
 - Personal de la tienda (staff) con roles y permisos.
 
-Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
+Roles del personal: Superadministrador, Administrador y Operador (ADR-0043), y Vendedor desde la versión 1.2 (ADR-0161).
 
 ## 6. País, moneda e impuestos
 
@@ -95,7 +95,7 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 ## 8. Estado
 
-Fase: MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, publicada el 2026-10-06, agrega varios almacenes propios (ADR-0160). En curso: la versión 1.2, ventas asistidas en la tienda física (ADR-0161). El alcance de la §3 está construido y probado, y corre solo en el entorno local. Lo que queda fuera del MVP (T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69) espera a que una entidad quiera usar el proyecto; la §9 es la lista para retomarlo.
+Fase: MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, publicada el 2026-10-06, agrega varios almacenes propios (ADR-0160), y la 1.2.0, publicada el mismo día, las ventas asistidas en la tienda física (ADR-0161); no hay ninguna en curso. El alcance de la §3 está construido y probado, y corre solo en el entorno local. Lo que queda fuera del MVP (T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69) espera a que una entidad quiera usar el proyecto; la §9 es la lista para retomarlo.
 
 Sprints: Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Sprint 2 (Identity & Access) cerrado el 2026-09-29: registro, verificación de email, sesiones, recuperación de contraseña, staff, roles, permisos y direcciones. Sprint 3 (catálogo vendible) cerrado el 2026-10-01: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y tienda pública. Sprint 4 (compra con pago en tienda) cerrado el 2026-10-02: carrito, checkout, órdenes, pago en tienda, reembolsos, vencimiento y recompra. Sprint 5 (entrega del pedido) cerrado el 2026-10-02: envíos, reintegro de stock, correos al cliente y limpieza diaria. Sprint 6 (privacidad y operación) cerrado el 2026-10-03: anonimización, consulta y archivo de la auditoría, imagen de producción reducida y enlace de acceso a los pedidos de invitado. Sprint 7 (entrega garantizada de eventos) cerrado el 2026-10-03: outbox transaccional con reintentos y consulta del staff, y plazos de conservación configurables. Sprint 8 (ciclo de conservación de datos personales) cerrado el 2026-10-03: bloqueo y anonimización automáticos de los datos personales de las órdenes, su consulta auditada, cuentas inactivas y política de conservación pública. Sprint 9 (calidad antes de operar) cerrado el 2026-10-04: auditoría de seguridad contra el OWASP API Security Top 10, contrato de la API comprobado y OpenAPI versionado, y cobertura con umbral en la CI. Ver `SPRINT.md` y `PROGRESS.md`.
 

@@ -6,77 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.2 — Ventas asistidas en la tienda física. Inicio: 2026-10-06 (plan aprobado ese día).
-
-### Goal
-
-Que el staff coloque pedidos a nombre de un cliente presente en la tienda física: con envío, como en la tienda en línea, o como venta de mostrador, en la que el cliente paga y se lleva la mercancía en el momento. Cada pedido registra quién lo colocó y por qué canal, sale del almacén de la tienda y se cobra con el pago en tienda, que deja de ser solo para pruebas (ADR-0161).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.1 en la guía de desarrollo |
-| 1 | T-187 parte a: permiso `orders.place` y rol Vendedor; cotizar y colocar los pedidos del staff; `placedBy` y `channel`; almacén fijo; auditoría y filtros; pago en tienda con su método |
-| 2 | T-187 parte b: venta de mostrador, con su entrega en tienda |
-
-- **Criterio de cierre:** los criterios de aceptación de T-187, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.2.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** la caja y los cortes de caja, la factura CFDI, el apartado, recoger en tienda los pedidos en línea y el segundo factor del staff (ADR-0161); y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de la versión 1.1. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.2.0.
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 161 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan.
-- **Dependencias:**
-  - `npm audit` no encuentra vulnerabilidades en las dependencias de producción. En las de desarrollo sigue el aviso moderado de `sprintf-js`, que llega con Jest y ninguna versión corrige (review de la versión 1.1);
-  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
-  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.1:
-  - las tablas de `API_SPEC.md` y el documento OpenAPI de una ruta nueva van en el mismo commit que la ruta;
-  - una prueba de un orden usa datos que darían otro resultado con cualquier otro orden;
-  - cada mutante corre con la suite que tiene su prueba.
-- **Reglas:** BR-USR-09 decía que solo un superadministrador crea staff; ahora sigue a ADR-0116 y ADR-0154, que lo permiten a quien tenga `staff.manage`.
-
-### Resultado del paso 1 (parte a, primer pull request)
-
-T-187 parte a (ADR-0161), sin el método del pago en tienda, que llega en el segundo pull request:
-
-- **Permiso y rol:** `orders.place`, que recibe también el Administrador, y el rol Vendedor, que no registra pagos.
-- **Rutas:** `POST /v1/admin/orders/quote` y `POST /v1/admin/orders`, con las líneas en la solicitud, para un cliente registrado o un invitado. Comparten con el checkout los precios, el envío, el comprador, la dirección y el código público.
-- **Almacén fijo:** la cotización, la reserva, el pago tardío y el reintento de surtido usan solo el almacén que eligió el staff. Uno inactivo responde 404 al colocar, y cuenta como falta de stock al reservar otra vez. Una prueba con dos conexiones comprueba que la última unidad de la tienda va a un solo pedido.
-- **La orden:** guarda `channel`, `placedBy` y `warehouseId`; `orders_channel_check` lo exige en la base. El historial lleva al staff, se audita como `orders.place`, y el listado filtra por canal y por quién la colocó.
-- **Sin carrito:** una orden vencida no restaura ninguno, y la anonimización borra la respuesta que guardó el staff, solo la de esa orden.
-- **Correo:** el de una orden de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
-
-### Resultado del paso 1 (parte a, segundo pull request)
-
-T-187 parte a queda hecha (ADR-0161):
-
-- **Pago en tienda real:** deja de ser solo para pruebas en el código, `.env.example` y la documentación. `MANUAL_PAYMENTS_ENABLED` sigue apagado por defecto: el operador lo enciende cuando la tienda cobra.
-- **Método:** `manual-capture` acepta `method`, opcional para no romper `/v1`: `CASH`, `CARD_TERMINAL` o `TRANSFER`. Lo guarda el intento capturado, con una restricción en la base, y lo muestran `AdminPayment` y `AdminOrder.payment`. La auditoría lo registra.
-- **Sin cambios:** el reembolso manual.
-
-### Resultado del paso 2
-
-T-187 parte b (ADR-0161); T-187 queda en DONE.
-
-- **Venta de mostrador:** la cotización y la colocación del staff aceptan `fulfillment` `IN_STORE`. La orden no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos.
-- **Entrega en la tienda:** una orden `IN_STORE` pagada no crea envío, y `POST …/hand-over` la lleva de Paid a Delivered, con el vendedor en el historial y auditada.
-- **Base de datos:** `orders_fulfillment_check` exige la dirección y el plazo a una orden que se envía, y los quita, con el costo de envío, a una que se entrega en la tienda. Las restricciones del email y del aviso admiten la venta sin datos solo ahí.
-- **Contrato:** `fulfillment` es un campo nuevo; `shippingAddress` y `estimatedDelivery` salen `null` en una orden `IN_STORE`, la excepción acotada a ADR-0034.
-- **Correos:** los de una venta de mostrador dicen que se entrega en la tienda, sin plazo; sin email no hay correos.
-
-### Risks
-
-- **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor (ADR-0161).
-- **Datos personales capturados por el staff:** necesitan la validación legal de `PROJECT.md` §9 antes de operar con clientes reales.
-- **Copias de datos personales:** la respuesta guardada por idempotencia de la ruta del staff se guardaría con el alcance del staff, y hoy la anonimización solo borra las de un cliente o de un carrito. El plan de la parte a lista cada copia (`DEVELOPMENT_GUIDE.md`, paso 3).
-- **Más cuentas de staff sin segundo factor** (ADR-0048).
-- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.2, ventas asistidas en la tienda física, se cerró el 2026-10-06 y se publica como la 1.2.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -102,6 +32,118 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.2 — Ventas asistidas en la tienda física (2026-10-06)
+
+**Goal:** que el staff coloque pedidos a nombre de un cliente presente en la tienda física: con envío, como en la tienda en línea, o como venta de mostrador, en la que el cliente paga y se lleva la mercancía en el momento. Cada pedido registra quién lo colocó y por qué canal, sale del almacén de la tienda y se cobra con el pago en tienda, que deja de ser solo para pruebas (ADR-0161). **Tareas:** T-187, en dos partes, precedida por un paso 0.
+
+**Fecha:** 2026-10-06. **Resultado:** objetivo cumplido. T-187 está en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.2.0, con su tag y su GitHub Release (ADR-0159).
+- El staff con `orders.place` cotiza y coloca pedidos a nombre de un cliente registrado, de un invitado o, en el mostrador, de un comprador que no da datos.
+- Cada pedido guarda quién lo colocó, por qué canal y de qué almacén sale, y se audita.
+- El pago en tienda es el cobro real de la tienda física, y guarda cómo se cobró.
+- La venta de mostrador no tiene dirección ni envío: el vendedor la entrega en la tienda en cuanto se paga.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0161; revisión contra los ADR sin desajustes; 0 vulnerabilidades en las dependencias de producción; prácticas de la review de la versión 1.1 en la guía; BR-USR-09 corregida | DONE | Paso 0, pull request #107 |
+| Pedidos del staff a nombre de un cliente (UC-ORD-12 y UC-ORD-13): permiso `orders.place` y rol Vendedor; canal, quién colocó y almacén fijo; auditoría y filtros | DONE | T-187 parte a, pull request #108 |
+| Pago en tienda real, con su método: efectivo, terminal o transferencia | DONE | T-187 parte a, pull request #109 |
+| Venta de mostrador sin dirección ni envío, con un comprador opcional, y su entrega en la tienda (UC-ORD-14) | DONE | T-187 parte b, pull request #110 |
+| 131 rutas de `/v1`, 3 de ellas nuevas; los cambios de contrato son compatibles, salvo la excepción acotada a ADR-0034 | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 2,532 tests (1,469 unitarios, 492 de integración y 571 end-to-end), 68 más que en la versión 1.1; cobertura de 98.86% de sentencias, 84.5% de ramas, 99.18% de funciones y 99.46% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; en las de desarrollo, el mismo aviso moderado de `sprintf-js`, sin versión corregida | — | `npm audit` |
+| 161 ADR: 157 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 1 nuevo en esta versión (ADR-0161) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 4 pull requests a `main` (del #107 al #110). El pipeline pasó en los 4 y en `main` después de cada fusión. En el #107, la primera corrida se canceló al traer `main` a la rama, y la siguiente pasó.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión. La lista de `PROJECT.md` §9 suma la validación legal de que el staff capture datos personales en la tienda física (ADR-0161).
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Copias de datos personales:** la anonimización borra la respuesta que el staff guardó al colocar la orden, por la ruta y el `id` de la orden, sin tocar sus demás respuestas.
+  - **La última unidad de la tienda:** una prueba con dos conexiones comprueba que va a un solo pedido.
+  - **Cambios de contrato:** rutas, campos y filtros nuevos, compatibles dentro de `/v1`, y cada uno está en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`. La única excepción es la acotada a ADR-0034, que decidió ADR-0161.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints y de la versión 1.1, entre ellos el aviso moderado de `sprintf-js`, que ninguna versión corrige.
+- **Nuevos:**
+  - **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor (ADR-0161). Mientras no haya caja ni cortes de caja, nada compara lo cobrado con lo registrado.
+  - **Datos personales capturados por el staff:** necesitan la validación legal de `PROJECT.md` §9 antes de operar con clientes reales.
+  - **Más cuentas de staff sin segundo factor** (ADR-0048), ahora con el rol Vendedor.
+  - **Órdenes sin dirección:** un cliente de la API que suponga que toda orden tiene `shippingAddress` y `estimatedDelivery` falla con una orden `IN_STORE`, también con la de un cliente registrado al que el staff le vendió en el mostrador.
+  - **Venta sin datos:** el comprador anónimo no recibe correos ni consulta su pedido como invitado. Mientras no haya factura, su comprobante queda fuera del sistema (ADR-0161).
+
+#### Qué funcionó
+
+- **Un plan por parte, aprobado antes de implementarla:** la versión se construyó en un día, en 4 pull requests, sin rehacer el diseño. La parte a se partió en dos, el pedido del staff y el método del pago, cada uno con su migración.
+- **Compartir la colocación con el checkout:** `OrderPlacement` da a la tienda en línea y al staff los mismos precios, envío, comprador, dirección y código público. La venta de mostrador solo cambió el envío y el comprador.
+- **La política de asignación aparte (ADR-0160):** el almacén fijo entró como otra política, sin tocar la reserva ni el reintegro, como anticipó la review de la versión 1.1.
+- **Restricciones en la base como última guarda:** `orders_channel_check`, `payment_attempts_method_check` y `orders_fulfillment_check` rechazan una orden o un pago incoherentes aunque el código fallara. En la parte b, los 4 mutantes de la migración cayeron con pruebas de integración.
+- **Las prácticas de la review de la versión 1.1:** las tablas de `API_SPEC.md` y el OpenAPI fueron en el commit de cada ruta nueva, y cada mutante corrió con la suite que tiene su prueba.
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-187 parte a, primer pull request | 1 de 62 | Un mutante equivalente: quitar `status = 'COMPLETED'` del borrado de las respuestas guardadas. Una clave en curso no guarda respuesta, así que borrarla tampoco cambia nada |
+  | T-187 parte a, segundo pull request | 0 de 15 | — |
+  | T-187 parte b | 0 de 38 | — |
+
+  El plan (#107) solo cambió documentación.
+
+#### Qué mejorar
+
+- **Un método que lanza antes de devolver su promesa:** la colocación del staff validaba y lanzaba antes de devolver la promesa, así que el error no llegaba como rechazo. Lo encontraron las pruebas, y el método pasó a `async`. Un método que devuelve una promesa es `async`, para que todo error llegue como rechazo.
+- **Un campo nuevo en una respuesta compartida:** `fulfillment` rompió la comparación completa de la orden en `test/checkout.e2e-spec.ts`, una suite que no se corría al implementar la parte b. La encontró la primera corrida completa. Al agregar un campo a una respuesta, se buscan las pruebas que la comparan completa antes de esa corrida.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 161 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan.
+- **Dependencias:**
+  - `npm audit` no encuentra vulnerabilidades en las dependencias de producción. En las de desarrollo sigue el aviso moderado de `sprintf-js`, que llega con Jest y ninguna versión corrige (review de la versión 1.1);
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.1:
+  - las tablas de `API_SPEC.md` y el documento OpenAPI de una ruta nueva van en el mismo commit que la ruta;
+  - una prueba de un orden usa datos que darían otro resultado con cualquier otro orden;
+  - cada mutante corre con la suite que tiene su prueba.
+- **Reglas:** BR-USR-09 decía que solo un superadministrador crea staff; ahora sigue a ADR-0116 y ADR-0154, que lo permiten a quien tenga `staff.manage`.
+
+#### Resultado del paso 1 (parte a, primer pull request)
+
+T-187 parte a (ADR-0161), sin el método del pago en tienda, que llega en el segundo pull request:
+
+- **Permiso y rol:** `orders.place`, que recibe también el Administrador, y el rol Vendedor, que no registra pagos.
+- **Rutas:** `POST /v1/admin/orders/quote` y `POST /v1/admin/orders`, con las líneas en la solicitud, para un cliente registrado o un invitado. Comparten con el checkout los precios, el envío, el comprador, la dirección y el código público.
+- **Almacén fijo:** la cotización, la reserva, el pago tardío y el reintento de surtido usan solo el almacén que eligió el staff. Uno inactivo responde 404 al colocar, y cuenta como falta de stock al reservar otra vez. Una prueba con dos conexiones comprueba que la última unidad de la tienda va a un solo pedido.
+- **La orden:** guarda `channel`, `placedBy` y `warehouseId`; `orders_channel_check` lo exige en la base. El historial lleva al staff, se audita como `orders.place`, y el listado filtra por canal y por quién la colocó.
+- **Sin carrito:** una orden vencida no restaura ninguno, y la anonimización borra la respuesta que guardó el staff, solo la de esa orden.
+- **Correo:** el de una orden de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
+
+#### Resultado del paso 1 (parte a, segundo pull request)
+
+T-187 parte a queda hecha (ADR-0161):
+
+- **Pago en tienda real:** deja de ser solo para pruebas en el código, `.env.example` y la documentación. `MANUAL_PAYMENTS_ENABLED` sigue apagado por defecto: el operador lo enciende cuando la tienda cobra.
+- **Método:** `manual-capture` acepta `method`, opcional para no romper `/v1`: `CASH`, `CARD_TERMINAL` o `TRANSFER`. Lo guarda el intento capturado, con una restricción en la base, y lo muestran `AdminPayment` y `AdminOrder.payment`. La auditoría lo registra.
+- **Sin cambios:** el reembolso manual.
+
+#### Resultado del paso 2
+
+T-187 parte b (ADR-0161); T-187 queda en DONE.
+
+- **Venta de mostrador:** la cotización y la colocación del staff aceptan `fulfillment` `IN_STORE`. La orden no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos.
+- **Entrega en la tienda:** una orden `IN_STORE` pagada no crea envío, y `POST …/hand-over` la lleva de Paid a Delivered, con el vendedor en el historial y auditada.
+- **Base de datos:** `orders_fulfillment_check` exige la dirección y el plazo a una orden que se envía, y los quita, con el costo de envío, a una que se entrega en la tienda. Las restricciones del email y del aviso admiten la venta sin datos solo ahí.
+- **Contrato:** `fulfillment` es un campo nuevo; `shippingAddress` y `estimatedDelivery` salen `null` en una orden `IN_STORE`, la excepción acotada a ADR-0034.
+- **Correos:** los de una venta de mostrador dicen que se entrega en la tienda, sin plazo; sin email no hay correos.
+
+#### Siguiente versión
+
+Ninguna en curso: la siguiente necesita un plan aprobado (ADR-0159). La 1.2 dejó fuera la caja y los cortes de caja, la factura CFDI, el apartado, recoger en tienda los pedidos en línea y el segundo factor del staff (ADR-0161). Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las de la 1.1.
 
 ### Versión 1.1 — Varios almacenes propios (2026-10-05 a 2026-10-06)
 
