@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.1 (nuevo ADR-0160): varios almacenes propios. Cada orden sale completa del almacén de mayor prioridad que la cubre, la tienda suma la disponibilidad de todos y el stock vuelve al almacén del que salió; el diseño queda preparado para dividir pedidos más adelante. Se implementa en T-162, en dos partes; las transferencias como operación propia quedan en T-163 (DEFERRED).
+- Paso 0 de la versión 1.1: revisión contra los ADR sin desajustes, 0 vulnerabilidades y Prisma 7.10.0 todavía la última estable; `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 9.
+
 ## 1.0.0 (2026-10-05)
 
 El MVP (ADR-0158), con las correcciones fusionadas después del cierre.
