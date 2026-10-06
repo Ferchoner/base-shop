@@ -532,12 +532,11 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 - Nunca incluye `orderNumber` interno ni `id` (ADR-0049).
 - `payment` y `shipment` son `null` si no existen.
-- `contactEmail` es `null` solo en órdenes anonimizadas (ADR-0067), que el comprador ya no ve: solo el staff, en `AdminOrder` (ADR-0145).
+- `contactEmail` es `null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), que el comprador ya no ve: solo el staff, en `AdminOrder` (§8.9, ADR-0145). También es `null` en una venta de mostrador sin datos del comprador, sin que la orden esté anonimizada; el comprador no la consulta, porque no dio email (ADR-0161).
 - Una orden bloqueada (ADR-0151) tampoco la ve el comprador: no aparece en `GET /v1/me/orders` ni en el enlace de acceso, y su detalle, la consulta de invitado y la recompra responden 404, como una orden que no existe.
 - `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
 - `paymentDueAt`: vencimiento de la reserva mientras la orden está en PENDING_PAYMENT; `null` en otros estados.
 - `fulfillment` (ADR-0161): `SHIPPING`, la orden se envía a `shippingAddress`; `IN_STORE`, el staff la entrega en la tienda física al pagarse. Una orden `IN_STORE` tiene `shippingAddress` y `estimatedDelivery` en `null`, `shippingCost` en 0, y nunca tiene `shipment`. Es la excepción acotada a ADR-0034 que decidió ADR-0161: los dos campos pueden ser `null` solo en órdenes `IN_STORE`, que coloca el staff.
-- En una venta de mostrador sin datos del comprador, `contactEmail` es `null` sin que la orden esté anonimizada; el comprador no la consulta, porque no dio email (ADR-0161).
 
 ### 8.9 `AdminOrder`
 
