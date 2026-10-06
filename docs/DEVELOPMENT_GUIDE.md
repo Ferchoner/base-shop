@@ -302,6 +302,15 @@ Ramas y commits (ADR-0084), en inglés:
   1. `git diff --cached --stat`: comprobar que lo preparado es solo lo de ese commit. Un archivo movido con `git mv` queda preparado aunque no se haya agregado después.
   2. `npm run secrets:scan`: si encuentra algo en lo preparado, se corrige antes de commitear. Si su salida se filtra (por ejemplo, con `| tail`), se activa antes `set -o pipefail`: sin él, el filtro oculta el código de salida y el commit encadenado con `&&` se hace aunque el escaneo falle (T-195). En los tests, un valor literal junto a palabras como "password" o "key" puede parecer un secreto: se construye el valor o se cambia el nombre, en lugar de ignorarlo.
 
+Versiones (ADR-0159):
+
+- La aplicación sigue el versionado semántico, independiente de `/v1`. Una versión menor agrega funcionalidades compatibles, un parche solo corrige, y una mayor llega solo con `/v2`.
+- Cada versión menor es un incremento con su plan aprobado, que se registra en `SPRINT.md` como "Versión X.Y". Sus cambios se anotan en la sección "Unreleased" de `CHANGELOG.md`.
+- Para publicar una versión:
+  1. En el último pull request del incremento, `npm version X.Y.Z --no-git-tag-version` cambia `package.json` y `package-lock.json`, y "Unreleased" pasa a ser "X.Y.Z (fecha)".
+  2. Al fusionarlo, con la aprobación del usuario, se crea el tag anotado sobre el commit de la fusión y se publica: `git tag -a vX.Y.Z <commit> -m "X.Y.Z"` y `git push origin vX.Y.Z`.
+  3. `gh release create vX.Y.Z --title "X.Y.Z" --notes-file <notas>`, con notas en inglés, como los pull requests (ADR-0084), que resumen su sección de `CHANGELOG.md`.
+
 ## Configuración local
 
 - Copiar `.env.example` a `.env` y completar los valores. `.env` nunca se versiona. Sin `.env` (o sin las variables en el entorno), la API no arranca: la configuración se valida al iniciar y el error indica qué variable falta o es inválida (ADR-0032, ADR-0087).
