@@ -47,7 +47,7 @@ export class OrderPaymentRequests {
     payer: Payer;
     provider: PaymentProvider;
   }): Promise<PaymentStart> {
-    this.payments.assertProviderEnabled(input.provider);
+    await this.payments.assertProviderEnabled(input.provider);
     return this.transactions.run(async () => {
       const order = await this.orders.lockByPublicCode(input.publicCode);
       if (order === null || !paidBy(order, input.payer)) {
@@ -75,7 +75,7 @@ export class OrderPaymentRequests {
     method: PaymentMethod | null;
     note: string | null;
   }): Promise<void> {
-    this.payments.assertManualCaptureEnabled();
+    await this.payments.assertManualCaptureEnabled();
     return this.transactions.run(async () => {
       const order = await this.orders.lock(input.orderId);
       if (order === null) throw new NotFoundError('Order', input.orderId);

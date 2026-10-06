@@ -100,15 +100,6 @@ export class EnvironmentVariables {
   VAT_RATE_BP: number = 1_600;
 
   /**
-   * Whether the staff can register payments made in the physical store, and customers choose that method (ADR-0040,
-   * ADR-0055, ADR-0161, BR-PAY-09). Off unless the operator turns it on, once the store collects payments.
-   */
-  @Expose()
-  @Transform(({ value }: { value: unknown }) => parseBoolean(value))
-  @IsBoolean()
-  MANUAL_PAYMENTS_ENABLED: boolean = false;
-
-  /**
    * How long a reservation of stock holds it while the order waits for its payment, from 5 minutes to 2 hours
    * (BR-INV-07, ADR-0011, ADR-0128). The expiration job of T-230 frees it within the next minute.
    */

@@ -125,6 +125,7 @@ describe('Order emails (e2e, T-215)', () => {
   const cashier = staff('orders.read', 'payments.manage');
   const manager = staff('orders.read', 'orders.manage');
   const shipper = staff('shipping.manage');
+  const settingsAdmin = staff('orders.read', 'payments.configure');
 
   /** A published variant priced at $100.00, with 10 units. */
   async function variant(title: string): Promise<string> {
@@ -303,6 +304,37 @@ describe('Order emails (e2e, T-215)', () => {
       },
     ]);
     expect(sent).toEqual([]);
+  });
+
+  it('gives no payment instructions once a superadmin turns manual payments off, without a restart (ADR-0162)', async () => {
+    const setManualPayments = async (manualPaymentsEnabled: boolean) => {
+      const { body } = await http()
+        .get('/v1/admin/payment-settings')
+        .set(signedInAs(settingsAdmin))
+        .expect(200);
+      await http()
+        .put('/v1/admin/payment-settings')
+        .set(signedInAs(settingsAdmin))
+        .send({ manualPaymentsEnabled, version: body.version })
+        .expect(200);
+    };
+    const shirt = await variant('Camisa de lino');
+
+    await setManualPayments(false);
+    try {
+      await guestOrder([{ variantId: shirt, quantity: 1 }]);
+    } finally {
+      await setManualPayments(true);
+    }
+    const received = sent.splice(0);
+
+    expect(received).toEqual([
+      expect.objectContaining({
+        subject: expect.stringMatching(/^Recibimos tu pedido /),
+      }),
+    ]);
+    expect(received[0].text).toContain('Apartamos tus productos hasta el');
+    expect(received[0].text).not.toContain('Para pagar');
   });
 
   it('tells the buyer about a cancellation, with its refund when it was paid, and about the refund', async () => {

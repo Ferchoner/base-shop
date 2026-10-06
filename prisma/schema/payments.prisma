@@ -107,3 +107,14 @@ model ProcessedWebhookEvent {
   @@id([provider, eventId])
   @@map("processed_webhook_events")
 }
+
+/// The settings of Payments, in one row that a CHECK keeps alone (ADR-0162).
+model PaymentSettings {
+  id                    String   @id @db.Uuid
+  /// Whether the store takes manual payments and refunds, and customers may choose to pay in the store.
+  manualPaymentsEnabled Boolean  @default(false) @map("manual_payments_enabled")
+  version               Int      @default(1)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("payment_settings")
+}

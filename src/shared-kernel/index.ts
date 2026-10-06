@@ -58,8 +58,10 @@ export {
 } from './pagination.js';
 export {
   isPermissionCode,
+  isSuperadminOnly,
   PERMISSION_CODES,
   type PermissionCode,
   PERMISSIONS,
+  SUPERADMIN_ONLY_PERMISSIONS,
 } from './permissions.js';
 export { TransactionManager } from './transaction-manager.js';

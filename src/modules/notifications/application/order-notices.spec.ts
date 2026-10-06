@@ -76,13 +76,16 @@ function setUp(
       return Promise.resolve();
     },
   } as unknown as EmailSender;
+  const inStorePayments = { enabled: options.inStore ?? true, asked: 0 };
   return {
-    notices: new OrderNotices(
-      new SomeOrders(orders),
-      email,
-      options.inStore ?? true,
-    ),
+    notices: new OrderNotices(new SomeOrders(orders), email, {
+      enabled: () => {
+        inStorePayments.asked += 1;
+        return Promise.resolve(inStorePayments.enabled);
+      },
+    }),
     sent,
+    inStorePayments,
   };
 }
 
@@ -134,6 +137,23 @@ describe('OrderNotices (UC-NTF-01, BR-NTF-01 to 04, ADR-0143)', () => {
 
     expect(inStore.sent[0].text).toContain('Para pagar');
     expect(online.sent[0].text).not.toContain('Para pagar');
+  });
+
+  it('asks Payments as it writes each email of a placed order, so a change by a superadmin counts at once (ADR-0162)', async () => {
+    const { notices, sent, inStorePayments } = setUp();
+
+    await notices.orderPlaced('order');
+    inStorePayments.enabled = false;
+    await notices.orderPlaced('order');
+    await notices.orderPaid('order');
+    await notices.orderPlaced('missing');
+
+    expect(sent.map(({ text }) => text.includes('Para pagar'))).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    expect(inStorePayments.asked).toBe(2);
   });
 
   it('emails no anonymized order (BR-NTF-03)', async () => {

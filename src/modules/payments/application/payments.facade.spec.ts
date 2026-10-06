@@ -7,6 +7,7 @@ import {
   Money,
   newId,
   NotFoundError,
+  toId,
   type TransactionManager,
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
@@ -19,6 +20,8 @@ import {
   ManualPaymentsDisabledError,
   ProviderNotEnabledError,
 } from '../domain/payment-errors.js';
+import { PaymentSettings } from '../domain/payment-settings.js';
+import type { PaymentSettingsRepository } from '../domain/payment-settings.repository.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
 import { type PaymentRequest, PaymentsFacade } from './payments.facade.js';
 import type { PaymentsQueries, PaymentView } from './payments.queries.js';
@@ -119,6 +122,7 @@ function setUp(options: { existing?: Payment; manual?: boolean } = {}) {
   const inline = {
     run: <T>(work: () => Promise<T>) => work(),
   } as unknown as TransactionManager;
+  const settings = { manual: options.manual ?? true, reads: 0 };
   const facade = new PaymentsFacade(
     payments,
     queries,
@@ -126,20 +130,50 @@ function setUp(options: { existing?: Payment; manual?: boolean } = {}) {
     audit,
     inline,
     { now: () => NOW },
-    options.manual ?? true,
+    {
+      find: () => {
+        settings.reads += 1;
+        return Promise.resolve(
+          PaymentSettings.restore({
+            id: toId<'PaymentSettings'>(newId()),
+            manualPaymentsEnabled: settings.manual,
+            version: 1,
+          }),
+        );
+      },
+    } as unknown as PaymentSettingsRepository,
   );
-  return { facade, payments, published, audited, views };
+  return { facade, payments, published, audited, views, settings };
 }
 
 describe('PaymentsFacade: starting a payment (UC-PAY-01)', () => {
-  it('enables the manual method only when its variable turns it on, and PayPal never (BR-PAY-13)', () => {
-    expect(() => setUp().facade.assertProviderEnabled('MANUAL')).not.toThrow();
-    expect(() =>
+  it('enables the manual method only while a superadmin keeps it on, and PayPal never (BR-PAY-13)', async () => {
+    const paypal = setUp();
+
+    await expect(
+      setUp().facade.assertProviderEnabled('MANUAL'),
+    ).resolves.toBeUndefined();
+    await expect(
       setUp({ manual: false }).facade.assertProviderEnabled('MANUAL'),
-    ).toThrow(new ProviderNotEnabledError('MANUAL'));
-    expect(() => setUp().facade.assertProviderEnabled('PAYPAL')).toThrow(
+    ).rejects.toThrow(new ProviderNotEnabledError('MANUAL'));
+    await expect(paypal.facade.assertProviderEnabled('PAYPAL')).rejects.toThrow(
       new ProviderNotEnabledError('PAYPAL'),
     );
+    expect(paypal.settings.reads).toBe(0);
+  });
+
+  it('reads the settings on every call, so a change counts at once in every instance (ADR-0162)', async () => {
+    const { facade, settings } = setUp();
+
+    expect(await facade.manualPaymentsEnabled()).toBe(true);
+    settings.manual = false;
+    expect(await facade.manualPaymentsEnabled()).toBe(false);
+    await expect(facade.assertManualPaymentsEnabled()).rejects.toThrow(
+      ManualPaymentsDisabledError,
+    );
+    settings.manual = true;
+    await expect(facade.assertManualPaymentsEnabled()).resolves.toBeUndefined();
+    expect(settings.reads).toBe(4);
   });
 
   it('starts a payment for the total of the order and tells to pay in the store', async () => {
@@ -268,7 +302,7 @@ describe('PaymentsFacade: a payment made in the store (UC-PAY-02)', () => {
     await expect(capture(off.facade)).rejects.toThrow(
       ManualPaymentsDisabledError,
     );
-    expect(() => off.facade.assertManualPaymentsEnabled()).toThrow(
+    await expect(off.facade.assertManualPaymentsEnabled()).rejects.toThrow(
       ManualPaymentsDisabledError,
     );
     await expect(capture(captured.facade)).rejects.toThrow(

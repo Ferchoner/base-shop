@@ -1,6 +1,6 @@
 import { DomainError } from '../../../shared-kernel/index.js';
 
-/** Manual payments are off in this environment (ADR-0040, E-23). Answered 403 `manual-payments-disabled`. */
+/** Manual payments are off (ADR-0040, ADR-0162, E-23). Answered 403 `manual-payments-disabled`. */
 export class ManualPaymentsDisabledError extends DomainError {
   readonly code = 'manual-payments-disabled';
   readonly category = 'forbidden';
@@ -11,8 +11,8 @@ export class ManualPaymentsDisabledError extends DomainError {
 }
 
 /**
- * The provider is not enabled: the manual method only when its variable turns it on, and PayPal never until it
- * is verified (ADR-0040, BR-PAY-13). Answered as a validation error of `provider`.
+ * The provider is not enabled: the manual method only while a superadmin keeps it on (ADR-0162), and PayPal never
+ * until it is verified (ADR-0040, BR-PAY-13). Answered as a validation error of `provider`.
  */
 export class ProviderNotEnabledError extends DomainError {
   readonly code = 'validation-error';

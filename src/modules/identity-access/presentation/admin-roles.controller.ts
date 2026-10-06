@@ -27,6 +27,7 @@ import {
 import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import {
+  isSuperadminOnly,
   NotFoundError,
   PERMISSION_CODES,
   PERMISSIONS,
@@ -57,7 +58,7 @@ export class AdminPermissionsController {
   @ApiOperation({
     summary: 'Catálogo de permisos',
     description:
-      'Los permisos del catálogo en código, con su descripción (ADR-0017): los únicos que puede tener un rol.',
+      'Los permisos del catálogo en código, con su descripción (ADR-0017): los únicos que puede tener un rol. Los de `superadminOnly` solo los tiene el rol superadministrador (ADR-0162).',
   })
   @ApiOkResponse({ type: PermissionListDto })
   @RequirePermissions('staff.manage')
@@ -67,6 +68,7 @@ export class AdminPermissionsController {
       data: PERMISSION_CODES.map((code) => ({
         code,
         description: PERMISSIONS[code],
+        superadminOnly: isSuperadminOnly(code),
       })),
     };
   }

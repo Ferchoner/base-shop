@@ -353,12 +353,12 @@ export class PaymentsFacadeOrderPayments extends OrderPayments {
     super();
   }
 
-  assertManualCaptureEnabled(): void {
-    this.payments.assertManualPaymentsEnabled();
+  assertManualCaptureEnabled(): Promise<void> {
+    return this.payments.assertManualPaymentsEnabled();
   }
 
-  assertProviderEnabled(provider: PaymentProvider): void {
-    this.payments.assertProviderEnabled(provider);
+  assertProviderEnabled(provider: PaymentProvider): Promise<void> {
+    return this.payments.assertProviderEnabled(provider);
   }
 
   async start(order: Order, provider: PaymentProvider): Promise<PaymentStart> {

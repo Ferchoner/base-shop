@@ -57,10 +57,10 @@ export interface PaymentStart {
 /** The payments of Payments. */
 export abstract class OrderPayments {
   /** @throws ManualPaymentsDisabledError when the staff cannot register payments made in the store. */
-  abstract assertManualCaptureEnabled(): void;
+  abstract assertManualCaptureEnabled(): Promise<void>;
 
   /** @throws ProviderNotEnabledError for a provider customers cannot use now. */
-  abstract assertProviderEnabled(provider: PaymentProvider): void;
+  abstract assertProviderEnabled(provider: PaymentProvider): Promise<void>;
 
   /**
    * Starts the payment of the order for its total, or answers the one already started with the provider.

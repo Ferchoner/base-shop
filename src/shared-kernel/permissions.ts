@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   'orders.place': 'Colocar pedidos a nombre de un cliente en la tienda física',
   // Payments
   'payments.manage': 'Registrar pagos manuales y emitir reembolsos',
+  'payments.configure': 'Habilitar o deshabilitar el pago manual en tienda',
   // Shipping
   'shipping.manage': 'Gestionar envíos (guías y estados)',
   'shipping.configure':
@@ -45,4 +46,16 @@ export const PERMISSION_CODES = Object.keys(PERMISSIONS) as PermissionCode[];
 
 export function isPermissionCode(value: unknown): value is PermissionCode {
   return typeof value === 'string' && Object.hasOwn(PERMISSIONS, value);
+}
+
+/**
+ * Permissions that only the superadmin role holds (ADR-0162): no other role can have them, so not even a
+ * superadmin can hand them on (BR-USR-21).
+ */
+export const SUPERADMIN_ONLY_PERMISSIONS: readonly PermissionCode[] = [
+  'payments.configure',
+];
+
+export function isSuperadminOnly(code: PermissionCode): boolean {
+  return SUPERADMIN_ONLY_PERMISSIONS.includes(code);
 }

@@ -3,24 +3,35 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { newId } from '../src/shared-kernel/index.js';
+import { AppModule } from '../src/app.module.js';
+import { configureHttp } from '../src/platform/http/configure-http.js';
+import { newId, PERMISSION_CODES } from '../src/shared-kernel/index.js';
 import {
   signedInAs,
   useTestAuthentication,
 } from './support/test-authentication.js';
 
-/** With `MANUAL_PAYMENTS_ENABLED=false`, as in any environment that does not turn it on (ADR-0040). */
-describe('Manual payments turned off (e2e, T-190)', () => {
+/** With manual payments off, as the migration leaves them until a superadmin turns them on (ADR-0040, ADR-0162). */
+describe('Manual payments turned off (e2e, T-190, T-194)', () => {
   let app: INestApplication<App>;
-  let previous: string | undefined;
+
+  const http = () => request(app.getHttpServer());
+  const superadmin = signedInAs({
+    id: newId(),
+    type: 'STAFF',
+    permissions: [...PERMISSION_CODES],
+    mustChangePassword: false,
+    sessionId: newId(),
+  });
+  const cashier = signedInAs({
+    id: newId(),
+    type: 'STAFF',
+    permissions: ['orders.read', 'payments.manage'],
+    mustChangePassword: false,
+    sessionId: newId(),
+  });
 
   beforeAll(async () => {
-    previous = process.env.MANUAL_PAYMENTS_ENABLED;
-    process.env.MANUAL_PAYMENTS_ENABLED = 'false';
-    // AppModule validates the environment when it loads, so import it after setting the variable.
-    const { AppModule } = await import('../src/app.module.js');
-    const { configureHttp } =
-      await import('../src/platform/http/configure-http.js');
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -28,21 +39,19 @@ describe('Manual payments turned off (e2e, T-190)', () => {
     useTestAuthentication(app);
     configureHttp(app);
     await app.init();
+    const { body: settings } = await http()
+      .get('/v1/admin/payment-settings')
+      .set(superadmin)
+      .expect(200);
+    await http()
+      .put('/v1/admin/payment-settings')
+      .set(superadmin)
+      .send({ manualPaymentsEnabled: false, version: settings.version })
+      .expect(200);
   });
 
   afterAll(async () => {
     await app.close();
-    if (previous === undefined) delete process.env.MANUAL_PAYMENTS_ENABLED;
-    else process.env.MANUAL_PAYMENTS_ENABLED = previous;
-  });
-
-  const http = () => request(app.getHttpServer());
-  const cashier = signedInAs({
-    id: newId(),
-    type: 'STAFF',
-    permissions: ['orders.read', 'payments.manage'],
-    mustChangePassword: false,
-    sessionId: newId(),
   });
 
   it('answers 403 manual-payments-disabled to the staff, before looking at the order', async () => {
@@ -52,7 +61,11 @@ describe('Manual payments turned off (e2e, T-190)', () => {
       .send({ reference: 'Ticket 00452' })
       .expect(403);
 
-    expect(response.body.type).toBe('/problems/manual-payments-disabled');
+    expect(response.body).toMatchObject({
+      type: '/problems/manual-payments-disabled',
+      detail:
+        'Los pagos y reembolsos manuales no están habilitados. Un superadministrador los habilita con `PUT /v1/admin/payment-settings`.',
+    });
   });
 
   it('answers 403 manual-payments-disabled to a refund registered by hand, before looking at the payment (ADR-0135)', async () => {

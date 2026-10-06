@@ -62,6 +62,13 @@ export interface PaymentFilter {
 
 export type PaymentSortField = 'createdAt' | 'amount';
 
+/** `PaymentSettings` of API_SPEC.md §16.6 (ADR-0162). */
+export interface PaymentSettingsView {
+  readonly manualPaymentsEnabled: boolean;
+  readonly version: number;
+  readonly updatedAt: Date;
+}
+
 /**
  * Read models of Payments, straight from its tables. An abstract class rather than an interface, so it can be
  * the dependency injection token without depending on NestJS.
@@ -80,4 +87,7 @@ export abstract class PaymentsQueries {
     sort: readonly SortOrder<PaymentSortField>[],
     page: PageRequest,
   ): Promise<Page<AdminPaymentView>>;
+
+  /** The only row of the settings, which its migration creates (ADR-0162). */
+  abstract findSettings(): Promise<PaymentSettingsView>;
 }

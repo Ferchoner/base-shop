@@ -131,11 +131,15 @@ function setUp(order: Order, options: { enabled?: boolean } = {}) {
   const payments: OrderPayments = {
     assertManualCaptureEnabled: () => {
       calls.push('assertManualCaptureEnabled');
-      if (!enabled) throw new Error('manual payments are off');
+      return enabled
+        ? Promise.resolve()
+        : Promise.reject(new Error('manual payments are off'));
     },
     assertProviderEnabled: (provider) => {
       calls.push(`assertProviderEnabled ${provider}`);
-      if (!enabled) throw new Error('provider not enabled');
+      return enabled
+        ? Promise.resolve()
+        : Promise.reject(new Error('provider not enabled'));
     },
     start: (payable, provider) => {
       calls.push(`start ${payable.id} ${provider}`);
