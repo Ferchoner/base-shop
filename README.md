@@ -4,7 +4,7 @@ API REST de comercio electrónico: catálogo, precios, inventario, carrito, chec
 
 ## Estado
 
-Versión 1.1.0: el MVP, cerrado el 2026-10-04 (ADR-0158) después de 10 sprints, y varios almacenes propios (ADR-0160). Incluye identidad y acceso, catálogo con tienda pública, precios, inventario con reservas en varios almacenes, carrito, checkout y órdenes, pago manual en tienda (solo para pruebas), envíos, correos al cliente, auditoría, privacidad con conservación y anonimización de datos personales, entrega garantizada de eventos, y una revisión de seguridad, documentación y pruebas. Corre solo en el entorno local. El desarrollo sigue por versiones, cada una con su plan aprobado (ADR-0159); no hay ninguna en curso.
+Versión 1.1.0: el MVP, cerrado el 2026-10-04 (ADR-0158) después de 10 sprints, y varios almacenes propios (ADR-0160). Incluye identidad y acceso, catálogo con tienda pública, precios, inventario con reservas en varios almacenes, carrito, checkout y órdenes, pago manual en tienda (solo para pruebas), envíos, correos al cliente, auditoría, privacidad con conservación y anonimización de datos personales, entrega garantizada de eventos, y una revisión de seguridad, documentación y pruebas. Corre solo en el entorno local. El desarrollo sigue por versiones, cada una con su plan aprobado (ADR-0159); en curso, la 1.2: ventas asistidas en la tienda física (ADR-0161).
 
 Fuera del MVP, hasta que una entidad quiera usar el proyecto: los proveedores de pago en línea, el despliegue, las promociones y las decisiones que dependen del hosting o del negocio. Para retomarlo, ver "Antes de operar con clientes reales" en `docs/PROJECT.md` y ADR-0158. El historial de los sprints está en `docs/SPRINT.md`.
 

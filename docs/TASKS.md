@@ -9,7 +9,7 @@
 - DONE
 - DEFERRED (fuera del MVP)
 
-El proyecto se cerró como MVP el 2026-10-04 (ADR-0158): las tareas que no están en DONE quedan en DEFERRED hasta que una entidad quiera usarlo, salvo las de una versión planeada (ADR-0159), como T-162 en la versión 1.1.
+El proyecto se cerró como MVP el 2026-10-04 (ADR-0158): las tareas que no están en DONE quedan en DEFERRED hasta que una entidad quiera usarlo, salvo las de una versión planeada (ADR-0159), como T-187 en la versión 1.2.
 
 Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOCKED indica qué decisión la bloquea. Una P-xx en la columna de dependencias de una tarea TODO afecta solo a una parte de la tarea. Los casos de uso (UC-xxx) están en `REQUIREMENTS.md`.
 
@@ -77,6 +77,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-181 | Shopping: restaurar carrito al expirar una orden y copiar órdenes canceladas a un carrito; UC-CRT-08, UC-CRT-09. En dos partes (ADR-0137): (a) restaurar el carrito con `OrderExpired`, hecha; (b) la recompra, después de T-185, que hace la identificación del invitado, hecha (ADR-0139) | DONE | T-170, T-180, T-185 (parte b) |
 | T-185 | Ordering: consulta de pedido de invitado (email + código público, con rate limiting); UC-ORD-04. Hecha con una sola consulta y el mismo 404 para todo fallo; el staff puede consultar (ADR-0138) | DONE | T-180 |
 | T-186 | Ordering: enlace de acceso a los pedidos de invitado por correo; UC-ORD-05. Hecha a pedido del usuario como paso 4 del Sprint 6 (ADR-0148): se pide con el email solo, se envía en segundo plano y abre una vez las 50 órdenes de invitado más recientes del email | DONE | T-185, ADR-0077 |
+| T-187 | Ordering: ventas asistidas en la tienda física (ADR-0161), versión 1.2. El staff coloca pedidos a nombre de un cliente presente, con el permiso nuevo `orders.place` y el rol Vendedor. En dos partes: (a) cotizar y colocar los pedidos del staff, con las líneas en la solicitud, para un cliente registrado o un invitado; `placedBy` y `channel`; almacén fijo; auditoría `orders.place` y filtros; pago en tienda real, con su método; (b) venta de mostrador, con su entrega en tienda | TODO | T-162, T-180, T-190 |
 | T-190 | Payments: modelo, pago manual en tienda para pruebas (ADR-0055) y reembolso total al cancelar (ADR-0051); UC-PAY-01 a 03, 06, 07. Incluye, desde ADR-0133, cancelar órdenes PAID y AWAITING_MANUAL_FULFILLMENT con su reembolso, y publicar `PaymentCaptured { orderId, paymentId, amount }`, que Ordering ya escucha. En dos partes (ADR-0134): (a) iniciar el pago, registrar el pago manual, consulta de pagos y el pago en las vistas de la orden, hecha; (b) reembolsos: cancelar órdenes pagadas iniciando el reembolso (UC-PAY-03) y registrar el reembolso manual (UC-PAY-06), hecha (ADR-0135). UC-PAY-07 pasa a T-192 | DONE | T-180 |
 | T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04. Incluye, desde la Sprint Review del Sprint 3, la conciliación de pagos cada 5 minutos (UC-PAY-05), que solo sirve con un proveedor, y, desde ADR-0134, reintentar un reembolso fallido (UC-PAY-07), sin opción de reintegro (ADR-0142) | DEFERRED | T-190, T-117; fuera del MVP (ADR-0158) |
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |

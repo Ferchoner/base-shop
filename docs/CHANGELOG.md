@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.2 (nuevo ADR-0161): ventas asistidas en la tienda física. El staff coloca pedidos a nombre de un cliente presente, con envío o como venta de mostrador. Cada pedido registra quién lo colocó y por qué canal y sale del almacén de la tienda, y el pago en tienda deja de ser solo para pruebas. Se implementa en T-187, en dos partes. La validación legal de que el staff capture datos personales queda en la lista de `PROJECT.md` §9.
+- Paso 0 de la versión 1.2: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.1, y BR-USR-09 sigue a ADR-0116 y ADR-0154.
+
 ## 1.1.0 (2026-10-06)
 
 Varios almacenes propios (ADR-0160).

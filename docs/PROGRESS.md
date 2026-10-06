@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, varios almacenes propios (ADR-0160, T-162), se cerró el 2026-10-06 con el objetivo cumplido; su review está en el historial de `SPRINT.md`. No hay sprint ni versión en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto, y cada versión nueva necesita un plan aprobado.
+MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, varios almacenes propios (ADR-0160, T-162), se cerró el 2026-10-06 con el objetivo cumplido; su review está en el historial de `SPRINT.md`. En curso: la versión 1.2, ventas asistidas en la tienda física (ADR-0161, T-187). No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
 
 ## Completed
 
@@ -178,6 +178,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.1.0: varios almacenes propios (paso 0 y T-162 en dos partes), cerrada el 2026-10-06; review en `SPRINT.md`
 - [x] T-162 parte a: varios almacenes activos con prioridad; cada orden se reserva completa en el primero que la tiene toda y sale de él; la tienda suma los almacenes activos, y la cotización y el 409 marcan lo que le falta al almacén más cercano (ADR-0160)
 - [x] T-162 parte b: el staff crea almacenes, edita su prioridad y los desactiva para siempre; el reintegro vuelve al almacén de origen o al que indique el staff; ajustes en almacenes inactivos con `WAREHOUSE_TRANSFER`; envíos filtrados por almacén (ADR-0160). T-162 en DONE
+- [ ] Versión 1.2: ventas asistidas en la tienda física (paso 0 y T-187 en dos partes); plan en `SPRINT.md`
 
 ## Fuera del MVP
 

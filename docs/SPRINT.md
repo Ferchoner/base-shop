@@ -6,7 +6,48 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.1, varios almacenes propios, se cerró el 2026-10-06 y se publica como la 1.1.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+1.2 — Ventas asistidas en la tienda física. Inicio: 2026-10-06 (plan aprobado ese día).
+
+### Goal
+
+Que el staff coloque pedidos a nombre de un cliente presente en la tienda física: con envío, como en la tienda en línea, o como venta de mostrador, en la que el cliente paga y se lleva la mercancía en el momento. Cada pedido registra quién lo colocó y por qué canal, sale del almacén de la tienda y se cobra con el pago en tienda, que deja de ser solo para pruebas (ADR-0161).
+
+### Tasks
+
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.1 en la guía de desarrollo |
+| 1 | T-187 parte a: permiso `orders.place` y rol Vendedor; cotizar y colocar los pedidos del staff; `placedBy` y `channel`; almacén fijo; auditoría y filtros; pago en tienda con su método |
+| 2 | T-187 parte b: venta de mostrador, con su entrega en tienda |
+
+- **Criterio de cierre:** los criterios de aceptación de T-187, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.2.0 publicada con su tag y su GitHub Release (ADR-0159).
+- **Fuera de esta versión:** la caja y los cortes de caja, la factura CFDI, el apartado, recoger en tienda los pedidos en línea y el segundo factor del staff (ADR-0161); y todo lo que ADR-0158 dejó fuera del MVP.
+- **Flujo de trabajo:** el de la versión 1.1. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.2.0.
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 161 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan.
+- **Dependencias:**
+  - `npm audit` no encuentra vulnerabilidades en las dependencias de producción. En las de desarrollo sigue el aviso moderado de `sprintf-js`, que llega con Jest y ninguna versión corrige (review de la versión 1.1);
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.1:
+  - las tablas de `API_SPEC.md` y el documento OpenAPI de una ruta nueva van en el mismo commit que la ruta;
+  - una prueba de un orden usa datos que darían otro resultado con cualquier otro orden;
+  - cada mutante corre con la suite que tiene su prueba.
+- **Reglas:** BR-USR-09 decía que solo un superadministrador crea staff; ahora sigue a ADR-0116 y ADR-0154, que lo permiten a quien tenga `staff.manage`.
+
+### Risks
+
+- **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor (ADR-0161).
+- **Datos personales capturados por el staff:** necesitan la validación legal de `PROJECT.md` §9 antes de operar con clientes reales.
+- **Copias de datos personales:** la respuesta guardada por idempotencia de la ruta del staff se guardaría con el alcance del staff, y hoy la anonimización solo borra las de un cliente o de un carrito. El plan de la parte a lista cada copia (`DEVELOPMENT_GUIDE.md`, paso 3).
+- **Más cuentas de staff sin segundo factor** (ADR-0048).
+- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
+
+### Review
+
+PENDIENTE.
 
 ---
 
