@@ -125,6 +125,7 @@ describe('OrderingFacade (ADR-0074, ADR-0143)', () => {
       deliveryMinBusinessDays: 3,
       deliveryMaxBusinessDays: 7,
       placedInStore: false,
+      deliveredInStore: false,
     });
   });
 
@@ -138,6 +139,33 @@ describe('OrderingFacade (ADR-0074, ADR-0143)', () => {
     expect(await ordering.orderNotice(id)).toMatchObject({
       placedInStore: true,
     });
+  });
+
+  it('tells an order handed over in the store, without an address, and gives no email to a buyer who gave none (ADR-0161)', async () => {
+    const id = newId();
+    const inStore = {
+      ...view(id),
+      channel: 'STORE',
+      fulfillment: 'IN_STORE',
+      shippingAddress: null,
+      deliveryMinBusinessDays: null,
+      deliveryMaxBusinessDays: null,
+    };
+
+    expect(
+      await facade(inStore as unknown as OrderView).facade.orderNotice(id),
+    ).toMatchObject({
+      contactEmail: 'cliente@example.com',
+      shippingAddress: null,
+      deliveryMinBusinessDays: null,
+      deliveredInStore: true,
+    });
+    expect(
+      await facade({
+        ...inStore,
+        contactEmail: null,
+      } as unknown as OrderView).facade.orderNotice(id),
+    ).toEqual({ orderId: id, publicCode: 'K7M4-Q9XA', contactEmail: null });
   });
 
   it('answers null for an order that does not exist', async () => {

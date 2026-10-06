@@ -51,6 +51,7 @@ function order(changes: Partial<NoticeOrder> = {}): NoticeOrder {
     deliveryMinBusinessDays: 3,
     deliveryMaxBusinessDays: 7,
     placedInStore: false,
+    deliveredInStore: false,
     ...changes,
   };
 }
@@ -111,6 +112,26 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
     expect(email.text).toContain('Plazo de entrega estimado');
   });
 
+  it('tells an order handed over in the store where it is delivered, without a delivery time (ADR-0161)', () => {
+    const inStore = order({
+      shippingAddress: null,
+      deliveryMinBusinessDays: null,
+      deliveryMaxBusinessDays: null,
+      placedInStore: true,
+      deliveredInStore: true,
+    });
+
+    const placed = orderPlacedEmail(inStore, true).text;
+    const paid = orderPaidEmail(inStore).text;
+
+    expect(placed).toContain('Entrega: en la tienda.');
+    expect(placed).not.toContain('Lo enviaremos a:');
+    expect(placed).not.toContain('Plazo de entrega');
+    expect(paid).toContain('Te entregamos tus productos en la tienda.');
+    expect(paid).not.toContain('va en camino');
+    expect(paid).not.toContain('Plazo de entrega');
+  });
+
   it('shows free shipping, a discount and an interior number when the order has them', () => {
     const { text } = orderPlacedEmail(
       order({
@@ -122,7 +143,7 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
           grandTotal: mxn(155_000),
         },
         shippingAddress: {
-          ...order().shippingAddress,
+          ...order().shippingAddress!,
           interiorNumber: 'B',
         },
       }),
@@ -139,7 +160,7 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
     const { text } = orderPlacedEmail(
       order({
         shippingAddress: {
-          ...order().shippingAddress,
+          ...order().shippingAddress!,
           recipientName: `María${lineBreak}${lineBreak}Tu pedido fue retenido`,
           street: 'Paga en https://tienda-falsa.com',
           exteriorNumber: `123${lineBreak}www.tienda-falsa.mx`,

@@ -125,9 +125,13 @@ export class CheckoutQuoteDto {
   })
   freeShippingThreshold: MoneyDto | null;
 
-  /** Plazo estimado de entrega, desde la confirmación del pago (ADR-0083). */
-  @ApiProperty({ type: () => EstimatedDeliveryDto })
-  estimatedDelivery: EstimatedDeliveryDto;
+  @ApiProperty({
+    type: () => EstimatedDeliveryDto,
+    nullable: true,
+    description:
+      'Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una cotización del staff con `fulfillment` `IN_STORE` (ADR-0161).',
+  })
+  estimatedDelivery: EstimatedDeliveryDto | null;
 
   /** Todas las líneas son vendibles y surtibles. */
   readyToPlace: boolean;

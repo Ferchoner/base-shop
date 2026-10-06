@@ -32,6 +32,7 @@ export interface OrderNotice {
     readonly taxTotal: Money;
     readonly grandTotal: Money;
   };
+  /** `null` for an order handed over in the store (ADR-0161). */
   readonly shippingAddress: {
     readonly recipientName: string;
     readonly street: string;
@@ -42,13 +43,16 @@ export interface OrderNotice {
     readonly city: string | null;
     readonly municipalityName: string;
     readonly stateName: string;
-  };
+  } | null;
   /** When its reservation ends, while it waits for its payment; `null` otherwise. */
   readonly paymentDueAt: Date | null;
-  readonly deliveryMinBusinessDays: number;
-  readonly deliveryMaxBusinessDays: number;
+  /** `null` for an order handed over in the store. */
+  readonly deliveryMinBusinessDays: number | null;
+  readonly deliveryMaxBusinessDays: number | null;
   /** The staff placed it in the physical store, with the customer there (ADR-0161). */
   readonly placedInStore: boolean;
+  /** The staff hands it over in the store, where it is paid: it ships nowhere (ADR-0161). */
+  readonly deliveredInStore: boolean;
 }
 
 /** An anonymized order (ADR-0067): it gets no email, and keeps nothing of its buyer to show. */
@@ -103,8 +107,11 @@ export class OrderingFacade {
     if (view === null) return null;
     const { contactEmail, totals, shippingAddress: address } = view;
     const publicCode = formatPublicCode(view.publicCode);
-    // Both go with the anonymization (ADR-0067).
-    if (contactEmail === null || address.recipientName === null) {
+    // Both go with the anonymization (ADR-0067); a sale in the store whose buyer gave no email gets none either.
+    if (
+      contactEmail === null ||
+      (address !== null && address.recipientName === null)
+    ) {
       return { orderId: view.id, publicCode, contactEmail: null };
     }
     return {
@@ -124,21 +131,25 @@ export class OrderingFacade {
         taxTotal: totals.taxTotal,
         grandTotal: totals.grandTotal,
       },
-      shippingAddress: {
-        recipientName: address.recipientName,
-        street: address.street,
-        exteriorNumber: address.exteriorNumber,
-        interiorNumber: address.interiorNumber,
-        neighborhood: address.neighborhood,
-        postalCode: address.postalCode,
-        city: address.city,
-        municipalityName: address.municipalityName,
-        stateName: address.stateName,
-      },
+      shippingAddress:
+        address === null
+          ? null
+          : {
+              recipientName: address.recipientName,
+              street: address.street,
+              exteriorNumber: address.exteriorNumber,
+              interiorNumber: address.interiorNumber,
+              neighborhood: address.neighborhood,
+              postalCode: address.postalCode,
+              city: address.city,
+              municipalityName: address.municipalityName,
+              stateName: address.stateName,
+            },
       paymentDueAt: view.paymentDueAt,
       deliveryMinBusinessDays: view.deliveryMinBusinessDays,
       deliveryMaxBusinessDays: view.deliveryMaxBusinessDays,
       placedInStore: view.channel === 'STORE',
+      deliveredInStore: view.fulfillment === 'IN_STORE',
     };
   }
 }

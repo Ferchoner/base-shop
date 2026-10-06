@@ -20,8 +20,10 @@ import {
   TransactionManager,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
+import { OrderAnonymizations } from '../application/order-anonymizations.use-case.js';
 import { OrderExpiry } from '../application/order-expiry.use-case.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
+import { OrderingQueries } from '../application/ordering.queries.js';
 import {
   StaffCheckout,
   type StaffOrderInput,
@@ -138,7 +140,13 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
     await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
-    await prisma.auditLog.deleteMany({ where: { action: 'orders.place' } });
+    await prisma.auditLog.deleteMany({
+      where: {
+        action: {
+          in: ['orders.place', 'orders.hand-over', 'orders.anonymize'],
+        },
+      },
+    });
   });
 
   const run = <T>(work: () => Promise<T>) => cls.run(work);
@@ -209,6 +217,7 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
   ): StaffOrderInput => ({
     staffId,
     warehouseId,
+    fulfillment: 'SHIPPING',
     lines: [{ variantId, quantity: units }],
     buyer: {
       contactEmail: 'cliente@example.com',
@@ -296,6 +305,7 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
         changes: {
           status: { from: null, to: 'PENDING_PAYMENT' },
           channel: { from: null, to: 'STORE' },
+          fulfillment: { from: null, to: 'SHIPPING' },
           warehouseId: { from: null, to: store },
         },
       },
@@ -319,6 +329,7 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
       checkout.quote({
         lines: [{ variantId: shirt, quantity: 2 }],
         warehouseId: store,
+        fulfillment: 'SHIPPING',
       }),
     );
     expect(quote.lines[0].canFulfill).toBe(false);
@@ -340,6 +351,7 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
           checkout.quote({
             lines: [{ variantId: shirt, quantity: 1 }],
             warehouseId,
+            fulfillment: 'SHIPPING',
           }),
         ),
       ).rejects.toThrow(new NotFoundError('Warehouse', warehouseId));
@@ -447,5 +459,156 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
     });
     expect(await pay(second)).toBe('awaiting-manual-fulfillment');
     expect(await reservedOf(shirt)).toEqual({ [MAIN]: 0, [store]: 0 });
+  });
+
+  describe('a sale handed over in the store (ADR-0161)', () => {
+    /** A sale of `units` of the variant at the counter, from the warehouse: $100.00 a unit, without shipping. */
+    const counter = (
+      variantId: VariantId,
+      units: number,
+      warehouseId: WarehouseId,
+      buyer: StaffOrderInput['buyer'] = null,
+    ): StaffOrderInput => ({
+      ...order(variantId, units, warehouseId),
+      fulfillment: 'IN_STORE',
+      buyer,
+      shippingAddress: null,
+      expectedTotal: units * 10_000,
+    });
+    const pay = (id: OrderId, amount: number) =>
+      run(() =>
+        moduleRef.get(OrderLifecycle).recordPayment({
+          orderId: id,
+          amount: Money.of(amount, 'MXN'),
+          capturedAt: new Date(current),
+        }),
+      );
+    const handOver = (id: OrderId, version: number) =>
+      run(() =>
+        moduleRef
+          .get(OrderLifecycle)
+          .handOver({ orderId: id, actorId: staffId, version }),
+      );
+
+    it('places it without an address, shipping nor buyer data, pays it without a shipment, and hands it over', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+
+      const id = await run(() => checkout.place(counter(shirt, 2, store)));
+
+      expect(
+        await prisma.order.findUniqueOrThrow({ where: { id } }),
+      ).toMatchObject({
+        fulfillment: 'IN_STORE',
+        channel: 'STORE',
+        customerId: null,
+        contactEmail: null,
+        privacyNoticeVersion: null,
+        shippingAddress: null,
+        deliveryMinBusinessDays: null,
+        deliveryMaxBusinessDays: null,
+        shippingCost: 0,
+        grandTotal: 20_000,
+      });
+      expect(await pay(id, 20_000)).toBe('paid');
+      expect(await prisma.shipment.count({ where: { orderId: id } })).toBe(0);
+      expect(await byWarehouse(shirt, 'onHand')).toEqual({ [store]: 3 });
+
+      await handOver(id, 2);
+
+      const row = await prisma.order.findUniqueOrThrow({
+        where: { id },
+        include: { statusHistory: { orderBy: { occurredAt: 'asc' } } },
+      });
+      expect(row).toMatchObject({
+        status: 'DELIVERED',
+        deliveredAt: expect.any(Date),
+        concludedAt: row.deliveredAt,
+      });
+      expect(row.statusHistory.at(-1)).toMatchObject({
+        fromStatus: 'PAID',
+        toStatus: 'DELIVERED',
+        actorId: staffId,
+      });
+      expect(
+        await prisma.auditLog.count({
+          where: { action: 'orders.hand-over', resourceId: id },
+        }),
+      ).toBe(1);
+      // Blocked once its operational phase ends, the staff reads it still without an address.
+      await prisma.order.update({
+        where: { id },
+        data: { blockedAt: new Date(current) },
+      });
+      expect(
+        await moduleRef.get(OrderingQueries).findAdminOrder(id),
+      ).toMatchObject({ blockedAt: expect.any(Date), shippingAddress: null });
+    });
+
+    it('anonymizes a guest of the counter, who keeps no address', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+      const id = await run(() =>
+        checkout.place(
+          counter(shirt, 1, store, {
+            contactEmail: 'mostrador@example.com',
+            privacyNoticeVersion: '2026-09',
+          }),
+        ),
+      );
+      await pay(id, 10_000);
+      await handOver(id, 2);
+      const { publicCode } = await prisma.order.findUniqueOrThrow({
+        where: { id },
+      });
+
+      expect(
+        await run(() =>
+          moduleRef.get(OrderAnonymizations).anonymize({
+            buyer: { contactEmail: 'mostrador@example.com', publicCode },
+            reason: 'ARCO-2026-0099',
+            at: new Date(current),
+          }),
+        ),
+      ).toBe(1);
+      expect(
+        await prisma.order.findUniqueOrThrow({ where: { id } }),
+      ).toMatchObject({
+        contactEmail: null,
+        shippingAddress: null,
+        anonymizedAt: expect.any(Date),
+      });
+    });
+
+    it('keeps an order handed over without an address nor shipping, and one to ship with them (orders_fulfillment_check)', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+      const atCounter = await run(() =>
+        checkout.place(counter(shirt, 1, store)),
+      );
+      const shipped = await run(() => checkout.place(order(shirt, 1, store)));
+
+      for (const change of [
+        prisma.$executeRaw`UPDATE orders SET shipping_address = '{}'::jsonb WHERE id = ${atCounter}::uuid`,
+        prisma.$executeRaw`UPDATE orders SET delivery_min_business_days = 3, delivery_max_business_days = 7 WHERE id = ${atCounter}::uuid`,
+        prisma.$executeRaw`UPDATE orders SET shipping_cost = 9900, grand_total = grand_total + 9900 WHERE id = ${atCounter}::uuid`,
+        prisma.$executeRaw`UPDATE orders SET shipping_address = NULL WHERE id = ${shipped}::uuid`,
+        prisma.$executeRaw`UPDATE orders SET fulfillment = 'IN_STORE' WHERE id = ${shipped}::uuid`,
+        // Only the staff hands an order over in the store.
+        prisma.$executeRaw`UPDATE orders SET channel = 'ONLINE', source_cart_id = ${newId()}::uuid, placed_by = NULL, warehouse_id = NULL WHERE id = ${atCounter}::uuid`,
+      ]) {
+        await expect(change).rejects.toThrow(/orders_fulfillment_check/);
+      }
+      // Only a sale handed over in the store may have no buyer data.
+      await expect(
+        prisma.$executeRaw`UPDATE orders SET contact_email = NULL WHERE id = ${shipped}::uuid`,
+      ).rejects.toThrow(/orders_contact_email_check/);
+      await expect(
+        prisma.$executeRaw`UPDATE orders SET privacy_notice_version = NULL WHERE id = ${shipped}::uuid`,
+      ).rejects.toThrow(/orders_guest_privacy_notice_check/);
+      await expect(
+        prisma.$executeRaw`UPDATE orders SET contact_email = 'x@example.com' WHERE id = ${atCounter}::uuid`,
+      ).rejects.toThrow(/orders_guest_privacy_notice_check/);
+    });
   });
 });

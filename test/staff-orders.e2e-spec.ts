@@ -79,8 +79,19 @@ describe('Orders of the staff in the store (e2e, T-187)', () => {
     await app.get(DomainEventDispatcher).whenIdle();
     sent.length = 0;
     await prisma.auditLog.deleteMany({
-      where: { action: { startsWith: 'orders.' } },
+      where: {
+        OR: [
+          { action: { startsWith: 'orders.' } },
+          { action: { startsWith: 'payments.' } },
+        ],
+      },
     });
+    await prisma.paymentAttempt.deleteMany();
+    await prisma.refund.deleteMany();
+    await prisma.payment.deleteMany();
+    await prisma.shipmentItem.deleteMany();
+    await prisma.shipment.deleteMany();
+    await prisma.stockMovement.deleteMany();
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();
@@ -501,5 +512,240 @@ describe('Orders of the staff in the store (e2e, T-187)', () => {
     expect(sent[0].text).toContain('Lo enviaremos a:');
     expect(sent[0].text).not.toContain('Para pagar');
     expect(sent[0].text).not.toContain('Apartamos');
+  });
+
+  describe('a sale at the counter, handed over in the store (UC-ORD-14, ADR-0161)', () => {
+    const cashier = staff('orders.read', 'payments.manage');
+
+    /** A counter sale of `units` of the variant: $100.00 a unit, without shipping nor, unless given, buyer data. */
+    const counterSale = (
+      variantId: string,
+      units: number,
+      warehouseId: string,
+      buyer: object = {},
+    ) => ({
+      lines: [{ variantId, quantity: units }],
+      warehouseId,
+      fulfillment: 'IN_STORE',
+      expectedTotal: units * 10_000,
+      ...buyer,
+    });
+
+    const read = async (id: string) =>
+      (
+        await http()
+          .get(`/v1/admin/orders/${id}`)
+          .set(signedInAs(seller))
+          .expect(200)
+      ).body;
+
+    it('sells at the counter without data: quotes, places, collects and hands the goods over', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+
+      const { body: quote } = await http()
+        .post('/v1/admin/orders/quote')
+        .set(signedInAs(seller))
+        .send({
+          lines: [{ variantId: shirt, quantity: 2 }],
+          warehouseId: store,
+          fulfillment: 'IN_STORE',
+        })
+        .expect(200);
+      expect(quote).toMatchObject({
+        shippingCost: { amount: 0 },
+        grandTotal: { amount: 20_000 },
+        freeShippingThreshold: null,
+        estimatedDelivery: null,
+        readyToPlace: true,
+      });
+
+      const { body: placed } = await place(counterSale(shirt, 2, store)).expect(
+        201,
+      );
+      expect(placed).toMatchObject({
+        status: 'PENDING_PAYMENT',
+        channel: 'STORE',
+        fulfillment: 'IN_STORE',
+        customerId: null,
+        contactEmail: null,
+        shippingAddress: null,
+        estimatedDelivery: null,
+        shippingCost: { amount: 0 },
+        grandTotal: { amount: 20_000 },
+      });
+
+      await http()
+        .post(`/v1/admin/orders/${placed.id}/manual-capture`)
+        .set(signedInAs(cashier))
+        .send({ reference: 'Ticket 00460', method: 'CASH' })
+        .expect(200);
+      await idle();
+      const paid = await read(placed.id);
+      expect(paid).toMatchObject({
+        status: 'PAID',
+        shipment: null,
+        payment: { status: 'CAPTURED', method: 'CASH' },
+      });
+
+      const { body: delivered } = await http()
+        .post(`/v1/admin/orders/${placed.id}/hand-over`)
+        .set(signedInAs(seller))
+        .send({ version: paid.version })
+        .expect(200);
+      expect(delivered).toMatchObject({
+        status: 'DELIVERED',
+        deliveredAt: expect.any(String),
+        shipment: null,
+      });
+      expect(delivered.statusHistory.at(-1)).toMatchObject({
+        fromStatus: 'PAID',
+        toStatus: 'DELIVERED',
+        actorId: seller.id,
+      });
+      // Nobody to email.
+      expect(sent).toEqual([]);
+    });
+
+    it('hands over only a paid order of the counter, at its version, and only with orders.place', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+      const { body: pending } = await place(
+        counterSale(shirt, 1, store),
+      ).expect(201);
+      const { body: shipped } = await place(guestOrder(shirt, 1, store)).expect(
+        201,
+      );
+      const handOver = (id: string, version: number, by = seller) =>
+        http()
+          .post(`/v1/admin/orders/${id}/hand-over`)
+          .set(signedInAs(by))
+          .send({ version });
+
+      await handOver(pending.id, 1).expect(409);
+      for (const id of [shipped.id]) {
+        await http()
+          .post(`/v1/admin/orders/${id}/manual-capture`)
+          .set(signedInAs(cashier))
+          .send({ reference: 'Ticket 00461' })
+          .expect(200);
+      }
+      await idle();
+      const shippedNow = await read(shipped.id);
+      const { body: problem } = await handOver(
+        shipped.id,
+        shippedNow.version,
+      ).expect(409);
+      expect(problem.type).toMatch(/invalid-state-transition$/);
+      await handOver(pending.id, 7).expect(409);
+      await handOver(pending.id, 1, cashier).expect(403);
+      await handOver(newId(), 1).expect(404);
+      await http()
+        .post(`/v1/admin/orders/${pending.id}/hand-over`)
+        .set(signedInAs(seller))
+        .send({})
+        .expect(400);
+    });
+
+    it('takes the buyer data when given, and refuses an address or a stray privacy notice', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+      const customer = await customerWithAddress();
+
+      for (const [body, field, code] of [
+        [
+          counterSale(shirt, 1, store, { shippingAddress: ADDRESS }),
+          'shippingAddress',
+          'onlyForShipping',
+        ],
+        [
+          counterSale(shirt, 1, store, {
+            customerId: customer.id,
+            addressId: customer.addressId,
+          }),
+          'addressId',
+          'onlyForShipping',
+        ],
+        [
+          counterSale(shirt, 1, store, { privacyNoticeVersion: '2026-09' }),
+          'privacyNoticeVersion',
+          'onlyForGuest',
+        ],
+        [
+          {
+            ...counterSale(shirt, 1, store),
+            fulfillment: 'SHIPPING',
+            shippingAddress: ADDRESS,
+            expectedTotal: 19_900,
+          },
+          'customerId',
+          'exactlyOneBuyer',
+        ],
+        [
+          { ...counterSale(shirt, 1, store), fulfillment: 'RECOGER' },
+          'fulfillment',
+          'isIn',
+        ],
+      ] as const) {
+        const { body: problem } = await place(body).expect(400);
+        expect(problem.errors).toEqual([
+          expect.objectContaining({ field, code }),
+        ]);
+      }
+      const { body: forCustomer } = await place(
+        counterSale(shirt, 1, store, { customerId: customer.id }),
+      ).expect(201);
+      expect(forCustomer).toMatchObject({
+        customerId: customer.id,
+        contactEmail: customer.email,
+        shippingAddress: null,
+      });
+      // The customer sees it without an address nor a delivery time.
+      const { body: mine } = await http()
+        .get(`/v1/me/orders/${forCustomer.publicCode}`)
+        .set(
+          signedInAs({
+            id: customer.id,
+            type: 'CUSTOMER',
+            permissions: [],
+            mustChangePassword: false,
+            sessionId: newId(),
+          }),
+        )
+        .expect(200);
+      expect(mine).toMatchObject({
+        fulfillment: 'IN_STORE',
+        shippingAddress: null,
+        estimatedDelivery: null,
+      });
+    });
+
+    it('emails a guest of the counter where the goods are delivered, without a delivery time', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 5]]);
+
+      const { body: placed } = await place(
+        counterSale(shirt, 1, store, {
+          contactEmail: 'mostrador@example.com',
+          privacyNoticeVersion: '2026-09',
+        }),
+      ).expect(201);
+      await http()
+        .post(`/v1/admin/orders/${placed.id}/manual-capture`)
+        .set(signedInAs(cashier))
+        .send({ reference: 'Ticket 00462', method: 'CARD_TERMINAL' })
+        .expect(200);
+      await idle();
+
+      expect(sent.map(({ to }) => to)).toEqual([
+        'mostrador@example.com',
+        'mostrador@example.com',
+      ]);
+      const [received, paid] = sent.map(({ text }) => text);
+      expect(received).toContain('Entrega: en la tienda.');
+      expect(received).not.toContain('Lo enviaremos a:');
+      expect(received).not.toContain('Plazo de entrega');
+      expect(paid).toContain('Te entregamos tus productos en la tienda.');
+    });
   });
 });

@@ -508,6 +508,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
 - Una línea no vendible lleva `unitPrice`, `lineTotal`, `taxRateBp` y `taxAmount` en `null` y `canFulfill: false`; los totales suman solo las líneas vendibles (ADR-0132).
 - `freeShippingThreshold` es `null` si el envío nunca es gratis (ADR-0092).
+- En la cotización del staff con `fulfillment` `IN_STORE` (§15.7, ADR-0161), `shippingCost` y `shippingTaxAmount` son 0, y `freeShippingThreshold` y `estimatedDelivery` son `null`: la orden se entrega en la tienda.
 
 ### 8.8 `Order` (vista de cliente)
 
@@ -518,6 +519,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
   "contactEmail": "cliente@example.com",
   "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {} } ],
   "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
+  "fulfillment": "SHIPPING",
   "shippingAddress": { "…": "Address" },
   "estimatedDelivery": { "minBusinessDays": 3, "maxBusinessDays": 7 },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
@@ -534,6 +536,8 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - Una orden bloqueada (ADR-0151) tampoco la ve el comprador: no aparece en `GET /v1/me/orders` ni en el enlace de acceso, y su detalle, la consulta de invitado y la recompra responden 404, como una orden que no existe.
 - `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
 - `paymentDueAt`: vencimiento de la reserva mientras la orden está en PENDING_PAYMENT; `null` en otros estados.
+- `fulfillment` (ADR-0161): `SHIPPING`, la orden se envía a `shippingAddress`; `IN_STORE`, el staff la entrega en la tienda física al pagarse. Una orden `IN_STORE` tiene `shippingAddress` y `estimatedDelivery` en `null`, `shippingCost` en 0, y nunca tiene `shipment`. Es la excepción acotada a ADR-0034 que decidió ADR-0161: los dos campos pueden ser `null` solo en órdenes `IN_STORE`, que coloca el staff.
+- En una venta de mostrador sin datos del comprador, `contactEmail` es `null` sin que la orden esté anonimizada; el comprador no la consulta, porque no dio email (ADR-0161).
 
 ### 8.9 `AdminOrder`
 
@@ -1249,6 +1253,7 @@ Implementado en T-181 parte b (ADR-0139):
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/quote` | `orders.place` | UC-ORD-12 (ADR-0161) |
 | POST | `/v1/admin/orders` | `orders.place` + `Idempotency-Key` | UC-ORD-13 (ADR-0161) |
+| POST | `/v1/admin/orders/{orderId}/hand-over` | `orders.place` | UC-ORD-14 (ADR-0161) |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
 | POST | `/v1/admin/orders/{orderId}/retry-fulfillment` | `orders.manage` | UC-ORD-08 |
 | POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` + `Idempotency-Key` | UC-INV-09 (ADR-0132, ADR-0142) |
@@ -1362,7 +1367,7 @@ Para el invitado que perdió el código de su pedido (ADR-0077). Implementado en
 - Rate limit: comparte con la consulta y la recompra de invitado 10 por IP en 15 minutos.
 - El staff puede usar las dos rutas, como la consulta.
 
-### 15.7 Administración de órdenes (UC-ORD-06 a 08, 12 y 13)
+### 15.7 Administración de órdenes (UC-ORD-06 a 08, 12 a 14)
 
 **`GET /v1/admin/orders`** — `orders.read`. Paginado.
 
@@ -1383,13 +1388,14 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 
 **`POST /v1/admin/orders/quote`** — `orders.place`. Cotiza un pedido en la tienda física (UC-ORD-12, ADR-0161).
 
-- Request: `{ "lines": [ { "variantId", "quantity" } ], "warehouseId" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera.
+- Request: `{ "lines": [ { "variantId", "quantity" } ], "warehouseId", "fulfillment" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera. `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE`, la venta de mostrador, sin envío (§8.7).
 - 200 `CheckoutQuote` (§8.7), como la cotización de un carrito; `canFulfill` dice si cada línea cabe con las demás en el almacén `warehouseId`.
 - Errores: 404 si el almacén no existe o está inactivo, o si una variante no existe; 400 `validation-error`.
 
 **`POST /v1/admin/orders`** — `orders.place`. Coloca una orden en la tienda física, a nombre de un cliente presente (UC-ORD-13, ADR-0161). Exige `Idempotency-Key`, con el alcance de la cuenta de staff. Hasta 30 por cuenta de staff cada 10 minutos.
 
-- Request: `{ "lines", "warehouseId", "customerId" | "contactEmail" + "privacyNoticeVersion", "addressId" | "shippingAddress", "expectedTotal" }`.
+- Request: `{ "lines", "warehouseId", "fulfillment", "customerId" | "contactEmail" + "privacyNoticeVersion", "addressId" | "shippingAddress", "expectedTotal" }`.
+  - `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE` (ADR-0161). Una orden `IN_STORE` es una venta de mostrador: no lleva `addressId` ni `shippingAddress` (`onlyForShipping`), su envío cuesta 0, y el comprador puede no dar datos: ni `customerId` ni `contactEmail`, y entonces tampoco `privacyNoticeVersion` (`onlyForGuest`).
   - Exactamente uno de `customerId` y `contactEmail` (`exactlyOneBuyer`).
   - Un cliente registrado debe estar activo y con el email verificado; su contacto es el email de su cuenta, y no envía `privacyNoticeVersion` (`onlyForGuest`), porque aceptó el aviso al crear su cuenta.
   - Un invitado envía `contactEmail` y la versión del aviso de privacidad que el staff le presentó (`privacyNoticeVersion`, 1–50 caracteres).
@@ -1397,8 +1403,16 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
   - `lines` como en la cotización.
 - Recalcula todo sin cache, como el checkout. Reserva todo el stock en el almacén `warehouseId`, nunca en otro, o nada, y crea la orden `STORE` en PENDING_PAYMENT, con `placedBy`, en una sola transacción. La orden no tiene carrito: si vence, sus líneas no vuelven a ninguno, y la recompra del staff de una orden de invitado responde 409 `source-cart-unavailable`.
 - El pago tardío y el reintento de surtido reservan otra vez solo en ese almacén; si ya está inactivo, cuenta como falta de stock.
+- Una orden `IN_STORE` pagada no crea envío: el staff la entrega con `POST …/hand-over`.
 - 201 `AdminOrder`, con `Location: /v1/admin/orders/{orderId}`. Se audita como `orders.place`, solo con el estado, el canal y el almacén. Se publica `OrderPlaced`.
 - Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable`, `total-mismatch` con `currentTotal`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
+
+**`POST /v1/admin/orders/{orderId}/hand-over`** — `orders.place`. Entrega en la tienda física una orden `IN_STORE` pagada (UC-ORD-14, ADR-0161).
+
+- Request: `{ "version": 3 }`.
+- Desde PAID pasa a DELIVERED, sin envío y sin pasar por SHIPPED, con `deliveredAt`; la orden concluye. El cambio de estado queda en el historial con el staff.
+- 200 `AdminOrder`. Auditado como `orders.hand-over`.
+- Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` si la orden se envía (`SHIPPING`) o no está en PAID.
 
 **`POST /v1/admin/orders/{orderId}/cancel`** — `orders.manage`.
 
@@ -1665,7 +1679,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
-| UC-ORD-01 a 08, 11 a 13 | Sección 15 |
+| UC-ORD-01 a 08, 11 a 14 | Sección 15 |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
 | UC-PAY-01, 02, 04, 06, 07 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |

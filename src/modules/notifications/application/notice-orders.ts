@@ -22,6 +22,7 @@ export interface NoticeOrder {
     readonly taxTotal: Money;
     readonly grandTotal: Money;
   };
+  /** `null` for an order handed over in the store (ADR-0161). */
   readonly shippingAddress: {
     readonly recipientName: string;
     readonly street: string;
@@ -31,13 +32,16 @@ export interface NoticeOrder {
     readonly postalCode: string;
     readonly municipalityName: string;
     readonly stateName: string;
-  };
+  } | null;
   /** When its reservation ends, while it waits for its payment; `null` otherwise. */
   readonly paymentDueAt: Date | null;
-  readonly deliveryMinBusinessDays: number;
-  readonly deliveryMaxBusinessDays: number;
+  /** `null` for an order handed over in the store. */
+  readonly deliveryMinBusinessDays: number | null;
+  readonly deliveryMaxBusinessDays: number | null;
   /** The staff placed it in the physical store, with the customer there (ADR-0161). */
   readonly placedInStore: boolean;
+  /** The staff hands it over in the store: it ships nowhere (ADR-0161). */
+  readonly deliveredInStore: boolean;
 }
 
 /** An anonymized order: it gets no email (BR-NTF-03), and keeps nothing of its buyer to show (ADR-0067). */

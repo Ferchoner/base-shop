@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import type { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
+import { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import {
   Money,
@@ -41,7 +41,7 @@ export class PrismaOrderRepository extends OrderRepository {
       INSERT INTO orders (
         id, public_code, customer_id, contact_email, status, currency,
         subtotal, tax_total, shipping_cost, shipping_tax_amount, shipping_tax_rate_bp,
-        delivery_min_business_days, delivery_max_business_days, discount_total, grand_total,
+        fulfillment, delivery_min_business_days, delivery_max_business_days, discount_total, grand_total,
         shipping_address, reservation_id, channel, source_cart_id, placed_by, warehouse_id,
         privacy_notice_version, placed_at, payment_due_at, created_at, updated_at)
       VALUES (
@@ -49,9 +49,10 @@ export class PrismaOrderRepository extends OrderRepository {
         ${o.status}::order_status, ${totals.grandTotal.currency},
         ${totals.subtotal.amount}, ${totals.taxTotal.amount}, ${totals.shippingCost.amount},
         ${totals.shippingTaxAmount.amount}, ${o.shippingTaxRateBp},
-        ${o.deliveryMinBusinessDays}, ${o.deliveryMaxBusinessDays},
+        ${o.fulfillment}::order_fulfillment, ${o.deliveryMinBusinessDays}, ${o.deliveryMaxBusinessDays},
         ${totals.discountTotal.amount}, ${totals.grandTotal.amount},
-        ${JSON.stringify(o.shippingAddress)}::jsonb, ${o.reservationId}::uuid,
+        ${o.shippingAddress === null ? null : JSON.stringify(o.shippingAddress)}::jsonb,
+        ${o.reservationId}::uuid,
         ${o.channel}::order_channel, ${o.sourceCartId}::uuid, ${o.placedBy}::uuid,
         ${o.warehouseId}::uuid, ${o.privacyNoticeVersion},
         ${o.placedAt}, ${o.paymentDueAt}, ${o.placedAt}, ${o.placedAt})
@@ -170,7 +171,11 @@ export class PrismaOrderRepository extends OrderRepository {
       data: {
         status: o.status,
         contactEmail: o.contactEmail,
-        shippingAddress: o.shippingAddress as unknown as Prisma.InputJsonObject,
+        // A JSON column is cleared with `DbNull`: a plain `null` would not reach the database.
+        shippingAddress:
+          o.shippingAddress === null
+            ? Prisma.DbNull
+            : (o.shippingAddress as unknown as Prisma.InputJsonObject),
         anonymizedAt: o.anonymizedAt,
         concludedAt: o.concludedAt,
         blockedAt: o.blockedAt,
@@ -239,10 +244,11 @@ function toSnapshot(row: OrderRow) {
       grandTotal: money(row.grandTotal),
     },
     shippingTaxRateBp: row.shippingTaxRateBp,
+    fulfillment: row.fulfillment,
     deliveryMinBusinessDays: row.deliveryMinBusinessDays,
     deliveryMaxBusinessDays: row.deliveryMaxBusinessDays,
     // Written by insert from ShippingAddress, and by save once anonymized.
-    shippingAddress: row.shippingAddress as unknown as OrderAddress,
+    shippingAddress: row.shippingAddress as unknown as OrderAddress | null,
     reservationId:
       row.reservationId === null
         ? null

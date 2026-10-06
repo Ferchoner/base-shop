@@ -5,6 +5,7 @@ const ORDERING_RETENTION = '20261004120000_ordering_retention';
 const LAST_ACTIVE_AT = '20261004210000_identity_last_active_at';
 const WAREHOUSE_PRIORITY = '20261006120000_inventory_warehouse_priority';
 const STORE_ORDERS = '20261006150100_ordering_store_orders';
+const IN_STORE_DELIVERY = '20261006170000_ordering_in_store_delivery';
 
 const at = (day: number) => new Date(Date.UTC(2026, 0, day, 12));
 
@@ -20,6 +21,7 @@ describe('Migration backfills (T-300)', () => {
         LAST_ACTIVE_AT,
         WAREHOUSE_PRIORITY,
         STORE_ORDERS,
+        IN_STORE_DELIVERY,
       ]),
     );
   });
@@ -355,6 +357,45 @@ describe('Migration backfills (T-300)', () => {
           [online],
         ),
       ).rejects.toThrow(/orders_channel_check/);
+    });
+  });
+
+  describe(`${IN_STORE_DELIVERY} (T-187, ADR-0161)`, () => {
+    let database: MigrationDatabase;
+
+    beforeAll(async () => {
+      database = await MigrationDatabase.create();
+      await database.migrateUpTo(IN_STORE_DELIVERY);
+    });
+
+    afterAll(async () => {
+      await database.drop();
+    });
+
+    it('ships every existing order, which keeps its address and delivery time', async () => {
+      const shipped = randomUUID();
+      await database.client.query(
+        `INSERT INTO orders (id, public_code, contact_email, status, currency, subtotal, tax_total, shipping_cost,
+           shipping_tax_amount, shipping_tax_rate_bp, grand_total, shipping_address, delivery_min_business_days,
+           delivery_max_business_days, source_cart_id, privacy_notice_version, placed_at, payment_due_at, updated_at)
+         VALUES ($1, 'ABCD0002', 'cliente@example.com', 'PENDING_PAYMENT', 'MXN', 10000, 1000, 9900, 500, 1600,
+           19900, '{}'::jsonb, 3, 7, $2, '2026-09', $3, $3, $3)`,
+        [shipped, randomUUID(), at(1)],
+      );
+
+      await database.apply(IN_STORE_DELIVERY);
+
+      const { rows } = await database.client.query<{ fulfillment: string }>(
+        'SELECT fulfillment FROM orders WHERE id = $1',
+        [shipped],
+      );
+      expect(rows).toEqual([{ fulfillment: 'SHIPPING' }]);
+      await expect(
+        database.client.query(
+          'UPDATE orders SET shipping_address = NULL WHERE id = $1',
+          [shipped],
+        ),
+      ).rejects.toThrow(/orders_fulfillment_check/);
     });
   });
 });

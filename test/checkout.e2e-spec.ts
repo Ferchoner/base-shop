@@ -448,6 +448,7 @@ describe('Checkout and orders (e2e, T-180)', () => {
         shippingTaxAmount: mxn(1_366),
         discountTotal: mxn(0),
         grandTotal: mxn(129_700),
+        fulfillment: 'SHIPPING',
         shippingAddress: SNAPSHOT,
         estimatedDelivery: { minBusinessDays: 3, maxBusinessDays: 7 },
         payment: null,

@@ -29,7 +29,11 @@ import { Idempotent } from '../../../platform/http/idempotency/idempotent.decora
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
-import type { BuyerChoice } from '../application/order-placement.js';
+import type {
+  AddressChoice,
+  BuyerChoice,
+} from '../application/order-placement.js';
+import type { OrderFulfillment } from '../application/order-values.js';
 import { BlockedOrderData } from '../application/blocked-order-data.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
@@ -45,6 +49,7 @@ import {
   BlockedOrderDataDto,
   BlockedOrderDataRequestDto,
   CancelOrderDto,
+  HandOverDto,
   PlaceStaffOrderDto,
   RestockDto,
   RestockOrderDto,
@@ -100,6 +105,7 @@ export class AdminOrdersController {
       await this.staffCheckout.quote({
         lines: linesOf(body),
         warehouseId: toId<'Warehouse'>(body.warehouseId),
+        fulfillment: body.fulfillment ?? 'SHIPPING',
       }),
     );
   }
@@ -125,9 +131,15 @@ export class AdminOrdersController {
     @Res({ passthrough: true })
     response: { setHeader(name: string, value: string): void },
   ): Promise<AdminOrderDto> {
-    const buyer = buyerOf(body);
-    const shippingAddress = shippingAddressOf(body);
-    if ('addressId' in shippingAddress && !('customerId' in buyer)) {
+    const fulfillment = body.fulfillment ?? 'SHIPPING';
+    const buyer = buyerOf(body, fulfillment);
+    const shippingAddress =
+      fulfillment === 'IN_STORE' ? noAddress(body) : shippingAddressOf(body);
+    if (
+      shippingAddress !== null &&
+      'addressId' in shippingAddress &&
+      (buyer === null || !('customerId' in buyer))
+    ) {
       throw fieldProblem(
         'addressId',
         'onlyWithCustomer',
@@ -137,6 +149,7 @@ export class AdminOrdersController {
     const id = await this.staffCheckout.place({
       staffId: toId<'User'>(actor.id),
       warehouseId: toId<'Warehouse'>(body.warehouseId),
+      fulfillment,
       lines: linesOf(body),
       buyer,
       shippingAddress,
@@ -309,6 +322,34 @@ export class AdminOrdersController {
   }
 
   @ApiOperation({
+    summary: 'Entregar un pedido en la tienda física',
+    description:
+      'UC-ORD-14 (ADR-0161). Desde `PAID`, en una orden `IN_STORE`: pasa a `DELIVERED`, sin envío, con `deliveredAt`, y concluye. En otro estado, o en una orden que se envía, 409 `invalid-state-transition`. Se audita como `orders.hand-over`.',
+  })
+  @ApiOkResponse({ type: AdminOrderDto })
+  @ApiProblemResponses(
+    'not-found',
+    'version-conflict',
+    'invalid-state-transition',
+  )
+  @RequirePermissions('orders.place')
+  @HttpCode(200)
+  @Post(':orderId/hand-over')
+  async handOver(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('orderId') orderId: string,
+    @Body() body: HandOverDto,
+  ): Promise<AdminOrderDto> {
+    const id = orderIdOf(orderId);
+    await this.lifecycle.handOver({
+      orderId: id,
+      actorId: toId<'User'>(actor.id),
+      version: body.version,
+    });
+    return this.read(id);
+  }
+
+  @ApiOperation({
     summary: 'Reintentar el surtido de un pedido',
     description:
       'Desde `AWAITING_MANUAL_FULFILLMENT`: reserva y confirma el stock, y el pedido pasa a `PAID` (ADR-0012). Sin stock no cambia nada; si se decide no surtir, se cancela.',
@@ -385,13 +426,31 @@ function linesOf(body: StaffQuoteDto) {
 
 /**
  * Who the staff order is for: a customer, or a guest with the version of the privacy notice the staff presented,
- * exactly one of them (API_SPEC.md §15.7).
+ * exactly one of them (API_SPEC.md §15.7). A sale handed over in the store may have neither: its buyer gave no data
+ * (ADR-0161).
  *
- * @throws ProblemException `validation-error` on `customerId` with both or neither, or on `privacyNoticeVersion`
- *   when a guest lacks it or a customer sends it.
+ * @throws ProblemException `validation-error` on `customerId` with both or, to ship, neither; or on
+ *   `privacyNoticeVersion` when a guest lacks it, or someone else sends it.
  */
-function buyerOf(body: PlaceStaffOrderDto): BuyerChoice {
-  if ((body.customerId === undefined) === (body.contactEmail === undefined)) {
+function buyerOf(
+  body: PlaceStaffOrderDto,
+  fulfillment: OrderFulfillment,
+): BuyerChoice | null {
+  const none = body.customerId === undefined && body.contactEmail === undefined;
+  if (none && fulfillment === 'IN_STORE') {
+    if (body.privacyNoticeVersion !== undefined) {
+      throw fieldProblem(
+        'privacyNoticeVersion',
+        'onlyForGuest',
+        'Solo con `contactEmail`: un comprador sin datos no tiene aviso que aceptar.',
+      );
+    }
+    return null;
+  }
+  if (
+    none ||
+    (body.customerId !== undefined && body.contactEmail !== undefined)
+  ) {
     throw fieldProblem(
       'customerId',
       'exactlyOneBuyer',
@@ -415,6 +474,24 @@ function buyerOf(body: PlaceStaffOrderDto): BuyerChoice {
     contactEmail: body.contactEmail!,
     privacyNoticeVersion: body.privacyNoticeVersion,
   };
+}
+
+/**
+ * An order handed over in the store has no address (ADR-0161).
+ *
+ * @throws ProblemException `validation-error` on `addressId` or `shippingAddress` when the request sends one.
+ */
+function noAddress(body: PlaceStaffOrderDto): AddressChoice | null {
+  for (const field of ['addressId', 'shippingAddress'] as const) {
+    if (body[field] !== undefined) {
+      throw fieldProblem(
+        field,
+        'onlyForShipping',
+        'Solo con `fulfillment` `SHIPPING`: una orden entregada en la tienda no tiene dirección.',
+      );
+    }
+  }
+  return null;
 }
 
 function fieldProblem(

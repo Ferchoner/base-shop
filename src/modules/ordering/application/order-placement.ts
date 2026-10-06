@@ -69,11 +69,30 @@ export interface CheckoutQuote {
   readonly lines: readonly QuoteLine[];
   readonly totals: OrderTotals;
   readonly freeShippingThreshold: Money | null;
-  readonly deliveryMinBusinessDays: number;
-  readonly deliveryMaxBusinessDays: number;
+  /** `null` for an order handed over in the store, which ships nowhere (ADR-0161). */
+  readonly deliveryMinBusinessDays: number | null;
+  readonly deliveryMaxBusinessDays: number | null;
   /** Every line can be sold and fulfilled: the order can be placed with `grandTotal` as `expectedTotal`. */
   readonly readyToPlace: boolean;
 }
+
+/** What a quote shows of the shipping: an order handed over in the store has none (ADR-0161). */
+export type QuotedShipping = Pick<
+  ShippingCharge,
+  'cost' | 'taxAmount' | 'freeShippingThreshold'
+> & {
+  readonly deliveryMinBusinessDays: number | null;
+  readonly deliveryMaxBusinessDays: number | null;
+};
+
+/** The shipping of an order handed over in the store: free, without a threshold nor a delivery time (ADR-0161). */
+export const NO_SHIPPING: QuotedShipping = {
+  cost: Money.zero('MXN'),
+  taxAmount: Money.zero('MXN'),
+  freeShippingThreshold: null,
+  deliveryMinBusinessDays: null,
+  deliveryMaxBusinessDays: null,
+};
 
 /** The lines of an order with what Catalog and Pricing say of them now. */
 export interface Assessment {
@@ -150,7 +169,7 @@ export class OrderPlacement {
   quoteOf(
     { items, priced }: Assessment,
     available: ReadonlyMap<VariantId, boolean>,
-    shipping: ShippingCharge,
+    shipping: QuotedShipping,
   ): CheckoutQuote {
     const lines = items.map(
       ({ variant, quantity, priced: line }): QuoteLine => ({
@@ -180,11 +199,13 @@ export class OrderPlacement {
   }
 
   /**
-   * The buyer: a guest as given, or a customer, whose contact is the account email.
+   * The buyer: a guest as given, a customer, whose contact is the account email, or none, who gave no data
+   * (ADR-0161).
    *
    * @throws EmailNotVerifiedError (BR-USR-05); NotFoundError for a customer that is not ACTIVE.
    */
-  async buyer(choice: BuyerChoice): Promise<Buyer> {
+  async buyer(choice: BuyerChoice | null): Promise<Buyer> {
+    if (choice === null) return { customerId: null, contactEmail: null };
     if (!('customerId' in choice)) {
       return {
         customerId: null,

@@ -11,6 +11,8 @@ import {
 } from '../../../shared-kernel/index.js';
 import {
   Order,
+  type OrderDelivery,
+  type OrderFulfillment,
   type OrderId,
   orderTotals,
   type StaffId,
@@ -35,6 +37,7 @@ import {
   type AddressChoice,
   type BuyerChoice,
   type CheckoutQuote,
+  NO_SHIPPING,
   OrderPlacement,
 } from './order-placement.js';
 import {
@@ -48,13 +51,17 @@ export interface StaffQuoteInput {
   /** From 1 to 100, each variant once with 1 to 30 units, in the order the order would number them. */
   readonly lines: readonly StockLine[];
   readonly warehouseId: WarehouseId;
+  /** Shipped, or handed over in the store, without shipping (ADR-0161). */
+  readonly fulfillment: OrderFulfillment;
 }
 
 /** UC-ORD-13: an order a staff member places on behalf of a customer who is in the store (ADR-0161). */
 export interface StaffOrderInput extends StaffQuoteInput {
   readonly staffId: StaffId;
-  readonly buyer: BuyerChoice;
-  readonly shippingAddress: AddressChoice;
+  /** `null` only for a sale handed over in the store, whose buyer gives no data. */
+  readonly buyer: BuyerChoice | null;
+  /** `null` exactly for an order handed over in the store. */
+  readonly shippingAddress: AddressChoice | null;
   /** `grandTotal.amount` of the quote the customer accepted (ADR-0019). */
   readonly expectedTotal: number;
 }
@@ -114,7 +121,10 @@ export class StaffCheckout {
       })),
       input.warehouseId,
     );
-    const shipping = await this.placement.quoteShipping(assessment.priced);
+    const shipping =
+      input.fulfillment === 'IN_STORE'
+        ? NO_SHIPPING
+        : await this.placement.quoteShipping(assessment.priced);
     return this.placement.quoteOf(assessment, available, shipping);
   }
 
@@ -123,28 +133,43 @@ export class StaffCheckout {
    * expires, in one transaction. Checks, in this order: the buyer, the warehouse, the address, that every line can be
    * sold, the total and the stock.
    *
-   * @throws InvalidValueError for lines out of their limits or a variant twice; EmailNotVerifiedError (BR-USR-05);
+   * @throws InvalidValueError for lines out of their limits or a variant twice, an order to ship without a buyer or
+   *   an address, or one handed over in the store with an address; EmailNotVerifiedError (BR-USR-05);
    *   NotFoundError for the customer, the warehouse, a saved address or a variant; InvalidShippingAddressError;
    *   VariantNotSellableError; TotalMismatchError (BR-ORD-06); InsufficientStockError with what the warehouse leaves
    *   out, reserving nothing (BR-INV-02).
    */
   async place(input: StaffOrderInput): Promise<OrderId> {
     assertLines(input.lines);
+    assertDelivery(input);
     return this.transactions.run(async () => {
       const now = this.clock.now();
       const buyer = await this.placement.buyer(input.buyer);
       await this.activeWarehouse(input.warehouseId);
-      const shippingAddress = await this.placement.shippingAddress(
-        buyer.customerId,
-        input.shippingAddress,
-      );
+      const shippingAddress =
+        input.shippingAddress === null
+          ? null
+          : await this.placement.shippingAddress(
+              buyer.customerId,
+              input.shippingAddress,
+            );
       const { items, priced } = await this.placement.assess(input.lines, now);
       const unsellable = items
         .filter((item) => item.priced === null)
         .map(({ variant }) => variant.id);
       if (unsellable.length > 0) throw new VariantNotSellableError(unsellable);
-      const shipping = await this.placement.quoteShipping(priced);
-      const total = orderTotals(priced, shipping).grandTotal;
+      const delivery: OrderDelivery =
+        shippingAddress === null
+          ? { fulfillment: 'IN_STORE' }
+          : {
+              fulfillment: 'SHIPPING',
+              shipping: await this.placement.quoteShipping(priced),
+              shippingAddress,
+            };
+      const total = orderTotals(
+        priced,
+        delivery.fulfillment === 'SHIPPING' ? delivery.shipping : NO_SHIPPING,
+      ).grandTotal;
       if (total.amount !== input.expectedTotal) {
         throw new TotalMismatchError(total);
       }
@@ -160,8 +185,7 @@ export class StaffCheckout {
           publicCode,
           buyer,
           lines: priced,
-          shipping,
-          shippingAddress,
+          delivery,
           reservation,
           placedBy: input.staffId,
           warehouseId: input.warehouseId,
@@ -173,10 +197,11 @@ export class StaffCheckout {
         action: 'orders.place',
         resource: { type: 'order', id: order.id },
         changes: changesBetween(
-          { status: null, channel: null, warehouseId: null },
+          { status: null, channel: null, fulfillment: null, warehouseId: null },
           {
             status: order.status,
             channel: order.snapshot.channel,
+            fulfillment: order.fulfillment,
             warehouseId: input.warehouseId,
           },
         ),
@@ -192,6 +217,26 @@ export class StaffCheckout {
     if (!(await this.stock.isActiveWarehouse(warehouseId))) {
       throw new NotFoundError('Warehouse', warehouseId);
     }
+  }
+}
+
+/**
+ * An order to ship has a buyer and an address; one handed over in the store has no address, and may have no buyer
+ * (ADR-0161).
+ *
+ * @throws InvalidValueError otherwise.
+ */
+function assertDelivery(input: StaffOrderInput): void {
+  if (input.fulfillment === 'SHIPPING') {
+    if (input.buyer === null || input.shippingAddress === null) {
+      throw new InvalidValueError(
+        'An order to ship needs a buyer and an address',
+      );
+    }
+  } else if (input.shippingAddress !== null) {
+    throw new InvalidValueError(
+      'An order handed over in the store has no address',
+    );
   }
 }
 

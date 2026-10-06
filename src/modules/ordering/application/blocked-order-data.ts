@@ -12,7 +12,8 @@ import { OrderShipments } from './shipment-ports.js';
 /** The personal data of a blocked order, as it was saved (API_SPEC.md §15.7). */
 export interface BlockedOrderDataView {
   readonly contactEmail: string;
-  readonly shippingAddress: OrderAddress;
+  /** `null` for an order handed over in the store (ADR-0161). */
+  readonly shippingAddress: OrderAddress | null;
   /** `null` for an order without a shipment. */
   readonly shipmentDestination: OrderAddress | null;
 }

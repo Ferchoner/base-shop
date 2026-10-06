@@ -135,6 +135,7 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       ],
       totals: orderTotals(lines, SHIPPING),
       shippingTaxRateBp: 1600,
+      fulfillment: 'SHIPPING',
       deliveryMinBusinessDays: 3,
       deliveryMaxBusinessDays: 7,
       shippingAddress: ADDRESS,
@@ -167,8 +168,11 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       publicCode: 'K7M4Q9XA' as PublicCode,
       buyer: guest,
       lines: [line(59_900, 2)],
-      shipping: SHIPPING,
-      shippingAddress: ADDRESS,
+      delivery: {
+        fulfillment: 'SHIPPING',
+        shipping: SHIPPING,
+        shippingAddress: ADDRESS,
+      },
       reservation: { id: newId<'Reservation'>(), expiresAt: DUE },
       placedBy,
       warehouseId,
@@ -191,8 +195,7 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
         publicCode: 'K7M4Q9XA' as PublicCode,
         buyer: guest,
         lines: [],
-        shipping: SHIPPING,
-        shippingAddress: ADDRESS,
+        delivery: { fulfillment: 'IN_STORE' },
         reservation: { id: newId<'Reservation'>(), expiresAt: DUE },
         placedBy,
         warehouseId,
@@ -904,6 +907,125 @@ describe('Retention of the data of an order (ADR-0070, ADR-0145, ADR-0149)', () 
       city: null,
       references: null,
       country: 'MX',
+    });
+  });
+});
+
+describe('Order handed over in the store (UC-ORD-14, ADR-0161)', () => {
+  const placedBy = newId<'User'>();
+  const warehouseId = newId<'Warehouse'>();
+  const inStore = (buyer: Buyer = { customerId: null, contactEmail: null }) =>
+    Order.placeInStore({
+      id: newId<'Order'>(),
+      publicCode: 'K7M4Q9XA' as PublicCode,
+      buyer,
+      lines: [line(59_900, 2)],
+      delivery: { fulfillment: 'IN_STORE' },
+      reservation: { id: newId<'Reservation'>(), expiresAt: DUE },
+      placedBy,
+      warehouseId,
+      now: NOW,
+    });
+  const paid = (order: Order) => {
+    order.markPaid(NOW, NOW);
+    return Order.restore(order.snapshot);
+  };
+
+  it('is placed without an address, a shipping cost nor a delivery time, and with no buyer data', () => {
+    const order = inStore();
+
+    expect(order.fulfillment).toBe('IN_STORE');
+    expect(order.snapshot).toMatchObject({
+      fulfillment: 'IN_STORE',
+      channel: 'STORE',
+      customerId: null,
+      contactEmail: null,
+      privacyNoticeVersion: null,
+      shippingAddress: null,
+      deliveryMinBusinessDays: null,
+      deliveryMaxBusinessDays: null,
+      shippingTaxRateBp: 0,
+    });
+    expect(order.snapshot.totals).toMatchObject({
+      subtotal: mxn(119_800),
+      shippingCost: mxn(0),
+      shippingTaxAmount: mxn(0),
+      taxTotal: mxn(16_524),
+      grandTotal: mxn(119_800),
+    });
+    expect(() => order.deliveryAddress).toThrow(/no address/);
+    // A guest who gives the email still records the privacy notice.
+    expect(inStore(guest).snapshot).toMatchObject({
+      contactEmail: 'cliente@example.com',
+      privacyNoticeVersion: '2026-09',
+    });
+  });
+
+  it('needs a contact email to ship', () => {
+    expect(() =>
+      place({ buyer: { customerId: null, contactEmail: null } }),
+    ).toThrow(new InvalidValueError('An order needs a contact email'));
+    expect(() =>
+      Order.placeInStore({
+        id: newId<'Order'>(),
+        publicCode: 'K7M4Q9XA' as PublicCode,
+        buyer: { customerId: null, contactEmail: null },
+        lines: [line(59_900, 2)],
+        delivery: {
+          fulfillment: 'SHIPPING',
+          shipping: SHIPPING,
+          shippingAddress: ADDRESS,
+        },
+        reservation: { id: newId<'Reservation'>(), expiresAt: DUE },
+        placedBy,
+        warehouseId,
+        now: NOW,
+      }),
+    ).toThrow(new InvalidValueError('An order needs a contact email'));
+  });
+
+  it('is handed over once paid: DELIVERED right away, by the staff member, and concluded', () => {
+    const order = paid(inStore());
+    const handedOver = new Date('2026-10-01T12:30:00.000Z');
+
+    order.handOver(placedBy, handedOver);
+
+    expect(order.snapshot).toMatchObject({
+      status: 'DELIVERED',
+      deliveredAt: handedOver,
+      concludedAt: handedOver,
+    });
+    expect(order.statusChanges).toEqual([
+      {
+        from: 'PAID',
+        to: 'DELIVERED',
+        actorId: placedBy,
+        reason: null,
+        at: handedOver,
+      },
+    ]);
+  });
+
+  it('is handed over only when it is PAID and it does not ship', () => {
+    expect(() => inStore().handOver(placedBy, NOW)).toThrow(
+      new InvalidStateTransitionError('PENDING_PAYMENT', 'hand over'),
+    );
+    const shipped = place();
+    shipped.markPaid(NOW, NOW);
+    expect(() => shipped.handOver(placedBy, NOW)).toThrow(
+      new InvalidStateTransitionError('PAID', 'hand over'),
+    );
+  });
+
+  it('keeps no address once anonymized', () => {
+    const order = inStore(guest);
+    order.expireIfDue(DUE);
+
+    order.anonymize(null, NOW);
+
+    expect(order.snapshot).toMatchObject({
+      contactEmail: null,
+      shippingAddress: null,
     });
   });
 });

@@ -36,7 +36,9 @@ import {
 } from '../../../platform/http/pagination/pagination.js';
 import { MAX_MONEY_AMOUNT } from '../../../shared-kernel/index.js';
 import {
+  ORDER_FULFILLMENTS,
   ORDER_STATUSES,
+  type OrderFulfillment,
   type OrderStatus,
 } from '../application/order-values.js';
 import { EstimatedDeliveryDto } from './checkout.dto.js';
@@ -429,9 +431,20 @@ export class OrderFieldsDto {
   @ApiProperty({ type: () => MoneyDto })
   grandTotal: MoneyDto;
 
-  /** Plazo estimado de entrega, desde la confirmación del pago (ADR-0083). */
-  @ApiProperty({ type: () => EstimatedDeliveryDto })
-  estimatedDelivery: EstimatedDeliveryDto;
+  @ApiProperty({
+    enum: ORDER_FULFILLMENTS,
+    description:
+      '`SHIPPING`: se envía a su dirección. `IN_STORE`: el staff la entrega en la tienda física al pagarse, sin dirección, sin costo de envío y sin plazo de entrega (ADR-0161).',
+  })
+  fulfillment: OrderFulfillment;
+
+  @ApiProperty({
+    type: () => EstimatedDeliveryDto,
+    nullable: true,
+    description:
+      'Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una orden `IN_STORE`.',
+  })
+  estimatedDelivery: EstimatedDeliveryDto | null;
 
   /** Cuándo se colocó. */
   @ApiProperty({ type: String, format: 'date-time' })
@@ -497,9 +510,13 @@ export class OrderDto extends OrderSummaryDto {
   @ApiProperty({ type: () => [OrderLineDto] })
   lines: OrderLineDto[];
 
-  /** La dirección de envío al colocar la orden. */
-  @ApiProperty({ type: () => PostalAddressDto })
-  shippingAddress: PostalAddressDto;
+  @ApiProperty({
+    type: () => PostalAddressDto,
+    nullable: true,
+    description:
+      'La dirección de envío al colocar la orden; `null` en una orden `IN_STORE`, que se entrega en la tienda (ADR-0161).',
+  })
+  shippingAddress: PostalAddressDto | null;
 }
 
 export class OrderListDto {

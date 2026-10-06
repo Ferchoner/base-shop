@@ -816,12 +816,22 @@
                 "$ref": "#/components/schemas/EstimatedDeliveryDto"
               }
             ],
-            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una orden `IN_STORE`.",
+            "nullable": true,
+            "type": "object"
           },
           "expiredAt": {
             "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
+            "type": "string"
+          },
+          "fulfillment": {
+            "description": "`SHIPPING`: se envía a su dirección. `IN_STORE`: el staff la entrega en la tienda física al pagarse, sin dirección, sin costo de envío y sin plazo de entrega (ADR-0161).",
+            "enum": [
+              "SHIPPING",
+              "IN_STORE"
+            ],
             "type": "string"
           },
           "grandTotal": {
@@ -917,7 +927,9 @@
                 "$ref": "#/components/schemas/AdminOrderAddressDto"
               }
             ],
-            "description": "La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada."
+            "description": "La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada. `null` en una orden `IN_STORE`, que se entrega en la tienda (ADR-0161).",
+            "nullable": true,
+            "type": "object"
           },
           "shippingCost": {
             "allOf": [
@@ -992,6 +1004,7 @@
           "shippingTaxAmount",
           "discountTotal",
           "grandTotal",
+          "fulfillment",
           "estimatedDelivery",
           "placedAt",
           "paymentDueAt",
@@ -1332,12 +1345,22 @@
                 "$ref": "#/components/schemas/EstimatedDeliveryDto"
               }
             ],
-            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una orden `IN_STORE`.",
+            "nullable": true,
+            "type": "object"
           },
           "expiredAt": {
             "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
+            "type": "string"
+          },
+          "fulfillment": {
+            "description": "`SHIPPING`: se envía a su dirección. `IN_STORE`: el staff la entrega en la tienda física al pagarse, sin dirección, sin costo de envío y sin plazo de entrega (ADR-0161).",
+            "enum": [
+              "SHIPPING",
+              "IN_STORE"
+            ],
             "type": "string"
           },
           "grandTotal": {
@@ -1427,7 +1450,9 @@
                 "$ref": "#/components/schemas/AdminOrderAddressDto"
               }
             ],
-            "description": "La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada."
+            "description": "La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada. `null` en una orden `IN_STORE`, que se entrega en la tienda (ADR-0161).",
+            "nullable": true,
+            "type": "object"
           },
           "shippingCost": {
             "allOf": [
@@ -1495,6 +1520,7 @@
           "shippingTaxAmount",
           "discountTotal",
           "grandTotal",
+          "fulfillment",
           "estimatedDelivery",
           "placedAt",
           "paymentDueAt",
@@ -2297,7 +2323,9 @@
                 "$ref": "#/components/schemas/PostalAddressDto"
               }
             ],
-            "description": "La dirección de envío de la orden."
+            "description": "La dirección de envío de la orden; `null` en una orden `IN_STORE` (ADR-0161).",
+            "nullable": true,
+            "type": "object"
           }
         },
         "required": [
@@ -2610,7 +2638,9 @@
                 "$ref": "#/components/schemas/EstimatedDeliveryDto"
               }
             ],
-            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una cotización del staff con `fulfillment` `IN_STORE` (ADR-0161).",
+            "nullable": true,
+            "type": "object"
           },
           "freeShippingThreshold": {
             "allOf": [
@@ -3566,6 +3596,19 @@
         ],
         "type": "object"
       },
+      "HandOverDto": {
+        "properties": {
+          "version": {
+            "description": "Versión leída (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
       "ImageDto": {
         "properties": {
           "altText": {
@@ -3847,12 +3890,22 @@
                 "$ref": "#/components/schemas/EstimatedDeliveryDto"
               }
             ],
-            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una orden `IN_STORE`.",
+            "nullable": true,
+            "type": "object"
           },
           "expiredAt": {
             "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
+            "type": "string"
+          },
+          "fulfillment": {
+            "description": "`SHIPPING`: se envía a su dirección. `IN_STORE`: el staff la entrega en la tienda física al pagarse, sin dirección, sin costo de envío y sin plazo de entrega (ADR-0161).",
+            "enum": [
+              "SHIPPING",
+              "IN_STORE"
+            ],
             "type": "string"
           },
           "grandTotal": {
@@ -3934,7 +3987,9 @@
                 "$ref": "#/components/schemas/PostalAddressDto"
               }
             ],
-            "description": "La dirección de envío al colocar la orden."
+            "description": "La dirección de envío al colocar la orden; `null` en una orden `IN_STORE`, que se entrega en la tienda (ADR-0161).",
+            "nullable": true,
+            "type": "object"
           },
           "shippingCost": {
             "allOf": [
@@ -3992,6 +4047,7 @@
           "shippingTaxAmount",
           "discountTotal",
           "grandTotal",
+          "fulfillment",
           "estimatedDelivery",
           "placedAt",
           "paymentDueAt",
@@ -4255,12 +4311,22 @@
                 "$ref": "#/components/schemas/EstimatedDeliveryDto"
               }
             ],
-            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083)."
+            "description": "Plazo estimado de entrega, desde la confirmación del pago (ADR-0083); `null` en una orden `IN_STORE`.",
+            "nullable": true,
+            "type": "object"
           },
           "expiredAt": {
             "description": "Cuándo venció sin pago; `null` si no ha ocurrido.",
             "format": "date-time",
             "nullable": true,
+            "type": "string"
+          },
+          "fulfillment": {
+            "description": "`SHIPPING`: se envía a su dirección. `IN_STORE`: el staff la entrega en la tienda física al pagarse, sin dirección, sin costo de envío y sin plazo de entrega (ADR-0161).",
+            "enum": [
+              "SHIPPING",
+              "IN_STORE"
+            ],
             "type": "string"
           },
           "grandTotal": {
@@ -4385,6 +4451,7 @@
           "shippingTaxAmount",
           "discountTotal",
           "grandTotal",
+          "fulfillment",
           "estimatedDelivery",
           "placedAt",
           "paymentDueAt",
@@ -4762,6 +4829,14 @@
             "maximum": 2147483647,
             "minimum": 0,
             "type": "number"
+          },
+          "fulfillment": {
+            "description": "`SHIPPING` (por defecto): se envía a una dirección. `IN_STORE`: venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni costo de envío; el comprador puede no dar sus datos (ADR-0161).",
+            "enum": [
+              "SHIPPING",
+              "IN_STORE"
+            ],
+            "type": "string"
           },
           "lines": {
             "description": "De 1 a 100 líneas, cada variante una sola vez, en el orden en que la orden las numera.",
@@ -6316,6 +6391,14 @@
       },
       "StaffQuoteDto": {
         "properties": {
+          "fulfillment": {
+            "description": "`SHIPPING` (por defecto): se envía a una dirección. `IN_STORE`: venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni costo de envío; el comprador puede no dar sus datos (ADR-0161).",
+            "enum": [
+              "SHIPPING",
+              "IN_STORE"
+            ],
+            "type": "string"
+          },
           "lines": {
             "description": "De 1 a 100 líneas, cada variante una sola vez, en el orden en que la orden las numera.",
             "items": {
@@ -14973,6 +15056,128 @@
         ],
         "x-required-permissions": [
           "orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/orders/{orderId}/hand-over": {
+      "post": {
+        "description": "UC-ORD-14 (ADR-0161). Desde `PAID`, en una orden `IN_STORE`: pasa a `DELIVERED`, sin envío, con `deliveredAt`, y concluye. En otro estado, o en una orden que se envía, 409 `invalid-state-transition`. Se audita como `orders.hand-over`.",
+        "operationId": "AdminOrdersController_handOver_v1",
+        "parameters": [
+          {
+            "description": "ID interno del pedido; quien compra usa el código público.",
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandOverDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Entregar un pedido en la tienda física",
+        "tags": [
+          "Administración: pedidos"
+        ],
+        "x-required-permissions": [
+          "orders.place"
         ]
       }
     },

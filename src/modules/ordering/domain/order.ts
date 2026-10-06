@@ -37,6 +37,14 @@ export const ORDER_CHANNELS = ['ONLINE', 'STORE'] as const;
 
 export type OrderChannel = (typeof ORDER_CHANNELS)[number];
 
+/**
+ * How an order reaches its buyer (ADR-0161): shipped to its address, or handed over in the physical store, where the
+ * customer pays and takes it right away.
+ */
+export const ORDER_FULFILLMENTS = ['SHIPPING', 'IN_STORE'] as const;
+
+export type OrderFulfillment = (typeof ORDER_FULFILLMENTS)[number];
+
 /** BR-ORD-05, ADR-0009, ADR-0051; the transitions are in REQUIREMENTS.md §3.1. */
 export const ORDER_STATUSES = [
   'PENDING_PAYMENT',
@@ -197,7 +205,10 @@ export interface OrderLine extends PricedLine {
   readonly lineNumber: number;
 }
 
-/** Who places the order: a customer, whose contact is the account email, or a guest (BR-ORD-04). */
+/**
+ * Who places the order: a customer, whose contact is the account email, or a guest (BR-ORD-04). In a sale handed over
+ * in the store, also a buyer who gives no data at all (ADR-0161).
+ */
 export type Buyer =
   | {
       readonly customerId: CustomerId;
@@ -208,6 +219,10 @@ export type Buyer =
       readonly contactEmail: string;
       /** The privacy notice shown to the guest (ADR-0067). */
       readonly privacyNoticeVersion: string;
+    }
+  | {
+      readonly customerId: null;
+      readonly contactEmail: null;
     };
 
 /** The contact email as an order keeps it, and as a guest finds the order with it: trimmed, in lowercase. */
@@ -258,9 +273,11 @@ export interface OrderSnapshot {
   readonly lines: readonly OrderLine[];
   readonly totals: OrderTotals;
   readonly shippingTaxRateBp: number;
-  readonly deliveryMinBusinessDays: number;
-  readonly deliveryMaxBusinessDays: number;
-  readonly shippingAddress: OrderAddress;
+  readonly fulfillment: OrderFulfillment;
+  /** `null` for an order handed over in the store, which ships nowhere (ADR-0161); so are the next two. */
+  readonly deliveryMinBusinessDays: number | null;
+  readonly deliveryMaxBusinessDays: number | null;
+  readonly shippingAddress: OrderAddress | null;
   /** The reservation that holds or held its stock; a late payment opens another (ADR-0012). */
   readonly reservationId: ReservationId | null;
   /** When the first reservation ends: the order expires then if it is not paid (BR-ORD-07). */
@@ -301,14 +318,21 @@ export interface NewOrder {
   readonly publicCode: PublicCode;
   readonly buyer: Buyer;
   readonly lines: readonly PricedLine[];
-  readonly shipping: OrderShipping;
-  readonly shippingAddress: ShippingAddress;
   readonly reservation: {
     readonly id: ReservationId;
     readonly expiresAt: Date;
   };
   readonly now: Date;
 }
+
+/** How a new order is delivered: shipped, with its shipping and address, or handed over in the store (ADR-0161). */
+export type OrderDelivery =
+  | {
+      readonly fulfillment: 'SHIPPING';
+      readonly shipping: OrderShipping;
+      readonly shippingAddress: ShippingAddress;
+    }
+  | { readonly fulfillment: 'IN_STORE' };
 
 /**
  * What a payment clears when it reopens an order that had concluded, expired or cancelled without one: it has not
@@ -335,25 +359,44 @@ export class Order {
    * @throws EmptyCartError without lines (BR-ORD-01); InvalidValueError for a guest without the version of
    *   the privacy notice (ADR-0067) or a blank contact email.
    */
-  static place(input: NewOrder & { sourceCartId: CartId }): Order {
-    return Order.create(input, {
-      channel: 'ONLINE',
-      sourceCartId: input.sourceCartId,
-      placedBy: null,
-      warehouseId: null,
-    });
+  static place(
+    input: NewOrder & {
+      shipping: OrderShipping;
+      shippingAddress: ShippingAddress;
+      sourceCartId: CartId;
+    },
+  ): Order {
+    return Order.create(
+      input,
+      {
+        fulfillment: 'SHIPPING',
+        shipping: input.shipping,
+        shippingAddress: input.shippingAddress,
+      },
+      {
+        channel: 'ONLINE',
+        sourceCartId: input.sourceCartId,
+        placedBy: null,
+        warehouseId: null,
+      },
+    );
   }
 
   /**
    * A new order of the physical store in PENDING_PAYMENT (UC-ORD-13, ADR-0161): a staff member places it on behalf
-   * of the customer, with its stock from the warehouse they chose, and without a cart.
+   * of the customer, with its stock from the warehouse they chose, and without a cart. It ships, or it is handed over
+   * in the store, without an address nor a shipping cost (ADR-0161).
    *
    * @throws as `place`.
    */
   static placeInStore(
-    input: NewOrder & { placedBy: StaffId; warehouseId: WarehouseId },
+    input: NewOrder & {
+      placedBy: StaffId;
+      warehouseId: WarehouseId;
+      delivery: OrderDelivery;
+    },
   ): Order {
-    return Order.create(input, {
+    return Order.create(input, input.delivery, {
       channel: 'STORE',
       sourceCartId: null,
       placedBy: input.placedBy,
@@ -361,27 +404,42 @@ export class Order {
     });
   }
 
+  /**
+   * @throws InvalidValueError for an order to ship without a contact email: only a sale handed over in the store may
+   *   have no buyer data (ADR-0161).
+   */
   private static create(
     input: NewOrder,
+    delivery: OrderDelivery,
     origin: Pick<
       OrderSnapshot,
       'channel' | 'sourceCartId' | 'placedBy' | 'warehouseId'
     >,
   ): Order {
     if (input.lines.length === 0) throw new EmptyCartError();
-    const contactEmail = normalizedContactEmail(input.buyer.contactEmail);
-    if (contactEmail === '') {
+    const { buyer } = input;
+    const contactEmail =
+      buyer.contactEmail === null
+        ? null
+        : normalizedContactEmail(buyer.contactEmail);
+    if (
+      contactEmail === '' ||
+      (contactEmail === null && delivery.fulfillment === 'SHIPPING')
+    ) {
       throw new InvalidValueError('An order needs a contact email');
     }
     const privacyNoticeVersion =
-      input.buyer.customerId === null
-        ? input.buyer.privacyNoticeVersion.trim()
+      'privacyNoticeVersion' in buyer
+        ? buyer.privacyNoticeVersion.trim()
         : null;
     if (privacyNoticeVersion === '') {
       throw new InvalidValueError(
         'A guest order needs the version of the privacy notice',
       );
     }
+    const shipping =
+      delivery.fulfillment === 'SHIPPING' ? delivery.shipping : null;
+    const zero = Money.zero('MXN');
     return new Order({
       id: input.id,
       publicCode: input.publicCode,
@@ -394,11 +452,16 @@ export class Order {
         id: newId<'OrderLine'>(),
         lineNumber: index + 1,
       })),
-      totals: orderTotals(input.lines, input.shipping),
-      shippingTaxRateBp: input.shipping.taxRateBp,
-      deliveryMinBusinessDays: input.shipping.deliveryMinBusinessDays,
-      deliveryMaxBusinessDays: input.shipping.deliveryMaxBusinessDays,
-      shippingAddress: input.shippingAddress,
+      totals: orderTotals(
+        input.lines,
+        shipping ?? { cost: zero, taxAmount: zero },
+      ),
+      shippingTaxRateBp: shipping?.taxRateBp ?? 0,
+      fulfillment: delivery.fulfillment,
+      deliveryMinBusinessDays: shipping?.deliveryMinBusinessDays ?? null,
+      deliveryMaxBusinessDays: shipping?.deliveryMaxBusinessDays ?? null,
+      shippingAddress:
+        delivery.fulfillment === 'SHIPPING' ? delivery.shippingAddress : null,
       reservationId: input.reservation.id,
       paymentDueAt: input.reservation.expiresAt,
       ...origin,
@@ -457,13 +520,22 @@ export class Order {
     return concludedAt !== null && concludedAt.getTime() <= cutoff.getTime();
   }
 
+  /** How it reaches its buyer: shipped, or handed over in the store (ADR-0161). */
+  get fulfillment(): OrderFulfillment {
+    return this.state.fulfillment;
+  }
+
   /**
    * Where it ships (UC-SHI-03).
    *
-   * @throws Error for an anonymized order: it is never paid, so it never ships (ADR-0145).
+   * @throws Error for an anonymized order: it is never paid, so it never ships (ADR-0145); and for one handed over in
+   *   the store, which ships nowhere (ADR-0161).
    */
   get deliveryAddress(): ShippingAddress {
     const address = this.state.shippingAddress;
+    if (address === null) {
+      throw new Error('An order handed over in the store has no address');
+    }
     if (address.recipientName === null) {
       throw new Error('An anonymized order has no address to ship to');
     }
@@ -644,6 +716,21 @@ export class Order {
   }
 
   /**
+   * The staff handed a paid order over in the store (UC-ORD-14, ADR-0161): DELIVERED right away, without a shipment,
+   * and final.
+   *
+   * @throws InvalidStateTransitionError for an order that ships, or one that is not PAID.
+   */
+  handOver(actorId: StaffId, now: Date): void {
+    if (this.state.fulfillment !== 'IN_STORE') {
+      throw new InvalidStateTransitionError(this.state.status, 'hand over');
+    }
+    this.assertStatus(['PAID'], 'hand over');
+    this.move('DELIVERED', actorId, null, now);
+    this.state = { ...this.state, deliveredAt: now, concludedAt: now };
+  }
+
+  /**
    * Its shipment came back (UC-SHI-09, ADR-0053): a SHIPPED order stays SHIPPED, but concludes then (ADR-0145).
    *
    * @returns false, changing nothing, unless it is SHIPPED and had not concluded.
@@ -749,7 +836,10 @@ export class Order {
     this.state = {
       ...this.state,
       contactEmail: null,
-      shippingAddress: withoutIdentifyingFields(this.state.shippingAddress),
+      shippingAddress:
+        this.state.shippingAddress === null
+          ? null
+          : withoutIdentifyingFields(this.state.shippingAddress),
       anonymizedAt: this.state.anonymizedAt ?? at,
     };
     this.changed = true;
