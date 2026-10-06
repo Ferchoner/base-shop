@@ -226,6 +226,7 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
     access: ['orders.read-blocked'],
   },
   'POST /v1/admin/orders/:orderId/cancel': { access: ['orders.manage'] },
+  'POST /v1/admin/orders/:orderId/hand-over': { access: ['orders.place'] },
   'POST /v1/admin/orders/:orderId/manual-capture': {
     access: ['payments.manage'],
   },

@@ -44,6 +44,7 @@ const SUMMARY_FIELDS = {
   shippingTaxAmount: true,
   discountTotal: true,
   grandTotal: true,
+  fulfillment: true,
   deliveryMinBusinessDays: true,
   deliveryMaxBusinessDays: true,
   placedAt: true,
@@ -293,6 +294,7 @@ function toSummaryView(row: SummaryRow): OrderSummaryView {
       grandTotal: money(row.grandTotal),
     },
     itemCount: row.lines.reduce((sum, { quantity }) => sum + quantity, 0),
+    fulfillment: row.fulfillment,
     deliveryMinBusinessDays: row.deliveryMinBusinessDays,
     deliveryMaxBusinessDays: row.deliveryMaxBusinessDays,
     placedAt: row.placedAt,
@@ -321,14 +323,14 @@ function toOrderView(row: OrderRow): OrderView {
       taxAmount: Money.of(line.taxAmount, 'MXN'),
       lineTotal: Money.of(line.lineTotal, 'MXN'),
     })),
-    // Written by PrismaOrderRepository from ShippingAddress.
-    shippingAddress: row.shippingAddress as unknown as ShippingAddress,
+    // Written by PrismaOrderRepository from ShippingAddress, or null for an order handed over in the store.
+    shippingAddress: row.shippingAddress as unknown as ShippingAddress | null,
   };
 }
 
 function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {
-  // Written by PrismaOrderRepository from ShippingAddress, and once anonymized.
-  const address = row.shippingAddress as unknown as OrderAddress;
+  // Written by PrismaOrderRepository from ShippingAddress, and once anonymized; null for one handed over in the store.
+  const address = row.shippingAddress as unknown as OrderAddress | null;
   const blocked = row.blockedAt !== null;
   return {
     ...toSummaryView(row),
@@ -342,7 +344,8 @@ function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {
       row.warehouseId === null ? null : toId<'Warehouse'>(row.warehouseId),
     anonymizedAt: row.anonymizedAt,
     blockedAt: row.blockedAt,
-    shippingAddress: blocked ? withoutIdentifyingFields(address) : address,
+    shippingAddress:
+      blocked && address !== null ? withoutIdentifyingFields(address) : address,
   };
 }
 

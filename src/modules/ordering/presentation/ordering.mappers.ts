@@ -24,7 +24,7 @@ import type {
   AdminOrderSummaryDto,
   BlockedOrderDataDto,
 } from './admin-order.dto.js';
-import type { CheckoutQuoteDto } from './checkout.dto.js';
+import type { CheckoutQuoteDto, EstimatedDeliveryDto } from './checkout.dto.js';
 import type {
   AdminOrderPaymentDto,
   AdminOrderShipmentDto,
@@ -67,12 +67,22 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
       quote.freeShippingThreshold === null
         ? null
         : toMoneyDto(quote.freeShippingThreshold),
-    estimatedDelivery: {
-      minBusinessDays: quote.deliveryMinBusinessDays,
-      maxBusinessDays: quote.deliveryMaxBusinessDays,
-    },
+    estimatedDelivery: estimatedDeliveryOf(
+      quote.deliveryMinBusinessDays,
+      quote.deliveryMaxBusinessDays,
+    ),
     readyToPlace: quote.readyToPlace,
   };
+}
+
+/** The estimated delivery time; `null` for an order handed over in the store (ADR-0161). */
+function estimatedDeliveryOf(
+  minBusinessDays: number | null,
+  maxBusinessDays: number | null,
+): EstimatedDeliveryDto | null {
+  return minBusinessDays === null || maxBusinessDays === null
+    ? null
+    : { minBusinessDays, maxBusinessDays };
 }
 
 /** What every view of an order shares; each adds its own `payment` and `shipment`. */
@@ -89,10 +99,11 @@ function toOrderFields(view: OrderSummaryView): OrderFieldsDto {
     shippingTaxAmount: toMoneyDto(totals.shippingTaxAmount),
     discountTotal: toMoneyDto(totals.discountTotal),
     grandTotal: toMoneyDto(totals.grandTotal),
-    estimatedDelivery: {
-      minBusinessDays: view.deliveryMinBusinessDays,
-      maxBusinessDays: view.deliveryMaxBusinessDays,
-    },
+    fulfillment: view.fulfillment,
+    estimatedDelivery: estimatedDeliveryOf(
+      view.deliveryMinBusinessDays,
+      view.deliveryMaxBusinessDays,
+    ),
     placedAt: view.placedAt,
     paymentDueAt: view.paymentDueAt,
     paidAt: view.paidAt,
@@ -131,7 +142,8 @@ export function toOrderDto(view: WithPaymentAndShipment<OrderView>): OrderDto {
   return {
     ...toOrderSummaryDto(view),
     lines: view.lines.map(toLineDto),
-    shippingAddress: { ...view.shippingAddress },
+    shippingAddress:
+      view.shippingAddress === null ? null : { ...view.shippingAddress },
   };
 }
 
@@ -154,7 +166,8 @@ export function toAdminOrderSummaryDto(
     version: view.version,
     anonymizedAt: view.anonymizedAt,
     blockedAt: view.blockedAt,
-    shippingAddress: { ...view.shippingAddress },
+    shippingAddress:
+      view.shippingAddress === null ? null : { ...view.shippingAddress },
   };
 }
 
@@ -164,7 +177,10 @@ export function toBlockedOrderDataDto(
 ): BlockedOrderDataDto {
   return {
     contactEmail: view.contactEmail,
-    shippingAddress: { ...view.shippingAddress } as PostalAddressDto,
+    shippingAddress:
+      view.shippingAddress === null
+        ? null
+        : ({ ...view.shippingAddress } as PostalAddressDto),
     shipmentDestination:
       view.shipmentDestination === null
         ? null

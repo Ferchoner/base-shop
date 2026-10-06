@@ -36,8 +36,10 @@ import {
 import { MAX_MONEY_AMOUNT } from '../../../shared-kernel/index.js';
 import {
   ORDER_CHANNELS,
+  ORDER_FULFILLMENTS,
   ORDER_STATUSES,
   type OrderChannel,
+  type OrderFulfillment,
   type OrderStatus,
   RESTOCK_REASONS,
   type RestockReason,
@@ -234,9 +236,13 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   })
   blockedAt: Date | null;
 
-  /** La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada. */
-  @ApiProperty({ type: () => AdminOrderAddressDto })
-  shippingAddress: AdminOrderAddressDto;
+  @ApiProperty({
+    type: () => AdminOrderAddressDto,
+    nullable: true,
+    description:
+      'La dirección de envío. Los campos personales salen `null` si la orden está bloqueada o anonimizada. `null` en una orden `IN_STORE`, que se entrega en la tienda (ADR-0161).',
+  })
+  shippingAddress: AdminOrderAddressDto | null;
 }
 
 /** A line of `AdminOrder`: with its ID, which a restock names (ADR-0142). */
@@ -370,6 +376,15 @@ export class StaffQuoteDto {
   /** El almacén activo del que sale el stock, el de la tienda: no se toma de otro (ADR-0161). */
   @IsUUID('all')
   warehouseId: string;
+
+  @ApiPropertyOptional({
+    enum: ORDER_FULFILLMENTS,
+    description:
+      '`SHIPPING` (por defecto): se envía a una dirección. `IN_STORE`: venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni costo de envío; el comprador puede no dar sus datos (ADR-0161).',
+  })
+  @IsOptional()
+  @IsIn(ORDER_FULFILLMENTS)
+  fulfillment?: OrderFulfillment;
 }
 
 /**
@@ -560,6 +575,14 @@ export class RestockDto {
   movements: RestockMovementDto[];
 }
 
+/** Request of `POST /v1/admin/orders/{orderId}/hand-over` (UC-ORD-14, ADR-0161). */
+export class HandOverDto {
+  /** Versión leída (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
 /** Request of `POST /v1/admin/orders/{orderId}/retry-fulfillment` (UC-ORD-08). */
 export class RetryFulfillmentDto {
   /** Versión leída (bloqueo optimista). */
@@ -589,9 +612,13 @@ export class BlockedOrderDataDto {
    */
   contactEmail: string;
 
-  /** La dirección de envío de la orden. */
-  @ApiProperty({ type: () => PostalAddressDto })
-  shippingAddress: PostalAddressDto;
+  @ApiProperty({
+    type: () => PostalAddressDto,
+    nullable: true,
+    description:
+      'La dirección de envío de la orden; `null` en una orden `IN_STORE` (ADR-0161).',
+  })
+  shippingAddress: PostalAddressDto | null;
 
   @ApiProperty({
     type: () => PostalAddressDto,

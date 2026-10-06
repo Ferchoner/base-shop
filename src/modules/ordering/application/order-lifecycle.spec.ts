@@ -114,6 +114,20 @@ function inStore(
   });
 }
 
+/** The same order, handed over in the store: without an address nor a delivery time (ADR-0161). */
+function handedOverInStore(
+  status: OrderStatus,
+  paidAt: Date | null = null,
+): Order {
+  return Order.restore({
+    ...inStore(status, newId<'Warehouse'>(), paidAt).snapshot,
+    fulfillment: 'IN_STORE',
+    shippingAddress: null,
+    deliveryMinBusinessDays: null,
+    deliveryMaxBusinessDays: null,
+  });
+}
+
 /** The same order, anonymized while it had concluded (ADR-0067). */
 function anonymized(status: OrderStatus, paidAt: Date | null = null): Order {
   const order = saved('EXPIRED');
@@ -1046,5 +1060,74 @@ describe('OrderLifecycle: the events of the order (ADR-0074, ADR-0143)', () => {
     ).rejects.toThrow(InvalidStateTransitionError);
 
     expect(published).toEqual([]);
+  });
+});
+
+describe('OrderLifecycle: an order handed over in the store (UC-ORD-14, ADR-0161)', () => {
+  it('creates no shipment when it is paid, nor when its fulfillment is retried', async () => {
+    const pending = handedOverInStore('PENDING_PAYMENT');
+    const paying = setUp(pending);
+
+    expect(
+      await paying.lifecycle.recordPayment({
+        orderId: pending.id,
+        amount: pending.grandTotal,
+        capturedAt: CAPTURED,
+      }),
+    ).toBe('paid');
+    expect(paying.calls).toEqual(['commit']);
+
+    const waiting = handedOverInStore('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
+    const retrying = setUp(waiting);
+    await retrying.lifecycle.retryFulfillment({
+      orderId: waiting.id,
+      actorId: staff,
+      version: 3,
+    });
+    expect(retrying.calls).toEqual(['reserve 2,1', 'commit']);
+  });
+
+  it('hands a paid order over, DELIVERED by the staff member, and audits it', async () => {
+    const order = handedOverInStore('PAID', CAPTURED);
+    const { lifecycle, orders, audited } = setUp(order);
+
+    await lifecycle.handOver({ orderId: order.id, actorId: staff, version: 3 });
+
+    expect(savedOne(orders).snapshot).toMatchObject({
+      status: 'DELIVERED',
+      deliveredAt: NOW,
+      concludedAt: NOW,
+    });
+    expect(savedOne(orders).statusChanges).toEqual([
+      expect.objectContaining({
+        from: 'PAID',
+        to: 'DELIVERED',
+        actorId: staff,
+      }),
+    ]);
+    expect(audited).toEqual([
+      {
+        action: 'orders.hand-over',
+        resource: { type: 'order', id: order.id },
+        changes: { status: { from: 'PAID', to: 'DELIVERED' } },
+      },
+    ]);
+  });
+
+  it('checks the version and that the order is there, saving nothing otherwise', async () => {
+    const order = handedOverInStore('PAID', CAPTURED);
+    const { lifecycle, orders, audited } = setUp(order);
+
+    await expect(
+      lifecycle.handOver({ orderId: order.id, actorId: staff, version: 2 }),
+    ).rejects.toThrow(VersionConflictError);
+    await expect(
+      lifecycle.handOver({
+        orderId: newId<'Order'>(),
+        actorId: staff,
+        version: 3,
+      }),
+    ).rejects.toThrow(NotFoundError);
+    expect([orders.saved, audited]).toEqual([[], []]);
   });
 });

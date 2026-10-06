@@ -8,6 +8,7 @@ import type {
   CustomerId,
   OrderAddress,
   OrderChannel,
+  OrderFulfillment,
   OrderId,
   OrderLineId,
   OrderStatus,
@@ -45,8 +46,10 @@ export interface OrderSummaryView {
   readonly totals: OrderTotals;
   /** Units of every line. */
   readonly itemCount: number;
-  readonly deliveryMinBusinessDays: number;
-  readonly deliveryMaxBusinessDays: number;
+  readonly fulfillment: OrderFulfillment;
+  /** `null` for an order handed over in the store (ADR-0161). */
+  readonly deliveryMinBusinessDays: number | null;
+  readonly deliveryMaxBusinessDays: number | null;
   readonly placedAt: Date;
   /** When the reservation ends, while the order is PENDING_PAYMENT; `null` in any other status. */
   readonly paymentDueAt: Date | null;
@@ -61,7 +64,8 @@ export interface OrderSummaryView {
 /** An order as its buyer sees it: never an anonymized one (ADR-0067). */
 export interface OrderView extends OrderSummaryView {
   readonly lines: readonly OrderLineView[];
-  readonly shippingAddress: ShippingAddress;
+  /** `null` for an order handed over in the store (ADR-0161). */
+  readonly shippingAddress: ShippingAddress | null;
 }
 
 export interface CustomerOrderFilter {
@@ -98,8 +102,8 @@ export interface AdminOrderSummaryView extends OrderSummaryView {
   readonly anonymizedAt: Date | null;
   /** When the data of its buyer was blocked (ADR-0070); its email and address show as anonymized then. */
   readonly blockedAt: Date | null;
-  /** Whole until the order is blocked or anonymized (ADR-0067, ADR-0070). */
-  readonly shippingAddress: OrderAddress;
+  /** Whole until the order is blocked or anonymized (ADR-0067, ADR-0070); `null` for one handed over in the store. */
+  readonly shippingAddress: OrderAddress | null;
 }
 
 /** An order as the staff sees it (UC-ORD-06), with its lines and its status history, oldest first. */

@@ -48,8 +48,29 @@ function email(
   };
 }
 
-function deliveryTime(order: NoticeOrder): string {
-  return `Plazo de entrega estimado: de ${order.deliveryMinBusinessDays} a ${order.deliveryMaxBusinessDays} días hábiles después de confirmar tu pago.`;
+/** The estimated delivery time; none for an order handed over in the store (ADR-0161). */
+function deliveryTime(order: NoticeOrder): string[] {
+  return order.deliveryMinBusinessDays === null
+    ? []
+    : [
+        `Plazo de entrega estimado: de ${order.deliveryMinBusinessDays} a ${order.deliveryMaxBusinessDays} días hábiles después de confirmar tu pago.`,
+      ];
+}
+
+/** Where the order goes: its address, quoted on one line and without links (ADR-0154), or the store (ADR-0161). */
+function destination(order: NoticeOrder): string[] {
+  const address = order.shippingAddress;
+  if (address === null) return ['Entrega: en la tienda.'];
+  const interior =
+    address.interiorNumber === null
+      ? ''
+      : `, int. ${emailSafeText(address.interiorNumber)}`;
+  return [
+    'Lo enviaremos a:',
+    emailSafeText(address.recipientName),
+    `${emailSafeText(address.street)} ${emailSafeText(address.exteriorNumber)}${interior}, ${emailSafeText(address.neighborhood)}`,
+    `${address.postalCode} ${address.municipalityName}, ${address.stateName}`,
+  ];
 }
 
 function lineOf(line: NoticeOrder['lines'][number]): string {
@@ -69,13 +90,9 @@ export function orderPlacedEmail(
   order: NoticeOrder,
   inStorePayments: boolean,
 ): OrderEmail {
-  const { totals, shippingAddress: address } = order;
+  const { totals } = order;
   const shipping =
     totals.shippingCost.amount === 0 ? 'gratis' : inPesos(totals.shippingCost);
-  const interior =
-    address.interiorNumber === null
-      ? ''
-      : `, int. ${emailSafeText(address.interiorNumber)}`;
   return email(`Recibimos tu pedido ${order.publicCode}`, order, [
     `Recibimos tu pedido ${order.publicCode}.`,
     '',
@@ -88,10 +105,7 @@ export function orderPlacedEmail(
       : [`Descuento: -${inPesos(totals.discountTotal)}`]),
     `Total: ${inPesos(totals.grandTotal)} (IVA incluido: ${inPesos(totals.taxTotal)})`,
     '',
-    'Lo enviaremos a:',
-    emailSafeText(address.recipientName),
-    `${emailSafeText(address.street)} ${emailSafeText(address.exteriorNumber)}${interior}, ${emailSafeText(address.neighborhood)}`,
-    `${address.postalCode} ${address.municipalityName}, ${address.stateName}`,
+    ...destination(order),
     '',
     ...(order.paymentDueAt === null || order.placedInStore
       ? []
@@ -103,7 +117,7 @@ export function orderPlacedEmail(
           `Para pagar, presenta el código ${order.publicCode} en la tienda y paga ${inPesos(totals.grandTotal)}.`,
         ]
       : []),
-    deliveryTime(order),
+    ...deliveryTime(order),
   ]);
 }
 
@@ -112,8 +126,10 @@ export function orderPaidEmail(order: NoticeOrder): OrderEmail {
   return email(`Pago confirmado de tu pedido ${order.publicCode}`, order, [
     `Confirmamos el pago de tu pedido ${order.publicCode} por ${inPesos(order.totals.grandTotal)}.`,
     '',
-    'Te avisaremos cuando vaya en camino.',
-    deliveryTime(order),
+    order.deliveredInStore
+      ? 'Te entregamos tus productos en la tienda.'
+      : 'Te avisaremos cuando vaya en camino.',
+    ...deliveryTime(order),
   ]);
 }
 

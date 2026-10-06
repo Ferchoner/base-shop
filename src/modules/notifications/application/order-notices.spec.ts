@@ -47,6 +47,7 @@ const ORDER: NoticeOrder = {
   deliveryMinBusinessDays: 3,
   deliveryMaxBusinessDays: 7,
   placedInStore: false,
+  deliveredInStore: false,
 };
 
 type SomeOrder = NoticeOrder | AnonymizedNoticeOrder;

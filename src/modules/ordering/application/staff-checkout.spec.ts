@@ -209,15 +209,17 @@ function setUp(
     },
   };
   const shipping: CheckoutShipping = {
-    quote: () =>
-      Promise.resolve({
+    quote: () => {
+      calls.push('shipping');
+      return Promise.resolve({
         cost: mxn(9_900),
         taxAmount: mxn(1_366),
         taxRateBp: 1600,
         freeShippingThreshold: mxn(150_000),
         deliveryMinBusinessDays: 3,
         deliveryMaxBusinessDays: 7,
-      }),
+      });
+    },
   };
   const customers: CheckoutCustomers = {
     contact: (customerId) => {
@@ -295,6 +297,7 @@ function setUp(
 const order = (changes: Partial<StaffOrderInput> = {}): StaffOrderInput => ({
   staffId,
   warehouseId: store,
+  fulfillment: 'SHIPPING',
   lines: [{ variantId: shirt, quantity: 2 }],
   buyer: { customerId: customer },
   shippingAddress: { addressId: savedId },
@@ -320,6 +323,7 @@ describe('StaffCheckout: quote (UC-ORD-12, ADR-0161)', () => {
         { variantId: draft, quantity: 1 },
       ],
       warehouseId: store,
+      fulfillment: 'SHIPPING',
     });
 
     expect(calls.slice(0, 2)).toEqual(['isActiveWarehouse store', 'variants']);
@@ -346,6 +350,7 @@ describe('StaffCheckout: quote (UC-ORD-12, ADR-0161)', () => {
       checkout.quote({
         lines: [{ variantId: shirt, quantity: 1 }],
         warehouseId: store,
+        fulfillment: 'SHIPPING',
       }),
     ).rejects.toThrow(new NotFoundError('Warehouse', store));
     expect(calls).toEqual(['isActiveWarehouse store']);
@@ -358,6 +363,7 @@ describe('StaffCheckout: quote (UC-ORD-12, ADR-0161)', () => {
       setUp().checkout.quote({
         lines: [{ variantId: unknown, quantity: 1 }],
         warehouseId: store,
+        fulfillment: 'SHIPPING',
       }),
     ).rejects.toThrow(new NotFoundError('Variant', unknown));
   });
@@ -381,7 +387,7 @@ describe('StaffCheckout: quote (UC-ORD-12, ADR-0161)', () => {
       ],
     ]) {
       await expect(
-        checkout.quote({ lines, warehouseId: store }),
+        checkout.quote({ lines, warehouseId: store, fulfillment: 'SHIPPING' }),
       ).rejects.toThrow(InvalidValueError);
     }
     expect(calls).toEqual([]);
@@ -389,9 +395,14 @@ describe('StaffCheckout: quote (UC-ORD-12, ADR-0161)', () => {
     await checkout.quote({
       lines: [{ variantId: shirt, quantity: 30 }],
       warehouseId: store,
+      fulfillment: 'SHIPPING',
     });
     await expect(
-      checkout.quote({ lines: many.slice(0, 100), warehouseId: store }),
+      checkout.quote({
+        lines: many.slice(0, 100),
+        warehouseId: store,
+        fulfillment: 'SHIPPING',
+      }),
     ).rejects.toThrow(NotFoundError);
   });
 });
@@ -408,6 +419,7 @@ describe('StaffCheckout: place (UC-ORD-13, ADR-0161)', () => {
       'isActiveWarehouse store',
       'address',
       'variants',
+      'shipping',
       'reserve',
       'audit',
     ]);
@@ -440,6 +452,7 @@ describe('StaffCheckout: place (UC-ORD-13, ADR-0161)', () => {
         changes: {
           status: { from: null, to: 'PENDING_PAYMENT' },
           channel: { from: null, to: 'STORE' },
+          fulfillment: { from: null, to: 'SHIPPING' },
           warehouseId: { from: null, to: store },
         },
       },
@@ -522,5 +535,97 @@ describe('StaffCheckout: place (UC-ORD-13, ADR-0161)', () => {
       InvalidValueError,
     );
     expect(calls).toEqual([]);
+  });
+});
+
+describe('StaffCheckout: a sale handed over in the store (ADR-0161)', () => {
+  const counter = (changes: Partial<StaffOrderInput> = {}) =>
+    order({
+      fulfillment: 'IN_STORE',
+      buyer: null,
+      shippingAddress: null,
+      expectedTotal: 119_800,
+      ...changes,
+    });
+
+  it('quotes it without shipping nor a delivery time', async () => {
+    const { checkout, calls } = setUp();
+
+    const quote = await checkout.quote({
+      lines: [{ variantId: shirt, quantity: 2 }],
+      warehouseId: store,
+      fulfillment: 'IN_STORE',
+    });
+
+    expect(calls).not.toContain('shipping');
+    expect(quote).toMatchObject({
+      freeShippingThreshold: null,
+      deliveryMinBusinessDays: null,
+      deliveryMaxBusinessDays: null,
+    });
+    expect(quote.totals).toMatchObject({
+      shippingCost: mxn(0),
+      grandTotal: mxn(119_800),
+    });
+  });
+
+  it('places it without an address nor buyer data, and audits how it is delivered', async () => {
+    const { checkout, calls, orders, audited } = setUp();
+
+    const id = await checkout.place(counter());
+
+    expect(calls).toEqual([
+      'transaction',
+      'isActiveWarehouse store',
+      'variants',
+      'reserve',
+      'audit',
+    ]);
+    expect(orders.saved[0].snapshot).toMatchObject({
+      id,
+      fulfillment: 'IN_STORE',
+      customerId: null,
+      contactEmail: null,
+      shippingAddress: null,
+    });
+    expect(audited[0].changes).toMatchObject({
+      fulfillment: { from: null, to: 'IN_STORE' },
+    });
+  });
+
+  it('places it for a customer or a guest who gives their data too', async () => {
+    const { checkout, orders } = setUp();
+
+    await checkout.place(counter({ buyer: { customerId: customer } }));
+    await checkout.place(counter({ buyer: guest }));
+
+    expect(
+      orders.saved.map(({ snapshot }) => [
+        snapshot.customerId,
+        snapshot.contactEmail,
+      ]),
+    ).toEqual([
+      [customer, 'ana@example.com'],
+      [null, 'cliente@example.com'],
+    ]);
+  });
+
+  it('rejects an order to ship without a buyer or an address, and one handed over with an address', async () => {
+    const { checkout, calls } = setUp();
+
+    for (const input of [
+      order({ buyer: null }),
+      order({ shippingAddress: null }),
+      counter({ shippingAddress: ADDRESS }),
+    ]) {
+      await expect(checkout.place(input)).rejects.toThrow(InvalidValueError);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('answers the total of the lines alone', async () => {
+    await expect(
+      setUp().checkout.place(counter({ expectedTotal: 129_700 })),
+    ).rejects.toThrow(TotalMismatchError);
   });
 });

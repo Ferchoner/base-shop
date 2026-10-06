@@ -185,7 +185,7 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 
 ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Particulares de 2025; la validación legal completa corresponde a un especialista):
 
-- Se guarda la versión del aviso de privacidad presentada en el registro y en el checkout de invitado. En una orden de invitado que el staff colocó en la tienda física, también la cuenta que capturó los datos (ADR-0161); la validación legal de esa captura está en la lista de `PROJECT.md` §9.
+- Se guarda la versión del aviso de privacidad presentada en el registro y en el checkout de invitado. En una orden de invitado que el staff colocó en la tienda física, también la cuenta que capturó los datos (ADR-0161); la validación legal de esa captura está en la lista de `PROJECT.md` §9. Una venta de mostrador no pide datos del comprador: sin ellos, la orden no guarda ninguno (minimización, ADR-0161).
 - Derechos ARCO por canal externo; el staff ejecuta las acciones en el sistema.
 - Anonimización de clientes y compradores invitados, implementada en T-132 (ADR-0145): no deja datos personales del comprador en sus tablas, en las respuestas guardadas por idempotencia (también la que guardó el staff al colocar una orden en la tienda física, ADR-0161) ni en los enlaces de acceso a sus pedidos (ADR-0148), y se audita sin valores.
 - Logs y auditoría sin valores de datos personales.

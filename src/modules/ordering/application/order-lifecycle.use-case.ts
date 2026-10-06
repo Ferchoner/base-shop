@@ -158,7 +158,9 @@ export class OrderLifecycle {
       const before = order.status;
       const now = this.clock.now();
       order.fulfillManually(input.actorId, reservation.id, now);
-      await this.shipments.createFor(order);
+      if (order.fulfillment === 'SHIPPING') {
+        await this.shipments.createFor(order);
+      }
       await this.orders.save(order, now);
       await this.audit.record({
         action: 'orders.retry-fulfillment',
@@ -166,6 +168,33 @@ export class OrderLifecycle {
         changes: changesBetween({ status: before }, { status: order.status }),
       });
       this.events.publish(orderPaid(order.id, now));
+    });
+  }
+
+  /**
+   * Hands a paid order over in the physical store (UC-ORD-14, ADR-0161): it becomes DELIVERED, without a shipment.
+   * Audited as `orders.hand-over`.
+   *
+   * @throws NotFoundError; VersionConflictError; InvalidStateTransitionError for an order that ships, or one that is
+   *   not PAID.
+   */
+  handOver(input: {
+    orderId: OrderId;
+    actorId: StaffId;
+    version: number;
+  }): Promise<void> {
+    return this.transactions.run(async () => {
+      const order = await this.found(input.orderId);
+      assertVersion(order.version, input.version);
+      const before = order.status;
+      const now = this.clock.now();
+      order.handOver(input.actorId, now);
+      await this.orders.save(order, now);
+      await this.audit.record({
+        action: 'orders.hand-over',
+        resource: { type: 'order', id: order.id },
+        changes: changesBetween({ status: before }, { status: order.status }),
+      });
     });
   }
 
@@ -209,7 +238,10 @@ export class OrderLifecycle {
           return 'already-processed';
       }
       // A paid order has its shipment from the start (UC-SHI-03, ADR-0140).
-      if (outcome === 'paid') await this.shipments.createFor(order);
+      // An order handed over in the store ships nowhere (ADR-0161).
+      if (outcome === 'paid' && order.fulfillment === 'SHIPPING') {
+        await this.shipments.createFor(order);
+      }
       await this.orders.save(order, now);
       if (outcome === 'paid') this.events.publish(orderPaid(order.id, now));
       return outcome;

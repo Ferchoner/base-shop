@@ -717,7 +717,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Dentro de `v1` solo se hacen cambios compatibles con clientes existentes (agregar campos o endpoints). Un cambio incompatible requiere una nueva versión.
   - La especificación OpenAPI se genera para `v1`.
   - Política para retirar versiones antiguas: se define cuando exista una segunda versión.
-- **Estado:** Aceptada. Implementada con el versionado por ruta de NestJS (ADR-0096).
+- **Estado:** Aceptada. Implementada con el versionado por ruta de NestJS (ADR-0096). ADR-0161 acepta una excepción acotada: en una orden `IN_STORE`, que solo coloca el staff, `shippingAddress` y `estimatedDelivery` pueden ser `null`.
 
 ---
 
@@ -1668,7 +1668,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambia el contrato de `POST …/shipments/{id}/dispatch` (acepta `ownDelivery`) y agrega `ownDelivery` a `AdminShipment` y a `shipment` de `Order`.
   - `PATCH …/shipments/{id}` no puede capturar paquetería ni guía en un envío despachado como entrega propia.
 - **Revisar si:** el negocio quiere ofrecer recoger en tienda, o se integra una paquetería (ADR-0041).
-- **Estado:** Aceptada (aprobación formal 2026-09-26). Implementada en T-195 (ADR-0140, ADR-0141); la paquetería y la guía capturadas por error se quitan con el `PATCH` mientras el envío está pendiente.
+- **Estado:** Aceptada (aprobación formal 2026-09-26). Implementada en T-195 (ADR-0140, ADR-0141); la paquetería y la guía capturadas por error se quitan con el `PATCH` mientras el envío está pendiente. ADR-0161 (versión 1.2) agrega la entrega en la tienda de la venta de mostrador (`fulfillment` `IN_STORE`), sin dirección, costo de envío ni envío; recoger en tienda los pedidos en línea sigue fuera.
 
 ---
 
@@ -4004,7 +4004,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b resuelve la carrera entre cancelar y despachar. La cancelación ya bloquea el envío por su orden.
   - El contrato suma CANCELLED a los estados del envío y `cancelledAt` a `AdminShipment`.
   - Las pruebas que pagan órdenes borran también sus envíos.
-- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación. La parte b está en ADR-0141. ADR-0160: el envío sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`), no del almacén activo.
+- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación. La parte b está en ADR-0141. ADR-0160: el envío sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`), no del almacén activo. ADR-0161: una orden `IN_STORE` pagada no crea envío; el staff la entrega en la tienda.
 
 ---
 
@@ -5001,3 +5001,12 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - el intento capturado guarda el método; `AdminPayment.attempts[].method` y `AdminOrder.payment.method` lo muestran, y la auditoría `payments.manual-capture` lo registra;
   - el pago manual deja de ser solo para pruebas en el código, `.env.example` y la documentación; `MANUAL_PAYMENTS_ENABLED` sigue en `false` por defecto;
   - el reembolso manual no cambia.
+
+  Parte b (plan aprobado el 2026-10-06, con sus 13 recomendaciones, incluida la excepción a ADR-0034); T-187 queda en DONE:
+  - la migración `20261006170000_ordering_in_store_delivery` crea `order_fulfillment` y agrega `fulfillment`, `SHIPPING` para las órdenes existentes. Deja opcionales la dirección y los días de entrega; `orders_fulfillment_check` los exige en `SHIPPING`, y en `IN_STORE` exige una orden `STORE` sin ellos y sin costo de envío;
+  - la cotización y la colocación del staff aceptan `fulfillment`. Una orden `IN_STORE` no tiene dirección (`onlyForShipping`), su envío cuesta 0 y no consulta el método de envío;
+  - el comprador de una venta `IN_STORE` puede no dar datos: la orden queda sin cliente, email ni aviso de privacidad, y los CHECKs del email y del aviso lo admiten solo ahí. Sin email no recibe correos ni se consulta como invitado;
+  - una orden `IN_STORE` pagada no crea envío. `POST /v1/admin/orders/{orderId}/hand-over`, con `orders.place` y `version`, la lleva de PAID a DELIVERED, con el staff en el historial, y se audita como `orders.hand-over`;
+  - `Order`, `AdminOrder` y los listados agregan `fulfillment`, y en una orden `IN_STORE` muestran `shippingAddress` y `estimatedDelivery` en `null`: la excepción a ADR-0034;
+  - los correos de una orden `IN_STORE` dicen "Entrega: en la tienda" y "Te entregamos tus productos en la tienda", sin plazo de entrega;
+  - anonimizar una orden `IN_STORE` deja su dirección en `null`.

@@ -12,6 +12,11 @@
   - Una variante que no existe responde 404 en las cotizaciones, en lugar de un error 500.
   - El correo de un pedido de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
 - T-187 parte a, segundo pull request (ADR-0161): el pago en tienda deja de ser solo para pruebas. `POST /v1/admin/orders/{orderId}/manual-capture` acepta `method`, opcional (`CASH`, `CARD_TERMINAL` o `TRANSFER`), y `AdminPayment.attempts[].method` y `AdminOrder.payment.method` lo muestran. `MANUAL_PAYMENTS_ENABLED` sigue en `false` por defecto: el operador lo enciende cuando la tienda cobra.
+- T-187 parte b (ADR-0161); T-187 queda en DONE. La venta de mostrador.
+  - `POST /v1/admin/orders/quote` y `POST /v1/admin/orders` aceptan `fulfillment`, `SHIPPING` por defecto o `IN_STORE`. Una orden `IN_STORE` no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos.
+  - `POST /v1/admin/orders/{orderId}/hand-over` (UC-ORD-14) entrega en la tienda una orden `IN_STORE` pagada, de PAID a DELIVERED, sin envío.
+  - `Order`, `AdminOrder` y los listados agregan `fulfillment`. En una orden `IN_STORE`, `shippingAddress` y `estimatedDelivery` son `null`, y `contactEmail` también si el comprador no dio datos: una excepción acotada a ADR-0034 que decidió ADR-0161.
+  - Los correos de una venta de mostrador dicen que se entrega en la tienda, sin plazo de entrega.
 
 ## 1.1.0 (2026-10-06)
 
