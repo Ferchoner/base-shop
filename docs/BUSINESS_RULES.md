@@ -11,7 +11,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-05. Un cliente registrado necesita email verificado para colocar una orden; sin verificar puede iniciar sesión y usar el carrito (ADR-0044). Las compras como invitado no requieren verificación; el invitado es responsable del email que usa.
 - BR-USR-06. El staff se suspende, nunca se borra. Un cliente que pide eliminar su cuenta se anonimiza; sus órdenes se conservan (ADR-0038).
 - BR-USR-07. Un rol solo se borra si no tiene usuarios asignados.
-- BR-USR-08. Cada cuenta es de tipo cliente o staff. Las cuentas de staff no compran y los clientes nunca tienen roles (ADR-0043).
+- BR-USR-08. Cada cuenta es de tipo cliente o staff. Las cuentas de staff no compran para sí: colocan pedidos a nombre de un cliente en la tienda física (BR-ORD-19). Los clientes nunca tienen roles (ADR-0043, ADR-0161).
 - BR-USR-09. Las cuentas de staff las crea quien tenga `staff.manage`, sin dar roles con permisos que no tiene (BR-USR-20), con contraseña temporal que se cambia obligatoriamente en el primer inicio de sesión (ADR-0116, ADR-0154).
 - BR-USR-10. Las contraseñas de todas las cuentas cumplen la política de ADR-0047 (implementada en ADR-0115: `PasswordPolicy`).
 - BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas (`EMAIL_VERIFICATION_TTL`); cambiar el email obliga a verificarlo de nuevo, y el email anterior recibe un aviso (ADR-0046, ADR-0117).
@@ -124,11 +124,12 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-11. La consulta de invitado responde con el mismo error si la orden no existe o el email no coincide, y tiene rate limiting obligatorio (ADR-0020). El mismo error vale para un código que no puede existir y para una orden de cliente (ADR-0138).
 - BR-ORD-12. Cada orden tiene un número interno consecutivo, visible solo para el staff, y un código público aleatorio (`XXXX-XXXX`, Base32 Crockford) que es el único que ven los clientes (ADR-0049).
 - BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío con su IVA y tasa, el plazo de entrega estimado (ADR-0083), el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042, ADR-0079).
-- BR-ORD-14. Cuando una orden expira, sus líneas regresan al carrito del cliente (ADR-0054). Una orden cancelada nunca se reactiva (ADR-0055).
+- BR-ORD-14. Cuando una orden expira, sus líneas regresan al carrito del que salió (ADR-0054); las de una orden que el staff colocó en la tienda física no regresan a ninguno, porque no salió de un carrito (ADR-0161). Una orden cancelada nunca se reactiva (ADR-0055).
 - BR-ORD-15. Colocar orden e iniciar pago exigen `Idempotency-Key`, ligada a quien la envía y al endpoint; un reintento con la misma llave y el mismo contenido no repite la operación (ADR-0063).
 - BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal y en el costo de envío (precios y envío con IVA incluido, ADR-0008, ADR-0079). La base de datos verifica esta igualdad (ADR-0066).
 - BR-ORD-17. Un cliente con sesión puede colocar una orden de invitado con un carrito de invitado: la orden queda como de invitado, con el email de contacto que indique y la versión del aviso de privacidad (ADR-0132).
 - BR-ORD-18. Un pago capturado de una orden cancelada no la reactiva: la orden sigue cancelada, con el pago registrado, a la espera de su reembolso (ADR-0051, ADR-0133).
+- BR-ORD-19. El staff con `orders.place` coloca órdenes a nombre de un cliente presente en la tienda física: de un cliente registrado con el email verificado, o de un invitado con su email y la versión del aviso de privacidad que el staff le presentó. La orden queda en el canal `STORE`, con la cuenta de staff que la colocó y el almacén que eligió, del único que sale su stock, también cuando se reserva otra vez (ADR-0161).
 
 ## Pagos
 
@@ -188,4 +189,4 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-NTF-01. El cliente recibe un correo por orden recibida, pago confirmado, orden enviada, orden cancelada y reembolso completado (ADR-0074).
 - BR-NTF-02. No se envía correo por orden expirada, orden entregada, entrega fallida, devolución, pago tardío sin stock ni pago fallido, y no hay notificaciones al staff (ADR-0074).
 - BR-NTF-03. El destinatario es el email de contacto de la orden; las órdenes anonimizadas no reciben correo (ADR-0067, ADR-0074).
-- BR-NTF-04. Los correos muestran solo el código público de la orden (ADR-0049), sin datos de pago ni tokens, y son transaccionales, sin contenido promocional. Un correo que no se pudo enviar no afecta a la operación que lo originó, y se reintenta con la entrega de su evento: hasta 8 intentos en unas 22 horas. En un caso raro puede llegar dos veces (ADR-0150). El de orden recibida indica cómo pagar en la tienda solo si el pago manual está habilitado (ADR-0143).
+- BR-NTF-04. Los correos muestran solo el código público de la orden (ADR-0049), sin datos de pago ni tokens, y son transaccionales, sin contenido promocional. Un correo que no se pudo enviar no afecta a la operación que lo originó, y se reintenta con la entrega de su evento: hasta 8 intentos en unas 22 horas. En un caso raro puede llegar dos veces (ADR-0150). El de orden recibida indica cómo pagar en la tienda solo si el pago manual está habilitado (ADR-0143); el de una orden que el staff colocó en la tienda física no lo indica, ni hasta cuándo se apartan los productos, porque el cliente está ahí (ADR-0161).

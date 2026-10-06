@@ -920,11 +920,13 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `audit.read` | Consultar la auditoría |
 | `events.manage` | Ver y reintentar las entregas de eventos de dominio (agregado por ADR-0150) |
 | `orders.read-blocked` | Consultar los datos personales bloqueados de un pedido, con motivo y auditado (agregado por ADR-0152) |
+| `orders.place` | Colocar pedidos a nombre de un cliente en la tienda física (agregado por ADR-0161) |
 
   - **Roles iniciales:**
     - Superadministrador: todos los permisos. No se puede quitar el último (BR-USR-03).
     - Administrador: todos excepto `staff.manage`. Es el rol "de nivel alto" de ADR-0021.
     - Operador: `catalog.*`, `pricing.*`, `inventory.*`, `orders.read`, `shipping.manage`, `customers.read`.
+    - Vendedor (agregado por ADR-0161): `catalog.read`, `inventory.read`, `orders.read`, `orders.place`, `customers.read`.
   - **Tipo de cuenta explícito:** cliente o staff. Las cuentas de staff no compran y los clientes nunca tienen roles.
   - **Primer superadministrador:** se crea con un script de línea de comandos ejecutado manualmente, con los datos en variables de entorno. No hay usuarios predeterminados en el repositorio ni en las migraciones.
   - **Alta del staff:** la hace un superadministrador desde `/v1/admin`, con contraseña temporal que se cambia obligatoriamente en el primer inicio de sesión. No existe registro público de staff.
@@ -935,7 +937,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los roles se editan en base de datos, así que pueden crearse otros sin cambiar código.
   - Sin segundo factor, una contraseña del staff filtrada da acceso completo a sus permisos; el rate limiting del login y la auditoría de inicios de sesión son las mitigaciones actuales.
 - **Revisar:** segundo factor (2FA) para el staff como mejora de seguridad a mediano o largo plazo, idealmente antes de operar con clientes reales.
-- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito. ADR-0152 agrega `orders.read-blocked` al Administrador, por migración.
+- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito. ADR-0152 agrega `orders.read-blocked` al Administrador, por migración. ADR-0161 agrega `orders.place` al Administrador y el rol Vendedor, por migración, y el staff coloca pedidos a nombre de un cliente en la tienda física, sin comprar para sí.
 
 ---
 
@@ -2644,7 +2646,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
   - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
   - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
-- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity. ADR-0153 compara las rutas sin distinguir mayúsculas, como enruta Express, y una matriz revisada comprueba en la CI cómo se protege cada ruta.
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity. ADR-0153 compara las rutas sin distinguir mayúsculas, como enruta Express, y una matriz revisada comprueba en la CI cómo se protege cada ruta. ADR-0161 agrega `orders.place` al catálogo y siembra el rol Vendedor por migración; si un operador ya creó un rol con ese nombre, no lo toca.
 
 ---
 
@@ -3671,7 +3673,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La migración agrega `payment_due_at` `NOT NULL` sin valor predeterminado, porque `orders` estaba vacía.
   - Pruebas de concurrencia contra PostgreSQL: dos órdenes del mismo carrito, dos carritos por la última unidad, dos órdenes del mismo cliente y una orden que espera un cambio del carrito en curso.
   - Hasta T-230, las órdenes sin pago no vencen y mantienen su stock apartado (ADR-0128).
-- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`. El reintegro de P-73 se implementó en T-161 (ADR-0142). La anonimización, que necesita a Identity y a Ordering, la orquesta el módulo `privacy` (ADR-0145).
+- **Estado:** Aceptada (plan de T-180 aprobado el 2026-10-01, con sus 5 recomendaciones). La parte b está en ADR-0133, que también quita `orderCount`. El reintegro de P-73 se implementó en T-161 (ADR-0142). La anonimización, que necesita a Identity y a Ordering, la orquesta el módulo `privacy` (ADR-0145). ADR-0161 (T-187 parte a): el staff coloca órdenes sin carrito con `StaffCheckout`, que comparte con `Checkout` lo que no depende del carrito (`OrderPlacement`). La primera fila del historial lleva al staff, y su colocación se audita como `orders.place`.
 
 ---
 
@@ -3885,7 +3887,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las pruebas que vencen órdenes también restauran su carrito.
   - Prueba contra PostgreSQL: la restauración junto con una línea nueva del mismo cliente deja un solo carrito activo con todo.
   - T-181 parte b agrega la recompra.
-- **Estado:** Aceptada (plan de T-181 aprobado el 2026-10-01, con sus 3 recomendaciones). La comparación con la fecha del vencimiento se agregó durante la implementación. La parte b está en ADR-0139.
+- **Estado:** Aceptada (plan de T-181 aprobado el 2026-10-01, con sus 3 recomendaciones). La comparación con la fecha del vencimiento se agregó durante la implementación. La parte b está en ADR-0139. ADR-0161: una orden que el staff colocó en la tienda física no tiene carrito de origen; `OrderExpired` lo lleva en `null` y Shopping no restaura nada.
 
 ---
 
@@ -4930,6 +4932,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - los ajustes aceptan almacenes inactivos, y el motivo `WAREHOUSE_TRANSFER` llega con dos migraciones, porque un valor nuevo de un enum de PostgreSQL no se usa en la transacción que lo crea;
   - el listado de envíos filtra por `warehouseId`, y `AdminOrder.shipment` lo muestra.
 
+  ADR-0161 agrega la política `fixedWarehouse`: una orden de la tienda física reserva solo en el almacén que eligió el staff, también al reservarse otra vez.
+
 ## ADR-0161 — Ventas asistidas en la tienda física
 
 - **Fecha:** 2026-10-06
@@ -4979,4 +4983,16 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambios compatibles en `/v1`: rutas nuevas, campos nuevos en `AdminOrder` y en el registro del pago, y filtros nuevos.
   - Al implementarse, modifica ADR-0040, ADR-0043, ADR-0111, ADR-0132, ADR-0137 y ADR-0160, y las reglas BR-USR-08, BR-PAY-09 y BR-ORD-14. La parte (b) modifica además ADR-0078 y BR-SHP-11.
 - **Revisar si:** se agregan la caja, la factura, el apartado o recoger en tienda los pedidos en línea.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-06). Se implementa en T-187, en la versión 1.2.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-06). Se implementa en T-187, en la versión 1.2. Parte a, primer pull request (plan aprobado el 2026-10-06, con sus 14 recomendaciones):
+  - `orders.place` llega al catálogo, y la migración `20261006150000_identity_orders_place_permission` lo da al Administrador y siembra el rol Vendedor;
+  - la migración `20261006150100_ordering_store_orders` agrega `channel` (`ONLINE` por defecto para las órdenes existentes), `placed_by` y `warehouse_id`, deja `source_cart_id` opcional, y `orders_channel_check` exige un carrito a una orden `ONLINE` y la cuenta de staff y el almacén a una `STORE`;
+  - `POST /v1/admin/orders/quote` y `POST /v1/admin/orders`, con `StaffCheckout`, que comparte con el checkout los precios, el envío, el comprador, la dirección y el código público. Una variante que no existe responde 404 en las dos cotizaciones, en lugar de un error 500;
+  - la validación responde `exactlyOneBuyer`, `onlyForGuest` y `onlyWithCustomer`; un almacén que no existe o está inactivo responde 404, comprobado con su bloqueo compartido;
+  - la política `fixedWarehouse` reserva solo en ese almacén, y el 409 lista lo que ese almacén deja fuera. El pago tardío y el reintento de surtido reservan otra vez ahí; si ya está inactivo, falta stock;
+  - sin carrito, una orden vencida no restaura ninguno, y la recompra del staff de un invitado responde 409 `source-cart-unavailable`;
+  - la anonimización borra la respuesta que el staff guardó al colocar la orden, por la ruta y el `id` de la orden, sin tocar sus demás respuestas;
+  - el límite `admin-place-order`, de 30 por cuenta de staff cada 10 minutos (`RATE_LIMIT_ADMIN_PLACE_ORDER`);
+  - `AdminOrder` muestra `channel`, `placedBy` y `warehouseId`, y el listado filtra por `channel` y `placedBy`;
+  - el correo de una orden `STORE` no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
+
+  El método del pago en tienda llega en el segundo pull request de la parte a.

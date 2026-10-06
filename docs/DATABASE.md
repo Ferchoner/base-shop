@@ -465,7 +465,10 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | grand_total | integer | No | — |
 | shipping_address | jsonb | No | Snapshot con el formato de ADR-0057 |
 | reservation_id | uuid | Sí | Referencia lógica a Inventory |
-| source_cart_id | uuid | No | Referencia lógica a Shopping (restauración, ADR-0054) |
+| channel | enum `order_channel` (ONLINE, STORE) | No | Default `ONLINE`: la tienda en línea, desde un carrito; `STORE`, la tienda física, donde la coloca el staff (ADR-0161) |
+| source_cart_id | uuid | Sí | Referencia lógica a Shopping (restauración, ADR-0054); `NULL` en una orden `STORE`, que no sale de un carrito (ADR-0161) |
+| placed_by | uuid | Sí | Referencia lógica a Identity: la cuenta de staff que colocó una orden `STORE` (ADR-0161) |
+| warehouse_id | uuid | Sí | Referencia lógica a Inventory: el almacén que eligió el staff para una orden `STORE`, del único que sale su stock (ADR-0161) |
 | privacy_notice_version | text | Sí | Versión del aviso presentada en el checkout de invitado (ADR-0067) |
 | anonymized_at | timestamptz(3) | Sí | Marca de anonimización (ADR-0067) |
 | concluded_at | timestamptz(3) | Sí | Cuándo concluyó la orden, desde cuando se cuentan sus plazos de conservación; `NULL` mientras puede cambiar (ADR-0151) |
@@ -476,8 +479,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso); `CHECK (blocked_at IS NULL OR concluded_at IS NOT NULL)` (solo se bloquea una orden que concluyó, ADR-0151).
-- **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado); `orders_retention_idx` sobre `(concluded_at) WHERE anonymized_at IS NULL` (ciclo de conservación, ADR-0151).
+- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso); `CHECK (blocked_at IS NULL OR concluded_at IS NOT NULL)` (solo se bloquea una orden que concluyó, ADR-0151); `orders_channel_check`: una orden `ONLINE` tiene `source_cart_id` y no tiene `placed_by` ni `warehouse_id`, y una `STORE` tiene `placed_by` y `warehouse_id` y no tiene `source_cart_id` (ADR-0161).
+- **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado); `orders_retention_idx` sobre `(concluded_at) WHERE anonymized_at IS NULL` (ciclo de conservación, ADR-0151); `(placed_by, placed_at DESC) WHERE placed_by IS NOT NULL` (órdenes de una cuenta de staff, ADR-0161).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
 - **Implementado en T-180 parte a (ADR-0132):**
   - la orden se escribe con `INSERT … ON CONFLICT (public_code) DO NOTHING`: un código repetido no aborta la transacción, y la aplicación sortea otro;
@@ -494,6 +497,9 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
   - la migración `20261004120000_ordering_retention` agrega `concluded_at`, `blocked_at`, su restricción y el índice parcial, y llena `concluded_at` de las órdenes que ya concluyeron. Para una SHIPPED con su envío devuelto toma `shipments.returned_at`, una lectura de otra tabla que solo hace la migración;
   - el job busca hasta 1,000 órdenes con `concluded_at <= corte` y sin `anonymized_at` (y sin `blocked_at`, para bloquear), por `concluded_at` y luego `id`; cada una se procesa después con `SELECT … FOR UPDATE`;
   - las vistas del comprador filtran `blocked_at IS NULL`, y la búsqueda del staff por email también.
+- **Implementado en T-187 parte a (ADR-0161):**
+  - la migración `20261006150100_ordering_store_orders` crea `order_channel` y agrega `channel`, con `ONLINE` para las órdenes existentes, que salieron todas de un carrito; deja `source_cart_id` opcional y agrega `placed_by`, `warehouse_id`, `orders_channel_check` y el índice parcial;
+  - la primera entrada de `order_status_history` lleva como actor a la cuenta de staff en una orden `STORE`.
 
 ### 8.2 `order_lines` (order_items)
 
@@ -716,7 +722,7 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 | expires_at | timestamptz(3) | No | +24 horas |
 
 - **Índices:** `(expires_at)` para la limpieza, que borra las llaves vencidas cada día por lotes (ADR-0144).
-- **Anonimización (T-132, ADR-0145):** se borran las llaves COMPLETED del cliente (`USER`) o del carrito de cada orden de invitado (`CART`), porque su `response_body` repite el email y la dirección de la orden.
+- **Anonimización (T-132, ADR-0145):** se borran las llaves COMPLETED del cliente (`USER`) o del carrito de cada orden de invitado (`CART`), porque su `response_body` repite el email y la dirección de la orden. La de una orden `STORE` está en el alcance de la cuenta de staff, junto con sus demás respuestas, así que se borra solo la de `POST /v1/admin/orders` cuyo `response_body` es de esa orden (ADR-0161).
 - **Uso (ADR-0099):** `created_at` marca el inicio del intento actual; una fila IN_PROGRESS con más de 60 segundos se considera abandonada y la toma la siguiente solicitud con la misma huella. Una fila vencida (`expires_at` pasado) se reutiliza como nueva. `response_body` guarda `{ "kind": "success", "status", "body", "location" }` o, para un error de negocio, `{ "kind": "problem", "code", "extensions" }`.
 
 ### 11.3 `geo_states` y `geo_municipalities`
@@ -790,7 +796,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
     - Migrar a mano con un túnel SSH: aceptable solo al inicio, porque no es reproducible.
   - **Reversión de un despliegue:** no se revierte la migración. Gracias a los cambios en dos pasos, la versión anterior de la API sigue funcionando con el esquema nuevo.
 - **Motivo en la auditoría:** la migración `20260928140000_audit_reason` (T-130, ADR-0112) agrega `audit_logs.reason`.
-- **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043.
+- **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043. La migración `20261006150000_identity_orders_place_permission` (T-187, ADR-0161) da `orders.place` al Administrador y crea el rol Vendedor, sin tocar un rol con ese nombre que ya exista.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).
 
