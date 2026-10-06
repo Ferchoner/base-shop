@@ -400,7 +400,8 @@ export class OrderFieldsDto {
     type: String,
     nullable: true,
     example: 'cliente@example.com',
-    description: '`null` solo en órdenes anonimizadas (ADR-0067).',
+    description:
+      '`null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), y en una venta de mostrador sin datos del comprador (ADR-0161).',
   })
   contactEmail: string | null;
 

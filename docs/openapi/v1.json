@@ -785,7 +785,7 @@
             "type": "string"
           },
           "contactEmail": {
-            "description": "`null` solo en órdenes anonimizadas (ADR-0067).",
+            "description": "`null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), y en una venta de mostrador sin datos del comprador (ADR-0161).",
             "example": "cliente@example.com",
             "nullable": true,
             "type": "string"
@@ -1314,7 +1314,7 @@
             "type": "string"
           },
           "contactEmail": {
-            "description": "`null` solo en órdenes anonimizadas (ADR-0067).",
+            "description": "`null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), y en una venta de mostrador sin datos del comprador (ADR-0161).",
             "example": "cliente@example.com",
             "nullable": true,
             "type": "string"
@@ -3865,7 +3865,7 @@
             "type": "string"
           },
           "contactEmail": {
-            "description": "`null` solo en órdenes anonimizadas (ADR-0067).",
+            "description": "`null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), y en una venta de mostrador sin datos del comprador (ADR-0161).",
             "example": "cliente@example.com",
             "nullable": true,
             "type": "string"
@@ -4286,7 +4286,7 @@
             "type": "string"
           },
           "contactEmail": {
-            "description": "`null` solo en órdenes anonimizadas (ADR-0067).",
+            "description": "`null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), y en una venta de mostrador sin datos del comprador (ADR-0161).",
             "example": "cliente@example.com",
             "nullable": true,
             "type": "string"

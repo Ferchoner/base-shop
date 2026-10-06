@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Unreleased
+
+- La descripción de `contactEmail` en `Order`, `AdminOrder` y sus listados dice cuándo es `null`: en una orden anonimizada o bloqueada, y en una venta de mostrador sin datos del comprador (ADR-0161). Antes decía que solo en las anonimizadas.
+
 ## 1.2.0 (2026-10-06)
 
 Ventas asistidas en la tienda física (ADR-0161).
