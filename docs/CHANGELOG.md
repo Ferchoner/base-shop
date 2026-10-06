@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## 1.2.0 (2026-10-06)
+
+Ventas asistidas en la tienda física (ADR-0161).
 
 - Plan de la versión 1.2 (nuevo ADR-0161): ventas asistidas en la tienda física. El staff coloca pedidos a nombre de un cliente presente, con envío o como venta de mostrador. Cada pedido registra quién lo colocó y por qué canal y sale del almacén de la tienda, y el pago en tienda deja de ser solo para pruebas. Se implementa en T-187, en dos partes. La validación legal de que el staff capture datos personales queda en la lista de `PROJECT.md` §9.
 - Paso 0 de la versión 1.2: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.1, y BR-USR-09 sigue a ADR-0116 y ADR-0154.
@@ -17,6 +19,7 @@
   - `POST /v1/admin/orders/{orderId}/hand-over` (UC-ORD-14) entrega en la tienda una orden `IN_STORE` pagada, de PAID a DELIVERED, sin envío.
   - `Order`, `AdminOrder` y los listados agregan `fulfillment`. En una orden `IN_STORE`, `shippingAddress` y `estimatedDelivery` son `null`, y `contactEmail` también si el comprador no dio datos: una excepción acotada a ADR-0034 que decidió ADR-0161.
   - Los correos de una venta de mostrador dicen que se entrega en la tienda, sin plazo de entrega.
+- Versión 1.2.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.2.0` y un GitHub Release.
 
 ## 1.1.0 (2026-10-06)
 
