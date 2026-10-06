@@ -176,6 +176,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0156 | Detección de secretos en worktrees de git, sin falsos aprobados | Aceptada |
 | ADR-0157 | Cobertura de toda la suite con umbral en la CI, y prueba de los rellenos de datos | Aceptada |
 | ADR-0158 | Cierre del proyecto como MVP | Aceptada |
+| ADR-0159 | Versiones después del MVP | Aceptada |
 
 ---
 
@@ -4821,4 +4822,36 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las dependencias se atrasan mientras dure la pausa. Las vulnerabilidades siguen llegando como pull requests de seguridad, que pasan por la CI.
   - Modifica ADR-0018 (alcance del MVP), ADR-0040 (PayPal) y ADR-0106 (Dependabot), y resuelve el pendiente de ADR-0013 sobre qué proveedores entran en el MVP.
 - **Revisar cuando:** una entidad quiera usar el proyecto.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-04, en la review del Sprint 9).
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-04, en la review del Sprint 9). Modificada por ADR-0159: el MVP se publica como la versión 1.0.0, y el desarrollo puede seguir por versiones sin retomar el proyecto completo.
+
+## ADR-0159 — Versiones después del MVP
+
+- **Fecha:** 2026-10-05
+- **Contexto:**
+  - ADR-0158 cerró el proyecto como MVP, sin sprints nuevos hasta que una entidad quiera usarlo. Sus pasos para retomarlo empiezan por la lista para operar con clientes reales.
+  - El usuario quiere agregar funcionalidades puntuales, empezando por varios almacenes propios, sin retomar lo que quedó fuera.
+  - `package.json` declaraba la versión 0.0.1, el repositorio no tenía tags ni releases, y `CHANGELOG.md` tenía todo bajo "Unreleased".
+- **Decisión** (del usuario, entre reabrir el proyecto, una rama larga sin fusionar o seguir por versiones):
+  - **El MVP es la versión 1.0.0.** La declaran `package.json` y su sección de `CHANGELOG.md`. Se publica con el tag `v1.0.0` sobre el commit que la fusiona y un GitHub Release. Incluye las dos correcciones fusionadas después del cierre (#99 y #100).
+  - **Versionado semántico de la aplicación,** independiente de la versión de la API (`/v1`, ADR-0034):
+    - **menor** (1.1.0): funcionalidades compatibles dentro de `/v1`, como rutas y campos nuevos;
+    - **parche** (1.0.1): correcciones sin funcionalidad nueva;
+    - **mayor** (2.0.0): solo con un cambio incompatible, que además exige `/v2` (ADR-0034).
+  - **Cada versión menor es un incremento:**
+    1. El usuario aprueba su alcance con un plan. Queda en `SPRINT.md` como "Versión X.Y", con el formato de un sprint: paso 0, partes, resultados y review.
+    2. Sus tareas y ADR siguen las reglas de siempre.
+    3. Sus cambios se anotan en la sección "Unreleased" de `CHANGELOG.md`, que al terminar pasa a ser la de la versión.
+    4. El último pull request sube la versión de `package.json`. Al fusionarlo, se publican el tag `vX.Y.Z` y su GitHub Release, con la aprobación del usuario: el repositorio es público.
+  - **Sin cambios en ADR-0158:** lo que dejó fuera del MVP sigue fuera, salvo que el plan de un incremento lo incluya; Dependabot sigue en pausa; y retomar el proyecto completo sigue sus cuatro pasos.
+  - **Primer incremento:** la versión 1.1, varios almacenes propios.
+- **Alternativas consideradas:**
+  - **Reabrir el proyecto (ADR-0158):** exige la lista para operar con clientes reales, que no aplica sin una entidad.
+  - **Una rama larga sin fusionar:** contradice GitHub Flow (ADR-0030) y se separa de `main` con el tiempo.
+  - **Un interruptor de configuración por funcionalidad:** no hace falta para varios almacenes, porque con uno solo activo el comportamiento no cambia.
+- **Consecuencias:**
+  - Cada versión publicada queda en un tag y un release del repositorio público.
+  - La versión de la aplicación no aparece en la API: el documento OpenAPI sigue con la versión `1` de `/v1`.
+  - `SPRINT.md` registra cada incremento como registraba los sprints.
+  - Modifica ADR-0158.
+- **Revisar si:** una entidad quiere usar el proyecto (entonces aplica ADR-0158), o hace falta `/v2`.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-05).

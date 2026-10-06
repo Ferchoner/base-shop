@@ -2,7 +2,7 @@
 
 ## Sprint actual
 
-Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9 (ADR-0158): no habrá otro sprint hasta que una entidad quiera usarlo.
+Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9 (ADR-0158), y se publicó como la versión 1.0.0. No habrá otro sprint hasta que una entidad quiera usarlo; mientras tanto, el desarrollo sigue por versiones, cada una con su plan aprobado (ADR-0159).
 
 ## Cierre del MVP
 
