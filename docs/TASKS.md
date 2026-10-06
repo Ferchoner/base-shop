@@ -9,7 +9,7 @@
 - DONE
 - DEFERRED (fuera del MVP)
 
-El proyecto se cerró como MVP el 2026-10-04 (ADR-0158): las tareas que no están en DONE quedan en DEFERRED hasta que una entidad quiera usarlo, salvo las de una versión planeada (ADR-0159), como T-194 en la versión 1.3.
+El proyecto se cerró como MVP el 2026-10-04 (ADR-0158): las tareas que no están en DONE quedan en DEFERRED hasta que una entidad quiera usarlo, salvo las de una versión planeada (ADR-0159), como T-194 en la versión 1.3, ya hecha.
 
 Las decisiones pendientes (P-xx) están en `PROGRESS.md`. Una tarea marcada BLOCKED indica qué decisión la bloquea. Una P-xx en la columna de dependencias de una tarea TODO afecta solo a una parte de la tarea. Los casos de uso (UC-xxx) están en `REQUIREMENTS.md`.
 
@@ -82,7 +82,7 @@ Además de las dependencias indicadas, cada tarea usa las fundaciones técnicas 
 | T-192 | Payments: adaptador de PayPal semiimplementado (no verificado, no habilitado); UC-PAY-04. Incluye, desde la Sprint Review del Sprint 3, la conciliación de pagos cada 5 minutos (UC-PAY-05), que solo sirve con un proveedor, y, desde ADR-0134, reintentar un reembolso fallido (UC-PAY-07), sin opción de reintegro (ADR-0142) | DEFERRED | T-190, T-117; fuera del MVP (ADR-0158) |
 | T-193 | Payments: Mercado Pago y Stripe | DEFERRED | ADR-0040 |
 | T-191 | Payments: verificación del adaptador de PayPal y sus webhooks en sandbox | DEFERRED | T-192, P-31, cuenta y sandbox de PayPal; fuera del MVP (ADR-0158) |
-| T-194 | Payments: el pago manual habilitado desde la API (ADR-0162), versión 1.3. El valor de `MANUAL_PAYMENTS_ENABLED` pasa a la tabla `payment_settings`, que se lee en cada pago y reembolso manual y en cada correo de orden recibida; `GET /v1/admin/payment-settings` con `orders.read` y `PUT` con el permiso nuevo `payments.configure`, reservado al superadministrador; `superadminOnly` en el catálogo de permisos; sin la variable | TODO | T-190, T-130, T-215 |
+| T-194 | Payments: el pago manual habilitado desde la API (ADR-0162), versión 1.3. Hecha: el valor de `MANUAL_PAYMENTS_ENABLED` pasa a la tabla `payment_settings`, de una sola fila, que se lee sin caché en cada pago y reembolso manual, en cada inicio de un pago `MANUAL` y en cada correo de orden recibida; `GET /v1/admin/payment-settings` con `orders.read` y `PUT` con el permiso nuevo `payments.configure`, reservado al superadministrador (BR-USR-21), con versión y auditoría `payment-settings.update`; `superadminOnly` en el catálogo de permisos; sin la variable; UC-PAY-08 | DONE | T-190, T-130, T-215 |
 | T-195 | Shipping: envíos manuales (creación al pagarse, captura de guía, cambios de estado, devolución); UC-SHI-03 a 09. En dos partes (ADR-0140): (a) crear el envío en la operación que deja pagada la orden, consultarlo, capturar paquetería y guía, mostrarlo en las vistas de la orden y cancelarlo con la orden pagada (UC-SHI-03, 04 y 08), hecha; (b) despachar, entregar, entrega fallida y devolución, con la orden siguiendo al envío por eventos (UC-SHI-05 a 07 y 09), hecha (ADR-0141) | DONE | T-180 |
 | T-196 | Shipping: costo fijo y envío gratis por monto (IVA incluido, ADR-0079) y plazo de entrega estimado (ADR-0083), configurables; UC-SHI-01, 02 Hecha (ADR-0122): `GET` y `PUT /v1/admin/shipping/method` con bloqueo optimista, `ShippingRateCalculator` y `ShippingFacade.quote` para el checkout, tasa de IVA en `VAT_RATE_BP` y método inicial por migración | DONE | T-110, T-112 |
 | T-200 | Promotions | DEFERRED | ADR-0018 |

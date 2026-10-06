@@ -183,6 +183,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] T-187 parte a, segundo pull request: el pago en tienda deja de ser solo para pruebas y guarda cómo se cobró (efectivo, terminal o transferencia); la parte a queda hecha (ADR-0161)
 - [x] T-187 parte b: la venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni envío, y sin datos del comprador si no los da (ADR-0161). T-187 en DONE
 - [ ] Versión 1.3: el pago en tienda configurable desde la API (paso 0 y T-194); plan en `SPRINT.md`
+- [x] T-194: el pago manual en la base, con `GET` y `PUT /v1/admin/payment-settings`; `payments.configure`, reservado al superadministrador; los correos leen el valor al escribirse; sin `MANUAL_PAYMENTS_ENABLED` (ADR-0162)
 
 ## Fuera del MVP
 
