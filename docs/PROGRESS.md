@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, varios almacenes propios (ADR-0160, T-162), se cerró el 2026-10-06 con el objetivo cumplido; su review está en el historial de `SPRINT.md`. En curso: la versión 1.2, ventas asistidas en la tienda física (ADR-0161, T-187). No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
+MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, varios almacenes propios (ADR-0160, T-162), y la 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), se cerraron el 2026-10-06 con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. No hay sprint ni versión en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto, y cada versión nueva necesita un plan aprobado.
 
 ## Completed
 
@@ -178,7 +178,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.1.0: varios almacenes propios (paso 0 y T-162 en dos partes), cerrada el 2026-10-06; review en `SPRINT.md`
 - [x] T-162 parte a: varios almacenes activos con prioridad; cada orden se reserva completa en el primero que la tiene toda y sale de él; la tienda suma los almacenes activos, y la cotización y el 409 marcan lo que le falta al almacén más cercano (ADR-0160)
 - [x] T-162 parte b: el staff crea almacenes, edita su prioridad y los desactiva para siempre; el reintegro vuelve al almacén de origen o al que indique el staff; ajustes en almacenes inactivos con `WAREHOUSE_TRANSFER`; envíos filtrados por almacén (ADR-0160). T-162 en DONE
-- [ ] Versión 1.2: ventas asistidas en la tienda física (paso 0 y T-187 en dos partes); plan en `SPRINT.md`
+- [x] Versión 1.2.0: ventas asistidas en la tienda física (paso 0 y T-187 en dos partes), cerrada el 2026-10-06; review en `SPRINT.md`
 - [x] T-187 parte a, primer pull request: el staff con `orders.place` cotiza y coloca pedidos a nombre de un cliente, con el stock solo del almacén que elige; la orden guarda el canal, quién la colocó y el almacén, y se audita; rol Vendedor (ADR-0161)
 - [x] T-187 parte a, segundo pull request: el pago en tienda deja de ser solo para pruebas y guarda cómo se cobró (efectivo, terminal o transferencia); la parte a queda hecha (ADR-0161)
 - [x] T-187 parte b: la venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni envío, y sin datos del comprador si no los da (ADR-0161). T-187 en DONE
