@@ -1,9 +1,12 @@
 # CHANGELOG
 
-## Unreleased
+## 1.1.0 (2026-10-06)
+
+Varios almacenes propios (ADR-0160).
 
 - Plan de la versión 1.1 (nuevo ADR-0160): varios almacenes propios. Cada orden sale completa del almacén de mayor prioridad que la cubre, la tienda suma la disponibilidad de todos y el stock vuelve al almacén del que salió; el diseño queda preparado para dividir pedidos más adelante. Se implementa en T-162, en dos partes; las transferencias como operación propia quedan en T-163 (DEFERRED).
 - Paso 0 de la versión 1.1: revisión contra los ADR sin desajustes, 0 vulnerabilidades y Prisma 7.10.0 todavía la última estable; `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 9.
+- `proxy-addr` 2.0.8, una actualización de seguridad de Dependabot que corrige un aviso crítico (#102).
 - T-162 parte a (ADR-0160): varios almacenes activos; ADR-0081 queda reemplazada.
   - `Warehouse` agrega `priority`, de 1 a 1000, y `GET /v1/admin/inventory/warehouses` ordena por ella y luego por código.
   - Cada orden se reserva completa en el primer almacén activo que la tiene toda, y su envío sale de él (`AdminShipment.warehouseId`).
@@ -15,6 +18,7 @@
   - `POST /v1/admin/orders/{orderId}/restocks` devuelve las unidades al almacén del que salieron, aunque esté inactivo, o al almacén activo `warehouseId`, nuevo y opcional.
   - Los ajustes aceptan almacenes inactivos; el motivo nuevo `WAREHOUSE_TRANSFER` suma o resta. Las entradas siguen aceptando solo almacenes activos.
   - `GET /v1/admin/shipping/shipments` filtra por `warehouseId`, y `AdminOrder.shipment` lo muestra.
+- Versión 1.1.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.1.0` y un GitHub Release.
 
 ## 1.0.0 (2026-10-05)
 
