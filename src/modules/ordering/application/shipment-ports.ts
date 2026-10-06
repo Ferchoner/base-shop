@@ -10,6 +10,8 @@ export interface OrderShipment {
   readonly dispatchedAt: Date | null;
   readonly deliveredAt: Date | null;
   readonly version: number;
+  /** The warehouse it leaves from, only for the staff (ADR-0160). */
+  readonly warehouseId: string;
 }
 
 /**

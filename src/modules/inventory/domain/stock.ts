@@ -25,14 +25,18 @@ export const STOCK_MOVEMENT_TYPES: readonly StockMovementType[] = [
   'RESTOCK',
 ];
 
-/** The reasons of an adjustment (ADR-0069). */
+/**
+ * The reasons of an adjustment (ADR-0069). `WAREHOUSE_TRANSFER` moves units between warehouses, one adjustment in
+ * each, until transfers are an operation of their own (ADR-0160, T-163).
+ */
 export type AdjustmentReason =
   | 'PHYSICAL_COUNT'
   | 'DAMAGED'
   | 'LOSS_OR_THEFT'
   | 'INTERNAL_USE'
   | 'DATA_ENTRY_ERROR'
-  | 'OTHER';
+  | 'OTHER'
+  | 'WAREHOUSE_TRANSFER';
 
 export const ADJUSTMENT_REASONS: readonly AdjustmentReason[] = [
   'PHYSICAL_COUNT',
@@ -41,6 +45,7 @@ export const ADJUSTMENT_REASONS: readonly AdjustmentReason[] = [
   'INTERNAL_USE',
   'DATA_ENTRY_ERROR',
   'OTHER',
+  'WAREHOUSE_TRANSFER',
 ];
 
 /** The reasons of a restock: the order was cancelled, or its shipment came back (ADR-0069). */

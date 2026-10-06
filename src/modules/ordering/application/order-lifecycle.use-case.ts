@@ -109,6 +109,8 @@ export class OrderLifecycle {
           note: input.reason,
           actorId: input.actorId,
           lines: restocked,
+          // Back to the warehouse each line left (ADR-0160).
+          warehouseId: null,
         });
       }
       await this.orders.save(order, now);

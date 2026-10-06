@@ -213,6 +213,7 @@ function toAdminOrderShipmentDto(
   return {
     id: shipment.id,
     ...toOrderShipmentDto(shipment),
+    warehouseId: shipment.warehouseId,
     version: shipment.version,
   };
 }

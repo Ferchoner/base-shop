@@ -76,7 +76,8 @@ describe('Inventory (e2e, T-160 part a)', () => {
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     await prisma.$executeRaw`
-      UPDATE warehouses SET name = 'Almacén principal', address = NULL WHERE id = ${MAIN}::uuid`;
+      UPDATE warehouses SET name = 'Almacén principal', address = NULL, status = 'ACTIVE', priority = 1
+       WHERE id = ${MAIN}::uuid`;
   });
 
   afterAll(async () => {
@@ -84,7 +85,7 @@ describe('Inventory (e2e, T-160 part a)', () => {
       where: {
         OR: [
           { action: { startsWith: 'inventory.' } },
-          { action: 'warehouses.update' },
+          { action: { startsWith: 'warehouses.' } },
           { action: 'http.access-denied' },
         ],
       },
@@ -239,6 +240,141 @@ describe('Inventory (e2e, T-160 part a)', () => {
       expect(blankName.body.errors).toEqual([
         expect.objectContaining({ field: 'name' }),
       ]);
+    });
+  });
+
+  describe('several warehouses (T-162 part b, ADR-0160)', () => {
+    const createWarehouse = (body: Record<string, unknown>) =>
+      http()
+        .post(`${INVENTORY}/warehouses`)
+        .set(writer())
+        .send({ name: 'Almacén norte', priority: 2, ...body });
+    const deactivate = (id: string) =>
+      http().post(`${INVENTORY}/warehouses/${id}/deactivate`).set(writer());
+
+    it('creates a warehouse with its Location, changes its priority and deactivates it for good (UC-INV-10, UC-INV-11)', async () => {
+      const created = await createWarehouse({
+        code: 'NORTE',
+        address: ADDRESS,
+      }).expect(201);
+      const id = created.body.id as string;
+      const prioritized = await http()
+        .patch(`${INVENTORY}/warehouses/${id}`)
+        .set(writer())
+        .send({ priority: 1 })
+        .expect(200);
+      const list = await http()
+        .get(`${INVENTORY}/warehouses`)
+        .set(reader())
+        .expect(200);
+      const deactivated = await deactivate(id).expect(200);
+      const again = await deactivate(id).expect(409);
+
+      expect(created.headers.location).toBe(
+        `/v1/admin/inventory/warehouses/${id}`,
+      );
+      expect(created.body).toEqual({
+        id: expect.any(String),
+        code: 'NORTE',
+        name: 'Almacén norte',
+        address: expect.objectContaining({
+          municipalityName: 'Morelia',
+          country: 'MX',
+        }),
+        status: 'ACTIVE',
+        priority: 2,
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      });
+      expect(prioritized.body.priority).toBe(1);
+      // A tie on priority goes by code.
+      expect(list.body.data.map(({ code }: { code: string }) => code)).toEqual([
+        'NORTE',
+        'PRINCIPAL',
+      ]);
+      expect(deactivated.body.status).toBe('INACTIVE');
+      expect(again.body).toMatchObject({
+        type: '/problems/invalid-state-transition',
+        currentStatus: 'INACTIVE',
+      });
+    });
+
+    it('answers 409 for a taken code, the last active warehouse or one holding units for orders, and 400 for wrong input', async () => {
+      await createWarehouse({ code: 'NORTE' }).expect(201);
+      const taken = await createWarehouse({ code: 'NORTE' }).expect(409);
+      const wrong = await createWarehouse({
+        code: 'norte 2',
+        name: ' ',
+        priority: 0,
+      }).expect(400);
+      const north = await prisma.warehouse.findUniqueOrThrow({
+        where: { code: 'NORTE' },
+      });
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      await prisma.stockItem.create({
+        data: {
+          id: newId(),
+          variantId: shirt,
+          warehouseId: north.id,
+          onHand: 2,
+          reserved: 1,
+        },
+      });
+
+      const holding = await deactivate(north.id).expect(409);
+      await deactivate(MAIN).expect(200);
+      await prisma.stockItem.updateMany({ data: { reserved: 0 } });
+      const last = await deactivate(north.id).expect(409);
+      await http()
+        .post(`${INVENTORY}/warehouses`)
+        .set(reader())
+        .send({ code: 'SUR', name: 'Sur', priority: 3 })
+        .expect(403);
+
+      expect(taken.body).toMatchObject({ type: '/problems/duplicate-value' });
+      expect(
+        wrong.body.errors.map(({ field }: { field: string }) => field).sort(),
+      ).toEqual(['code', 'name', 'priority']);
+      expect(holding.body.type).toBe('/problems/resource-in-use');
+      expect(last.body).toMatchObject({
+        type: '/problems/invalid-state-transition',
+        reason: 'last-active-warehouse',
+      });
+    });
+
+    it('moves stock out of an inactive warehouse with transfers, which takes no receipts', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      const north = (await createWarehouse({ code: 'NORTE' }).expect(201)).body
+        .id as string;
+      await http()
+        .post(`${INVENTORY}/receipts`)
+        .set(writer())
+        .send({ variantId: shirt, warehouseId: north, quantity: 4 })
+        .expect(201);
+      await deactivate(north).expect(200);
+
+      const out = await adjust({
+        variantId: shirt,
+        warehouseId: north,
+        quantity: -4,
+        reasonCode: 'WAREHOUSE_TRANSFER',
+      }).expect(201);
+      const into = await adjust({
+        variantId: shirt,
+        quantity: 4,
+        reasonCode: 'WAREHOUSE_TRANSFER',
+      }).expect(201);
+      await http()
+        .post(`${INVENTORY}/receipts`)
+        .set(writer())
+        .send({ variantId: shirt, warehouseId: north, quantity: 1 })
+        .expect(404);
+
+      expect([
+        out.body.stockItem.onHand,
+        out.body.movement.reasonCode,
+        into.body.stockItem.onHand,
+      ]).toEqual([0, 'WAREHOUSE_TRANSFER', 4]);
     });
   });
 

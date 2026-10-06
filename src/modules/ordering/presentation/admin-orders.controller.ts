@@ -197,7 +197,7 @@ export class AdminOrdersController {
   @ApiOperation({
     summary: 'Reintegrar el stock de un pedido',
     description:
-      'UC-INV-09 (ADR-0052, ADR-0142). Exige `Idempotency-Key`. `ORDER_CANCELLED` para un pedido `CANCELLED` o `REFUNDED`, y `SHIPMENT_RETURNED` para uno con el envío `RETURNED`; si no, 409 `invalid-state-transition`. Cada línea regresa a lo sumo lo que vendió, sumando los reintegros anteriores; lo vendido cuenta solo si el stock del pedido se confirmó. Si no, 409 `restock-not-allowed` con `lines`, y no se reintegra nada. El pedido no cambia. Se audita como `orders.restock`.',
+      'UC-INV-09 (ADR-0052, ADR-0142). Exige `Idempotency-Key`. `ORDER_CANCELLED` para un pedido `CANCELLED` o `REFUNDED`, y `SHIPMENT_RETURNED` para uno con el envío `RETURNED`; si no, 409 `invalid-state-transition`. Cada línea regresa a lo sumo lo que vendió, sumando los reintegros anteriores; lo vendido cuenta solo si el stock del pedido se confirmó. Si no, 409 `restock-not-allowed` con `lines`, y no se reintegra nada. Las unidades regresan al almacén del que salieron, aunque esté inactivo, o al almacén activo `warehouseId`; otro valor, 404 (ADR-0160). El pedido no cambia. Se audita como `orders.restock`.',
   })
   @ApiCreatedResponse({ type: RestockDto })
   @ApiProblemResponses(
@@ -223,6 +223,10 @@ export class AdminOrdersController {
       })),
       note: note === '' ? null : note,
       actorId: toId<'User'>(actor.id),
+      warehouseId:
+        body.warehouseId === undefined
+          ? null
+          : toId<'Warehouse'>(body.warehouseId),
     });
     return { movements: movements.map((movement) => ({ ...movement })) };
   }

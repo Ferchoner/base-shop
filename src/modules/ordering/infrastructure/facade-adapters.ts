@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { DomainError, type Money, toId } from '../../../shared-kernel/index.js';
+import {
+  DomainError,
+  type Id,
+  type Money,
+  toId,
+} from '../../../shared-kernel/index.js';
 import { CatalogFacade } from '../../catalog/index.js';
 import { GeoCatalog } from '../../geo/index.js';
 import { IdentityAccessFacade } from '../../identity-access/index.js';
@@ -266,6 +271,7 @@ export class InventoryFacadeOrderStock extends OrderStock {
     note: string | null;
     actorId: StaffId;
     lines: readonly RestockLine[];
+    warehouseId: Id<'Warehouse'> | null;
   }): Promise<RestockMovement[]> {
     return this.inventory.restock(input);
   }

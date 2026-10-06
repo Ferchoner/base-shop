@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   type AuditEntry,
   AuditTrail,
+  type Id,
   NotFoundError,
   TransactionManager,
 } from '../../../shared-kernel/index.js';
@@ -46,8 +47,9 @@ export function restockAudit(
 /**
  * The staff brings back to the stock units of lines of an order (UC-INV-09, ADR-0052, ADR-0132, ADR-0142): of a
  * cancelled or refunded order, or of one whose shipment came back. Ordering knows the order, its status and its
- * lines, and Inventory checks what each line sold; the order is locked, so restocks of one order wait for each
- * other, and it never changes.
+ * lines, and Inventory checks what each line sold and sends the units back to the warehouse they left, or to the
+ * one the staff names (ADR-0160); the order is locked, so restocks of one order wait for each other, and it never
+ * changes.
  */
 @Injectable()
 export class OrderRestocks {
@@ -62,8 +64,9 @@ export class OrderRestocks {
   /**
    * Audited as `orders.restock`.
    *
-   * @throws NotFoundError; InvalidStateTransitionError when the order does not take a restock for that reason;
-   *   UnknownOrderLineError; RestockLimitError when a line would come back beyond what it sold.
+   * @throws NotFoundError, also when `warehouseId` is not an active warehouse; InvalidStateTransitionError when the
+   *   order does not take a restock for that reason; UnknownOrderLineError; RestockLimitError when a line would
+   *   come back beyond what it sold.
    */
   restock(input: {
     orderId: OrderId;
@@ -71,6 +74,8 @@ export class OrderRestocks {
     lines: readonly { orderLineId: OrderLineId; quantity: number }[];
     note: string | null;
     actorId: StaffId;
+    /** An active warehouse the units come back to; without it, the one each line left. */
+    warehouseId?: Id<'Warehouse'> | null;
   }): Promise<RestockMovement[]> {
     return this.transactions.run(async () => {
       const order = await this.orders.lock(input.orderId);
@@ -87,6 +92,7 @@ export class OrderRestocks {
         note: input.note,
         actorId: input.actorId,
         lines,
+        warehouseId: input.warehouseId ?? null,
       });
       await this.audit.record(
         restockAudit(order.id, input.reasonCode, lines, input.note),

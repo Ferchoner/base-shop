@@ -28,6 +28,16 @@ export interface RestockEntry extends StockEntry {
   readonly orderLineId: string;
 }
 
+/**
+ * Units of a variant an order took from one warehouse that can still come back: sold minus restocked there
+ * (ADR-0160).
+ */
+export interface RestockOrigin {
+  readonly warehouseId: WarehouseId;
+  readonly variantId: VariantId;
+  readonly units: number;
+}
+
 /** The stock after a change and the movement written with it. */
 export interface StockChange {
   readonly stock: StockLevel;
@@ -53,10 +63,16 @@ export abstract class StockLedgerRepository {
   ): Promise<StockChange | null>;
 
   /**
-   * Brings units of lines of an order back to the stock (UC-INV-09): one RESTOCK movement per entry, updating the
-   * stock items in ascending ID order, like reservations (BR-INV-14).
+   * Brings units of lines of an order back to the stock (UC-INV-09): one RESTOCK movement per entry, in the
+   * warehouse of the entry, updating the stock items in ascending ID order, like reservations (BR-INV-14).
    */
   abstract restock(entries: readonly RestockEntry[]): Promise<StockMovement[]>;
+
+  /**
+   * Where the stock of an order left from (ADR-0160): for each warehouse and variant its SALE movements took
+   * units from, the units that can still come back there, by priority of the warehouse and then its code.
+   */
+  abstract originsOf(orderId: string): Promise<RestockOrigin[]>;
 
   /** The units restocked so far of each of these lines of orders; a line never restocked is left out. */
   abstract restockedOf(

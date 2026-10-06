@@ -202,6 +202,8 @@ describe('OrderRestocks (UC-INV-09, ADR-0052, ADR-0142)', () => {
             quantity: 1,
           },
         ],
+        // Back to the warehouse each line left (ADR-0160).
+        warehouseId: null,
       },
     ]);
     expect(shipmentsAsked).toEqual([]);
@@ -220,6 +222,17 @@ describe('OrderRestocks (UC-INV-09, ADR-0052, ADR-0142)', () => {
       },
     ]);
     expect(capLine.variantId).toBe(cap);
+    // To another warehouse the staff names (ADR-0160).
+    const north = newId<'Warehouse'>();
+    await restocks.restock({
+      orderId: order.id,
+      reasonCode: 'ORDER_CANCELLED',
+      lines: [{ orderLineId: capLine.id, quantity: 1 }],
+      note: null,
+      actorId: staff,
+      warehouseId: north,
+    });
+    expect(restocked[1]).toMatchObject({ warehouseId: north });
   });
 
   it('brings back the lines of a returned shipment, audited without a reason when there is no note', async () => {

@@ -1,4 +1,4 @@
-import type { Money } from '../../../shared-kernel/index.js';
+import type { Id, Money } from '../../../shared-kernel/index.js';
 import type {
   CartId,
   CustomerId,
@@ -131,10 +131,11 @@ export abstract class OrderStock {
 
   /**
    * Brings units of lines of the order back to the stock (UC-INV-09, ADR-0052, ADR-0142), in the transaction of
-   * the caller. Inventory counts what a line sold only once the stock of the order was confirmed, and never
-   * brings a line back beyond it.
+   * the caller: to the warehouse they left, or to `warehouseId`, an active one (ADR-0160). Inventory counts what a
+   * line sold only once the stock of the order was confirmed, and never brings a line back beyond it.
    *
    * @throws RestockLimitError, 409 `restock-not-allowed` with `lines`, when a line would come back beyond it.
+   * @throws NotFoundError when `warehouseId` is not an active warehouse.
    */
   abstract restock(input: {
     orderId: OrderId;
@@ -142,6 +143,7 @@ export abstract class OrderStock {
     note: string | null;
     actorId: StaffId;
     lines: readonly RestockLine[];
+    warehouseId: Id<'Warehouse'> | null;
   }): Promise<RestockMovement[]>;
 }
 

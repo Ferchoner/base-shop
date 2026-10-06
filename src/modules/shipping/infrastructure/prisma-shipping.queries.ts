@@ -102,6 +102,9 @@ export class PrismaShippingQueries extends ShippingQueries {
         ? {}
         : { status: { in: [...filter.status] } }),
       ...(filter.orderId === undefined ? {} : { orderId: filter.orderId }),
+      ...(filter.warehouseId === undefined
+        ? {}
+        : { warehouseId: filter.warehouseId }),
       ...(q === undefined || q === ''
         ? {}
         : {
@@ -143,6 +146,7 @@ function toOrderShipmentView(
     dispatchedAt: row.dispatchedAt,
     deliveredAt: row.deliveredAt,
     version: row.version,
+    warehouseId: toId<'Warehouse'>(row.warehouseId),
   };
 }
 
@@ -151,7 +155,6 @@ function toShipmentView(row: ShipmentRow): ShipmentView {
     ...toOrderShipmentView(row),
     orderId: toId<'Order'>(row.orderId),
     orderCode: row.orderCode,
-    warehouseId: toId<'Warehouse'>(row.warehouseId),
     // Blocked, it shows only what an anonymized one keeps (ADR-0070).
     destination:
       row.blockedAt === null

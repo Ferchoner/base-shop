@@ -21,15 +21,35 @@ export type WarehouseAddressInput = Omit<
 >;
 
 /** What the audit trail keeps of the warehouse; the address only as changed, since it holds personal data. */
-function auditedFields(warehouse: Warehouse): Record<string, unknown> {
-  const { name, address } = warehouse.snapshot();
-  return { name, address };
+export function auditedFields(warehouse: Warehouse): Record<string, unknown> {
+  const { name, address, priority } = warehouse.snapshot();
+  return { name, address, priority };
 }
 
 /**
- * Changes the name or the address of a warehouse (UC-INV-01, ADR-0127). The address is checked
- * against the INEGI catalog and keeps the names of its state and municipality (ADR-0057). Without changes,
- * nothing is saved or audited.
+ * An address as the API received it, with the names of its state and municipality from the INEGI catalog
+ * (ADR-0057).
+ *
+ * @throws InvalidWarehouseLocationError when the state or municipality is not valid.
+ */
+export async function locatedAddress(
+  locations: WarehouseLocations,
+  address: WarehouseAddressInput,
+): Promise<WarehouseAddress> {
+  const names = await locations.resolve(
+    address.stateCode,
+    address.municipalityCode,
+  );
+  if (typeof names === 'string') {
+    throw new InvalidWarehouseLocationError(names);
+  }
+  return { ...address, ...names, country: 'MX' };
+}
+
+/**
+ * Changes the name, the address or the priority of a warehouse (UC-INV-01, ADR-0127, ADR-0160). The address is
+ * checked against the INEGI catalog and keeps the names of its state and municipality (ADR-0057). Without
+ * changes, nothing is saved or audited.
  */
 @Injectable()
 export class UpdateWarehouse {
@@ -42,7 +62,11 @@ export class UpdateWarehouse {
 
   execute(
     id: WarehouseId,
-    changes: { name?: string; address?: WarehouseAddressInput | null },
+    changes: {
+      name?: string;
+      address?: WarehouseAddressInput | null;
+      priority?: number;
+    },
   ): Promise<void> {
     return this.transactions.run(async () => {
       const warehouse = await this.warehouses.find(id);
@@ -53,8 +77,10 @@ export class UpdateWarehouse {
         address:
           changes.address === undefined || changes.address === null
             ? changes.address
-            : await this.located(changes.address),
+            : await locatedAddress(this.locations, changes.address),
       });
+      if (changes.priority !== undefined)
+        warehouse.prioritize(changes.priority);
       const audited = changesBetween(before, auditedFields(warehouse));
       if (Object.keys(audited).length === 0) return;
       await this.warehouses.save(warehouse);
@@ -64,19 +90,5 @@ export class UpdateWarehouse {
         changes: audited,
       });
     });
-  }
-
-  /** @throws InvalidWarehouseLocationError when the state or municipality is not valid. */
-  private async located(
-    address: WarehouseAddressInput,
-  ): Promise<WarehouseAddress> {
-    const names = await this.locations.resolve(
-      address.stateCode,
-      address.municipalityCode,
-    );
-    if (typeof names === 'string') {
-      throw new InvalidWarehouseLocationError(names);
-    }
-    return { ...address, ...names, country: 'MX' };
   }
 }

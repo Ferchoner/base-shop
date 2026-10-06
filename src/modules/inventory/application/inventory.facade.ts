@@ -3,6 +3,7 @@ import {
   Clock,
   InvalidValueError,
   newId,
+  NotFoundError,
   TransactionManager,
 } from '../../../shared-kernel/index.js';
 import {
@@ -20,6 +21,10 @@ import {
 } from '../domain/reservation.js';
 import { ReservationRepository } from '../domain/reservation.repository.js';
 import {
+  type RestockDestination,
+  restockDestinations,
+} from '../domain/restock-destinations.js';
+import {
   InsufficientStockError,
   noteOf,
   type RestockReason,
@@ -28,6 +33,7 @@ import {
   type VariantId,
 } from '../domain/stock.js';
 import { StockLedgerRepository } from '../domain/stock-ledger.repository.js';
+import type { WarehouseId } from '../domain/warehouse.js';
 import { WarehouseRepository } from '../domain/warehouse.repository.js';
 import { InventoryQueries } from './inventory.queries.js';
 
@@ -187,11 +193,12 @@ export class InventoryFacade {
    * Brings units of lines of an order back to the stock (UC-INV-09, ADR-0052, ADR-0132, ADR-0142). Ordering
    * names each line with its variant and the units it sold, because Inventory never reads orders. A line sold
    * only if the stock of its order was confirmed, and the restocks of a line, added up, never pass what it sold.
-   * Each line writes a RESTOCK movement with its reason, order, line, note and who did it, in the first active
-   * warehouse by priority until restocks go back to the warehouse they left (ADR-0160, T-162 part b).
-   * It joins the transaction of its caller, which locks the order, so restocks of one order wait for each other.
+   * Each line writes a RESTOCK movement with its reason, order, line, note and who did it, in the warehouse it
+   * left, even if inactive since, or in the active `warehouseId` the staff names (ADR-0160). It joins the
+   * transaction of its caller, which locks the order, so restocks of one order wait for each other.
    *
    * @throws RestockLimitError with every line that would bring back more than it sold.
+   * @throws NotFoundError when `warehouseId` is not an active warehouse.
    * @throws InvalidValueError without lines, with a line twice, or with a quantity that is not a whole number
    *   above zero.
    */
@@ -201,6 +208,8 @@ export class InventoryFacade {
     note: string | null;
     actorId: string;
     lines: readonly RestockLine[];
+    /** Another warehouse to bring the units to, instead of the one they left. */
+    warehouseId?: WarehouseId | null;
   }): Promise<StockMovement[]> {
     const lineIds = input.lines.map(({ orderLineId }) => orderLineId);
     if (lineIds.length === 0) {
@@ -228,26 +237,51 @@ export class InventoryFacade {
         }))
         .filter((line) => line.restocked + line.requested > line.sold);
       if (beyond.length > 0) throw new RestockLimitError(beyond);
-      const warehouse = await this.warehouses.firstActive();
-      // A migration creates the first one (ADR-0127), and none can be deactivated yet.
-      if (warehouse === null) throw new Error('There is no active warehouse');
+      const destinations =
+        input.warehouseId === undefined || input.warehouseId === null
+          ? restockDestinations(
+              input.lines,
+              await this.ledger.originsOf(input.orderId),
+            )
+          : await this.toWarehouse(input.warehouseId, input.lines);
       const at = this.clock.now();
       const note = noteOf(input.note);
       return this.ledger.restock(
-        input.lines.map((line) => ({
+        destinations.map((destination) => ({
           movementId: newId<'StockMovement'>(),
-          warehouseId: warehouse.id,
-          variantId: line.variantId,
-          quantity: line.quantity,
+          warehouseId: destination.warehouseId,
+          variantId: destination.variantId,
+          quantity: destination.quantity,
           note,
           actorId: input.actorId,
           at,
           reasonCode: input.reasonCode,
           orderId: input.orderId,
-          orderLineId: line.orderLineId,
+          orderLineId: destination.orderLineId,
         })),
       );
     });
+  }
+
+  /**
+   * Every line to the warehouse the staff names, which must be active: it takes stock now (ADR-0160).
+   *
+   * @throws NotFoundError when it does not exist or is inactive.
+   */
+  private async toWarehouse(
+    warehouseId: WarehouseId,
+    lines: readonly RestockLine[],
+  ): Promise<RestockDestination[]> {
+    const warehouse = await this.warehouses.lockForStock(warehouseId);
+    if (warehouse === null || !warehouse.isActive) {
+      throw new NotFoundError('Warehouse', warehouseId);
+    }
+    return lines.map(({ orderLineId, variantId, quantity }) => ({
+      orderLineId,
+      variantId,
+      warehouseId,
+      quantity,
+    }));
   }
 
   /** The active warehouses, by priority, with what each has available of the requests. */

@@ -341,14 +341,15 @@
             "type": "integer"
           },
           "reasonCode": {
-            "description": "`DAMAGED`, `LOSS_OR_THEFT` e `INTERNAL_USE` solo con cantidad negativa; `OTHER` exige `note`.",
+            "description": "`DAMAGED`, `LOSS_OR_THEFT` e `INTERNAL_USE` solo con cantidad negativa; `OTHER` exige `note`. `WAREHOUSE_TRANSFER` mueve unidades entre almacenes: un ajuste negativo en uno y uno positivo en el otro (ADR-0160).",
             "enum": [
               "PHYSICAL_COUNT",
               "DAMAGED",
               "LOSS_OR_THEFT",
               "INTERNAL_USE",
               "DATA_ENTRY_ERROR",
-              "OTHER"
+              "OTHER",
+              "WAREHOUSE_TRANSFER"
             ],
             "type": "string"
           },
@@ -1216,6 +1217,11 @@
           "version": {
             "description": "Versión para el bloqueo optimista.",
             "type": "number"
+          },
+          "warehouseId": {
+            "description": "El almacén del que sale: el de la reserva del pedido (ADR-0160).",
+            "format": "uuid",
+            "type": "string"
           }
         },
         "required": [
@@ -1225,6 +1231,7 @@
           "dispatchedAt",
           "deliveredAt",
           "id",
+          "warehouseId",
           "version",
           "ownDelivery"
         ],
@@ -3080,6 +3087,46 @@
         "required": [
           "sku",
           "version"
+        ],
+        "type": "object"
+      },
+      "CreateWarehouseDto": {
+        "properties": {
+          "address": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AddressInputDto"
+              }
+            ],
+            "description": "Formato `AddressInput` (ADR-0057); sin ella, `null`.",
+            "nullable": true,
+            "type": "object"
+          },
+          "code": {
+            "description": "De 2 a 20 mayúsculas, dígitos y guiones; único entre almacenes.",
+            "example": "NORTE",
+            "type": "string"
+          },
+          "name": {
+            "description": "De 1 a 100 caracteres.",
+            "example": "Almacén norte",
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "priority": {
+            "description": "De 1 a 1000; 1 es el primero en reservar los pedidos (ADR-0160).",
+            "example": 2,
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "priority"
         ],
         "type": "object"
       },
@@ -5643,6 +5690,11 @@
               "SHIPMENT_RETURNED"
             ],
             "type": "string"
+          },
+          "warehouseId": {
+            "description": "Un almacén activo al que regresan las unidades; sin él, cada línea regresa al almacén del que salió (ADR-0160).",
+            "format": "uuid",
+            "type": "string"
           }
         },
         "required": [
@@ -6429,6 +6481,7 @@
               "INTERNAL_USE",
               "DATA_ENTRY_ERROR",
               "OTHER",
+              "WAREHOUSE_TRANSFER",
               "ORDER_CANCELLED",
               "SHIPMENT_RETURNED"
             ],
@@ -6984,6 +7037,13 @@
             "minLength": 1,
             "pattern": "\\S",
             "type": "string"
+          },
+          "priority": {
+            "description": "De 1 a 1000; 1 es el primero en reservar los pedidos (ADR-0160).",
+            "example": 2,
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "number"
           }
         },
         "type": "object"
@@ -13604,11 +13664,110 @@
         "x-required-permissions": [
           "inventory.read"
         ]
+      },
+      "post": {
+        "description": "Activo. Desde ese momento recibe mercancía y reserva los pedidos según su prioridad (ADR-0160). El código no se repite entre almacenes. El estado y el municipio de la dirección se validan contra el catálogo del INEGI. Se audita como `warehouses.create`.",
+        "operationId": "AdminWarehousesController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWarehouseDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`duplicate-value`: Valor duplicado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear un almacén",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.write"
+        ]
       }
     },
     "/v1/admin/inventory/warehouses/{warehouseId}": {
       "patch": {
-        "description": "Solo cambian los campos enviados; `address: null` quita la dirección. El estado y el municipio se validan contra el catálogo del INEGI.",
+        "description": "Solo cambian los campos enviados; `address: null` quita la dirección. El estado y el municipio se validan contra el catálogo del INEGI. La prioridad ordena en qué almacén se reservan los pedidos (ADR-0160). Se audita como `warehouses.update`.",
         "operationId": "AdminWarehousesController_update_v1",
         "parameters": [
           {
@@ -13709,7 +13868,119 @@
             "bearer": []
           }
         ],
-        "summary": "Editar el nombre o la dirección del almacén",
+        "summary": "Editar el nombre, la dirección o la prioridad de un almacén",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.write"
+        ]
+      }
+    },
+    "/v1/admin/inventory/warehouses/{warehouseId}/deactivate": {
+      "post": {
+        "description": "Para siempre (ADR-0076): deja de vender, reservar y recibir mercancía, y conserva su stock, que los ajustes pueden mover. 409 `resource-in-use` si tiene unidades reservadas para pedidos, e `invalid-state-transition` si ya está inactivo o es el último activo (`reason: last-active-warehouse`). Se audita como `warehouses.deactivate`.",
+        "operationId": "AdminWarehousesController_deactivate_v1",
+        "parameters": [
+          {
+            "description": "ID del almacén.",
+            "in": "path",
+            "name": "warehouseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`invalid-state-transition`: Acción no permitida en el estado actual; `resource-in-use`: Recurso en uso"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desactivar un almacén",
         "tags": [
           "Administración: inventario"
         ],
@@ -14498,7 +14769,7 @@
     },
     "/v1/admin/orders/{orderId}/restocks": {
       "post": {
-        "description": "UC-INV-09 (ADR-0052, ADR-0142). Exige `Idempotency-Key`. `ORDER_CANCELLED` para un pedido `CANCELLED` o `REFUNDED`, y `SHIPMENT_RETURNED` para uno con el envío `RETURNED`; si no, 409 `invalid-state-transition`. Cada línea regresa a lo sumo lo que vendió, sumando los reintegros anteriores; lo vendido cuenta solo si el stock del pedido se confirmó. Si no, 409 `restock-not-allowed` con `lines`, y no se reintegra nada. El pedido no cambia. Se audita como `orders.restock`.",
+        "description": "UC-INV-09 (ADR-0052, ADR-0142). Exige `Idempotency-Key`. `ORDER_CANCELLED` para un pedido `CANCELLED` o `REFUNDED`, y `SHIPMENT_RETURNED` para uno con el envío `RETURNED`; si no, 409 `invalid-state-transition`. Cada línea regresa a lo sumo lo que vendió, sumando los reintegros anteriores; lo vendido cuenta solo si el stock del pedido se confirmó. Si no, 409 `restock-not-allowed` con `lines`, y no se reintegra nada. Las unidades regresan al almacén del que salieron, aunque esté inactivo, o al almacén activo `warehouseId`; otro valor, 404 (ADR-0160). El pedido no cambia. Se audita como `orders.restock`.",
         "operationId": "AdminOrdersController_restock_v1",
         "parameters": [
           {
@@ -16044,6 +16315,16 @@
             "description": "El envío de una orden.",
             "in": "query",
             "name": "orderId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Los envíos que salen de este almacén (ADR-0160).",
+            "in": "query",
+            "name": "warehouseId",
             "required": false,
             "schema": {
               "format": "uuid",

@@ -39,9 +39,12 @@ import {
   MAX_NOTE_LENGTH,
   MAX_STOCK_QUANTITY,
   MAX_WAREHOUSE_NAME_LENGTH,
+  MAX_WAREHOUSE_PRIORITY,
+  MIN_WAREHOUSE_PRIORITY,
   STOCK_MOVEMENT_REASONS,
   STOCK_MOVEMENT_TYPES,
   type StockMovementType,
+  WAREHOUSE_CODE,
 } from '../application/inventory-limits.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
@@ -89,6 +92,39 @@ export class WarehouseListDto {
   data: WarehouseDto[];
 }
 
+/** `POST …/warehouses` (UC-INV-10): a new active warehouse. */
+export class CreateWarehouseDto {
+  /** De 2 a 20 mayúsculas, dígitos y guiones; único entre almacenes. @example 'NORTE' */
+  @IsString()
+  @Matches(WAREHOUSE_CODE, {
+    context: { message: 'De 2 a 20 mayúsculas, dígitos y guiones.' },
+  })
+  code: string;
+
+  /** De 1 a 100 caracteres. @example 'Almacén norte' */
+  @IsString()
+  @Length(1, MAX_WAREHOUSE_NAME_LENGTH)
+  @Matches(/\S/, NOT_BLANK)
+  name: string;
+
+  @ApiPropertyOptional({
+    type: () => AddressInputDto,
+    nullable: true,
+    description: 'Formato `AddressInput` (ADR-0057); sin ella, `null`.',
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => AddressInputDto)
+  address?: AddressInputDto | null;
+
+  /** De 1 a 1000; 1 es el primero en reservar los pedidos (ADR-0160). @example 2 */
+  @IsInt()
+  @Min(MIN_WAREHOUSE_PRIORITY)
+  @Max(MAX_WAREHOUSE_PRIORITY)
+  priority: number;
+}
+
 /** `PATCH …/warehouses/{warehouseId}` (UC-INV-01): only the fields sent change. */
 export class UpdateWarehouseDto {
   /** De 1 a 100 caracteres. @example 'Almacén Morelia' */
@@ -108,6 +144,13 @@ export class UpdateWarehouseDto {
   @ValidateNested()
   @Type(() => AddressInputDto)
   address?: AddressInputDto | null;
+
+  /** De 1 a 1000; 1 es el primero en reservar los pedidos (ADR-0160). @example 2 */
+  @IsOptional()
+  @IsInt()
+  @Min(MIN_WAREHOUSE_PRIORITY)
+  @Max(MAX_WAREHOUSE_PRIORITY)
+  priority?: number;
 }
 
 /** `StockItem` of API_SPEC.md §13. */
@@ -326,7 +369,7 @@ export class AdjustmentDto {
   @ApiProperty({
     enum: ADJUSTMENT_REASONS,
     description:
-      '`DAMAGED`, `LOSS_OR_THEFT` e `INTERNAL_USE` solo con cantidad negativa; `OTHER` exige `note`.',
+      '`DAMAGED`, `LOSS_OR_THEFT` e `INTERNAL_USE` solo con cantidad negativa; `OTHER` exige `note`. `WAREHOUSE_TRANSFER` mueve unidades entre almacenes: un ajuste negativo en uno y uno positivo en el otro (ADR-0160).',
   })
   @IsIn(ADJUSTMENT_REASONS)
   reasonCode: AdjustmentReason;

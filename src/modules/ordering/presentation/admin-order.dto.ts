@@ -348,6 +348,11 @@ export class RestockOrderDto {
   @Type(() => RestockLineDto)
   lines: RestockLineDto[];
 
+  /** Un almacén activo al que regresan las unidades; sin él, cada línea regresa al almacén del que salió (ADR-0160). */
+  @IsOptional()
+  @IsUUID('all')
+  warehouseId?: string;
+
   /**
    * Nota de hasta 500 caracteres, en cada movimiento y en la auditoría: no escribas datos personales.
    * @example 'Regresó en su caja original'

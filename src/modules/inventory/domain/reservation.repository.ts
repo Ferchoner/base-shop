@@ -30,8 +30,9 @@ export abstract class ReservationRepository {
 
   /**
    * Reserves each request in the warehouse, one conditional update per stock item, and records the lines.
-   * Answers the variants that do not have enough available units, or no stock item; the caller rolls back
-   * when there is any (BR-INV-02).
+   * Answers the variants that do not have enough available units, or no stock item, and every variant when the
+   * warehouse is no longer active; the caller rolls back when there is any (BR-INV-02). The warehouse stays
+   * active until the transaction ends (ADR-0160).
    */
   abstract reserve(
     reservationId: ReservationId,
