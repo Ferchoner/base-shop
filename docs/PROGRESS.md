@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). El Sprint 9 (calidad antes de operar) se cerró ese día con el objetivo cumplido; su review está en el historial de `SPRINT.md`. No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
+MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). En curso: la versión 1.1, varios almacenes propios (ADR-0160, T-162). El Sprint 9 (calidad antes de operar) se cerró ese día con el objetivo cumplido; su review está en el historial de `SPRINT.md`. No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
 
 ## Completed
 
@@ -175,6 +175,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Sprint 9: calidad antes de operar (paso 0, T-310 y T-320 en dos partes cada una, y T-300), cerrado el 2026-10-04
 - [x] MVP cerrado el 2026-10-04 (ADR-0158)
 - [x] Versión 1.0.0: el MVP con las correcciones del 2026-10-05; el desarrollo sigue por versiones (ADR-0159)
+- [ ] Versión 1.1: varios almacenes propios (paso 0 y T-162 en dos partes); plan en `SPRINT.md`
 
 ## Fuera del MVP
 

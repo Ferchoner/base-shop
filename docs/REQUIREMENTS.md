@@ -37,7 +37,7 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Identity & Access | Registro, autenticación, verificación de email, cuentas de staff, roles, permisos, direcciones | 2FA (preparado, ADR-0048) |
 | Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | — |
 | Pricing | Una lista predeterminada, precios inmediatos y programados | Listas adicionales (modelo preparado, ADR-0039) |
-| Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado) |
+| Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
 | Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077) |
 | Payments | Pago manual (solo pruebas) | PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
