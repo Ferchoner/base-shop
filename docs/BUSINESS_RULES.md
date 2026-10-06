@@ -141,7 +141,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PAY-06. Los webhooks se deduplican por ID de evento del proveedor.
 - BR-PAY-07. No se ofrecen métodos de pago asíncronos en el lanzamiento.
 - BR-PAY-08. Nunca se almacenan datos de tarjeta.
-- BR-PAY-09. El pago manual (hecho fuera del sistema y registrado por un administrador) solo se usa en pruebas; está desactivado por defecto y lo habilita la variable `MANUAL_PAYMENTS_ENABLED` (ADR-0040, ADR-0134).
+- BR-PAY-09. El pago manual es el cobro de la tienda física: se hace en la tienda y lo registra el staff con `payments.manage`, con su comprobante y, opcional, cómo se cobró (efectivo, terminal o transferencia). Está desactivado por defecto, y el operador lo habilita con la variable `MANUAL_PAYMENTS_ENABLED` cuando la tienda cobra (ADR-0040, ADR-0134, ADR-0161).
 - BR-PAY-10. Registrar un pago manual produce el mismo efecto que un pago capturado por un proveedor.
 - BR-PAY-11. En el MVP solo hay reembolsos totales al cancelar una orden pagada; no hay reembolsos independientes ni parciales. El reembolso de un pago manual se hace fuera del sistema y lo registra un administrador con `payments.manage` (ADR-0018, ADR-0051).
 - BR-PAY-12. El pago manual se hace físicamente en la tienda; la API indica pago en tienda con el código público y el total. Solo se registra sobre órdenes en PendingPayment o Expired (ADR-0055).

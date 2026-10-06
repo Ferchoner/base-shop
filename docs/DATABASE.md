@@ -586,9 +586,12 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 | payment_id | uuid | FK → `payments.id` `RESTRICT` |
 | status | enum `payment_status` | Resultado del intento |
 | provider_reference | text | — |
+| method | enum `payment_method` (CASH, CARD_TERMINAL, TRANSFER) | Cómo cobró la tienda un pago manual; nulo en los demás intentos, en los anteriores a ADR-0161 y cuando el staff no lo dijo. `payment_attempts_method_check`: solo en un intento CAPTURED |
 | failure_code | text | — |
 | registered_by | uuid | Staff que registró un pago manual (sin FK) |
 | created_at | timestamptz(3) | Append-only |
+
+- **Implementado en T-187 parte a (ADR-0161):** la migración `20261006160000_payments_in_store_method` crea `payment_method` y agrega `method`, nulo en los intentos existentes, con su restricción.
 
 ### 9.3 `refunds`
 

@@ -41,7 +41,7 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
 | Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077), pedidos colocados por el staff (versión 1.2, ADR-0161) |
-| Payments | Pago manual (solo pruebas) | Pago en tienda real (versión 1.2, ADR-0161), PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
+| Payments | Pago manual en tienda, con su método desde la versión 1.2 (ADR-0161) | PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
 | Shipping | Envíos manuales (por paquetería o entrega propia), costo fijo con envío gratis por monto | Integración con paqueterías, envíos parciales, recoger en tienda (ADR-0078; entrega en tienda de las ventas de mostrador en la versión 1.2, ADR-0161) |
 | Transversales | Auditoría técnica, notificaciones, jobs | Facturación electrónica (CFDI) |
 
@@ -364,7 +364,7 @@ Criterios de aceptación:
 Criterios de aceptación:
 
 - **UC-PAY-01:** el monto se toma de la orden; exige `Idempotency-Key` con el mismo comportamiento que UC-ORD-02 (ADR-0063); devuelve una "acción requerida" genérica. Con el método manual, la acción requerida indica pago en tienda con el código público y el total (ADR-0055).
-- **UC-PAY-02:** disponible solo si la variable de entorno lo habilita; produce `PaymentCaptured` y sigue el mismo flujo que un pago de proveedor; se audita. Solo sobre órdenes en PendingPayment o Expired; en cualquier otro estado se rechaza (ADR-0055).
+- **UC-PAY-02:** disponible solo si la variable de entorno lo habilita; produce `PaymentCaptured` y sigue el mismo flujo que un pago de proveedor; se audita. Solo sobre órdenes en PendingPayment o Expired; en cualquier otro estado se rechaza (ADR-0055); guarda el comprobante, quién lo registró y, opcional, cómo se cobró: efectivo, terminal o transferencia (ADR-0161).
 - **UC-PAY-04:** firma inválida se rechaza; un evento repetido no produce efectos; un evento tardío no revierte un estado posterior.
 - **UC-PAY-03 / 06 / 07:** el reembolso es por el total capturado; al confirmarse (webhook, conciliación o registro manual) la orden pasa a Refunded y el Payment a Refunded; si falla, la orden permanece en Cancelled y el staff puede reintentarlo; el registro manual solo está disponible con el pago manual habilitado y se audita; no existen reembolsos sin cancelación. El stock se reintegra aparte, con UC-INV-09 (ADR-0142).
 - **UC-PAY-05:** reejecuta la confirmación de pagos capturados cuya orden sigue en PendingPayment con más de 10 minutos.
@@ -441,7 +441,7 @@ Criterios de aceptación:
 
 ## 6. Flujos principales
 
-### 6.1 Compra con pago manual (entorno de pruebas)
+### 6.1 Compra con pago en tienda
 
 1. El cliente cotiza (UC-ORD-01) y coloca la orden (UC-ORD-02): reserva de 20 minutos, orden en PendingPayment.
 2. El cliente recibe la indicación de pagar en tienda, con el código público y el total, y paga físicamente en la tienda (ADR-0055).

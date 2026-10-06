@@ -859,7 +859,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El pago manual suele registrarse después del TTL de la reserva (20 minutos). En ese caso aplica ADR-0012: se intenta reservar de nuevo y, si no hay stock, la orden pasa a AwaitingManualFulfillment. Para pruebas, el TTL puede ampliarse por configuración.
   - El adaptador de PayPal requiere verificación completa (T-191, P-31) antes de habilitarse.
 - **Revisar cuando:** se tenga la cuenta y el sandbox de PayPal, o se decida integrar Mercado Pago o Stripe.
-- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto. Modificada por ADR-0158: el adaptador de PayPal (T-192) queda fuera del MVP, sin construir; el método manual sigue siendo solo para pruebas.
+- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto. Modificada por ADR-0158: el adaptador de PayPal (T-192) queda fuera del MVP, sin construir; el método manual sigue siendo solo para pruebas. Modificada por ADR-0161 (T-187 parte a): el método manual deja de ser solo para pruebas y es el cobro de la tienda física, detrás de la misma variable, y guarda cómo se cobró.
 
 ---
 
@@ -3777,7 +3777,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b: cancelar una orden pagada llama a Payments para iniciar el reembolso, y Ordering escucha `RefundCompleted`.
   - T-192 suma UC-PAY-07. La conciliación (UC-PAY-05) vivirá en Ordering, que es quien puede leer órdenes y pagos.
   - Pruebas contra PostgreSQL: dos registros del mismo pago a la vez, dos inicios a la vez, y un pago junto con una cancelación.
-- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135.
+- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135. ADR-0161 agrega `method` al registro del pago manual, que guarda el intento capturado.
 
 ---
 
@@ -4826,7 +4826,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las dependencias se atrasan mientras dure la pausa. Las vulnerabilidades siguen llegando como pull requests de seguridad, que pasan por la CI.
   - Modifica ADR-0018 (alcance del MVP), ADR-0040 (PayPal) y ADR-0106 (Dependabot), y resuelve el pendiente de ADR-0013 sobre qué proveedores entran en el MVP.
 - **Revisar cuando:** una entidad quiera usar el proyecto.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-04, en la review del Sprint 9). Modificada por ADR-0159: el MVP se publica como la versión 1.0.0, y el desarrollo puede seguir por versiones sin retomar el proyecto completo.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-04, en la review del Sprint 9). Modificada por ADR-0159: el MVP se publica como la versión 1.0.0, y el desarrollo puede seguir por versiones sin retomar el proyecto completo. En la versión 1.2, ADR-0161 hace del pago manual el cobro real de la tienda física.
 
 ## ADR-0159 — Versiones después del MVP
 
@@ -4995,4 +4995,9 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `AdminOrder` muestra `channel`, `placedBy` y `warehouseId`, y el listado filtra por `channel` y `placedBy`;
   - el correo de una orden `STORE` no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
 
-  El método del pago en tienda llega en el segundo pull request de la parte a.
+  Parte a, segundo pull request; la parte a queda hecha:
+  - la migración `20261006160000_payments_in_store_method` crea `payment_method` (`CASH`, `CARD_TERMINAL` y `TRANSFER`) y agrega `payment_attempts.method`, que solo lleva un intento CAPTURED (`payment_attempts_method_check`);
+  - `POST /v1/admin/orders/{orderId}/manual-capture` acepta `method`, opcional para no romper `/v1`: sin él, el pago queda sin método, como los anteriores;
+  - el intento capturado guarda el método; `AdminPayment.attempts[].method` y `AdminOrder.payment.method` lo muestran, y la auditoría `payments.manual-capture` lo registra;
+  - el pago manual deja de ser solo para pruebas en el código, `.env.example` y la documentación; `MANUAL_PAYMENTS_ENABLED` sigue en `false` por defecto;
+  - el reembolso manual no cambia.

@@ -170,7 +170,7 @@ Base común (ADR-0101): cada job es un método marcado con `@ScheduledJob(nombre
 
 | Integración | Estado |
 |---|---|
-| Pagos | Método manual para pruebas; PayPal semiimplementado y no verificado; Mercado Pago y Stripe pospuestos (ADR-0040). Pruebas de webhooks pendientes (P-31) |
+| Pagos | Método manual, el cobro de la tienda física desde la versión 1.2 (ADR-0161); PayPal semiimplementado y no verificado; Mercado Pago y Stripe pospuestos (ADR-0040). Pruebas de webhooks pendientes (P-31) |
 | Paqueterías | Sin integración; envíos manuales (ADR-0041) |
 | Almacenamiento de imágenes | Disco del servidor detrás del puerto `ProductImageStorage` de Catalog, servido por la API en `/media`; CDN a futuro (ADR-0024, ADR-0121) |
 | Envío de correos | Puerto propio; en desarrollo, capturador local en Docker Compose (ADR-0045). Proveedor real pendiente de hosting (P-24) |
