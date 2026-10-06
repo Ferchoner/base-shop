@@ -3,6 +3,8 @@
 ## Unreleased
 
 - La descripción de `contactEmail` en `Order`, `AdminOrder` y sus listados dice cuándo es `null`: en una orden anonimizada o bloqueada, y en una venta de mostrador sin datos del comprador (ADR-0161). Antes decía que solo en las anonimizadas.
+- Plan de la versión 1.3 (nuevo ADR-0162): el pago en tienda configurable desde la API. El valor de `MANUAL_PAYMENTS_ENABLED` pasa a la base, con una ruta para consultarlo y otra para cambiarlo, reservada al superadministrador con el permiso nuevo `payments.configure`. Se implementa en T-194.
+- Paso 0 de la versión 1.3: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.2.
 
 ## 1.2.0 (2026-10-06)
 

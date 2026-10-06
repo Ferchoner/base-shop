@@ -179,6 +179,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0159 | Versiones después del MVP | Aceptada |
 | ADR-0160 | Varios almacenes propios | Aceptada |
 | ADR-0161 | Ventas asistidas en la tienda física | Aceptada |
+| ADR-0162 | Pago manual habilitado desde la API | Aceptada |
 
 ---
 
@@ -5010,3 +5011,48 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `Order`, `AdminOrder` y los listados agregan `fulfillment`, y en una orden `IN_STORE` muestran `shippingAddress` y `estimatedDelivery` en `null`: la excepción a ADR-0034;
   - los correos de una orden `IN_STORE` dicen "Entrega: en la tienda" y "Te entregamos tus productos en la tienda", sin plazo de entrega;
   - anonimizar una orden `IN_STORE` deja su dirección en `null`.
+
+## ADR-0162 — Pago manual habilitado desde la API
+
+- **Fecha:** 2026-10-06
+- **Contexto:** Tercer incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.3. Al construir el backoffice apareció un hueco (G-02): no hay forma de saber si el pago manual está habilitado.
+  - `MANUAL_PAYMENTS_ENABLED` es una variable de entorno, `false` por defecto (ADR-0040, ADR-0134), que se lee una sola vez al arrancar. Payments la comprueba antes de registrar un pago o un reembolso manual (403 `manual-payments-disabled`), y Notifications decide con ella si el correo de orden recibida da instrucciones de pago en tienda (ADR-0143).
+  - Ninguna ruta la expone, y cambiarla exige reiniciar la API. El backoffice muestra "Registrar pago" y "Registrar reembolso" a quien tiene `payments.manage`, y la acción falla con el 403 si el pago manual está apagado.
+  - Desde la versión 1.2 es el cobro real de la tienda física (ADR-0161): encenderlo o apagarlo es una decisión de operación, no de despliegue.
+  - El usuario decidió el 2026-10-05, al planear el backoffice, que el backend tenga una ruta para consultar si el pago manual está habilitado y otra para encenderlo o apagarlo, y que solo un superadministrador pueda cambiarlo.
+  - La autorización solo conoce permisos (ADR-0111). El superadministrador los tiene todos, y nada se reserva a él, salvo asignar su rol (BR-USR-20).
+- **Decisión** (del usuario, con las recomendaciones del análisis):
+  - **El valor vive en la base:** una tabla de Payments, `payment_settings`, con una sola fila, que garantiza un CHECK: `manual_payments_enabled`, `version` y `updated_at`. La migración la crea deshabilitada, el mismo valor por defecto de hoy.
+  - **Se lee en cada operación, sin caché:** el pago y el reembolso manual, y cada correo de orden recibida, leen la fila. Así todas las réplicas ven el mismo valor, y un cambio vale de inmediato. Un pago que ya pasó la comprobación cuando se apaga termina normalmente.
+  - **Consulta:** `GET /v1/admin/payment-settings`, con `orders.read`, el permiso de las lecturas de pagos (`API_SPEC.md` §16). La ven el cajero, el Administrador y el Vendedor, que así sabe si el mostrador puede cobrar. 200 `PaymentSettings { manualPaymentsEnabled, version, updatedAt }`.
+  - **Cambio:** `PUT /v1/admin/payment-settings`, con el permiso nuevo `payments.configure`, como el método de envío (ADR-0075, ADR-0122):
+    - request `{ "manualPaymentsEnabled", "version" }`, los dos obligatorios; 200 `PaymentSettings`;
+    - una `version` anterior responde 409 `version-conflict`;
+    - cada cambio se audita como `payment-settings.update`, con el valor anterior y el nuevo; sin cambios no se guarda ni se audita.
+  - **Una ruta propia:** `/v1/admin/payments` es la colección de pagos, y `settings` chocaría con `GET /v1/admin/payments/{paymentId}`.
+  - **Permiso reservado al superadministrador:** `payments.configure` no se da a ningún rol inicial, y ningún otro rol puede tenerlo.
+    - Crear o editar un rol con él responde 400 `validation-error` en `permissions`, como hoy un `PATCH` a los permisos del rol superadministrador (ADR-0112).
+    - El catálogo de `GET /v1/admin/identity/permissions` agrega `superadminOnly` a cada permiso, para que el editor de roles no lo ofrezca.
+    - El backoffice muestra la pantalla para cambiarlo según `payments.configure` en `GET /v1/me`.
+  - **Sin la variable:** `MANUAL_PAYMENTS_ENABLED` se quita del código, de `.env.example` y de las pruebas. La validación del entorno ignora las variables desconocidas, así que una que quede no impide arrancar. Después de migrar, el pago manual queda deshabilitado hasta que un superadministrador lo encienda.
+  - **Correos:** Notifications pregunta a Payments al enviar cada correo, con un puerto propio y un adaptador a la fachada de Payments, desde su API pública (ADR-0005).
+  - **El 403 no cambia** de código ni de lugar en el orden de las validaciones; su texto dice que un superadministrador lo habilita.
+  - **El reembolso manual sigue necesitando el pago manual habilitado** (ADR-0135).
+  - **Implementación:** T-194, en una parte.
+- **Alternativas consideradas:**
+  - **Dejar la variable y exponerla en una ruta de solo lectura:** el backoffice sabría el estado, pero cambiarlo seguiría exigiendo un despliegue.
+  - **Conservar la variable como valor inicial:** una migración no lee el entorno, y crear la fila al arrancar mezcla datos con el arranque (ADR-0122).
+  - **Un permiso que el superadministrador pueda delegar:** más simple, pero entonces no sería solo el superadministrador quien lo cambia.
+  - **Comprobar en el caso de uso que quien cambia es superadministrador, sin permiso nuevo:** la matriz de rutas y el OpenAPI dirían otro permiso, y el backoffice no sabría por `GET /v1/me` quién puede cambiarlo.
+  - **Consulta con `payments.manage`:** más restrictiva, pero el Vendedor no sabría si el mostrador puede cobrar.
+  - **El valor en caché:** varias réplicas verían valores distintos hasta que venciera.
+  - **`/v1/admin/payments/settings`:** chocaría con `GET /v1/admin/payments/{paymentId}`.
+- **Consecuencias:**
+  - El backoffice sabe si mostrar las acciones del pago en tienda, y un superadministrador las enciende sin desplegar.
+  - Encender el cobro de la tienda pasa a depender de una cuenta de staff, que no tiene segundo factor (ADR-0048). Lo atenúan el permiso reservado y la auditoría.
+  - Apagar el pago manual también impide registrar los reembolsos manuales pendientes hasta encenderlo otra vez, como ya pasaba con la variable.
+  - Cambio para el operador: la variable deja de existir, y el pago manual se enciende con la ruta. Hoy no hay despliegues.
+  - Cambios compatibles en `/v1`: dos rutas nuevas y el campo `superadminOnly` en el catálogo de permisos. Por eso es una versión menor (ADR-0159).
+  - Al implementarse, modifica ADR-0040, ADR-0043, ADR-0111, ADR-0112, ADR-0134, ADR-0143 y ADR-0161, y la regla BR-PAY-09.
+- **Revisar si:** otra configuración de la tienda debe cambiar sin desplegar, o se agrega el segundo factor del staff.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-05; el diseño, aprobado el 2026-10-06, con sus 12 recomendaciones). Se implementa en T-194, en la versión 1.3.
