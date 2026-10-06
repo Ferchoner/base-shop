@@ -10,6 +10,11 @@
   - La tienda muestra disponible una variante con una unidad libre en cualquier almacén activo.
   - En el carrito, `canFulfill` dice si algún almacén surte la línea. En la cotización dice si la línea cabe junto con las demás; sin un almacén que tenga todo, se marcan las líneas que le faltan al más cercano, las mismas que lista el 409 `insufficient-stock`.
   - Entradas y ajustes aceptan cualquier almacén activo.
+- T-162 parte b (ADR-0160); T-162 queda en DONE.
+  - `POST /v1/admin/inventory/warehouses` crea almacenes (UC-INV-10), y `POST /v1/admin/inventory/warehouses/{warehouseId}/deactivate` los desactiva para siempre (UC-INV-11). Responde 409 `resource-in-use` si tienen unidades reservadas, e `invalid-state-transition` si ya están inactivos o son el último activo. `PATCH` acepta `priority`.
+  - `POST /v1/admin/orders/{orderId}/restocks` devuelve las unidades al almacén del que salieron, aunque esté inactivo, o al almacén activo `warehouseId`, nuevo y opcional.
+  - Los ajustes aceptan almacenes inactivos; el motivo nuevo `WAREHOUSE_TRANSFER` suma o resta. Las entradas siguen aceptando solo almacenes activos.
+  - `GET /v1/admin/shipping/shipments` filtra por `warehouseId`, y `AdminOrder.shipment` lo muestra.
 
 ## 1.0.0 (2026-10-05)
 

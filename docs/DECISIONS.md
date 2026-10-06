@@ -1431,7 +1431,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El dominio valida que la dirección del movimiento corresponda al motivo; la base de datos lo verifica también con `CHECK`.
 - **Alternativas consideradas:** Texto libre (no analizable); lista cerrada sin nota; catálogo editable por el staff en una tabla.
 - **Consecuencias:** En `stock_movements`, el campo `reason` se reemplaza por `reason_code` y `note`.
-- **Estado:** Aceptada.
+- **Estado:** Aceptada. ADR-0160 agrega el motivo de ajuste `WAREHOUSE_TRANSFER`, que suma o resta, para mover stock entre almacenes.
 
 ---
 
@@ -1604,7 +1604,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Se retiran las notas "irreversible mientras P-49 esté abierta" (descontinuar variante) y "archivado mientras P-49 esté abierta" (publicar producto): un producto archivado primero se reactiva a DRAFT y luego se publica.
   - La reactivación de staff y clientes es un evento de seguridad auditado, igual que la suspensión (ADR-0037).
   - Fuera de alcance: almacenes y listas de precios desactivados (ADR-0038) tampoco tienen reactivación, pero no forman parte de P-49.
-- **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`. Reactivación del staff implementada en ADR-0116.
+- **Estado:** Aceptada (aprobación formal 2026-09-25), incluido el cambio del índice de `product_variants`. Reactivación del staff implementada en ADR-0116. ADR-0160: el staff desactiva almacenes para siempre, sin reactivación.
 
 ---
 
@@ -3378,7 +3378,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El orden por SKU cuesta más cuantos más stock items tenga el filtro. Con miles no se nota; con cientos de miles habrá que pasar a una proyección de lectura, la misma salida que prevé ADR-0060.
   - Cada página hace una consulta más a Catalog, en lote.
   - Dos cambios de un mismo stock item se esperan en su fila.
-- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión). La parte b está en ADR-0128. La decisión pendiente de T-161 se registró como P-73 en la Sprint Review del Sprint 3, y ADR-0132 la resuelve.
+- **Estado:** Aceptada (plan de T-160 aprobado el 2026-09-30; el listado sin copiar datos de Catalog, manteniendo el orden por SKU, se eligió en la misma revisión). La parte b está en ADR-0128. La decisión pendiente de T-161 se registró como P-73 en la Sprint Review del Sprint 3, y ADR-0132 la resuelve. ADR-0160: el staff crea y desactiva almacenes; las entradas van a un almacén activo, y los ajustes a cualquiera, para mover o corregir el stock de uno inactivo.
 
 ---
 
@@ -4083,7 +4083,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - BR-INV-10 y ADR-0052 dejan la opción solo al cancelar.
   - Prueba contra PostgreSQL: dos reintegros de la misma línea a la vez que juntos pasarían de lo vendido; solo uno ocurre.
   - Con T-195 y T-161 hechas, sigue T-215.
-- **Estado:** Aceptada (plan de T-161 aprobado el 2026-10-02, con sus 2 recomendaciones). `id` en las líneas de `AdminOrder` se agregó durante la implementación, porque la ruta pide `orderLineId` y ninguna vista lo mostraba.
+- **Estado:** Aceptada (plan de T-161 aprobado el 2026-10-02, con sus 2 recomendaciones). `id` en las líneas de `AdminOrder` se agregó durante la implementación, porque la ruta pide `orderLineId` y ninguna vista lo mostraba. ADR-0160: las unidades vuelven al almacén del que salió cada línea, o al almacén activo `warehouseId` que indique el staff.
 
 ---
 
@@ -4921,3 +4921,10 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - la tienda agrega la disponibilidad con un `LATERAL` sobre los almacenes activos;
   - el plan de la parte a precisó la cotización y el 409 por el almacén más cercano;
   - mientras llega la parte b, el reintegro va al primer almacén activo por prioridad.
+  Parte b (plan aprobado el 2026-10-05, con sus 12 recomendaciones); T-162 queda en DONE:
+  - `POST /v1/admin/inventory/warehouses` crea almacenes activos, con un código único de 2 a 20 mayúsculas, dígitos y guiones, y una prioridad obligatoria; `PATCH` acepta `priority`;
+  - `POST …/{warehouseId}/deactivate` los desactiva para siempre. Responde 409 `resource-in-use` si tienen unidades reservadas, e `invalid-state-transition` si ya están inactivos o son el último activo (`reason: last-active-warehouse`);
+  - la desactivación bloquea todos los almacenes activos `FOR UPDATE`, y cada intento de reserva y cada entrada toman su almacén `FOR SHARE`: una reserva nunca cae en un almacén que se desactiva, y dos desactivaciones nunca dejan ninguno activo;
+  - el reintegro vuelve a los stock items de los que salió cada línea, según los movimientos de venta de la orden y descontando lo ya reintegrado ahí, aunque el almacén esté inactivo; con `warehouseId`, va a ese almacén activo;
+  - los ajustes aceptan almacenes inactivos, y el motivo `WAREHOUSE_TRANSFER` llega con dos migraciones, porque un valor nuevo de un enum de PostgreSQL no se usa en la transacción que lo crea;
+  - el listado de envíos filtra por `warehouseId`, y `AdminOrder.shipment` lo muestra.

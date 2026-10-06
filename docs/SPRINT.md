@@ -47,6 +47,22 @@ T-162 parte a (ADR-0160):
 - **Envío:** sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`, que reemplaza a `activeWarehouseId`). Si hubiera más de un grupo, Ordering falla en vez de perder uno.
 - **Mientras llega la parte b:** el reintegro va al primer almacén activo por prioridad.
 
+### Resultado del paso 2
+
+T-162 parte b (ADR-0160); T-162 queda en DONE.
+
+- **Administración de almacenes:**
+  - `POST …/warehouses` crea almacenes activos, con un código único y una prioridad;
+  - `PATCH` cambia la prioridad;
+  - `POST …/deactivate` los desactiva para siempre, si no tienen unidades reservadas y no son el último activo.
+- **Concurrencia:** la desactivación bloquea los almacenes activos, y cada reserva y cada entrada toman su almacén en modo compartido. Tres pruebas con dos conexiones lo comprueban:
+  - una desactivación espera a la reserva en curso y luego se rechaza;
+  - una reserva espera a la desactivación y luego cae en el siguiente almacén;
+  - de dos desactivaciones a la vez, solo una pasa.
+- **Reintegro al origen:** cada línea vuelve a los stock items de los que salió, según los movimientos de venta, aunque el almacén esté inactivo; con `warehouseId`, a ese almacén activo.
+- **Transferencias:** los ajustes aceptan almacenes inactivos, y `WAREHOUSE_TRANSFER` llega con dos migraciones.
+- **Envíos:** el listado filtra por `warehouseId`, y la orden del staff muestra el almacén del envío.
+
 ### Risks
 
 - **Tienda duplicada:** quitar el índice de un solo almacén sin corregir la tienda duplicaría los productos en cuanto existiera un segundo almacén activo. Van en la misma parte (ADR-0160).
