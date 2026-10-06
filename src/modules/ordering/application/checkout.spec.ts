@@ -232,6 +232,9 @@ function setUp(
     reserveIfAvailable: () => {
       throw new Error('The checkout reserves all or fails');
     },
+    isActiveWarehouse: () => {
+      throw new Error('The checkout of a cart never chooses a warehouse');
+    },
     commit: () => {
       throw new Error('The checkout never commits a reservation');
     },
@@ -469,11 +472,12 @@ describe('Checkout: quote (UC-ORD-01)', () => {
     );
   });
 
-  it('fails loudly for a line of a variant Catalog does not know', async () => {
-    const { checkout } = setUp({ carts: cartsWith([[newId<'Variant'>(), 1]]) });
+  it('answers a line of a variant Catalog does not know as not found', async () => {
+    const unknown = newId<'Variant'>();
+    const { checkout } = setUp({ carts: cartsWith([[unknown, 1]]) });
 
     await expect(checkout.quote({ guestCartId })).rejects.toThrow(
-      /which does not exist/,
+      new NotFoundError('Variant', unknown),
     );
   });
 });

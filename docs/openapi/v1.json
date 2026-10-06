@@ -44,6 +44,7 @@
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
+                "orders.place",
                 "payments.manage",
                 "shipping.manage",
                 "shipping.configure",
@@ -775,6 +776,14 @@
             "nullable": true,
             "type": "string"
           },
+          "channel": {
+            "description": "`ONLINE`: la colocó el comprador en la tienda en línea, desde su carrito. `STORE`: la colocó el staff en la tienda física a nombre del cliente (ADR-0161).",
+            "enum": [
+              "ONLINE",
+              "STORE"
+            ],
+            "type": "string"
+          },
           "contactEmail": {
             "description": "`null` solo en órdenes anonimizadas (ADR-0067).",
             "example": "cliente@example.com",
@@ -869,6 +878,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "placedBy": {
+            "description": "La cuenta de staff que colocó una orden `STORE`; `null` en una `ONLINE`.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
           "publicCode": {
             "description": "Código público: con él y el email, quien compra consulta su pedido.",
             "example": "K7M4-Q9XA",
@@ -960,6 +975,12 @@
           "version": {
             "description": "Versión para el bloqueo optimista.",
             "type": "number"
+          },
+          "warehouseId": {
+            "description": "El almacén que eligió el staff para una orden `STORE`: su stock sale solo de ahí; `null` en una `ONLINE`.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
@@ -984,6 +1005,9 @@
           "payment",
           "shipment",
           "customerId",
+          "channel",
+          "placedBy",
+          "warehouseId",
           "anonymizedAt",
           "blockedAt",
           "shippingAddress",
@@ -1257,6 +1281,14 @@
             "nullable": true,
             "type": "string"
           },
+          "channel": {
+            "description": "`ONLINE`: la colocó el comprador en la tienda en línea, desde su carrito. `STORE`: la colocó el staff en la tienda física a nombre del cliente (ADR-0161).",
+            "enum": [
+              "ONLINE",
+              "STORE"
+            ],
+            "type": "string"
+          },
           "contactEmail": {
             "description": "`null` solo en órdenes anonimizadas (ADR-0067).",
             "example": "cliente@example.com",
@@ -1345,6 +1377,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "placedBy": {
+            "description": "La cuenta de staff que colocó una orden `STORE`; `null` en una `ONLINE`.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
           "publicCode": {
             "description": "Código público: con él y el email, quien compra consulta su pedido.",
             "example": "K7M4-Q9XA",
@@ -1429,6 +1467,12 @@
           "version": {
             "description": "Versión para el bloqueo optimista.",
             "type": "number"
+          },
+          "warehouseId": {
+            "description": "El almacén que eligió el staff para una orden `STORE`: su stock sale solo de ahí; `null` en una `ONLINE`.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
@@ -1453,6 +1497,9 @@
           "payment",
           "shipment",
           "customerId",
+          "channel",
+          "placedBy",
+          "warehouseId",
           "anonymizedAt",
           "blockedAt",
           "shippingAddress",
@@ -2968,6 +3015,7 @@
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
+                "orders.place",
                 "payments.manage",
                 "shipping.manage",
                 "shipping.configure",
@@ -4658,6 +4706,70 @@
         ],
         "type": "object"
       },
+      "PlaceStaffOrderDto": {
+        "properties": {
+          "addressId": {
+            "description": "Una dirección guardada del cliente, solo con `customerId`; exactamente uno de `addressId` y `shippingAddress`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "contactEmail": {
+            "description": "Email de contacto de un invitado; se guarda en minúsculas. Exactamente uno de `customerId` y `contactEmail`.",
+            "example": "cliente@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "customerId": {
+            "description": "Un cliente registrado y activo, con el email verificado: el contacto es el email de su cuenta. Exactamente uno de `customerId` y `contactEmail`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedTotal": {
+            "description": "`grandTotal.amount` de la cotización que aceptó el cliente, en centavos.",
+            "example": 129700,
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "number"
+          },
+          "lines": {
+            "description": "De 1 a 100 líneas, cada variante una sola vez, en el orden en que la orden las numera.",
+            "items": {
+              "$ref": "#/components/schemas/StaffOrderLineDto"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "privacyNoticeVersion": {
+            "description": "Versión del aviso de privacidad que el staff presentó al invitado (ADR-0067); obligatoria con `contactEmail`, y\nsolo con él: un cliente registrado lo aceptó al crear su cuenta.",
+            "example": "2026-09",
+            "maxLength": 50,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "shippingAddress": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AddressInputDto"
+              }
+            ],
+            "description": "Una dirección escrita para la orden, sin guardarla."
+          },
+          "warehouseId": {
+            "description": "El almacén activo del que sale el stock, el de la tienda: no se toma de otro (ADR-0161).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "expectedTotal",
+          "warehouseId"
+        ],
+        "type": "object"
+      },
       "PostalAddressDto": {
         "properties": {
           "city": {
@@ -5837,6 +5949,7 @@
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
+                "orders.place",
                 "payments.manage",
                 "shipping.manage",
                 "shipping.configure",
@@ -6146,6 +6259,50 @@
         "required": [
           "data",
           "meta"
+        ],
+        "type": "object"
+      },
+      "StaffOrderLineDto": {
+        "properties": {
+          "quantity": {
+            "description": "Unidades, de 1 a 30, como una línea del carrito (BR-CRT-02).",
+            "example": 2,
+            "maximum": 30,
+            "minimum": 1,
+            "type": "number"
+          },
+          "variantId": {
+            "description": "Una variante del catálogo.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "variantId",
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "StaffQuoteDto": {
+        "properties": {
+          "lines": {
+            "description": "De 1 a 100 líneas, cada variante una sola vez, en el orden en que la orden las numera.",
+            "items": {
+              "$ref": "#/components/schemas/StaffOrderLineDto"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "warehouseId": {
+            "description": "El almacén activo del que sale el stock, el de la tienda: no se toma de otro (ADR-0161).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "warehouseId"
         ],
         "type": "object"
       },
@@ -6883,6 +7040,7 @@
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
+                "orders.place",
                 "payments.manage",
                 "shipping.manage",
                 "shipping.configure",
@@ -14062,6 +14220,19 @@
             }
           },
           {
+            "description": "`ONLINE`: las de la tienda en línea; `STORE`: las que colocó el staff en la tienda física (ADR-0161).",
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ONLINE",
+                "STORE"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Número interno o código público exactos (con o sin guion, sin distinguir mayúsculas), o parte del email\nde contacto.",
             "in": "query",
             "name": "q",
@@ -14098,6 +14269,16 @@
             "required": false,
             "schema": {
               "example": "2026-10-31",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Las órdenes que colocó en la tienda física esta cuenta de staff (ADR-0161).",
+            "in": "query",
+            "name": "placedBy",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -14184,6 +14365,237 @@
         ],
         "x-required-permissions": [
           "orders.read"
+        ]
+      },
+      "post": {
+        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como `orders.place`.",
+        "operationId": "AdminOrdersController_place_v1",
+        "parameters": [
+          {
+            "description": "Llave de idempotencia de 1 a 255 caracteres; se recomienda un UUID (API_SPEC.md, sección 4).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceStaffOrderDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-key-missing`: Falta la llave de idempotencia; `validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`email-not-verified`: Correo sin verificar\n\n`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `insufficient-stock`: Stock insuficiente"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-key-mismatch`: Llave de idempotencia reutilizada"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Colocar un pedido en la tienda física a nombre de un cliente",
+        "tags": [
+          "Administración: pedidos"
+        ],
+        "x-required-permissions": [
+          "orders.place"
+        ]
+      }
+    },
+    "/v1/admin/orders/quote": {
+      "post": {
+        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404.",
+        "operationId": "AdminOrdersController_quote_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffQuoteDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutQuoteDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cotizar un pedido en la tienda física",
+        "tags": [
+          "Administración: pedidos"
+        ],
+        "x-required-permissions": [
+          "orders.place"
         ]
       }
     },

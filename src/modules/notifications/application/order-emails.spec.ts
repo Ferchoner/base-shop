@@ -50,6 +50,7 @@ function order(changes: Partial<NoticeOrder> = {}): NoticeOrder {
     paymentDueAt: new Date('2026-10-02T18:20:00.000Z'),
     deliveryMinBusinessDays: 3,
     deliveryMaxBusinessDays: 7,
+    placedInStore: false,
     ...changes,
   };
 }
@@ -98,6 +99,15 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
 
     expect(email.text).not.toContain('Para pagar');
     expect(email.text).not.toContain('Apartamos');
+    expect(email.text).toContain('Plazo de entrega estimado');
+  });
+
+  it('says neither how to pay nor the hold for an order the staff placed in the store, with the customer there (ADR-0161)', () => {
+    const email = orderPlacedEmail(order({ placedInStore: true }), true);
+
+    expect(email.text).not.toContain('Para pagar');
+    expect(email.text).not.toContain('Apartamos');
+    expect(email.text).toContain('Lo enviaremos a:');
     expect(email.text).toContain('Plazo de entrega estimado');
   });
 

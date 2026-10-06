@@ -329,6 +329,24 @@ describe('OrderReorders (UC-CRT-09, ADR-0139)', () => {
     }
   });
 
+  it('answers 409 to the staff for a guest order placed in the store, which came from no cart (ADR-0161)', async () => {
+    const placed = saved('CANCELLED');
+    const order = Order.restore({
+      ...placed.snapshot,
+      channel: 'STORE',
+      sourceCartId: null,
+      placedBy: newId<'User'>(),
+      warehouseId: newId<'Warehouse'>(),
+    });
+    const { reorders, audited, calls } = setUp(order);
+
+    await expect(reorders.forStaff(order.id)).rejects.toThrow(
+      SourceCartUnavailableError,
+    );
+    expect(calls).toEqual([]);
+    expect(audited).toEqual([]);
+  });
+
   it('answers 409 to the staff when the guest’s cart is no longer available, without auditing', async () => {
     const order = saved('CANCELLED');
     const { reorders, audited } = setUp(order, 'gone');

@@ -1,10 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  DomainError,
-  type Id,
-  type Money,
-  toId,
-} from '../../../shared-kernel/index.js';
+import { DomainError, type Money, toId } from '../../../shared-kernel/index.js';
 import { CatalogFacade } from '../../catalog/index.js';
 import { GeoCatalog } from '../../geo/index.js';
 import { IdentityAccessFacade } from '../../identity-access/index.js';
@@ -49,6 +44,7 @@ import type {
   ShippingAddress,
   StaffId,
   VariantId,
+  WarehouseId,
 } from '../domain/order.js';
 import type { LocationProblem } from '../domain/ordering-errors.js';
 import {
@@ -224,24 +220,27 @@ export class InventoryFacadeOrderStock extends OrderStock {
 
   canFulfill(
     lines: readonly StockLine[],
+    warehouseId: WarehouseId | null = null,
   ): Promise<ReadonlyMap<VariantId, boolean>> {
-    return this.inventory.canFulfillTogether(lines);
+    return this.inventory.canFulfillTogether(lines, warehouseId);
   }
 
   async reserve(
     orderId: OrderId,
     lines: readonly StockLine[],
+    warehouseId: WarehouseId | null = null,
   ): Promise<StockReservation> {
-    const receipt = await this.inventory.reserve(orderId, lines);
+    const receipt = await this.inventory.reserve(orderId, lines, warehouseId);
     return { id: receipt.reservationId, expiresAt: receipt.expiresAt };
   }
 
   async reserveIfAvailable(
     orderId: OrderId,
     lines: readonly StockLine[],
+    warehouseId: WarehouseId | null = null,
   ): Promise<StockReservation | null> {
     try {
-      return await this.reserve(orderId, lines);
+      return await this.reserve(orderId, lines, warehouseId);
     } catch (error) {
       // InventoryFacade.reserve undid what it reserved before failing (ADR-0133).
       if (error instanceof DomainError && error.code === 'insufficient-stock') {
@@ -249,6 +248,10 @@ export class InventoryFacadeOrderStock extends OrderStock {
       }
       throw error;
     }
+  }
+
+  isActiveWarehouse(warehouseId: WarehouseId): Promise<boolean> {
+    return this.inventory.isActiveWarehouse(warehouseId);
   }
 
   commit(
@@ -271,7 +274,7 @@ export class InventoryFacadeOrderStock extends OrderStock {
     note: string | null;
     actorId: StaffId;
     lines: readonly RestockLine[];
-    warehouseId: Id<'Warehouse'> | null;
+    warehouseId: WarehouseId | null;
   }): Promise<RestockMovement[]> {
     return this.inventory.restock(input);
   }

@@ -47,6 +47,8 @@ export interface OrderNotice {
   readonly paymentDueAt: Date | null;
   readonly deliveryMinBusinessDays: number;
   readonly deliveryMaxBusinessDays: number;
+  /** The staff placed it in the physical store, with the customer there (ADR-0161). */
+  readonly placedInStore: boolean;
 }
 
 /** An anonymized order (ADR-0067): it gets no email, and keeps nothing of its buyer to show. */
@@ -136,6 +138,7 @@ export class OrderingFacade {
       paymentDueAt: view.paymentDueAt,
       deliveryMinBusinessDays: view.deliveryMinBusinessDays,
       deliveryMaxBusinessDays: view.deliveryMaxBusinessDays,
+      placedInStore: view.channel === 'STORE',
     };
   }
 }

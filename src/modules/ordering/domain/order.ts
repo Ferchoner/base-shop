@@ -26,6 +26,17 @@ export type CartId = Id<'Cart'>;
 /** The reservation of Inventory that holds the stock of an unpaid order (ADR-0128). */
 export type ReservationId = Id<'Reservation'>;
 
+/** A warehouse of Inventory, known here only by its ID (ADR-0005). */
+export type WarehouseId = Id<'Warehouse'>;
+
+/**
+ * Where an order was placed (ADR-0161): the online store, from a cart, or the physical store, where the staff
+ * places it on behalf of the customer.
+ */
+export const ORDER_CHANNELS = ['ONLINE', 'STORE'] as const;
+
+export type OrderChannel = (typeof ORDER_CHANNELS)[number];
+
 /** BR-ORD-05, ADR-0009, ADR-0051; the transitions are in REQUIREMENTS.md §3.1. */
 export const ORDER_STATUSES = [
   'PENDING_PAYMENT',
@@ -254,7 +265,13 @@ export interface OrderSnapshot {
   readonly reservationId: ReservationId | null;
   /** When the first reservation ends: the order expires then if it is not paid (BR-ORD-07). */
   readonly paymentDueAt: Date;
-  readonly sourceCartId: CartId;
+  readonly channel: OrderChannel;
+  /** The cart of an online order; a store order has none (ADR-0161). */
+  readonly sourceCartId: CartId | null;
+  /** The staff member who placed a store order; `null` for an online one. */
+  readonly placedBy: StaffId | null;
+  /** The warehouse the staff chose for a store order: its stock comes only from there (ADR-0161). */
+  readonly warehouseId: WarehouseId | null;
   readonly placedAt: Date;
   /** When the payment was captured, also when the order could not be fulfilled or was cancelled first. */
   readonly paidAt: Date | null;
@@ -278,6 +295,21 @@ export interface OrderSnapshot {
   readonly version: number;
 }
 
+/** What every new order is made of, wherever it is placed. */
+export interface NewOrder {
+  readonly id: OrderId;
+  readonly publicCode: PublicCode;
+  readonly buyer: Buyer;
+  readonly lines: readonly PricedLine[];
+  readonly shipping: OrderShipping;
+  readonly shippingAddress: ShippingAddress;
+  readonly reservation: {
+    readonly id: ReservationId;
+    readonly expiresAt: Date;
+  };
+  readonly now: Date;
+}
+
 /**
  * What a payment clears when it reopens an order that had concluded, expired or cancelled without one: it has not
  * concluded any more, and the data of its buyer is no longer blocked (ADR-0151).
@@ -297,22 +329,45 @@ export class Order {
   private constructor(private state: OrderSnapshot) {}
 
   /**
-   * A new order in PENDING_PAYMENT (UC-ORD-02), with its lines numbered in the order given.
+   * A new order of the online store in PENDING_PAYMENT (UC-ORD-02), from a cart, with its lines numbered in the
+   * order given.
    *
    * @throws EmptyCartError without lines (BR-ORD-01); InvalidValueError for a guest without the version of
    *   the privacy notice (ADR-0067) or a blank contact email.
    */
-  static place(input: {
-    id: OrderId;
-    publicCode: PublicCode;
-    buyer: Buyer;
-    lines: readonly PricedLine[];
-    shipping: OrderShipping;
-    shippingAddress: ShippingAddress;
-    reservation: { readonly id: ReservationId; readonly expiresAt: Date };
-    sourceCartId: CartId;
-    now: Date;
-  }): Order {
+  static place(input: NewOrder & { sourceCartId: CartId }): Order {
+    return Order.create(input, {
+      channel: 'ONLINE',
+      sourceCartId: input.sourceCartId,
+      placedBy: null,
+      warehouseId: null,
+    });
+  }
+
+  /**
+   * A new order of the physical store in PENDING_PAYMENT (UC-ORD-13, ADR-0161): a staff member places it on behalf
+   * of the customer, with its stock from the warehouse they chose, and without a cart.
+   *
+   * @throws as `place`.
+   */
+  static placeInStore(
+    input: NewOrder & { placedBy: StaffId; warehouseId: WarehouseId },
+  ): Order {
+    return Order.create(input, {
+      channel: 'STORE',
+      sourceCartId: null,
+      placedBy: input.placedBy,
+      warehouseId: input.warehouseId,
+    });
+  }
+
+  private static create(
+    input: NewOrder,
+    origin: Pick<
+      OrderSnapshot,
+      'channel' | 'sourceCartId' | 'placedBy' | 'warehouseId'
+    >,
+  ): Order {
     if (input.lines.length === 0) throw new EmptyCartError();
     const contactEmail = normalizedContactEmail(input.buyer.contactEmail);
     if (contactEmail === '') {
@@ -346,7 +401,7 @@ export class Order {
       shippingAddress: input.shippingAddress,
       reservationId: input.reservation.id,
       paymentDueAt: input.reservation.expiresAt,
-      sourceCartId: input.sourceCartId,
+      ...origin,
       placedAt: input.now,
       paidAt: null,
       shippedAt: null,

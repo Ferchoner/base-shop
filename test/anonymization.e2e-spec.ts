@@ -582,7 +582,7 @@ describe('Anonymization (e2e, T-132)', () => {
                 .filter(
                   ({ contactEmail }) => (contactEmail === null) === anonymized,
                 )
-                .map(({ sourceCartId }) => sourceCartId),
+                .map(({ sourceCartId }) => sourceCartId as string),
             },
           },
         });

@@ -72,6 +72,15 @@ describe('OrderExpiredHandler (UC-CRT-08, ADR-0137)', () => {
     );
   });
 
+  it('restores nothing, and logs nothing, for an order without a cart, placed by the staff in the store (ADR-0161)', async () => {
+    const { handler: onEvent, received } = handler('unexpected');
+
+    await onEvent.onOrderExpired({ ...event(), sourceCartId: null });
+
+    expect(received).toEqual([]);
+    expect(error).not.toHaveBeenCalled();
+  });
+
   it('logs nothing for a repeated event', async () => {
     await handler('already-restored').handler.onOrderExpired(event());
 

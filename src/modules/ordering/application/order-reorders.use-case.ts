@@ -92,11 +92,12 @@ export class OrderReorders {
 
   /**
    * The staff buys an order again for its buyer, never in a cart of its own (ADR-0055): a customer's goes into
-   * the customer's active cart, and a guest's into the cart it came from, the one the guest knows (ADR-0082).
-   * Audited as `orders.reorder`.
+   * the customer's active cart, and a guest's into the cart it came from, the one the guest knows (ADR-0082). A
+   * guest order the staff placed in the store came from no cart, so it has none to go to (ADR-0161). Audited as
+   * `orders.reorder`.
    *
    * @throws NotFoundError; InvalidStateTransitionError; SourceCartUnavailableError when the guest's cart is no
-   *   longer available.
+   *   longer available, or the guest order had none.
    */
   forStaff(orderId: OrderId): Promise<CartCopy> {
     return this.transactions.run(async () => {
@@ -105,9 +106,11 @@ export class OrderReorders {
       const lines = linesToReorder(order);
       const { customerId, sourceCartId } = order.snapshot;
       const copy =
-        customerId === null
-          ? await this.carts.copyToSourceCart(sourceCartId, lines)
-          : await this.carts.copyToCustomerCart(customerId, lines);
+        customerId !== null
+          ? await this.carts.copyToCustomerCart(customerId, lines)
+          : sourceCartId === null
+            ? null
+            : await this.carts.copyToSourceCart(sourceCartId, lines);
       if (copy === null) throw new SourceCartUnavailableError();
       await this.audit.record({
         action: 'orders.reorder',

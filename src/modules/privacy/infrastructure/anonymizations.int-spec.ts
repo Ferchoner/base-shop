@@ -401,6 +401,60 @@ describe('Privacy: anonymizations (T-132)', () => {
   const keptIn = (scopeId: string) =>
     prisma.idempotencyKey.count({ where: { scopeId } });
 
+  /** The order as if the staff placed it in the store (ADR-0161): without a cart, by `staffId`, from MAIN. */
+  const placedInStore = (orderId: string, staffId: string) =>
+    prisma.order.update({
+      where: { id: orderId },
+      data: {
+        channel: 'STORE',
+        sourceCartId: null,
+        placedBy: staffId,
+        warehouseId: MAIN,
+      },
+    });
+
+  /** A response kept in the scope of a staff member, of an endpoint, about a resource. */
+  async function keptStaffResponse(
+    staffId: string,
+    resourceId: string,
+    endpoint = 'POST /v1/admin/orders',
+    status: 'COMPLETED' | 'IN_PROGRESS' = 'COMPLETED',
+  ): Promise<string> {
+    const key = newId();
+    await prisma.idempotencyKey.create({
+      data: {
+        scopeType: 'USER',
+        scopeId: staffId,
+        endpoint,
+        key,
+        requestHash: 'hash',
+        status,
+        responseStatus: status === 'COMPLETED' ? 201 : null,
+        responseBody:
+          status === 'COMPLETED'
+            ? {
+                kind: 'success',
+                status: 201,
+                body: { id: resourceId, contactEmail: 'x' },
+              }
+            : undefined,
+        expiresAt: new Date(START + 86_400_000),
+      },
+    });
+    return key;
+  }
+
+  /** The keys still kept in the scope of a staff member. */
+  const staffKeys = async (staffId: string) =>
+    (
+      await prisma.idempotencyKey.findMany({
+        where: { scopeId: staffId },
+        select: { key: true },
+      })
+    )
+      .map(({ key }) => key)
+      .sort();
+
   const ordersOf = (ids: string[]) =>
     prisma.order.findMany({
       where: { id: { in: ids } },
@@ -576,6 +630,22 @@ describe('Privacy: anonymizations (T-132)', () => {
           reason: 'ARCO-2026-0042',
         })),
       ]);
+    });
+
+    it('forgets the response the staff kept of an order it placed in the store for the customer (ADR-0161)', async () => {
+      const ana = await customer('ana.tienda@example.com');
+      const staff = newId();
+      const inStore = await order(
+        { customerId: ana, email: 'ana.tienda@example.com' },
+        'DELIVERED',
+      );
+      await placedInStore(inStore.id, staff);
+      await keptStaffResponse(staff, inStore.id);
+      const other = await keptStaffResponse(staff, newId());
+
+      await anonymizeCustomer(ana);
+
+      expect(await staffKeys(staff)).toEqual([other]);
     });
 
     it('leaves alone an order anonymized before, as the retention cycle will (T-232)', async () => {
@@ -780,7 +850,7 @@ describe('Privacy: anonymizations (T-132)', () => {
           })
         )
           .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
-          .map(({ sourceCartId }) => sourceCartId);
+          .map(({ sourceCartId }) => sourceCartId as string);
       const [firstCart, secondCart, anotherCart] = await cartsOf(
         first.id,
         second.id,
@@ -843,6 +913,40 @@ describe('Privacy: anonymizations (T-132)', () => {
           where: { action: 'orders.anonymize', reason: 'ARCO-2026-0043' },
         }),
       ).toBe(2);
+    });
+
+    it('anonymizes a guest order the staff placed in the store, without a cart, and forgets only its response in the scope of the staff (ADR-0161)', async () => {
+      const email = 'tienda@example.com';
+      const staff = newId();
+      const inStore = await order({ guestEmail: email }, 'DELIVERED');
+      const another = await order(
+        { guestEmail: 'otra@example.com' },
+        'DELIVERED',
+      );
+      await placedInStore(inStore.id, staff);
+      await placedInStore(another.id, staff);
+      await keptStaffResponse(staff, inStore.id);
+      const kept = [
+        await keptStaffResponse(staff, another.id),
+        await keptStaffResponse(
+          staff,
+          inStore.id,
+          'POST /v1/admin/orders/:orderId/restocks',
+        ),
+        await keptStaffResponse(
+          staff,
+          inStore.id,
+          'POST /v1/admin/orders',
+          'IN_PROGRESS',
+        ),
+      ].sort();
+
+      expect(await anonymizeGuest(email, inStore.publicCode)).toBe(1);
+
+      expect(
+        await prisma.order.findUniqueOrThrow({ where: { id: inStore.id } }),
+      ).toMatchObject({ contactEmail: null, shippingAddress: KEPT });
+      expect(await staffKeys(staff)).toEqual(kept);
     });
 
     it("answers the same 404 for a code of another email, a customer's order, a code that cannot exist, and once anonymized", async () => {

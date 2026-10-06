@@ -46,6 +46,7 @@ const ORDER: NoticeOrder = {
   paymentDueAt: null,
   deliveryMinBusinessDays: 3,
   deliveryMaxBusinessDays: 7,
+  placedInStore: false,
 };
 
 type SomeOrder = NoticeOrder | AnonymizedNoticeOrder;

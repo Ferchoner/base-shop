@@ -20,6 +20,7 @@ import {
   ShippingLocations,
 } from './application/checkout-ports.js';
 import { Checkout } from './application/checkout.use-case.js';
+import { StaffCheckout } from './application/staff-checkout.use-case.js';
 import {
   AccessTokenCleanup,
   SpentAccessTokens,
@@ -132,6 +133,7 @@ import { OrdersController } from './presentation/orders.controller.js';
         parseDuration(config.get('ORDER_ACCESS_LINK_TTL', { infer: true })),
     },
     Checkout,
+    StaffCheckout,
     OrderLifecycle,
     OrderExpiry,
     OrderExpiryJob,

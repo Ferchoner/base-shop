@@ -11,7 +11,8 @@ export interface OrderExpired extends DomainEvent<'OrderExpired'> {
   readonly orderId: string;
   /** `null` for a guest order. */
   readonly customerId: string | null;
-  readonly sourceCartId: string;
+  /** `null` for an order the staff placed in the store, without a cart (ADR-0161). */
+  readonly sourceCartId: string | null;
   readonly lines: readonly {
     readonly variantId: string;
     readonly quantity: number;
@@ -20,7 +21,8 @@ export interface OrderExpired extends DomainEvent<'OrderExpired'> {
 
 /**
  * Puts the lines of an expired order back in a cart (UC-CRT-08), in the background after the expiration
- * commits (ADR-0098, API_SPEC.md §2.5). A cart that does not exist or is not the buyer's goes to the log.
+ * commits (ADR-0098, API_SPEC.md §2.5). A cart that does not exist or is not the buyer's goes to the log. An
+ * order without a cart puts its lines back in none (BR-ORD-14).
  */
 @Injectable()
 export class OrderExpiredHandler {
@@ -30,6 +32,7 @@ export class OrderExpiredHandler {
 
   @OnDomainEvent('OrderExpired')
   async onOrderExpired(event: OrderExpired): Promise<void> {
+    if (event.sourceCartId === null) return;
     const outcome = await this.restoration.restoreExpiredOrder({
       customerId:
         event.customerId === null ? null : toId<'User'>(event.customerId),

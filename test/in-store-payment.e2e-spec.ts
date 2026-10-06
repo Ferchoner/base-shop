@@ -325,7 +325,7 @@ describe('In-store payment (e2e, T-190)', () => {
         [publicCode, randomUUID()],
         ['ZZZZ-ZZZZ', cartId],
         ['no-es-un-codigo', cartId],
-        [ofCustomer.publicCode, customerCart.sourceCartId],
+        [ofCustomer.publicCode, customerCart.sourceCartId as string],
       ]) {
         const response = await startAsGuest(code, {
           cartId: cart,

@@ -226,12 +226,12 @@ export class MeOrdersController {
 }
 
 /**
- * The address of the order: a saved one or one written for it, exactly one of them (API_SPEC.md §15.3).
+ * The address of the order: a saved one or one written for it, exactly one of them (API_SPEC.md §15.3, §15.7).
  *
  * @throws ProblemException `validation-error` on `addressId` with both or neither.
  */
-function shippingAddressOf(
-  body: PlaceCustomerOrderDto,
+export function shippingAddressOf(
+  body: Pick<PlaceCustomerOrderDto, 'addressId' | 'shippingAddress'>,
 ): { addressId: string } | AddressInput {
   if ((body.addressId === undefined) === (body.shippingAddress === undefined)) {
     throw new ProblemException('validation-error', {

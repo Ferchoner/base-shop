@@ -54,6 +54,39 @@ export const ONE_WAREHOUSE_PER_ORDER: AllocationPolicy = {
 };
 
 /**
+ * Every unit of an order from the warehouse the staff chose (ADR-0161): that warehouse when it holds all of it,
+ * and no plan otherwise, so the order never goes to another one.
+ */
+export function fixedWarehouse(warehouseId: WarehouseId): AllocationPolicy {
+  return {
+    plans: (warehouses, requests) =>
+      warehouses
+        .filter(
+          (warehouse) =>
+            warehouse.warehouseId === warehouseId &&
+            shortIn(warehouse, requests).length === 0,
+        )
+        .map(() => [{ warehouseId, lines: requests }]),
+  };
+}
+
+/**
+ * The requests one warehouse leaves out (ADR-0161): every request when it is not among the active ones.
+ */
+export function shortInWarehouse(
+  warehouses: readonly WarehouseStock[],
+  warehouseId: WarehouseId,
+  requests: readonly StockRequest[],
+): VariantId[] {
+  const warehouse = warehouses.find(
+    (candidate) => candidate.warehouseId === warehouseId,
+  );
+  return warehouse === undefined
+    ? requests.map(({ variantId }) => variantId)
+    : shortIn(warehouse, requests);
+}
+
+/**
  * Whether some warehouse alone fulfills each request: what a line can be, on its own (BR-INV-12).
  * Requests of one variant must come added up.
  */

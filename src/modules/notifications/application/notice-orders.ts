@@ -36,6 +36,8 @@ export interface NoticeOrder {
   readonly paymentDueAt: Date | null;
   readonly deliveryMinBusinessDays: number;
   readonly deliveryMaxBusinessDays: number;
+  /** The staff placed it in the physical store, with the customer there (ADR-0161). */
+  readonly placedInStore: boolean;
 }
 
 /** An anonymized order: it gets no email (BR-NTF-03), and keeps nothing of its buyer to show (ADR-0067). */

@@ -124,6 +124,19 @@ describe('OrderingFacade (ADR-0074, ADR-0143)', () => {
       paymentDueAt: DUE,
       deliveryMinBusinessDays: 3,
       deliveryMaxBusinessDays: 7,
+      placedInStore: false,
+    });
+  });
+
+  it('tells an order the staff placed in the store, for its emails (ADR-0161)', async () => {
+    const id = newId();
+    const { facade: ordering } = facade({
+      ...view(id),
+      channel: 'STORE',
+    } as unknown as OrderView);
+
+    expect(await ordering.orderNotice(id)).toMatchObject({
+      placedInStore: true,
     });
   });
 

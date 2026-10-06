@@ -7,12 +7,15 @@ import type {
 import type {
   CustomerId,
   OrderAddress,
+  OrderChannel,
   OrderId,
   OrderLineId,
   OrderStatus,
   OrderTotals,
   ShippingAddress,
+  StaffId,
   VariantOptions,
+  WarehouseId,
 } from '../domain/order.js';
 import type { PublicCode } from '../domain/public-code.js';
 
@@ -87,6 +90,11 @@ export interface StatusHistoryView {
 export interface AdminOrderSummaryView extends OrderSummaryView {
   readonly orderNumber: number;
   readonly version: number;
+  readonly channel: OrderChannel;
+  /** The staff member who placed a store order; `null` for an online one (ADR-0161). */
+  readonly placedBy: StaffId | null;
+  /** The warehouse the staff chose for a store order; `null` for an online one. */
+  readonly warehouseId: WarehouseId | null;
   readonly anonymizedAt: Date | null;
   /** When the data of its buyer was blocked (ADR-0070); its email and address show as anonymized then. */
   readonly blockedAt: Date | null;
@@ -112,6 +120,9 @@ export interface OrderFilter {
   readonly placedTo?: Date;
   /** `true` for the cancelled orders with a captured payment, which wait for their refund (ADR-0051). */
   readonly hasPendingRefund?: boolean;
+  readonly channel?: OrderChannel;
+  /** The orders this staff member placed in the store (ADR-0161). */
+  readonly placedBy?: StaffId;
 }
 
 export type OrderSortField = 'placedAt' | 'orderNumber' | 'grandTotal';

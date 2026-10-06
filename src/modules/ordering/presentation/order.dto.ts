@@ -44,7 +44,7 @@ import { EstimatedDeliveryDto } from './checkout.dto.js';
 const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
 
 /** Emails are compared in lowercase and without surrounding spaces, as in Identity (BR-USR-01). */
-const toNormalizedEmail = ({ value }: { value: unknown }) =>
+export const toNormalizedEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 /** Request of `POST /v1/orders` (UC-ORD-02, API_SPEC.md §15.3). */

@@ -208,6 +208,16 @@ export class EnvironmentVariables {
   })
   RATE_LIMIT_PLACE_ORDER_EMAIL: string = '5/1h';
 
+  /**
+   * Orders a staff member places in the physical store: each one reserves stock, so an account taken over cannot hold
+   * all of it. Format `<count>/<duration>` (ADR-0161).
+   */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_ADMIN_PLACE_ORDER: string = '30/10m';
+
   /** Host name or IP of the SMTP server (ADR-0045, ADR-0110): Mailpit in development. Required in production. */
   @Expose()
   @IsNotEmpty()

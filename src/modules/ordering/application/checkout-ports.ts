@@ -1,4 +1,4 @@
-import type { Id, Money } from '../../../shared-kernel/index.js';
+import type { Money } from '../../../shared-kernel/index.js';
 import type {
   CartId,
   CustomerId,
@@ -11,6 +11,7 @@ import type {
   StaffId,
   VariantId,
   VariantOptions,
+  WarehouseId,
 } from '../domain/order.js';
 import type { LocationProblem } from '../domain/ordering-errors.js';
 
@@ -90,20 +91,25 @@ export interface StockReservation {
 export abstract class OrderStock {
   /**
    * Whether each variant can be fulfilled now together with the others, as the order would be reserved: the
-   * ones the closest warehouse leaves out cannot (ADR-0160). Never reveals quantities (ADR-0061).
+   * ones the closest warehouse leaves out cannot (ADR-0160), or the ones `warehouseId` leaves out, when the staff
+   * chose it (ADR-0161). Never reveals quantities (ADR-0061).
    */
   abstract canFulfill(
     lines: readonly StockLine[],
+    warehouseId?: WarehouseId | null,
   ): Promise<ReadonlyMap<VariantId, boolean>>;
 
   /**
-   * Reserves the units of the order, all or nothing, until the reservation expires (UC-INV-05, ADR-0128).
+   * Reserves the units of the order, all or nothing, until the reservation expires (UC-INV-05, ADR-0128): in
+   * the first warehouse by priority that holds them all, or only in `warehouseId` (ADR-0161).
    *
-   * @throws InsufficientStockError with every variant that cannot be fulfilled.
+   * @throws InsufficientStockError with every variant that cannot be fulfilled; all of them when `warehouseId`
+   *   is not active.
    */
   abstract reserve(
     orderId: OrderId,
     lines: readonly StockLine[],
+    warehouseId?: WarehouseId | null,
   ): Promise<StockReservation>;
 
   /**
@@ -113,7 +119,14 @@ export abstract class OrderStock {
   abstract reserveIfAvailable(
     orderId: OrderId,
     lines: readonly StockLine[],
+    warehouseId?: WarehouseId | null,
   ): Promise<StockReservation | null>;
+
+  /**
+   * Whether the warehouse exists and is active, locked until the transaction ends so it is not deactivated in
+   * between (ADR-0160, ADR-0161).
+   */
+  abstract isActiveWarehouse(warehouseId: WarehouseId): Promise<boolean>;
 
   /**
    * Confirms the reservation of a paid order: its units leave the stock (UC-INV-06). `not-active` when it has
@@ -143,7 +156,7 @@ export abstract class OrderStock {
     note: string | null;
     actorId: StaffId;
     lines: readonly RestockLine[];
-    warehouseId: Id<'Warehouse'> | null;
+    warehouseId: WarehouseId | null;
   }): Promise<RestockMovement[]>;
 }
 

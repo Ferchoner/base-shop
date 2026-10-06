@@ -5,5 +5,7 @@ process.env.RATE_LIMIT_DEFAULT ??= '1000/1m';
 process.env.RATE_LIMIT_GUEST_ORDER ??= '1000/15m';
 // The same for guest orders per contact email (5 per hour), since the suites reuse their emails.
 process.env.RATE_LIMIT_PLACE_ORDER_EMAIL ??= '1000/1h';
+// The same for the orders of the staff in the store (30 per staff member in 10 minutes).
+process.env.RATE_LIMIT_ADMIN_PLACE_ORDER ??= '1000/10m';
 // The purchase suites pay in the store (ADR-0040): suites that test it turned off set their own value.
 process.env.MANUAL_PAYMENTS_ENABLED ??= 'true';
