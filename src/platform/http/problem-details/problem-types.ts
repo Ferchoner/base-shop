@@ -74,7 +74,8 @@ export const PROBLEM_TYPES = {
   'manual-payments-disabled': {
     status: 403,
     title: 'Pagos manuales deshabilitados',
-    detail: 'Los pagos y reembolsos manuales no están habilitados.',
+    detail:
+      'Los pagos y reembolsos manuales no están habilitados. Un superadministrador los habilita con `PUT /v1/admin/payment-settings`.',
   },
   'not-found': {
     status: 404,

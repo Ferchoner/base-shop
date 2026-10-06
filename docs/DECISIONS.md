@@ -860,7 +860,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El pago manual suele registrarse después del TTL de la reserva (20 minutos). En ese caso aplica ADR-0012: se intenta reservar de nuevo y, si no hay stock, la orden pasa a AwaitingManualFulfillment. Para pruebas, el TTL puede ampliarse por configuración.
   - El adaptador de PayPal requiere verificación completa (T-191, P-31) antes de habilitarse.
 - **Revisar cuando:** se tenga la cuenta y el sandbox de PayPal, o se decida integrar Mercado Pago o Stripe.
-- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto. Modificada por ADR-0158: el adaptador de PayPal (T-192) queda fuera del MVP, sin construir; el método manual sigue siendo solo para pruebas. Modificada por ADR-0161 (T-187 parte a): el método manual deja de ser solo para pruebas y es el cobro de la tienda física, detrás de la misma variable, y guarda cómo se cobró.
+- **Estado:** Aceptada. Implementada en T-190 parte a (ADR-0134): variable `MANUAL_PAYMENTS_ENABLED`, `false` por defecto. Modificada por ADR-0158: el adaptador de PayPal (T-192) queda fuera del MVP, sin construir; el método manual sigue siendo solo para pruebas. Modificada por ADR-0161 (T-187 parte a): el método manual deja de ser solo para pruebas y es el cobro de la tienda física, detrás de la misma variable, y guarda cómo se cobró. Modificada por ADR-0162 (T-194): el método manual ya no lo habilita la variable, que deja de existir, sino la configuración de Payments, que cambia un superadministrador con `PUT /v1/admin/payment-settings`.
 
 ---
 
@@ -913,6 +913,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `orders.read` | Ver pedidos |
 | `orders.manage` | Cancelar pedidos y resolver AwaitingManualFulfillment |
 | `payments.manage` | Registrar pagos manuales y emitir reembolsos |
+| `payments.configure` | Habilitar o deshabilitar el pago manual en tienda; solo el rol superadministrador (agregado por ADR-0162) |
 | `shipping.manage` | Gestionar envíos (guías y estados) |
 | `shipping.configure` | Configurar el costo de envío y el umbral de envío gratis (agregado por ADR-0075) |
 | `customers.read` | Ver datos de clientes |
@@ -925,7 +926,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 
   - **Roles iniciales:**
     - Superadministrador: todos los permisos. No se puede quitar el último (BR-USR-03).
-    - Administrador: todos excepto `staff.manage`. Es el rol "de nivel alto" de ADR-0021.
+    - Administrador: todos excepto `staff.manage` y, desde ADR-0162, `payments.configure`. Es el rol "de nivel alto" de ADR-0021.
     - Operador: `catalog.*`, `pricing.*`, `inventory.*`, `orders.read`, `shipping.manage`, `customers.read`.
     - Vendedor (agregado por ADR-0161): `catalog.read`, `inventory.read`, `orders.read`, `orders.place`, `customers.read`.
   - **Tipo de cuenta explícito:** cliente o staff. Las cuentas de staff no compran y los clientes nunca tienen roles.
@@ -938,7 +939,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los roles se editan en base de datos, así que pueden crearse otros sin cambiar código.
   - Sin segundo factor, una contraseña del staff filtrada da acceso completo a sus permisos; el rate limiting del login y la auditoría de inicios de sesión son las mitigaciones actuales.
 - **Revisar:** segundo factor (2FA) para el staff como mejora de seguridad a mediano o largo plazo, idealmente antes de operar con clientes reales.
-- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito. ADR-0152 agrega `orders.read-blocked` al Administrador, por migración. ADR-0161 agrega `orders.place` al Administrador y el rol Vendedor, por migración, y el staff coloca pedidos a nombre de un cliente en la tienda física, sin comprar para sí.
+- **Estado:** Aceptada. Roles iniciales creados por migración y superadministrador con permisos implícitos en ADR-0111. Alta del staff y script del primer superadministrador implementados en ADR-0116. ADR-0150 agrega `events.manage` al Administrador, por migración; el Superadministrador lo tiene implícito. ADR-0152 agrega `orders.read-blocked` al Administrador, por migración. ADR-0161 agrega `orders.place` al Administrador y el rol Vendedor, por migración, y el staff coloca pedidos a nombre de un cliente en la tienda física, sin comprar para sí. ADR-0162 agrega `payments.configure`, que solo tiene el Superadministrador: ningún otro rol puede tenerlo, y el Administrador queda con todos los permisos salvo `staff.manage` y `payments.configure`.
 
 ---
 
@@ -2647,7 +2648,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cada endpoint nuevo de `/v1/admin` y `/v1/me` declara su requisito, o falla con 500 en los tests.
   - Un permiso nuevo se agrega al catálogo en el shared kernel y a los roles que lo necesiten. El superadministrador lo recibe solo.
   - Un validador propio de class-validator necesita un mensaje por defecto para que su mensaje en español (`context.message`) llegue a la respuesta.
-- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity. ADR-0153 compara las rutas sin distinguir mayúsculas, como enruta Express, y una matriz revisada comprueba en la CI cómo se protege cada ruta. ADR-0161 agrega `orders.place` al catálogo y siembra el rol Vendedor por migración; si un operador ya creó un rol con ese nombre, no lo toca.
+- **Estado:** Aceptada (plan de T-130 aprobado el 2026-09-28; ubicación del catálogo ajustada durante la implementación, ver arriba). ADR-0112 corrige el ordenamiento (varios campos, `API_SPEC.md` §5.3) y agrega `Cache-Control: no-store` en las respuestas autenticadas. ADR-0114 llena `request.user` y revoca las sesiones al suspender. ADR-0132 quita `orderCount` del detalle de cliente en T-180 parte b, porque Ordering usa a Identity. ADR-0153 compara las rutas sin distinguir mayúsculas, como enruta Express, y una matriz revisada comprueba en la CI cómo se protege cada ruta. ADR-0161 agrega `orders.place` al catálogo y siembra el rol Vendedor por migración; si un operador ya creó un rol con ese nombre, no lo toca. ADR-0162: el catálogo marca los permisos que solo tiene el rol superadministrador (`SUPERADMIN_ONLY_PERMISSIONS`); el rol los tiene implícitos, como los demás.
 
 ---
 
@@ -2702,7 +2703,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-131 agrega el alta y la reactivación del staff sobre `StaffUser` y el mismo control de superadministrador.
   - T-132 usará `reason` para la referencia de la solicitud ARCO.
   - Otras acciones que pidan motivo (cancelaciones, reintegros, ajustes) usan la misma columna.
-- **Estado:** Aceptada (plan de T-130 parte b aprobado el 2026-09-28). ADR-0154: con `staff.manage` solo se dan roles y permisos que uno tiene, el rol superadministrador solo lo asigna otro superadministrador, y reactivar a un miembro del staff exige poder darle sus roles (BR-USR-20).
+- **Estado:** Aceptada (plan de T-130 parte b aprobado el 2026-09-28). ADR-0154: con `staff.manage` solo se dan roles y permisos que uno tiene, el rol superadministrador solo lo asigna otro superadministrador, y reactivar a un miembro del staff exige poder darle sus roles (BR-USR-20). ADR-0162: un permiso reservado al rol superadministrador en otro rol responde 400 `validation-error` con `superadminOnly` en `permissions` (BR-USR-21).
 
 ---
 
@@ -3778,7 +3779,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b: cancelar una orden pagada llama a Payments para iniciar el reembolso, y Ordering escucha `RefundCompleted`.
   - T-192 suma UC-PAY-07. La conciliación (UC-PAY-05) vivirá en Ordering, que es quien puede leer órdenes y pagos.
   - Pruebas contra PostgreSQL: dos registros del mismo pago a la vez, dos inicios a la vez, y un pago junto con una cancelación.
-- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135. ADR-0161 agrega `method` al registro del pago manual, que guarda el intento capturado.
+- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135. ADR-0161 agrega `method` al registro del pago manual, que guarda el intento capturado. ADR-0162 reemplaza la variable `MANUAL_PAYMENTS_ENABLED` por la configuración de Payments: las comprobaciones de la fachada leen la base y son asíncronas.
 
 ---
 
@@ -4130,7 +4131,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las suites e2e que colocan órdenes intentan enviar los correos. Sin servidor SMTP en las pruebas, el envío falla de inmediato y solo queda una advertencia que el logger de pruebas no muestra. La suite de correos captura los mensajes con un `EmailSender` falso.
   - No hay correo cuando llega un pago a una orden ya cancelada: con el pago en tienda no ocurre, porque el registro manual solo acepta órdenes PENDING_PAYMENT o EXPIRED. Se revisa con PayPal (T-192).
   - Con T-215 terminada, sigue T-231.
-- **Estado:** Aceptada (plan de T-215 aprobado el 2026-10-02, con su recomendación). ADR-0150: un fallo del servidor de correo llega a la entrega del evento, que lo reintenta (BR-NTF-04).
+- **Estado:** Aceptada (plan de T-215 aprobado el 2026-10-02, con su recomendación). ADR-0150: un fallo del servidor de correo llega a la entrega del evento, que lo reintenta (BR-NTF-04). ADR-0162: el correo de orden recibida pregunta a la fachada de Payments, al escribirse, si la tienda cobra en persona.
 
 ---
 
@@ -5055,4 +5056,11 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambios compatibles en `/v1`: dos rutas nuevas y el campo `superadminOnly` en el catálogo de permisos. Por eso es una versión menor (ADR-0159).
   - Al implementarse, modifica ADR-0040, ADR-0043, ADR-0111, ADR-0112, ADR-0134, ADR-0143 y ADR-0161, y la regla BR-PAY-09.
 - **Revisar si:** otra configuración de la tienda debe cambiar sin desplegar, o se agrega el segundo factor del staff.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-05; el diseño, aprobado el 2026-10-06, con sus 12 recomendaciones). Se implementa en T-194, en la versión 1.3.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-05; el diseño, aprobado el 2026-10-06, con sus 12 recomendaciones). Se implementa en T-194, en la versión 1.3. T-194 queda en DONE (versión 1.3):
+  - la migración `20261006180000_payments_settings` crea `payment_settings` con una fila de clave fija, `01a11302-41ef-7d33-9e36-93a5239b19ba`, y `payment_settings_single_row_check`, que no admite otra; la fila empieza deshabilitada;
+  - `PaymentsFacade` lee la fila en cada pago y reembolso manual y en cada inicio de un pago `MANUAL`, sin caché; sus comprobaciones son asíncronas, y Ordering las espera;
+  - `GET /v1/admin/payment-settings` (`orders.read`) y `PUT` (`payments.configure`), con `ConfigurePaymentSettings`: versión, auditoría `payment-settings.update` y nada guardado sin cambios;
+  - `payments.configure` va en `SUPERADMIN_ONLY_PERMISSIONS`: `Role` rechaza crear o editar otro rol con él (`SuperadminOnlyPermissionError`), y el catálogo responde `superadminOnly`;
+  - Notifications pregunta con su puerto `InStorePayments`, cuyo adaptador usa la fachada de Payments;
+  - `MANUAL_PAYMENTS_ENABLED` sale del entorno y de `.env.example`; el texto del 403 dice que un superadministrador lo habilita;
+  - las e2e empiezan cada archivo con el pago manual habilitado (`test/e2e-manual-payments.ts`), y las de integración que lo necesitan lo encienden y lo apagan.

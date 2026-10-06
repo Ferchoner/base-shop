@@ -246,6 +246,10 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
     access: ['payments.manage'],
   },
 
+  // Staff: the settings of payments; changing them is reserved to the superadmin role (ADR-0162).
+  'GET /v1/admin/payment-settings': { access: ['orders.read'] },
+  'PUT /v1/admin/payment-settings': { access: ['payments.configure'] },
+
   // Staff: pricing, with the permissions of the catalog in code (ADR-0111).
   'GET /v1/admin/pricing/price-lists': { access: ['pricing.read'] },
   'POST /v1/admin/pricing/price-lists/:priceListId/imports': {

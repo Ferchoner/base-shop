@@ -14,6 +14,7 @@ import {
 import {
   type AdminPaymentView,
   type PaymentFilter,
+  type PaymentSettingsView,
   PaymentsQueries,
   type PaymentSortField,
   type PaymentView,
@@ -49,6 +50,15 @@ export class PrismaPaymentsQueries extends PaymentsQueries {
     return new Map(
       rows.map((row) => [toId<'Order'>(row.orderId), toPaymentView(row)]),
     );
+  }
+
+  async findSettings(): Promise<PaymentSettingsView> {
+    const row = await this.txHost.tx.paymentSettings.findFirst({
+      select: { manualPaymentsEnabled: true, version: true, updatedAt: true },
+    });
+    // Its migration creates the only row, and nothing deletes it.
+    if (row === null) throw new Error('payment_settings has no row');
+    return row;
   }
 
   async findPayment(id: PaymentId): Promise<AdminPaymentView | null> {

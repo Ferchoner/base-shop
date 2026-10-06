@@ -46,6 +46,7 @@
                 "orders.read-blocked",
                 "orders.place",
                 "payments.manage",
+                "payments.configure",
                 "shipping.manage",
                 "shipping.configure",
                 "customers.read",
@@ -3058,6 +3059,7 @@
                 "orders.read-blocked",
                 "orders.place",
                 "payments.manage",
+                "payments.configure",
                 "shipping.manage",
                 "shipping.configure",
                 "customers.read",
@@ -4626,6 +4628,29 @@
         ],
         "type": "object"
       },
+      "PaymentSettingsDto": {
+        "properties": {
+          "manualPaymentsEnabled": {
+            "description": "Si la tienda registra pagos y reembolsos manuales, y si el cliente puede elegir pagar en la tienda. Con\n`false`, esas acciones responden 403 `manual-payments-disabled`.",
+            "example": true,
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "description": "Versión para el bloqueo optimista: se envía al cambiarla.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "updatedAt",
+          "manualPaymentsEnabled",
+          "version"
+        ],
+        "type": "object"
+      },
       "PaymentStartDto": {
         "properties": {
           "action": {
@@ -4683,11 +4708,17 @@
           "description": {
             "example": "Gestionar productos, variantes, imágenes, categorías y marcas",
             "type": "string"
+          },
+          "superadminOnly": {
+            "description": "Solo lo tiene el rol superadministrador (ADR-0162): ningún otro rol puede tenerlo, y agregarlo a uno responde\n400 `validation-error`.",
+            "example": false,
+            "type": "boolean"
           }
         },
         "required": [
           "code",
-          "description"
+          "description",
+          "superadminOnly"
         ],
         "type": "object"
       },
@@ -6057,6 +6088,7 @@
                 "orders.read-blocked",
                 "orders.place",
                 "payments.manage",
+                "payments.configure",
                 "shipping.manage",
                 "shipping.configure",
                 "customers.read",
@@ -7079,6 +7111,25 @@
         },
         "type": "object"
       },
+      "UpdatePaymentSettingsDto": {
+        "properties": {
+          "manualPaymentsEnabled": {
+            "description": "`true` habilita el pago manual en tienda; `false` lo deshabilita.",
+            "example": true,
+            "type": "boolean"
+          },
+          "version": {
+            "description": "Versión leída (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "manualPaymentsEnabled",
+          "version"
+        ],
+        "type": "object"
+      },
       "UpdateProductDto": {
         "properties": {
           "brandId": {
@@ -7156,6 +7207,7 @@
                 "orders.read-blocked",
                 "orders.place",
                 "payments.manage",
+                "payments.configure",
                 "shipping.manage",
                 "shipping.configure",
                 "customers.read",
@@ -11962,7 +12014,7 @@
     },
     "/v1/admin/identity/permissions": {
       "get": {
-        "description": "Los permisos del catálogo en código, con su descripción (ADR-0017): los únicos que puede tener un rol.",
+        "description": "Los permisos del catálogo en código, con su descripción (ADR-0017): los únicos que puede tener un rol. Los de `superadminOnly` solo los tiene el rol superadministrador (ADR-0162).",
         "operationId": "AdminPermissionsController_list_v1",
         "parameters": [],
         "responses": {
@@ -15676,6 +15728,186 @@
         ],
         "x-required-permissions": [
           "orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/payment-settings": {
+      "get": {
+        "description": "Si la tienda registra pagos y reembolsos manuales, y si el cliente puede elegir pagar en la tienda (ADR-0162). Con el pago manual deshabilitado, esas acciones responden 403 `manual-payments-disabled`.",
+        "operationId": "AdminPaymentSettingsController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSettingsDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar si el pago manual está habilitado",
+        "tags": [
+          "Administración: pagos"
+        ],
+        "x-required-permissions": [
+          "orders.read"
+        ]
+      },
+      "put": {
+        "description": "Solo un superadministrador: `payments.configure` no lo tiene ningún otro rol (ADR-0162). Vale desde la siguiente operación; un pago que ya pasó la comprobación termina. Cada cambio se audita; sin cambios no se guarda ni se audita.",
+        "operationId": "AdminPaymentSettingsController_update_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePaymentSettingsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSettingsDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Habilitar o deshabilitar el pago manual",
+        "tags": [
+          "Administración: pagos"
+        ],
+        "x-required-permissions": [
+          "payments.configure"
         ]
       }
     },

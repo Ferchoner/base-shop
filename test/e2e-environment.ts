@@ -7,5 +7,4 @@ process.env.RATE_LIMIT_GUEST_ORDER ??= '1000/15m';
 process.env.RATE_LIMIT_PLACE_ORDER_EMAIL ??= '1000/1h';
 // The same for the orders of the staff in the store (30 per staff member in 10 minutes).
 process.env.RATE_LIMIT_ADMIN_PLACE_ORDER ??= '1000/10m';
-// The purchase suites pay in the store (ADR-0040): suites that test it turned off set their own value.
-process.env.MANUAL_PAYMENTS_ENABLED ??= 'true';
+// Manual payments are turned on in the database before each file: see e2e-manual-payments.ts (ADR-0162).

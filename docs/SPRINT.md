@@ -34,6 +34,16 @@ Que el backoffice sepa si el pago manual, el cobro de la tienda física, está h
   - un método que devuelve una promesa es `async`, para que todo error llegue como rechazo;
   - al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa.
 
+### Resultado del paso 1
+
+T-194 (ADR-0162); T-194 queda en DONE.
+
+- **El valor en la base:** `payment_settings`, con una fila de clave fija que un CHECK mantiene sola, creada deshabilitada. Payments la lee en cada pago y reembolso manual y en cada inicio de un pago `MANUAL`, sin caché, y Notifications la pregunta al escribir el correo de orden recibida.
+- **Rutas:** `GET /v1/admin/payment-settings`, con `orders.read`, y `PUT`, con `payments.configure`, versión y auditoría `payment-settings.update`. Sin cambios no se guarda ni se audita.
+- **Permiso reservado:** `payments.configure` solo lo tiene el rol superadministrador; otro rol con él responde 400 `superadminOnly` (BR-USR-21), y el catálogo de permisos lo marca con `superadminOnly`.
+- **Sin la variable:** `MANUAL_PAYMENTS_ENABLED` sale del entorno, de `.env.example` y de las pruebas, y una que quede en el entorno no impide arrancar. El texto del 403 `manual-payments-disabled` dice que un superadministrador lo habilita.
+- **Pruebas:** las e2e encienden el pago manual en la base antes de cada archivo; una prueba con dos conexiones comprueba que de dos cambios con la misma versión gana uno.
+
 ### Risks
 
 - **El cobro de la tienda en una cuenta de staff:** encenderlo pasa a depender del superadministrador, que no tiene segundo factor (ADR-0048). Lo atenúan el permiso reservado y la auditoría (ADR-0162).

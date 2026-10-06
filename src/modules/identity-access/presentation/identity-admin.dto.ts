@@ -47,6 +47,13 @@ export class PermissionDto {
 
   /** @example 'Gestionar productos, variantes, imágenes, categorías y marcas' */
   description: string;
+
+  /**
+   * Solo lo tiene el rol superadministrador (ADR-0162): ningún otro rol puede tenerlo, y agregarlo a uno responde
+   * 400 `validation-error`.
+   * @example false
+   */
+  superadminOnly: boolean;
 }
 
 export class PermissionListDto {

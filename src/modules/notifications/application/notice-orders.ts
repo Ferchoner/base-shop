@@ -57,5 +57,8 @@ export abstract class NoticeOrders {
   ): Promise<NoticeOrder | AnonymizedNoticeOrder | null>;
 }
 
-/** Dependency injection token of whether the store takes payments in person (`MANUAL_PAYMENTS_ENABLED`, ADR-0040). */
-export const IN_STORE_PAYMENTS = Symbol('IN_STORE_PAYMENTS');
+/** Whether the store takes payments in person (ADR-0040), from Payments, which a superadmin changes (ADR-0162). */
+export abstract class InStorePayments {
+  /** Asked when an email is written, so it follows a change at once. */
+  abstract enabled(): Promise<boolean>;
+}

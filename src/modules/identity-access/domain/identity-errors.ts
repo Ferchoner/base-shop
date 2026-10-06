@@ -14,6 +14,27 @@ export class LastSuperadminError extends DomainError {
 }
 
 /**
+ * A role other than the superadmin role was given a permission that only the superadmin role holds (BR-USR-21,
+ * ADR-0162), such as `payments.configure`. Answered as a validation error of the `permissions` field.
+ */
+export class SuperadminOnlyPermissionError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+
+  constructor(permissions: readonly string[]) {
+    super(`Only the superadmin role holds ${permissions.join(', ')}`, {
+      errors: [
+        {
+          field: 'permissions',
+          code: 'superadminOnly',
+          message: `Solo el rol superadministrador tiene ${permissions.join(', ')}.`,
+        },
+      ],
+    });
+  }
+}
+
+/**
  * The permissions of the superadmin role cannot be edited: it always has every permission (API_SPEC.md
  * §9.16, ADR-0112). Answered as a validation error of the `permissions` field, like any other.
  */

@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152 y `orders.place` de ADR-0161). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161 y `payments.configure` de ADR-0162, que solo tiene el rol superadministrador). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -276,7 +276,7 @@ Error de validación:
 | `email-not-verified` | 403 | E-08 | Cliente sin email verificado coloca una orden | — |
 | `staff-cannot-purchase` | 403 | E-09 | Cuenta de staff en el carrito o el checkout de la tienda en línea | — |
 | `password-change-required` | 403 | E-18 | Staff con cambio de contraseña pendiente | — |
-| `manual-payments-disabled` | 403 | E-23 | Pago o reembolso manual con la función deshabilitada | — |
+| `manual-payments-disabled` | 403 | E-23 | Pago o reembolso manual con la función deshabilitada; la habilita un superadministrador (§16.6) | — |
 | `not-found` | 404 | E-04 | Recurso inexistente, ajeno o consulta de invitado sin coincidencia | — |
 | `version-conflict` | 409 | E-05 | `version` desactualizada | `currentVersion` |
 | `total-mismatch` | 409 | E-06 | Total recalculado distinto de `expectedTotal` | `currentTotal` (Money) |
@@ -738,11 +738,12 @@ Implementado en T-130 (ADR-0113):
 
 ### 9.15 `GET /v1/admin/identity/permissions` — Catálogo de permisos
 
-- **Permiso:** `staff.manage`. **Response 200:** `{ "data": [ { "code": "catalog.write", "description": "…" } ] }` (catálogo en código, ADR-0017).
+- **Permiso:** `staff.manage`. **Response 200:** `{ "data": [ { "code": "catalog.write", "description": "…", "superadminOnly": false } ] }` (catálogo en código, ADR-0017).
+- `superadminOnly` marca los permisos que solo tiene el rol superadministrador (BR-USR-21, ADR-0162): hoy, `payments.configure`.
 
 ### 9.16 Roles (UC-IAM-15)
 
-La descripción de un rol tiene de 1 a 250 caracteres (`null` la borra). Un `PATCH` al rol superadministrador con `permissions` responde 400 `validation-error` en ese campo (ADR-0112). Crear un rol, o agregarle permisos, exige tener esos permisos; si no, 403 `forbidden`, auditado. Quitar permisos no tiene esa restricción (BR-USR-20, ADR-0154).
+La descripción de un rol tiene de 1 a 250 caracteres (`null` la borra). Un `PATCH` al rol superadministrador con `permissions` responde 400 `validation-error` en ese campo (ADR-0112). Un permiso con `superadminOnly` en otro rol, al crearlo o al editarlo, responde 400 `validation-error` con `superadminOnly` en `permissions`, aunque lo pida un superadministrador (BR-USR-21, ADR-0162). Crear un rol, o agregarle permisos, exige tener esos permisos; si no, 403 `forbidden`, auditado. Quitar permisos no tiene esa restricción (BR-USR-20, ADR-0154).
 
 Representación `Role`: `{ "id", "name", "description", "isSuperadmin", "permissions": ["…"], "userCount", "version", "createdAt", "updatedAt" }`.
 
@@ -1483,6 +1484,8 @@ Implementado en T-180 parte b (ADR-0133):
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 | POST | `/v1/admin/payments/{paymentId}/refunds/manual` | `payments.manage` | UC-PAY-06 |
 | POST | `/v1/admin/payments/{paymentId}/refunds/retry` | `payments.manage` | UC-PAY-07 (pendiente: T-192) |
+| GET | `/v1/admin/payment-settings` | `orders.read` | UC-PAY-08 (ADR-0162) |
+| PUT | `/v1/admin/payment-settings` | `payments.configure` | UC-PAY-08 (ADR-0162) |
 | POST | `/v1/webhooks/paypal` | Firma de PayPal | UC-PAY-04 (pendiente: responde 404 mientras PayPal no esté habilitado, §19) |
 
 La lectura de pagos usa `orders.read`, porque el catálogo de permisos no tiene uno de lectura de pagos y el pago forma parte de la vista de la orden (ADR-0071).
@@ -1493,7 +1496,7 @@ Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas qu
 
 - **`POST /v1/orders/{publicCode}/payments`** (invitado) — Request `{ "cartId", "provider": "MANUAL" }`. El `cartId` debe ser el carrito de origen de la orden: prueba que quien paga es quien compró, y es el alcance de la llave de idempotencia (ADR-0063).
 - **`POST /v1/me/orders/{publicCode}/payments`** (cliente) — Request `{ "provider": "MANUAL" }`.
-- **Validaciones:** `provider` entre los habilitados (hoy solo `MANUAL`, y solo si la variable de entorno lo habilita; PayPal no habilitado, ADR-0040) → otro valor, 400 `validation-error`. La orden debe estar en PENDING_PAYMENT. El monto se toma de la orden (BR-PAY-02).
+- **Validaciones:** `provider` entre los habilitados (hoy solo `MANUAL`, y solo con el pago manual habilitado, §16.6; PayPal no habilitado, ADR-0040) → otro valor, 400 `validation-error`. La orden debe estar en PENDING_PAYMENT. El monto se toma de la orden (BR-PAY-02).
 - **Response 201:**
 
 ```json
@@ -1528,7 +1531,7 @@ Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas qu
 
 - **`POST /v1/admin/orders/{orderId}/manual-capture`** — `payments.manage`. Antes era `POST /v1/admin/payments/manual-captures` con `orderId` en el cuerpo; la atiende Ordering, que conoce la orden (ADR-0134).
 - Request: `{ "reference": "Ticket 00452", "method": "CASH", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `method`, opcional, cómo se cobró: `CASH` (efectivo), `CARD_TERMINAL` (terminal bancaria) o `TRANSFER` (transferencia), y sin él el pago queda sin método (ADR-0161); `note` 0–500, que queda como motivo de la auditoría.
-- Es el cobro real de la tienda física desde la versión 1.2 (ADR-0161): deja de ser solo para pruebas, y el operador lo enciende con `MANUAL_PAYMENTS_ENABLED`.
+- Es el cobro real de la tienda física desde la versión 1.2 (ADR-0161): deja de ser solo para pruebas. Desde la versión 1.3 lo enciende un superadministrador con `PUT /v1/admin/payment-settings` (§16.6, ADR-0162); antes, el operador con la variable `MANUAL_PAYMENTS_ENABLED`.
 - Registra el cobro por el total de la orden (crea el Payment si no existe) y produce `PaymentCaptured`; la orden sigue el flujo normal o el de pago tardío (ADR-0012), en segundo plano (sección 2.5): la respuesta trae el pago capturado, y la orden puede seguir unos instantes en su estado anterior.
 - Solo órdenes en PENDING_PAYMENT o EXPIRED.
 - 200 `AdminOrder` con su pago capturado, como las demás acciones sobre la orden (ADR-0134); `payment.method` dice cómo se cobró. Auditado como `payments.manual-capture`, con el cambio de estado y el método.
@@ -1547,6 +1550,21 @@ Implementado en T-190 parte b (ADR-0135):
 - **Orden de las validaciones:** 403 `manual-payments-disabled`, 404, 409 `version-conflict` y 409 `invalid-state-transition`. Desde T-161, `restock` ya no es un campo del registro y responde 400 `validation-error` (ADR-0142).
 - **La orden:** pasa a REFUNDED en segundo plano (sección 2.5).
 - **Reintentar:** UC-PAY-07 pasa a T-192 (ADR-0134).
+
+### 16.6 Configuración de pagos (UC-PAY-08, ADR-0162)
+
+`PaymentSettings { manualPaymentsEnabled, version, updatedAt }`: si la tienda registra pagos y reembolsos manuales, y si el cliente puede elegir `MANUAL` al iniciar el pago. Es una sola configuración, que su migración crea con el pago manual deshabilitado. Hasta la versión 1.3 lo decidía la variable `MANUAL_PAYMENTS_ENABLED`, que ya no existe.
+
+- **`GET /v1/admin/payment-settings`** — `orders.read`, el permiso de las lecturas de pagos. 200 `PaymentSettings`.
+- **`PUT /v1/admin/payment-settings`** — `payments.configure`, que solo tiene el rol superadministrador (BR-USR-21). Request `{ "manualPaymentsEnabled": true, "version": 3 }`: los dos obligatorios, un booleano y la versión leída, entero ≥ 1. 200 `PaymentSettings`.
+  - Una `version` anterior responde 409 `version-conflict` con `currentVersion`.
+  - Cada cambio se audita como `payment-settings.update`, con el valor anterior y el nuevo; sin cambios no se guarda ni se audita.
+  - Vale desde la siguiente operación, en todas las instancias de la API: el valor se lee sin caché en cada pago y reembolso manual, en cada inicio de un pago `MANUAL` y en cada correo de orden recibida. Un pago que ya pasó la comprobación termina.
+- **Con el pago manual deshabilitado:**
+  - registrar un pago (§16.4) o un reembolso manual (§16.5) responde 403 `manual-payments-disabled`, cuyo texto dice que un superadministrador lo habilita;
+  - iniciar un pago `MANUAL` (§16.2) responde 400 `validation-error` con `isEnabledProvider` en `provider`;
+  - el correo de orden recibida no da instrucciones de pago en tienda.
+- La ruta queda fuera de `/v1/admin/payments`, donde `settings` chocaría con `{paymentId}`.
 
 ---
 
@@ -1680,7 +1698,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
 | UC-ORD-01 a 08, 11 a 14 | Sección 15 |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
-| UC-PAY-01, 02, 04, 06, 07 | Secciones 15.7, 16 y 19 |
+| UC-PAY-01, 02, 04, 06, 07, 08 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |
 | UC-PAY-05 | Sin API: job |
 | UC-SHI-02, 04 a 09 | Sección 17 |

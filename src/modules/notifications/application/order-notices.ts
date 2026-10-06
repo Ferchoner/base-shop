@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EmailSender, type Money } from '../../../shared-kernel/index.js';
 import {
   type OrderEmail,
@@ -10,7 +10,7 @@ import {
   type ShipmentLeft,
 } from './order-emails.js';
 import {
-  IN_STORE_PAYMENTS,
+  InStorePayments,
   type NoticeOrder,
   NoticeOrders,
 } from './notice-orders.js';
@@ -28,12 +28,12 @@ export class OrderNotices {
   constructor(
     private readonly orders: NoticeOrders,
     private readonly email: EmailSender,
-    @Inject(IN_STORE_PAYMENTS) private readonly inStorePayments: boolean,
+    private readonly inStorePayments: InStorePayments,
   ) {}
 
   orderPlaced(orderId: string): Promise<void> {
-    return this.send('order-placed', orderId, (order) =>
-      orderPlacedEmail(order, this.inStorePayments),
+    return this.send('order-placed', orderId, async (order) =>
+      orderPlacedEmail(order, await this.inStorePayments.enabled()),
     );
   }
 
@@ -62,7 +62,7 @@ export class OrderNotices {
   private async send(
     kind: string,
     orderId: string,
-    write: (order: NoticeOrder) => OrderEmail,
+    write: (order: NoticeOrder) => OrderEmail | Promise<OrderEmail>,
   ): Promise<void> {
     const order = await this.orders.find(orderId);
     if (order === null) {
@@ -72,6 +72,6 @@ export class OrderNotices {
       return;
     }
     if (order.contactEmail === null) return;
-    await this.email.send({ to: order.contactEmail, ...write(order) });
+    await this.email.send({ to: order.contactEmail, ...(await write(order)) });
   }
 }

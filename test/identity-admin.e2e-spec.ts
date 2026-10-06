@@ -115,29 +115,46 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .expect(200)
         .expect('Cache-Control', 'no-store');
 
-      expect(response.body.data).toHaveLength(18);
+      expect(response.body.data).toHaveLength(19);
       expect(response.body.data[0]).toEqual({
         code: 'catalog.read',
         description:
           'Ver el catálogo administrativo, incluidos borradores y archivados',
+        superadminOnly: false,
       });
       // The last one, of the platform (ADR-0150).
-      expect(response.body.data[17]).toEqual({
+      expect(response.body.data[18]).toEqual({
         code: 'events.manage',
         description: 'Ver y reintentar las entregas de eventos de dominio',
+        superadminOnly: false,
       });
       // For the blocked data of an order (ADR-0152).
       expect(response.body.data).toContainEqual({
         code: 'orders.read-blocked',
         description:
           'Consultar los datos personales bloqueados de un pedido, con motivo y auditado',
+        superadminOnly: false,
       });
       // For the orders of the physical store (ADR-0161).
       expect(response.body.data).toContainEqual({
         code: 'orders.place',
         description:
           'Colocar pedidos a nombre de un cliente en la tienda física',
+        superadminOnly: false,
       });
+      // The only one that no role but the superadmin role holds (ADR-0162).
+      expect(
+        response.body.data.filter(
+          (permission: { superadminOnly: boolean }) =>
+            permission.superadminOnly,
+        ),
+      ).toEqual([
+        {
+          code: 'payments.configure',
+          description: 'Habilitar o deshabilitar el pago manual en tienda',
+          superadminOnly: true,
+        },
+      ]);
       await http()
         .get('/v1/admin/identity/permissions')
         .set(staffWith('customers.manage'))
@@ -177,6 +194,58 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         type: '/problems/duplicate-value',
         field: 'name',
       });
+    });
+
+    it('gives no role but the superadmin role a permission reserved to it (BR-USR-21, ADR-0162)', async () => {
+      const superadminOnly = {
+        type: '/problems/validation-error',
+        errors: [
+          {
+            field: 'permissions',
+            code: 'superadminOnly',
+            message: 'Solo el rol superadministrador tiene payments.configure.',
+          },
+        ],
+      };
+      const created = await http()
+        .post('/v1/admin/identity/roles')
+        .set(asSuperadmin())
+        .send({
+          name: 'Caja de la tienda',
+          permissions: ['payments.configure', 'payments.manage'],
+        })
+        .expect(400);
+      expect(created.body).toMatchObject(superadminOnly);
+      const { body: role } = await http()
+        .post('/v1/admin/identity/roles')
+        .set(asSuperadmin())
+        .send({ name: 'Caja de la tienda', permissions: ['payments.manage'] })
+        .expect(201);
+      createdRoles.push(role.id);
+
+      const updated = await http()
+        .patch(`/v1/admin/identity/roles/${role.id}`)
+        .set(asSuperadmin())
+        .send({
+          permissions: ['payments.manage', 'payments.configure'],
+          version: role.version,
+        })
+        .expect(400);
+
+      expect(updated.body).toMatchObject(superadminOnly);
+      const { body: unchanged } = await http()
+        .get(`/v1/admin/identity/roles/${role.id}`)
+        .set(asSuperadmin())
+        .expect(200);
+      expect(unchanged).toMatchObject({
+        permissions: ['payments.manage'],
+        version: role.version,
+      });
+      const { body: superadminRole } = await http()
+        .get(`/v1/admin/identity/roles/${SUPERADMIN}`)
+        .set(asSuperadmin())
+        .expect(200);
+      expect(superadminRole.permissions).toContain('payments.configure');
     });
 
     it('rejects permissions outside the catalog (BR-USR-04)', async () => {

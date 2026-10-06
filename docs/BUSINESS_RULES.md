@@ -24,6 +24,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-18. El login responde "credenciales no válidas" sin distinguir email inexistente, contraseña incorrecta o cuenta suspendida. El registro sí indica que un email ya está registrado; el registro tiene rate limiting (ADR-0062).
 - BR-USR-19. Cambiar la contraseña desde la cuenta revoca las demás sesiones del usuario, conserva la actual y envía un aviso por correo (ADR-0072).
 - BR-USR-20. Nadie da lo que no tiene: un miembro del staff solo asigna roles, o agrega permisos a un rol, si tiene todos esos permisos, y solo un superadministrador asigna el rol superadministrador. Reactivar a un miembro del staff cuenta como asignarle sus roles, porque quien reactiva recibe su contraseña temporal. Quitar roles o permisos y suspender no tienen esta restricción (ADR-0154).
+- BR-USR-21. Hay permisos que solo tiene el rol superadministrador, como `payments.configure`: ningún otro rol puede tenerlos, así que ni un superadministrador los delega. El catálogo los marca con `superadminOnly` (ADR-0162).
 
 ## Productos
 
@@ -142,7 +143,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PAY-06. Los webhooks se deduplican por ID de evento del proveedor.
 - BR-PAY-07. No se ofrecen métodos de pago asíncronos en el lanzamiento.
 - BR-PAY-08. Nunca se almacenan datos de tarjeta.
-- BR-PAY-09. El pago manual es el cobro de la tienda física: se hace en la tienda y lo registra el staff con `payments.manage`, con su comprobante y, opcional, cómo se cobró (efectivo, terminal o transferencia). Está desactivado por defecto, y el operador lo habilita con la variable `MANUAL_PAYMENTS_ENABLED` cuando la tienda cobra (ADR-0040, ADR-0134, ADR-0161).
+- BR-PAY-09. El pago manual es el cobro de la tienda física: se hace en la tienda y lo registra el staff con `payments.manage`, con su comprobante y, opcional, cómo se cobró (efectivo, terminal o transferencia). Está desactivado por defecto, y un superadministrador lo habilita o lo deshabilita desde la API cuando la tienda cobra; vale desde la siguiente operación (ADR-0040, ADR-0161, ADR-0162). Hasta la versión 1.3 lo habilitaba la variable `MANUAL_PAYMENTS_ENABLED`.
 - BR-PAY-10. Registrar un pago manual produce el mismo efecto que un pago capturado por un proveedor.
 - BR-PAY-11. En el MVP solo hay reembolsos totales al cancelar una orden pagada; no hay reembolsos independientes ni parciales. El reembolso de un pago manual se hace fuera del sistema y lo registra un administrador con `payments.manage` (ADR-0018, ADR-0051).
 - BR-PAY-12. El pago manual se hace físicamente en la tienda; la API indica pago en tienda con el código público y el total. Solo se registra sobre órdenes en PendingPayment o Expired (ADR-0055).

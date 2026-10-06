@@ -97,7 +97,7 @@ RBAC (ADR-0017):
 - Rutas administrativas bajo `/v1/admin/{contexto}`: un guard por grupo exige token de staff y el permiso del contexto.
 - Los demás contextos no consultan tablas de Identity.
 - La cancelación y gestión de órdenes requiere el permiso `orders.manage`, reservado a administradores y roles de nivel alto (ADR-0021).
-- Roles iniciales (ADR-0043): Superadministrador (todos los permisos), Administrador (todos excepto `staff.manage`) y Operador (catálogo, precios, inventario, lectura de pedidos, envíos y lectura de clientes). El rol Vendedor (ADR-0161) coloca pedidos en la tienda física a nombre de un cliente, pero no registra su pago: quien coloca un pedido no confirma que se pagó. Cada pedido del staff queda con la cuenta que lo colocó y se audita.
+- Roles iniciales (ADR-0043): Superadministrador (todos los permisos), Administrador (todos excepto `staff.manage` y `payments.configure`) y Operador (catálogo, precios, inventario, lectura de pedidos, envíos y lectura de clientes). El rol Vendedor (ADR-0161) coloca pedidos en la tienda física a nombre de un cliente, pero no registra su pago: quien coloca un pedido no confirma que se pagó. Cada pedido del staff queda con la cuenta que lo colocó y se audita.
 - Las cuentas son de tipo cliente o staff; los clientes nunca tienen roles.
 - El primer superadministrador se crea con un script manual; no hay credenciales predeterminadas en el repositorio.
 - El staff se autentica solo con contraseña; el segundo factor (2FA) queda como mejora a mediano o largo plazo, con el diseño preparado (ADR-0048).
@@ -108,7 +108,8 @@ RBAC (ADR-0017):
 - Los webhooks verifican la firma de cada proveedor y se deduplican.
 - El monto a cobrar se obtiene de la orden, nunca del cliente.
 - Los cambios que afectan pagos requieren revisión humana (`TEAM_GUIDE.md`).
-- El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible si la variable de entorno que habilita el pago manual está activa (ADR-0040, ADR-0051). La variable es `MANUAL_PAYMENTS_ENABLED`, `false` por defecto (ADR-0134). Desde la versión 1.2 es el cobro real de la tienda física (ADR-0161): el operador la enciende cuando la tienda cobra, y cada cobro guarda quién lo registró, su comprobante y cómo se cobró.
+- El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible con el pago manual habilitado (ADR-0040, ADR-0051). Desde la versión 1.2 es el cobro real de la tienda física (ADR-0161), y cada cobro guarda quién lo registró, su comprobante y cómo se cobró.
+- Habilitar o deshabilitar el pago manual requiere `payments.configure`, que solo tiene el rol superadministrador: ningún otro rol puede tenerlo, así que ni un superadministrador lo delega (BR-USR-21, ADR-0162). Cada cambio se audita como `payment-settings.update`, con el valor anterior y el nuevo, y vale de inmediato en todas las instancias. Empieza deshabilitado. Hasta la versión 1.3 lo decidía la variable `MANUAL_PAYMENTS_ENABLED`.
 
 ## Subida de archivos
 

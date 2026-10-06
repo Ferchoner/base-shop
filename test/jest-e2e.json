@@ -22,7 +22,10 @@
   "globalTeardown": "<rootDir>/test/integration/global-teardown.ts",
   "testTimeout": 30000,
   "setupFiles": ["<rootDir>/test/e2e-environment.ts"],
-  "setupFilesAfterEnv": ["<rootDir>/test/setup-esm-interop.ts"],
+  "setupFilesAfterEnv": [
+    "<rootDir>/test/setup-esm-interop.ts",
+    "<rootDir>/test/e2e-manual-payments.ts"
+  ],
   "roots": ["<rootDir>/test"],
   "collectCoverageFrom": [
     "src/**/*.ts",

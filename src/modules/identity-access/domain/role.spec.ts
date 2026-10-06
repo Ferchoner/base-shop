@@ -3,6 +3,7 @@ import {
   newId,
   PERMISSION_CODES,
 } from '../../../shared-kernel/index.js';
+import { SuperadminOnlyPermissionError } from './identity-errors.js';
 import { Role, type RoleSnapshot } from './role.js';
 
 const superadmin = (): Role =>
@@ -74,6 +75,45 @@ describe('Role (ADR-0017, ADR-0043, ADR-0111)', () => {
 
   it('gives the superadmin role every permission of the catalog, stored or not', () => {
     expect(superadmin().effectivePermissions()).toEqual(PERMISSION_CODES);
+    expect(superadmin().effectivePermissions()).toContain('payments.configure');
+  });
+
+  it('gives no other role a permission that only the superadmin role holds (BR-USR-21, ADR-0162)', () => {
+    const role = Role.create({
+      id: newId(),
+      name: 'Caja',
+      description: null,
+      permissions: ['payments.manage'],
+    });
+    const create = () =>
+      Role.create({
+        id: newId(),
+        name: 'Caja',
+        description: null,
+        permissions: ['payments.manage', 'payments.configure'],
+      });
+
+    expect(create).toThrow(
+      new SuperadminOnlyPermissionError(['payments.configure']),
+    );
+    expect(() =>
+      role.replacePermissions(['payments.configure', 'payments.manage']),
+    ).toThrow(new SuperadminOnlyPermissionError(['payments.configure']));
+    expect(role.snapshot().permissions).toEqual(['payments.manage']);
+    expect(
+      new SuperadminOnlyPermissionError(['payments.configure']),
+    ).toMatchObject({
+      code: 'validation-error',
+      details: {
+        errors: [
+          {
+            field: 'permissions',
+            code: 'superadminOnly',
+            message: 'Solo el rol superadministrador tiene payments.configure.',
+          },
+        ],
+      },
+    });
   });
 
   it('never changes the permissions of the superadmin role', () => {

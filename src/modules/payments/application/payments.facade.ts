@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   AuditTrail,
   changesBetween,
@@ -27,8 +27,8 @@ import {
   ManualPaymentsDisabledError,
   ProviderNotEnabledError,
 } from '../domain/payment-errors.js';
+import { PaymentSettingsRepository } from '../domain/payment-settings.repository.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
-import { MANUAL_PAYMENTS_ENABLED } from './manual-payments.js';
 import { PaymentsQueries, type PaymentView } from './payments.queries.js';
 
 export type { PaymentView, RefundView } from './payments.queries.js';
@@ -89,26 +89,36 @@ export class PaymentsFacade {
     private readonly audit: AuditTrail,
     private readonly transactions: TransactionManager,
     private readonly clock: Clock,
-    @Inject(MANUAL_PAYMENTS_ENABLED) private readonly manualEnabled: boolean,
+    private readonly settings: PaymentSettingsRepository,
   ) {}
+
+  /**
+   * Whether the store takes payments in person (ADR-0162): read on every call, without a cache, so every
+   * instance of the API sees a change at once.
+   */
+  async manualPaymentsEnabled(): Promise<boolean> {
+    return (await this.settings.find()).manualPaymentsEnabled;
+  }
 
   /**
    * Checked before anything else, so a disabled method answers the same whatever the order (ADR-0040).
    *
    * @throws ManualPaymentsDisabledError when the staff cannot register payments made in the store.
    */
-  assertManualPaymentsEnabled(): void {
-    if (!this.manualEnabled) throw new ManualPaymentsDisabledError();
+  async assertManualPaymentsEnabled(): Promise<void> {
+    if (!(await this.manualPaymentsEnabled())) {
+      throw new ManualPaymentsDisabledError();
+    }
   }
 
   /**
    * Checked before reading the order, like any validation of the request (API_SPEC.md §16.2).
    *
-   * @throws ProviderNotEnabledError: the manual method only when its variable turns it on, PayPal never until
-   *   it is verified (BR-PAY-13).
+   * @throws ProviderNotEnabledError: the manual method only while a superadmin keeps it on (ADR-0162), PayPal
+   *   never until it is verified (BR-PAY-13).
    */
-  assertProviderEnabled(provider: PaymentProvider): void {
-    if (provider !== 'MANUAL' || !this.manualEnabled) {
+  async assertProviderEnabled(provider: PaymentProvider): Promise<void> {
+    if (provider !== 'MANUAL' || !(await this.manualPaymentsEnabled())) {
       throw new ProviderNotEnabledError(provider);
     }
   }
@@ -123,7 +133,7 @@ export class PaymentsFacade {
     order: PaymentRequest,
     provider: PaymentProvider,
   ): Promise<PaymentStart> {
-    this.assertProviderEnabled(provider);
+    await this.assertProviderEnabled(provider);
     return this.transactions.run(async () => {
       const existing = await this.payments.findByOrder(orderIdOf(order));
       if (existing !== null) {
@@ -166,7 +176,7 @@ export class PaymentsFacade {
       registeredBy: StaffId;
     },
   ): Promise<void> {
-    this.assertManualPaymentsEnabled();
+    await this.assertManualPaymentsEnabled();
     return this.transactions.run(async () => {
       const now = this.clock.now();
       const existing = await this.payments.findByOrder(orderIdOf(order));
@@ -261,7 +271,7 @@ export class PaymentsFacade {
       registeredBy: StaffId;
     },
   ): Promise<void> {
-    this.assertManualPaymentsEnabled();
+    await this.assertManualPaymentsEnabled();
     return this.transactions.run(async () => {
       const payment = await this.payments.lock(paymentId);
       if (payment === null) throw new NotFoundError('Payment', paymentId);

@@ -189,26 +189,15 @@ describe('LOG_LEVEL (ADR-0097)', () => {
   });
 });
 
-describe('MANUAL_PAYMENTS_ENABLED (ADR-0040)', () => {
-  it('defaults to false: the operator turns payments in the store on (ADR-0161)', () => {
-    expect(validateEnvironment(REQUIRED).MANUAL_PAYMENTS_ENABLED).toBe(false);
-  });
-
-  it.each([
-    ['true', true],
-    ['false', false],
-  ])('reads %p', (value, expected) => {
-    expect(
-      validateEnvironment({ ...REQUIRED, MANUAL_PAYMENTS_ENABLED: value })
-        .MANUAL_PAYMENTS_ENABLED,
-    ).toBe(expected);
-  });
-
-  it.each(['yes', '1'])('rejects %p', (value) => {
-    expect(() =>
-      validateEnvironment({ ...REQUIRED, MANUAL_PAYMENTS_ENABLED: value }),
-    ).toThrow(/MANUAL_PAYMENTS_ENABLED/);
-  });
+describe('MANUAL_PAYMENTS_ENABLED (ADR-0162)', () => {
+  it.each(['true', 'yes'])(
+    'is ignored: a superadmin turns manual payments on from the API, so %p left in the environment does not stop the start',
+    (value) => {
+      expect(
+        validateEnvironment({ ...REQUIRED, MANUAL_PAYMENTS_ENABLED: value }),
+      ).not.toHaveProperty('MANUAL_PAYMENTS_ENABLED');
+    },
+  );
 });
 
 describe('JOBS_ENABLED (ADR-0101)', () => {

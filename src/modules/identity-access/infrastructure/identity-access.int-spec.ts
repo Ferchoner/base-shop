@@ -29,6 +29,12 @@ const ADMINISTRATOR = '01a0ea00-c755-706d-9721-7e4a48b61d77' as RoleId;
 const OPERATOR = '01a0ea00-c755-706d-9721-83f80a3d8630' as RoleId;
 const SELLER = '01a11200-70b6-74a1-961d-f18533fd37bb' as RoleId;
 
+/** What the Administrador role lacks: managing the staff (ADR-0043) and the settings of payments (ADR-0162). */
+const ADMINISTRATOR_LACKS: readonly string[] = [
+  'staff.manage',
+  'payments.configure',
+];
+
 /** Users, roles and permissions of Identity & Access against PostgreSQL 18 (T-130, ADR-0111). */
 describe('Identity & Access persistence (T-130)', () => {
   let moduleRef: TestingModule;
@@ -131,7 +137,9 @@ describe('Identity & Access persistence (T-130)', () => {
       expect(superadmin.snapshot().permissions).toEqual([]);
       expect(superadmin.effectivePermissions()).toEqual(PERMISSION_CODES);
       expect([...administrator.effectivePermissions()].sort()).toEqual(
-        PERMISSION_CODES.filter((code) => code !== 'staff.manage').sort(),
+        PERMISSION_CODES.filter(
+          (code) => !ADMINISTRATOR_LACKS.includes(code),
+        ).sort(),
       );
       expect([...operator.effectivePermissions()].sort()).toEqual(
         [
@@ -294,7 +302,9 @@ describe('Identity & Access persistence (T-130)', () => {
       const permissions = await permissionsOf(id);
 
       expect([...permissions].sort()).toEqual(
-        PERMISSION_CODES.filter((code) => code !== 'staff.manage').sort(),
+        PERMISSION_CODES.filter(
+          (code) => !ADMINISTRATOR_LACKS.includes(code),
+        ).sort(),
       );
     });
 

@@ -5,6 +5,11 @@
 - La descripción de `contactEmail` en `Order`, `AdminOrder` y sus listados dice cuándo es `null`: en una orden anonimizada o bloqueada, y en una venta de mostrador sin datos del comprador (ADR-0161). Antes decía que solo en las anonimizadas.
 - Plan de la versión 1.3 (nuevo ADR-0162): el pago en tienda configurable desde la API. El valor de `MANUAL_PAYMENTS_ENABLED` pasa a la base, con una ruta para consultarlo y otra para cambiarlo, reservada al superadministrador con el permiso nuevo `payments.configure`. Se implementa en T-194.
 - Paso 0 de la versión 1.3: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.2.
+- T-194 (ADR-0162); T-194 queda en DONE. El pago en tienda configurable desde la API.
+  - `GET /v1/admin/payment-settings` (`orders.read`) dice si el pago manual está habilitado, y `PUT` (`payments.configure`) lo habilita o lo deshabilita, con `version`; cada cambio se audita como `payment-settings.update` (UC-PAY-08).
+  - `payments.configure` es un permiso nuevo que solo tiene el rol superadministrador: crear o editar otro rol con él responde 400 `validation-error` con `superadminOnly`. `GET /v1/admin/identity/permissions` agrega `superadminOnly` a cada permiso.
+  - El cambio vale de inmediato: el registro del pago y del reembolso manual, el inicio de un pago `MANUAL` y el correo de orden recibida leen el valor al ocurrir. El 403 `manual-payments-disabled` dice que un superadministrador lo habilita.
+  - **Cambio para el operador:** `MANUAL_PAYMENTS_ENABLED` deja de existir. Después de migrar, el pago manual queda deshabilitado hasta que un superadministrador lo habilite.
 
 ## 1.2.0 (2026-10-06)
 

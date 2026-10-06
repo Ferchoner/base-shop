@@ -47,7 +47,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines` |
 | Shopping | `carts`, `cart_lines` |
 | Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
-| Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events` |
+| Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
 | Transversal | `audit_logs`, `idempotency_keys`, `domain_events`, `event_deliveries`, `geo_states`, `geo_municipalities` |
 
@@ -618,6 +618,20 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 | provider | enum `payment_provider` | PK compuesta |
 | event_id | text | PK compuesta (BR-PAY-06) |
 | processed_at | timestamptz(3) | Retención 30 días (ADR-0029) |
+
+### 9.5 `payment_settings`
+
+La configuración de Payments (ADR-0162): una sola fila.
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK; siempre `01a11302-41ef-7d33-9e36-93a5239b19ba` |
+| manual_payments_enabled | boolean | No | `false` por defecto: si la tienda registra pagos y reembolsos manuales, y si el cliente puede elegir pagar en la tienda |
+| version | integer | No | Bloqueo optimista |
+| updated_at | timestamptz(3) | No | — |
+
+- **Restricciones:** `payment_settings_single_row_check` exige la clave fija, así que no cabe otra fila.
+- **Fila inicial:** la migración `20261006180000_payments_settings` (T-194) la crea deshabilitada. Un superadministrador la cambia con `PUT /v1/admin/payment-settings`; hasta la versión 1.3 lo decidía la variable `MANUAL_PAYMENTS_ENABLED`.
 
 ---
 

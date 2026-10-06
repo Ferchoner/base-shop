@@ -2,10 +2,14 @@ import {
   type Id,
   InvalidValueError,
   isPermissionCode,
+  isSuperadminOnly,
   PERMISSION_CODES,
   type PermissionCode,
 } from '../../../shared-kernel/index.js';
-import { SuperadminPermissionsFixedError } from './identity-errors.js';
+import {
+  SuperadminOnlyPermissionError,
+  SuperadminPermissionsFixedError,
+} from './identity-errors.js';
 
 export type RoleId = Id<'Role'>;
 
@@ -101,7 +105,10 @@ function validName(name: string): string {
   return trimmed;
 }
 
-/** Only codes of the catalog, without repeats (BR-USR-04). */
+/**
+ * Only codes of the catalog, without repeats (BR-USR-04), and none that only the superadmin role holds
+ * (BR-USR-21): this is never the superadmin role, whose permissions are implicit.
+ */
 function validPermissions(permissions: readonly string[]): PermissionCode[] {
   const unknown = permissions.filter((code) => !isPermissionCode(code));
   if (unknown.length > 0) {
@@ -109,5 +116,8 @@ function validPermissions(permissions: readonly string[]): PermissionCode[] {
       unknownPermissions: unknown,
     });
   }
-  return [...new Set(permissions as PermissionCode[])];
+  const codes = [...new Set(permissions as PermissionCode[])];
+  const reserved = codes.filter(isSuperadminOnly);
+  if (reserved.length > 0) throw new SuperadminOnlyPermissionError(reserved);
+  return codes;
 }

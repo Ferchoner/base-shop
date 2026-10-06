@@ -98,14 +98,14 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Payment` (uno por orden; contiene `PaymentAttempt` y `Refund`) |
+| Aggregates | `Payment` (uno por orden; contiene `PaymentAttempt` y `Refund`); `PaymentSettings` (una sola, ADR-0162) |
 | Estados | Pending, RequiresAction, Authorized, Captured, Failed, Cancelled, PartiallyRefunded, Refunded |
 | Eventos | `PaymentAuthorized`, `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` |
-| Repositories | `PaymentRepository` |
+| Repositories | `PaymentRepository`, `PaymentSettingsRepository` |
 | Puertos | `PaymentGateway`: adaptador manual (pruebas) y PayPal semiimplementado (ADR-0040) |
 | Casos de uso | InitiatePayment, RegisterManualPayment (staff, en la tienda física, con su método, ADR-0161), HandleProviderWebhook, RefundPayment (total, al cancelar), RegisterManualRefund (staff), RetryRefund, ReconcilePayments (job) |
 | Exporta | Estado del pago por orderId |
-| Implementado | T-190 parte a (ADR-0134): `Payment` con sus intentos (iniciar y capturar a mano); `PaymentsFacade` para Ordering (iniciar, registrar el pago manual, pagos por orden) y `PaymentCaptured`. Parte b (ADR-0135): `Refund` (iniciar al cancelar, completar a mano), cancelar el pago pendiente y `RefundCompleted`. T-187 parte a (ADR-0161): el intento capturado de un pago en tienda guarda su método (`PaymentMethod`) |
+| Implementado | T-190 parte a (ADR-0134): `Payment` con sus intentos (iniciar y capturar a mano); `PaymentsFacade` para Ordering (iniciar, registrar el pago manual, pagos por orden) y `PaymentCaptured`. Parte b (ADR-0135): `Refund` (iniciar al cancelar, completar a mano), cancelar el pago pendiente y `RefundCompleted`. T-187 parte a (ADR-0161): el intento capturado de un pago en tienda guarda su método (`PaymentMethod`). T-194 (ADR-0162): `PaymentSettings`, si el pago manual está habilitado, que un superadministrador cambia; la fachada la lee en cada operación |
 
 ## Shipping
 
@@ -139,7 +139,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134). Ordering escucha `RefundCompleted` desde T-190 parte b (ADR-0135) |
 | Ordering → Shipping | Orden pagada o cancelada; envíos de las órdenes | Fachada síncrona `ShippingFacade`, dentro de la transacción de la orden (ADR-0140) |
 | Shipping → Ordering | Progreso del envío | Eventos `ShipmentDispatched`, `ShipmentDelivered` y `ShipmentReturned`; Ordering declara sus propios tipos (ADR-0141, ADR-0151) |
-| Ordering, Payments, Shipping → Notificaciones | Datos para los correos al cliente | Eventos `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `RefundCompleted`, `ShipmentDispatched`; email de contacto y datos de la orden por la fachada de Ordering (ADR-0074). Implementado en T-215 (ADR-0143) |
+| Ordering, Payments, Shipping → Notificaciones | Datos para los correos al cliente | Eventos `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `RefundCompleted`, `ShipmentDispatched`; email de contacto y datos de la orden por la fachada de Ordering (ADR-0074). Implementado en T-215 (ADR-0143). Desde T-194, si la tienda cobra en persona, por la fachada de Payments (ADR-0162) |
 | Identity, Ordering, Shopping → Privacidad | Anonimizar la cuenta, las órdenes con sus envíos y los carritos | Fachadas síncronas, en una transacción; Privacidad no tiene dominio propio. Implementado en T-132 (ADR-0145) |
 
 ## Flujo de checkout y pago (ADR-0019)

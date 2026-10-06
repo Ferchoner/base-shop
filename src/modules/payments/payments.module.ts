@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../../platform/config/environment.js';
-import { MANUAL_PAYMENTS_ENABLED } from './application/manual-payments.js';
+import { ConfigurePaymentSettings } from './application/configure-payment-settings.use-case.js';
 import {
   PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS,
   ProcessedWebhookEvents,
@@ -11,9 +11,12 @@ import { PrismaProcessedWebhookEvents } from './infrastructure/prisma-processed-
 import { WebhookEventCleanupJob } from './infrastructure/webhook-event-cleanup.job.js';
 import { PaymentsFacade } from './application/payments.facade.js';
 import { PaymentsQueries } from './application/payments.queries.js';
+import { PaymentSettingsRepository } from './domain/payment-settings.repository.js';
 import { PaymentRepository } from './domain/payment.repository.js';
+import { PrismaPaymentSettingsRepository } from './infrastructure/prisma-payment-settings.repository.js';
 import { PrismaPaymentRepository } from './infrastructure/prisma-payment.repository.js';
 import { PrismaPaymentsQueries } from './infrastructure/prisma-payments.queries.js';
+import { AdminPaymentSettingsController } from './presentation/admin-payment-settings.controller.js';
 import { AdminPaymentsController } from './presentation/admin-payments.controller.js';
 
 /**
@@ -21,15 +24,10 @@ import { AdminPaymentsController } from './presentation/admin-payments.controlle
  * and Payments never uses Ordering: it tells Ordering what happened with events (ADR-0134).
  */
 @Module({
-  controllers: [AdminPaymentsController],
+  controllers: [AdminPaymentsController, AdminPaymentSettingsController],
   providers: [
-    {
-      provide: MANUAL_PAYMENTS_ENABLED,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
-        config.get('MANUAL_PAYMENTS_ENABLED', { infer: true }),
-    },
     PaymentsFacade,
+    ConfigurePaymentSettings,
     WebhookEventCleanup,
     WebhookEventCleanupJob,
     {
@@ -39,6 +37,10 @@ import { AdminPaymentsController } from './presentation/admin-payments.controlle
         config.get('PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS', { infer: true }),
     },
     { provide: PaymentRepository, useClass: PrismaPaymentRepository },
+    {
+      provide: PaymentSettingsRepository,
+      useClass: PrismaPaymentSettingsRepository,
+    },
     {
       provide: ProcessedWebhookEvents,
       useClass: PrismaProcessedWebhookEvents,

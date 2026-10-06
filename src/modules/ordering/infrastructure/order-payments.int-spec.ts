@@ -52,11 +52,8 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
   let prisma: PrismaService;
   let cls: ClsService;
   let requests: OrderPaymentRequests;
-  let previous: string | undefined;
 
   beforeAll(async () => {
-    previous = process.env.MANUAL_PAYMENTS_ENABLED;
-    process.env.MANUAL_PAYMENTS_ENABLED = 'true';
     moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
@@ -80,6 +77,10 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
     prisma = moduleRef.get(PrismaService);
     cls = moduleRef.get(ClsService);
     requests = moduleRef.get(OrderPaymentRequests);
+    // The store takes payments in person: a superadmin turns them on (ADR-0162).
+    await prisma.paymentSettings.updateMany({
+      data: { manualPaymentsEnabled: true },
+    });
     await prisma.geoState.upsert({
       where: { code: '16' },
       create: { code: '16', name: 'Michoacán de Ocampo' },
@@ -98,9 +99,11 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
   });
 
   afterAll(async () => {
+    // Off again, as the migration leaves them for the other suites.
+    await prisma.paymentSettings.updateMany({
+      data: { manualPaymentsEnabled: false },
+    });
     await moduleRef.close();
-    if (previous === undefined) delete process.env.MANUAL_PAYMENTS_ENABLED;
-    else process.env.MANUAL_PAYMENTS_ENABLED = previous;
   });
 
   afterEach(async () => {
