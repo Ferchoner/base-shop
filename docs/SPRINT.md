@@ -6,72 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.1 — Varios almacenes propios. Inicio: 2026-10-05 (plan aprobado ese día).
-
-### Goal
-
-Operar varios almacenes propios: cada orden sale completa del almacén de mayor prioridad que la cubre, la tienda suma la disponibilidad de todos, el stock vuelve al almacén del que salió, y el staff administra los almacenes. El diseño queda preparado para dividir pedidos más adelante, sin hacerlo (ADR-0160).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review del Sprint 9 en la guía de desarrollo |
-| 1 | T-162 parte a: migración, asignación por prioridad, disponibilidad agregada de la tienda, `canFulfill` por pedido y origen del envío desde la reserva |
-| 2 | T-162 parte b: administración de almacenes, reintegro al origen, motivo `WAREHOUSE_TRANSFER`, filtro de envíos por almacén y almacén del envío en la orden del staff |
-
-- **Criterio de cierre:** los criterios de aceptación de T-162, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.1.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** dividir pedidos entre almacenes, transferencias como operación propia (T-163), elegir por cercanía y permisos por almacén (ADR-0160); y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de los sprints. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.1.0.
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 160 ADR del índice tienen su sección, y no hay referencias a ADR, tareas ni decisiones que no existan.
-- **Dependencias:**
-  - `npm audit` no encuentra vulnerabilidades;
-  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
-  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 9:
-  - revisar `main` justo antes de fijar el número de un ADR cuando hay sesiones en paralelo;
-  - partir en tandas las corridas de mutación largas;
-  - que un control que puede pasar sin revisar nada muestre lo que revisó.
-
-### Resultado del paso 1
-
-T-162 parte a (ADR-0160):
-
-- **Varios almacenes activos:** la migración quita el índice de un solo almacén activo y agrega `priority`, de 1 a 1000, con 1 para los existentes. `GET` de almacenes la muestra y ordena por ella.
-- **Reserva:** la política `ONE_WAREHOUSE_PER_ORDER` propone los almacenes que tienen todo el pedido, por prioridad. Cada intento es un savepoint propio: si otra orden se llevó las unidades, se deshace y se prueba el siguiente.
-- **Cotización y 409:** el carrito sigue diciendo si algún almacén cubre cada línea. La cotización marca las líneas que le faltan al almacén más cercano, y son las mismas que lista el 409 `insufficient-stock`.
-- **Tienda:** la disponibilidad agrega los almacenes activos, con una fila por variante. Va en el mismo cambio que quita el índice.
-- **Envío:** sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`, que reemplaza a `activeWarehouseId`). Si hubiera más de un grupo, Ordering falla en vez de perder uno.
-- **Mientras llega la parte b:** el reintegro va al primer almacén activo por prioridad.
-
-### Resultado del paso 2
-
-T-162 parte b (ADR-0160); T-162 queda en DONE.
-
-- **Administración de almacenes:**
-  - `POST …/warehouses` crea almacenes activos, con un código único y una prioridad;
-  - `PATCH` cambia la prioridad;
-  - `POST …/deactivate` los desactiva para siempre, si no tienen unidades reservadas y no son el último activo.
-- **Concurrencia:** la desactivación bloquea los almacenes activos, y cada reserva y cada entrada toman su almacén en modo compartido. Tres pruebas con dos conexiones lo comprueban:
-  - una desactivación espera a la reserva en curso y luego se rechaza;
-  - una reserva espera a la desactivación y luego cae en el siguiente almacén;
-  - de dos desactivaciones a la vez, solo una pasa.
-- **Reintegro al origen:** cada línea vuelve a los stock items de los que salió, según los movimientos de venta, aunque el almacén esté inactivo; con `warehouseId`, a ese almacén activo.
-- **Transferencias:** los ajustes aceptan almacenes inactivos, y `WAREHOUSE_TRANSFER` llega con dos migraciones.
-- **Envíos:** el listado filtra por `warehouseId`, y la orden del staff muestra el almacén del envío.
-
-### Risks
-
-- **Tienda duplicada:** quitar el índice de un solo almacén sin corregir la tienda duplicaría los productos en cuanto existiera un segundo almacén activo. Van en la misma parte (ADR-0160).
-- **Concurrencia entre almacenes:** dos órdenes que compiten por las últimas unidades pueden intentar varios almacenes; una prueba con dos conexiones lo comprueba en la parte a.
-- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.1, varios almacenes propios, se cerró el 2026-10-06 y se publica como la 1.1.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -97,6 +32,117 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.1 — Varios almacenes propios (2026-10-05 a 2026-10-06)
+
+**Goal:** operar varios almacenes propios. Cada orden sale completa del almacén de mayor prioridad que la cubre, la tienda suma la disponibilidad de todos, el stock vuelve al almacén del que salió, y el staff administra los almacenes. El diseño queda preparado para dividir pedidos más adelante, sin hacerlo (ADR-0160). **Tareas:** T-162, en dos partes, precedida por un paso 0.
+
+**Fecha:** 2026-10-06. **Resultado:** objetivo cumplido. T-162 está en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.1.0, con su tag y su GitHub Release (ADR-0159).
+- Cada orden se reserva completa en el primer almacén activo, por prioridad, que la tiene toda, y su envío sale de ese almacén.
+- La tienda, el carrito y la cotización ven todos los almacenes activos, sin duplicar productos.
+- El staff crea almacenes, cambia su prioridad y los desactiva. Ninguna reserva queda en un almacén inactivo, y siempre queda un almacén activo.
+- El stock reintegrado vuelve al almacén del que salió, y las transferencias se registran como ajustes con `WAREHOUSE_TRANSFER`.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0160; revisión contra los ADR sin desajustes; 0 vulnerabilidades; prácticas de la review del Sprint 9 en la guía | DONE | Paso 0, pull request #103 |
+| Varios almacenes activos con prioridad; cada orden reservada completa en un almacén; tienda, carrito y cotización con todos los almacenes activos; envío desde el almacén de la reserva | DONE | T-162 parte a, pull request #104 |
+| Crear, priorizar y desactivar almacenes (UC-INV-10 y UC-INV-11); reintegro al almacén de origen; `WAREHOUSE_TRANSFER`; envíos filtrados por almacén | DONE | T-162 parte b, pull request #105 |
+| `proxy-addr` 2.0.8, una actualización de seguridad de Dependabot | DONE | Pull request #102 |
+| 128 rutas de `/v1`, 2 de ellas nuevas; todos los cambios de contrato son compatibles | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 2,464 tests (1,428 unitarios, 477 de integración y 559 end-to-end), 55 más que en el Sprint 9; cobertura de 98.81% de sentencias, 84.18% de ramas, 99.16% de funciones y 99.43% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; 1 aviso moderado en las de desarrollo, sin versión corregida | — | `npm audit` |
+| 160 ADR: 156 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 1 nuevo en esta versión (ADR-0160) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 3 pull requests a `main` (del #103 al #105), y el usuario fusionó el #102 de Dependabot. El pipeline pasó a la primera en los 4.
+
+En `main` falló una vez, al fusionar el #103: la auditoría de dependencias encontró un aviso crítico nuevo de `proxy-addr`. El #102 lo corrigió 9 minutos después, y desde entonces `main` sigue en verde.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión.
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Tienda duplicada:** la migración que permite varios almacenes activos y la disponibilidad agregada de la tienda llegaron en el mismo pull request.
+  - **Concurrencia entre almacenes:** tienen pruebas con dos conexiones las dos órdenes que compiten por la última unidad, y la desactivación contra las reservas y las entradas.
+  - **Cambios de contrato:** todos son compatibles dentro de `/v1`, y están en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints.
+- **Nuevos:**
+  - **Un pedido que ningún almacén cubre solo:** el checkout responde 409 aunque entre todos los almacenes tengan las unidades. El carrito muestra cada línea disponible, y la cotización marca lo que le falta al almacén más cercano. Es lo que decidió ADR-0160 hasta que se dividan pedidos.
+  - **Pedidos divididos sin uso real:** el reintegro y el origen del envío ya trabajan por grupos, pero hoy ningún pedido sale de dos almacenes. La lectura de los orígenes de uno así solo se prueba con movimientos escritos a mano. La guarda de Ordering contra más de un grupo no tiene prueba, porque la política actual nunca los produce.
+  - **Desactivar bloquea los almacenes activos:** espera a las reservas y entradas en curso en todos ellos, y las nuevas esperan a que termine. Con pocos almacenes y desactivaciones raras, el costo es aceptable.
+  - **Aviso moderado en `sprintf-js`:** llega con Jest (por `js-yaml` 3 y `argparse` 1), solo en desarrollo, y ninguna versión lo corrige. La CI falla solo con avisos altos y críticos, y Dependabot sigue proponiendo las actualizaciones de seguridad.
+
+#### Qué funcionó
+
+- **Un plan por parte, aprobado antes de implementarla:** la versión se construyó en un día, en 3 pull requests, sin rehacer el diseño.
+- **Un savepoint por intento de reserva:** si otra orden se llevó las unidades, se deshace solo ese intento y se prueba el siguiente almacén, sin tocar la transacción del checkout.
+- **Pruebas de concurrencia deterministas:** dos conexiones, y una compuerta que espera a que PostgreSQL bloquee la otra, en lugar de pausas. Así se comprueba cada bloqueo de la parte b.
+- **Dejar la puerta abierta sin construir de más:** la política de asignación es una pieza aparte, y el reintegro y el origen del envío ya trabajan por grupos. Dividir pedidos cambiará la política, no el reintegro ni el libro de movimientos.
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-162 parte a | 0 de 27 | — |
+  | T-162 parte b | 2 de 39 | Faltaban dos pruebas: un ajuste en un almacén que no existe, y el orden de los orígenes por prioridad, que en la prueba coincidía con el orden por código. Los dos cayeron al agregarlas |
+
+  El plan (#103) solo cambió documentación.
+- **Verificar por separado los commits de código:** encontró que al commit `feat` de la parte b le faltaban las tablas de `API_SPEC.md`, antes de subirlo.
+
+#### Qué mejorar
+
+- **Rutas nuevas sin sus tablas de `API_SPEC.md`:** la prueba de contrato las exige, y el primer commit `feat` de la parte b no las tenía; se rehízo antes de subirlo. Las tablas de una ruta van en el mismo commit que la ruta.
+- **Datos de prueba que no distinguen:** la prueba del orden de los orígenes pasaba también ordenando por código, porque sus datos daban el mismo resultado. Cuando una prueba comprueba un orden, sus datos deben dar otro resultado con cualquier otro orden.
+- **Mutante corrido con la suite equivocada:** la prueba nueva de un mutante estaba en integración y el script corría la e2e, así que sobrevivió una vez más. Cada mutante corre con la suite que tiene su prueba.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 160 ADR del índice tienen su sección, y no hay referencias a ADR, tareas ni decisiones que no existan.
+- **Dependencias:**
+  - `npm audit` no encuentra vulnerabilidades;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 9:
+  - revisar `main` justo antes de fijar el número de un ADR cuando hay sesiones en paralelo;
+  - partir en tandas las corridas de mutación largas;
+  - que un control que puede pasar sin revisar nada muestre lo que revisó.
+
+#### Resultado del paso 1
+
+T-162 parte a (ADR-0160):
+
+- **Varios almacenes activos:** la migración quita el índice de un solo almacén activo y agrega `priority`, de 1 a 1000, con 1 para los existentes. `GET` de almacenes la muestra y ordena por ella.
+- **Reserva:** la política `ONE_WAREHOUSE_PER_ORDER` propone los almacenes que tienen todo el pedido, por prioridad. Cada intento es un savepoint propio: si otra orden se llevó las unidades, se deshace y se prueba el siguiente.
+- **Cotización y 409:** el carrito sigue diciendo si algún almacén cubre cada línea. La cotización marca las líneas que le faltan al almacén más cercano, y son las mismas que lista el 409 `insufficient-stock`.
+- **Tienda:** la disponibilidad agrega los almacenes activos, con una fila por variante. Va en el mismo cambio que quita el índice.
+- **Envío:** sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`, que reemplaza a `activeWarehouseId`). Si hubiera más de un grupo, Ordering falla en vez de perder uno.
+- **Mientras llega la parte b:** el reintegro va al primer almacén activo por prioridad.
+
+#### Resultado del paso 2
+
+T-162 parte b (ADR-0160); T-162 queda en DONE.
+
+- **Administración de almacenes:**
+  - `POST …/warehouses` crea almacenes activos, con un código único y una prioridad;
+  - `PATCH` cambia la prioridad;
+  - `POST …/deactivate` los desactiva para siempre, si no tienen unidades reservadas y no son el último activo.
+- **Concurrencia:** la desactivación bloquea los almacenes activos, y cada reserva y cada entrada toman su almacén en modo compartido. Cuatro pruebas con dos conexiones lo comprueban:
+  - una desactivación espera a la reserva en curso y luego se rechaza;
+  - una reserva espera a la desactivación y luego cae en el siguiente almacén;
+  - una entrada de mercancía espera a la desactivación y luego responde 404;
+  - de dos desactivaciones a la vez, solo una pasa.
+- **Reintegro al origen:** cada línea vuelve a los stock items de los que salió, según los movimientos de venta, aunque el almacén esté inactivo; con `warehouseId`, a ese almacén activo.
+- **Transferencias:** los ajustes aceptan almacenes inactivos, y `WAREHOUSE_TRANSFER` llega con dos migraciones.
+- **Envíos:** el listado filtra por `warehouseId`, y la orden del staff muestra el almacén del envío.
+
+#### Siguiente versión
+
+Ninguna en curso: la siguiente necesita un plan aprobado (ADR-0159). La 1.1 dejó fuera, para cuando se necesiten, dividir pedidos entre almacenes, las transferencias como operación propia (T-163), elegir el almacén por cercanía y los permisos por almacén (ADR-0160). Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las del Sprint 9.
 
 ### Sprint 9 — Calidad antes de operar (2026-10-03 a 2026-10-04)
 
