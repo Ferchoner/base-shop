@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## 1.0.0 (2026-10-05)
+
+El MVP (ADR-0158), con las correcciones fusionadas después del cierre.
 
 - Creado paquete inicial de documentación y prompts.
 - Registradas decisiones de arquitectura y negocio ADR-0002 a ADR-0019.
@@ -264,3 +266,7 @@
   - Quedan fuera del MVP, hasta que una entidad quiera usar el proyecto, las tareas T-191, T-192, T-193, T-200 y T-330 (todas en DEFERRED), y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69.
   - El MVP no tiene proveedor de pago en línea: el pago manual en tienda sigue siendo solo para pruebas.
   - `PROJECT.md`, `README.md`, `PROGRESS.md` y `SPRINT.md` describen el cierre y cómo retomar el proyecto.
+- Correcciones después del cierre del MVP (2026-10-05):
+  - Con el `.env` de `.env.example`, la API arranca en Docker y `create-first-superadmin` funciona: `ConfigService` responde solo con los valores ya validados (#99).
+  - El documento OpenAPI declara la paginación por cursor (`cursor`, `limit` y `CursorMetaDto`) y `quantity` de los ajustes, y marca como opcionales los parámetros con valor por defecto; la prueba de contrato compara los campos que valida cada cuerpo y cada consulta (#100).
+- Versión 1.0.0 (nuevo ADR-0159): el MVP se publica con el tag `v1.0.0` y un GitHub Release, y el desarrollo sigue por versiones con versionado semántico, independiente de `/v1`. Cada versión menor es un incremento con su plan aprobado; el primero, la 1.1, agrega varios almacenes propios.

@@ -1,6 +1,6 @@
 {
   "name": "base-shop",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "API REST de comercio electrónico (NestJS, PostgreSQL, Prisma)",
   "author": "",
   "private": true,
