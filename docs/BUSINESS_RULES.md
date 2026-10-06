@@ -69,11 +69,11 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-INV-05. Todo ajuste de stock requiere motivo y genera un movimiento.
 - BR-INV-06. `onHand` disminuye al confirmarse el pago (ADR-0011).
 - BR-INV-07. La reserva tiene un TTL fijo configurable; valor inicial de 20 minutos.
-- BR-INV-08. En el MVP existe exactamente un almacén, creado por el seed; es el predeterminado y el único que usan reservas, entradas, ajustes y envíos. La API no crea ni desactiva almacenes, y la base impide más de un almacén activo (ADR-0011, ADR-0081).
+- BR-INV-08. Puede haber varios almacenes activos, cada uno con una prioridad de 1 a 1000 (1 es la primera; si empatan, por código). Cada orden se reserva completa en el primer almacén activo que la tiene toda, y su envío sale de él; no se dividen pedidos. Entradas y ajustes van a cualquier almacén activo. El primero lo crea una migración (ADR-0011, ADR-0160).
 - BR-INV-09. Cancelar una orden en PendingPayment libera su reserva (DOMAIN_MODEL, flujo Ordering → Inventory).
 - BR-INV-10. El reintegro de stock de una orden cancelada o con envío devuelto es independiente: una entrada con motivo y referencia a la orden, total o parcial. Además, como opción, el staff con `inventory.write` puede reintegrar todas las líneas completas al cancelar una orden en Paid. La suma reintegrada por línea no supera lo vendido, y una orden cuyo stock nunca se confirmó no vendió nada (ADR-0052, ADR-0142). El registro del reembolso ya no reintegra (ADR-0142).
 - BR-INV-11. Ajustes y reintegros llevan un motivo obligatorio de una lista cerrada y una nota opcional (obligatoria con "Otro"); las entradas solo llevan nota opcional. Los motivos Dañado, Pérdida o robo y Uso interno solo restan stock; los reintegros solo suman (ADR-0069).
-- BR-INV-12. El público solo ve si una variante está disponible o agotada, nunca cantidades; el carrito indica por línea si la cantidad pedida puede surtirse (ADR-0061).
+- BR-INV-12. El público solo ve si una variante está disponible o agotada, nunca cantidades: disponible si algún almacén activo tiene una unidad libre. El carrito indica por línea si algún almacén puede surtir la cantidad pedida; la cotización, si la línea cabe en el pedido junto con las demás, según el almacén más cercano (ADR-0061, ADR-0160).
 - BR-INV-13. Los movimientos de stock son append-only: nunca se modifican ni se borran. Todo cambio de `onHand` escribe su movimiento en la misma transacción, y la suma de movimientos de un stock item debe igualar su `onHand` (ADR-0011, ADR-0066).
 - BR-INV-14. Las reservas actualizan cada stock item en orden ascendente de identificador, para evitar bloqueos mutuos entre transacciones concurrentes (ADR-0066).
 

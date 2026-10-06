@@ -36,6 +36,17 @@ Operar varios almacenes propios: cada orden sale completa del almacén de mayor 
   - partir en tandas las corridas de mutación largas;
   - que un control que puede pasar sin revisar nada muestre lo que revisó.
 
+### Resultado del paso 1
+
+T-162 parte a (ADR-0160):
+
+- **Varios almacenes activos:** la migración quita el índice de un solo almacén activo y agrega `priority`, de 1 a 1000, con 1 para los existentes. `GET` de almacenes la muestra y ordena por ella.
+- **Reserva:** la política `ONE_WAREHOUSE_PER_ORDER` propone los almacenes que tienen todo el pedido, por prioridad. Cada intento es un savepoint propio: si otra orden se llevó las unidades, se deshace y se prueba el siguiente.
+- **Cotización y 409:** el carrito sigue diciendo si algún almacén cubre cada línea. La cotización marca las líneas que le faltan al almacén más cercano, y son las mismas que lista el 409 `insufficient-stock`.
+- **Tienda:** la disponibilidad agrega los almacenes activos, con una fila por variante. Va en el mismo cambio que quita el índice.
+- **Envío:** sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`, que reemplaza a `activeWarehouseId`). Si hubiera más de un grupo, Ordering falla en vez de perder uno.
+- **Mientras llega la parte b:** el reintegro va al primer almacén activo por prioridad.
+
 ### Risks
 
 - **Tienda duplicada:** quitar el índice de un solo almacén sin corregir la tienda duplicaría los productos en cuanto existiera un segundo almacén activo. Van en la misma parte (ADR-0160).
