@@ -181,6 +181,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [ ] Versión 1.2: ventas asistidas en la tienda física (paso 0 y T-187 en dos partes); plan en `SPRINT.md`
 - [x] T-187 parte a, primer pull request: el staff con `orders.place` cotiza y coloca pedidos a nombre de un cliente, con el stock solo del almacén que elige; la orden guarda el canal, quién la colocó y el almacén, y se audita; rol Vendedor (ADR-0161)
 - [x] T-187 parte a, segundo pull request: el pago en tienda deja de ser solo para pruebas y guarda cómo se cobró (efectivo, terminal o transferencia); la parte a queda hecha (ADR-0161)
+- [x] T-187 parte b: la venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni envío, y sin datos del comprador si no los da (ADR-0161). T-187 en DONE
 
 ## Fuera del MVP
 

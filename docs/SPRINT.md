@@ -56,6 +56,16 @@ T-187 parte a queda hecha (ADR-0161):
 - **Método:** `manual-capture` acepta `method`, opcional para no romper `/v1`: `CASH`, `CARD_TERMINAL` o `TRANSFER`. Lo guarda el intento capturado, con una restricción en la base, y lo muestran `AdminPayment` y `AdminOrder.payment`. La auditoría lo registra.
 - **Sin cambios:** el reembolso manual.
 
+### Resultado del paso 2
+
+T-187 parte b (ADR-0161); T-187 queda en DONE.
+
+- **Venta de mostrador:** la cotización y la colocación del staff aceptan `fulfillment` `IN_STORE`. La orden no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos.
+- **Entrega en la tienda:** una orden `IN_STORE` pagada no crea envío, y `POST …/hand-over` la lleva de Paid a Delivered, con el vendedor en el historial y auditada.
+- **Base de datos:** `orders_fulfillment_check` exige la dirección y el plazo a una orden que se envía, y los quita, con el costo de envío, a una que se entrega en la tienda. Las restricciones del email y del aviso admiten la venta sin datos solo ahí.
+- **Contrato:** `fulfillment` es un campo nuevo; `shippingAddress` y `estimatedDelivery` salen `null` en una orden `IN_STORE`, la excepción acotada a ADR-0034.
+- **Correos:** los de una venta de mostrador dicen que se entrega en la tienda, sin plazo; sin email no hay correos.
+
 ### Risks
 
 - **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor (ADR-0161).

@@ -460,10 +460,11 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | shipping_cost | integer | No | Snapshot, IVA incluido (ADR-0042, ADR-0079) |
 | shipping_tax_amount | integer | No | IVA contenido en `shipping_cost`; 0 con envío gratis (ADR-0079) |
 | shipping_tax_rate_bp | integer | No | Tasa aplicada al envío, en puntos base (ADR-0079) |
-| delivery_min_business_days, delivery_max_business_days | integer | No | Snapshot del plazo de entrega estimado, en días hábiles desde la confirmación del pago (ADR-0083) |
+| delivery_min_business_days, delivery_max_business_days | integer | Sí | Snapshot del plazo de entrega estimado, en días hábiles desde la confirmación del pago (ADR-0083); `NULL` en una orden `IN_STORE` |
 | discount_total | integer | No | Default 0 (ADR-0018) |
 | grand_total | integer | No | — |
-| shipping_address | jsonb | No | Snapshot con el formato de ADR-0057 |
+| fulfillment | enum `order_fulfillment` (SHIPPING, IN_STORE) | No | Default `SHIPPING`; `IN_STORE` es la venta de mostrador, que se entrega en la tienda (ADR-0161) |
+| shipping_address | jsonb | Sí | Snapshot con el formato de ADR-0057; `NULL` en una orden `IN_STORE` |
 | reservation_id | uuid | Sí | Referencia lógica a Inventory |
 | channel | enum `order_channel` (ONLINE, STORE) | No | Default `ONLINE`: la tienda en línea, desde un carrito; `STORE`, la tienda física, donde la coloca el staff (ADR-0161) |
 | source_cart_id | uuid | Sí | Referencia lógica a Shopping (restauración, ADR-0054); `NULL` en una orden `STORE`, que no sale de un carrito (ADR-0161) |
@@ -479,7 +480,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso); `CHECK (blocked_at IS NULL OR concluded_at IS NOT NULL)` (solo se bloquea una orden que concluyó, ADR-0151); `orders_channel_check`: una orden `ONLINE` tiene `source_cart_id` y no tiene `placed_by` ni `warehouse_id`, y una `STORE` tiene `placed_by` y `warehouse_id` y no tiene `source_cart_id` (ADR-0161).
+- **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso); `CHECK (blocked_at IS NULL OR concluded_at IS NOT NULL)` (solo se bloquea una orden que concluyó, ADR-0151); `orders_channel_check`: una orden `ONLINE` tiene `source_cart_id` y no tiene `placed_by` ni `warehouse_id`, y una `STORE` tiene `placed_by` y `warehouse_id` y no tiene `source_cart_id` (ADR-0161); `orders_fulfillment_check`: una orden `SHIPPING` tiene dirección y días de entrega, y una `IN_STORE` es `STORE`, sin dirección, sin días de entrega y sin costo de envío. `orders_contact_email_check` y `orders_guest_privacy_notice_check` admiten una orden `IN_STORE` sin cliente, email ni aviso (ADR-0161).
 - **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado); `orders_retention_idx` sobre `(concluded_at) WHERE anonymized_at IS NULL` (ciclo de conservación, ADR-0151); `(placed_by, placed_at DESC) WHERE placed_by IS NOT NULL` (órdenes de una cuenta de staff, ADR-0161).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
 - **Implementado en T-180 parte a (ADR-0132):**
@@ -500,6 +501,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 - **Implementado en T-187 parte a (ADR-0161):**
   - la migración `20261006150100_ordering_store_orders` crea `order_channel` y agrega `channel`, con `ONLINE` para las órdenes existentes, que salieron todas de un carrito; deja `source_cart_id` opcional y agrega `placed_by`, `warehouse_id`, `orders_channel_check` y el índice parcial;
   - la primera entrada de `order_status_history` lleva como actor a la cuenta de staff en una orden `STORE`.
+- **Implementado en T-187 parte b (ADR-0161):** la migración `20261006170000_ordering_in_store_delivery` crea `order_fulfillment`, agrega `fulfillment` con `SHIPPING` para las órdenes existentes, deja opcionales la dirección y los días de entrega, agrega `orders_fulfillment_check` y reemplaza las restricciones del email y del aviso de privacidad.
 
 ### 8.2 `order_lines` (order_items)
 
