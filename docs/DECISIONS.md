@@ -177,6 +177,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0157 | Cobertura de toda la suite con umbral en la CI, y prueba de los rellenos de datos | Aceptada |
 | ADR-0158 | Cierre del proyecto como MVP | Aceptada |
 | ADR-0159 | Versiones después del MVP | Aceptada |
+| ADR-0160 | Varios almacenes propios | Aceptada |
 
 ---
 
@@ -1720,7 +1721,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Mantener la creación de almacenes con un indicador de predeterminado; permitir almacenes inactivos adicionales sin uso.
 - **Consecuencias:** Modifica los contratos aprobados (ADR-0071) en dos endpoints y el modelo de datos (ADR-0066) en un índice; aún no hay implementación ni migraciones.
 - **Revisar si:** se decide operar más de un almacén.
-- **Estado:** Aceptada (aprobación formal 2026-09-26). El almacén lo crea una migración en T-160 (ADR-0127).
+- **Estado:** Aceptada (aprobación formal 2026-09-26). El almacén lo crea una migración en T-160 (ADR-0127). ADR-0160 la reemplaza al implementarse en la versión 1.1 (T-162).
 
 ---
 
@@ -4855,3 +4856,61 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Modifica ADR-0158.
 - **Revisar si:** una entidad quiere usar el proyecto (entonces aplica ADR-0158), o hace falta `/v2`.
 - **Estado:** Aceptada (decidida por el usuario el 2026-10-05).
+
+## ADR-0160 — Varios almacenes propios
+
+- **Fecha:** 2026-10-05
+- **Contexto:** Primer incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.1. ADR-0081 dejó un solo almacén en el MVP y pidió definir, al habilitar varios, la prioridad y las reglas de asignación. El modelo ya separa el stock por variante y almacén, las entradas y los ajustes reciben `warehouseId`, y los envíos guardan `warehouse_id`. Pero el comportamiento depende de un único almacén activo:
+  - un índice único parcial (`warehouses_single_active`) impide que haya más de uno activo;
+  - `InventoryFacade` busca "el activo" para verificar el stock, reservar, reintegrar y dar el origen de los envíos (`activeWarehouseId`);
+  - la tienda une las variantes con el almacén activo sin agrupar, así que con dos almacenes activos duplicaría cada variante;
+  - el reintegro vuelve al almacén activo, no al de origen;
+  - la API no crea ni desactiva almacenes (ADR-0081).
+- **Decisión** (del usuario, con las recomendaciones del análisis):
+  - **Un almacén por orden:** el pedido completo sale de un solo almacén. No se dividen pedidos ni hay envíos parciales (ADR-0018).
+  - **Asignación por prioridad:** cada almacén tiene una prioridad. La reserva recorre los almacenes activos de mayor a menor prioridad y reserva el pedido completo en el primero que lo cubre. Cada intento es todo o nada y se deshace solo (ADR-0133), con el orden de bloqueo por `stock_item_id` (BR-INV-14).
+  - **Sin un almacén que cubra todo, falta stock,** aunque la suma de los almacenes alcance.
+  - **Disponibilidad:**
+    - en la tienda, una variante está disponible si algún almacén activo tiene al menos una unidad libre (ADR-0061);
+    - el carrito sigue respondiendo `canFulfill` por línea: algún almacén la cubre;
+    - la cotización responde por el pedido completo con `readyToPlace`.
+  - **Reintegro al origen:** cada unidad vuelve al almacén del que salió, según sus movimientos de venta; el staff puede indicar otro.
+  - **Ciclo de vida:** el staff crea almacenes, edita su prioridad y los desactiva si no tienen unidades reservadas. Un almacén inactivo no vende ni reserva su stock. Sigue sin reactivación (ADR-0076).
+  - **Transferencias:** mover stock entre almacenes es, por ahora, un ajuste en cada uno con el motivo nuevo `WAREHOUSE_TRANSFER` (suma o resta, ADR-0069). La transferencia como operación propia queda en T-163 (DEFERRED).
+  - **Permisos globales:** `inventory.read` e `inventory.write` cubren todos los almacenes.
+  - **Costo y plazo de envío iguales para todos:** ADR-0042 y ADR-0083 no cambian.
+  - **Compatibilidad:** con un solo almacén activo, el comportamiento es el de hoy, y el almacén principal queda con la prioridad más alta.
+  - **Preparado para dividir pedidos** (pedido del usuario), sin hacerlo todavía:
+    - el almacén queda en cada línea de la reserva, por su stock item, sin una columna en `reservations`. La regla "un almacén por orden" vive en una política de asignación que se puede reemplazar;
+    - la asignación produce grupos `{almacén, líneas}`; hoy siempre uno;
+    - Ordering pasa esos grupos a Shipping, un envío por grupo; hoy uno, y `shipments.order_id` sigue siendo único;
+    - el reintegro calcula el origen por movimiento de venta, así que funciona aunque una línea salga de dos almacenes;
+    - la API mantiene `shipment` en singular. Al dividir pedidos se agregaría `shipments[]` sin quitar `shipment`, dentro de `/v1` (ADR-0034).
+  - **Para dividir pedidos faltaría,** con su propio ADR:
+    - quitar el `UNIQUE` de `shipments.order_id`;
+    - el estado de una orden con varios envíos (ADR-0009, BR-SHP-02);
+    - los manejadores de entrega y devolución de Ordering;
+    - correos, reembolsos y conservación de datos por envío;
+    - `shipments[]` en la API.
+  - **Implementación:** T-162, en dos partes:
+    - **(a)** la migración (sin `warehouses_single_active` y con la prioridad), la asignación, la disponibilidad agregada de la tienda, `canFulfill` por pedido y el origen del envío desde la reserva. La migración y la tienda van en la misma parte: sin el índice y con la tienda sin corregir, un segundo almacén duplicaría los productos;
+    - **(b)** la administración de almacenes (crear, prioridad y desactivar), el reintegro al origen, el motivo `WAREHOUSE_TRANSFER`, el filtro de envíos por almacén y el almacén del envío en la orden del staff.
+- **Alternativas consideradas:**
+  - **Dividir pedidos entre almacenes:** necesita envíos parciales, que cambian ADR-0018 y ADR-0009.
+  - **Elegir por cercanía al destino:** se puede agregar después, porque los almacenes ya tienen dirección validada.
+  - **Disponibilidad por la suma de los almacenes:** daría "disponible" a cantidades que ningún almacén surte solo.
+  - **`reservations.warehouse_id`:** aseguraría un almacén por orden en el esquema, pero cerraría la puerta a dividir pedidos.
+  - **Permisos por almacén** y **transferencias como operación propia (T-163):** se deciden cuando hagan falta.
+- **Consecuencias:**
+  - Un pedido puede fallar por falta de stock aunque la suma de los almacenes alcance; la cotización y el carrito lo avisan.
+  - El stock de un almacén desactivado queda inmovilizado hasta ajustarlo.
+  - Cambios compatibles en `/v1`:
+    - rutas para crear y desactivar almacenes;
+    - `Warehouse.priority`;
+    - `warehouseId` opcional en los reintegros;
+    - el almacén del envío en la orden del staff;
+    - el filtro de envíos por almacén;
+    - el significado de `canFulfill` y `readyToPlace`.
+  - Al implementarse, reemplaza ADR-0081 y modifica ADR-0011, ADR-0061, ADR-0069, ADR-0127, ADR-0128, ADR-0129, ADR-0140 y ADR-0142, y las reglas BR-INV-08 y BR-INV-12.
+- **Revisar si:** se decide dividir pedidos, elegir por cercanía o limitar los permisos por almacén.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-05). Se implementa en T-162, en la versión 1.1.

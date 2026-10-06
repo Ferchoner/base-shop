@@ -4,6 +4,50 @@
 
 Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9 (ADR-0158), y se publicó como la versión 1.0.0. No habrá otro sprint hasta que una entidad quiera usarlo; mientras tanto, el desarrollo sigue por versiones, cada una con su plan aprobado (ADR-0159).
 
+## Versión en curso
+
+1.1 — Varios almacenes propios. Inicio: 2026-10-05 (plan aprobado ese día).
+
+### Goal
+
+Operar varios almacenes propios: cada orden sale completa del almacén de mayor prioridad que la cubre, la tienda suma la disponibilidad de todos, el stock vuelve al almacén del que salió, y el staff administra los almacenes. El diseño queda preparado para dividir pedidos más adelante, sin hacerlo (ADR-0160).
+
+### Tasks
+
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review del Sprint 9 en la guía de desarrollo |
+| 1 | T-162 parte a: migración, asignación por prioridad, disponibilidad agregada de la tienda, `canFulfill` por pedido y origen del envío desde la reserva |
+| 2 | T-162 parte b: administración de almacenes, reintegro al origen, motivo `WAREHOUSE_TRANSFER`, filtro de envíos por almacén y almacén del envío en la orden del staff |
+
+- **Criterio de cierre:** los criterios de aceptación de T-162, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.1.0 publicada con su tag y su GitHub Release (ADR-0159).
+- **Fuera de esta versión:** dividir pedidos entre almacenes, transferencias como operación propia (T-163), elegir por cercanía y permisos por almacén (ADR-0160); y todo lo que ADR-0158 dejó fuera del MVP.
+- **Flujo de trabajo:** el de los sprints. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.1.0.
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 160 ADR del índice tienen su sección, y no hay referencias a ADR, tareas ni decisiones que no existan.
+- **Dependencias:**
+  - `npm audit` no encuentra vulnerabilidades;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 9:
+  - revisar `main` justo antes de fijar el número de un ADR cuando hay sesiones en paralelo;
+  - partir en tandas las corridas de mutación largas;
+  - que un control que puede pasar sin revisar nada muestre lo que revisó.
+
+### Risks
+
+- **Tienda duplicada:** quitar el índice de un solo almacén sin corregir la tienda duplicaría los productos en cuanto existiera un segundo almacén activo. Van en la misma parte (ADR-0160).
+- **Concurrencia entre almacenes:** dos órdenes que compiten por las últimas unidades pueden intentar varios almacenes; una prueba con dos conexiones lo comprueba en la parte a.
+- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
+
+### Review
+
+PENDIENTE.
+
+---
+
 ## Cierre del MVP
 
 - **Periodo:** 10 sprints, del Sprint 0 (desde el 2026-09-24) al Sprint 9 (hasta el 2026-10-04).
