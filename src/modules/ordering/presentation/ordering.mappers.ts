@@ -230,6 +230,7 @@ function toAdminOrderPaymentDto(payment: OrderPayment): AdminOrderPaymentDto {
     capturedAmount: toMoneyDto(payment.capturedAmount),
     refundedAmount: toMoneyDto(payment.refundedAmount),
     capturedAt: payment.capturedAt,
+    method: payment.method,
     refunds: payment.refunds.map((refund) => ({
       ...refund,
       amount: toMoneyDto(refund.amount),

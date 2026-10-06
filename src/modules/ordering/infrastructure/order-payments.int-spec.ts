@@ -209,6 +209,7 @@ describe('Ordering: payments of an order at the same time (T-190)', () => {
         orderId,
         staffId: newId<'User'>(),
         reference: 'Ticket 00452',
+        method: null,
         note: null,
       }),
     );

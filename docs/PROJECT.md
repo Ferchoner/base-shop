@@ -21,7 +21,7 @@ Incluido:
 - Almacenes, inventario y reservas de inventario
 - Carrito (incluido carrito de invitado)
 - Checkout y pedidos (incluida compra como invitado, y el enlace de acceso a sus pedidos por correo, ADR-0148)
-- Pagos: el modelo, el puerto para proveedores y el pago manual en tienda, solo para pruebas (ADR-0055)
+- Pagos: el modelo, el puerto para proveedores y el pago manual en tienda (ADR-0055), que desde la versión 1.2 es el cobro de la tienda física (ADR-0161)
 - Envíos
 - Notificaciones (como reacción a eventos)
 - Auditoría técnica
@@ -33,7 +33,7 @@ Fuera del MVP (ver ADR-0018):
 - Promociones y cupones. La orden guarda un campo de descuento desde el inicio.
 - Devoluciones y reembolsos parciales como proceso de negocio. `Refund` queda modelado dentro de `Payment`.
 - Envíos parciales.
-- Métodos de pago asíncronos (efectivo en tiendas de conveniencia y transferencia a través de un proveedor, ADR-0013). El pago manual en tienda (ADR-0055) es solo para pruebas; deja de serlo en la versión 1.2 (ADR-0161).
+- Métodos de pago asíncronos (efectivo en tiendas de conveniencia y transferencia a través de un proveedor, ADR-0013). El pago manual en tienda (ADR-0055) dejó de ser solo para pruebas en la versión 1.2 (ADR-0161).
 - Múltiples almacenes en operación (el modelo los soporta). Se agregaron en la versión 1.1.0 (ADR-0160).
 - Múltiples monedas.
 - Recoger en tienda (ADR-0078). La versión 1.2 agrega la entrega en tienda de las ventas de mostrador (ADR-0161).
@@ -57,7 +57,7 @@ El alcance funcional detallado se mantiene en `REQUIREMENTS.md`.
 | API | Definido | REST versionada con prefijo `/v1`, documentada con Swagger/OpenAPI | ADR-0002, ADR-0034 |
 | Autenticación | Implementado | Login con email y contraseña; JWT HS256 de corta duración en `Authorization: Bearer`, verificado con Passport, con la cuenta y la sesión comprobadas en cada solicitud; refresh token opaco de 7 días (configurable), rotado, guardado con hash y con detección de reutilización; Argon2id de `node:crypto`; política de contraseñas con lista local de contraseñas comunes | ADR-0022, ADR-0023, ADR-0047, ADR-0114, ADR-0115 |
 | Autorización | Definido | RBAC: roles editables, permisos definidos en código con granularidad contexto.acción | ADR-0017 |
-| Pagos | Definido | Método manual solo para pruebas (el administrador registra el pago). PayPal semiimplementado sin probar. Mercado Pago y Stripe pospuestos. Captura inmediata; sin métodos asíncronos | ADR-0013, ADR-0040 |
+| Pagos | Definido | Método manual en tienda (el staff registra el pago, con su método desde la versión 1.2, ADR-0161). PayPal semiimplementado sin probar. Mercado Pago y Stripe pospuestos. Captura inmediata; sin métodos asíncronos | ADR-0013, ADR-0040 |
 | Storage (imágenes) | Definido | Disco del servidor por ahora; CDN a futuro. Se guarda la clave de almacenamiento y la URL se construye al responder. Formatos JPEG, PNG y WebP, reconocidos por su contenido; máximo 5 MB por imagen, configurable. La API las sirve en `/media` mientras no haya hosting | ADR-0016, ADR-0024, ADR-0121 |
 | Cache | Definido | `@nestjs/cache-manager` en memoria del proceso; solo lecturas públicas del catálogo; TTL de 120 s (configurable); invalidación por eventos de Catalog | ADR-0028 |
 | Colas / jobs | Definido parcialmente | Sin colas de mensajes; eventos en proceso, guardados con el cambio en un outbox y reintentados. Jobs con `@nestjs/schedule` en el proceso de la API: expiración de órdenes y reintento de eventos cada minuto, limpieza diaria, archivo de la auditoría y ciclo de conservación de datos personales a las 3:00; la conciliación de pagos, cada 5 minutos, llega con PayPal (T-192) | ADR-0029, ADR-0150, ADR-0151 |
@@ -112,5 +112,5 @@ base-shop no tiene una entidad vendedora definida: cada operador resuelve esta l
   - una nueva revisión cuando se publique el reglamento de la ley de 2025.
 - **Impuestos y envíos, con el contador y el administrador (P-69):** el IVA del costo de envío, el modo de redondeo del IVA y los valores del método de envío con costos reales (ADR-0079, ADR-0092, ADR-0094).
 - **Infraestructura:** hosting, despliegue, secretos en el servidor y proveedor real de correos (P-05, P-06, P-13, P-24).
-- **Pagos:** el pago manual en tienda es solo para pruebas (ADR-0055); PayPal debe verificarse en su sandbox antes de habilitarse (T-191).
+- **Pagos:** el pago manual en tienda se enciende con `MANUAL_PAYMENTS_ENABLED` cuando la tienda cobra (ADR-0161); PayPal debe verificarse en su sandbox antes de habilitarse (T-191).
 - **Recomendado:** segundo factor de autenticación para el staff (ADR-0048).

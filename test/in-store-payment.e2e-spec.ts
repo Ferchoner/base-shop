@@ -385,7 +385,7 @@ describe('In-store payment (e2e, T-190)', () => {
   });
 
   describe('registering a payment made in the store (UC-PAY-02)', () => {
-    it('captures the total, audits it, and the order becomes paid in the background', async () => {
+    it('captures the total with how the store collected it, audits it, and the order becomes paid in the background', async () => {
       const shirt = await variant(5);
       const { id, publicCode, cartId } = await guestOrder(shirt);
       const started = await startAsGuest(publicCode, {
@@ -393,7 +393,9 @@ describe('In-store payment (e2e, T-190)', () => {
         provider: 'MANUAL',
       }).expect(201);
 
-      const { body } = await capture(id).expect(200);
+      const { body } = await capture(id, cashier, { method: 'CASH' }).expect(
+        200,
+      );
       await idle();
 
       expect(body.payment).toMatchObject({
@@ -401,6 +403,7 @@ describe('In-store payment (e2e, T-190)', () => {
         status: 'CAPTURED',
         capturedAmount: mxn(19_900),
         capturedAt: expect.any(String),
+        method: 'CASH',
       });
       const order = await http()
         .get(`/v1/admin/orders/${id}`)
@@ -427,10 +430,16 @@ describe('In-store payment (e2e, T-190)', () => {
         currency: 'MXN',
         version: 2,
         attempts: [
-          { status: 'PENDING', providerReference: null, registeredBy: null },
+          {
+            status: 'PENDING',
+            providerReference: null,
+            method: null,
+            registeredBy: null,
+          },
           {
             status: 'CAPTURED',
             providerReference: 'Ticket 00452',
+            method: 'CASH',
             registeredBy: cashier.id,
           },
         ],
@@ -444,7 +453,10 @@ describe('In-store payment (e2e, T-190)', () => {
         actorId: cashier.id,
         resourceId: started.body.paymentId,
         reason: 'Pagó en efectivo',
-        changes: { status: { from: 'PENDING', to: 'CAPTURED' } },
+        changes: {
+          status: { from: 'PENDING', to: 'CAPTURED' },
+          method: { from: null, to: 'CASH' },
+        },
       });
     });
 
@@ -461,9 +473,11 @@ describe('In-store payment (e2e, T-190)', () => {
       const { body } = await capture(id, cashier, { note: ' ' }).expect(200);
       await idle();
 
+      // Without a method, the payment has none (ADR-0161).
       expect(body.payment).toMatchObject({
         provider: 'MANUAL',
         status: 'CAPTURED',
+        method: null,
       });
       expect(
         (await prisma.order.findUniqueOrThrow({ where: { id } })).status,
@@ -528,6 +542,13 @@ describe('In-store payment (e2e, T-190)', () => {
       await capture(id, manager).expect(403);
       await capture(id, cashier, { reference: ' ' }).expect(400);
       await capture(id, cashier, { note: 'x'.repeat(501) }).expect(400);
+      // The method is one of the three, or none (ADR-0161).
+      const { body: problem } = await capture(id, cashier, {
+        method: 'CHEQUE',
+      }).expect(400);
+      expect(problem.errors).toEqual([
+        expect.objectContaining({ field: 'method', code: 'isIn' }),
+      ]);
       await capture(newId()).expect(404);
     });
   });

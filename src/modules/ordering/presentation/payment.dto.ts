@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsIn,
   IsOptional,
@@ -10,7 +10,9 @@ import {
 } from 'class-validator';
 import { MoneyDto } from '../../../platform/http/money.dto.js';
 import {
+  PAYMENT_METHODS,
   PAYMENT_PROVIDERS,
+  type PaymentMethod,
   type PaymentProvider,
 } from '../application/payment-ports.js';
 
@@ -97,9 +99,18 @@ export class ManualCaptureDto {
   @Matches(/\S/, NOT_BLANK)
   reference: string;
 
+  @ApiPropertyOptional({
+    enum: PAYMENT_METHODS,
+    description:
+      'Cómo se cobró: `CASH` (efectivo), `CARD_TERMINAL` (terminal bancaria) o `TRANSFER` (transferencia). Sin él, el pago queda sin método (ADR-0161).',
+  })
+  @IsOptional()
+  @IsIn(PAYMENT_METHODS)
+  method?: PaymentMethod;
+
   /**
    * Nota de hasta 500 caracteres; queda en la auditoría: no escribas datos personales.
-   * @example 'Pagó en efectivo'
+   * @example 'Pagó con dos tarjetas'
    */
   @IsOptional()
   @IsString()

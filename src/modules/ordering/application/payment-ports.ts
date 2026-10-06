@@ -5,10 +5,15 @@ import type { Order, OrderId, StaffId } from '../domain/order.js';
 // Payments answers with events (ADR-0134). An abstract class rather than an interface, so it can be the
 // dependency injection token without depending on NestJS.
 
-/** ADR-0040: the manual method, for tests, and PayPal, prepared but not enabled. */
+/** ADR-0040: the manual method, paid in the physical store (ADR-0161), and PayPal, prepared but not enabled. */
 export const PAYMENT_PROVIDERS = ['MANUAL', 'PAYPAL'] as const;
 
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number];
+
+/** How the store collected a manual payment (ADR-0161): cash, a card terminal or a bank transfer. */
+export const PAYMENT_METHODS = ['CASH', 'CARD_TERMINAL', 'TRANSFER'] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /** A refund of the payment of an order (ADR-0051). */
 export interface OrderRefund {
@@ -28,6 +33,8 @@ export interface OrderPayment {
   readonly capturedAmount: Money;
   readonly refundedAmount: Money;
   readonly capturedAt: Date | null;
+  /** How the store collected a captured manual payment; `null` otherwise, or when the staff did not say (ADR-0161). */
+  readonly method: PaymentMethod | null;
   readonly refunds: readonly OrderRefund[];
 }
 
@@ -73,7 +80,12 @@ export abstract class OrderPayments {
    */
   abstract captureManually(
     order: Order,
-    input: { reference: string; note: string | null; registeredBy: StaffId },
+    input: {
+      reference: string;
+      method: PaymentMethod | null;
+      note: string | null;
+      registeredBy: StaffId;
+    },
   ): Promise<void>;
 
   /**

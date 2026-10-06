@@ -103,9 +103,9 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 | Eventos | `PaymentAuthorized`, `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` |
 | Repositories | `PaymentRepository` |
 | Puertos | `PaymentGateway`: adaptador manual (pruebas) y PayPal semiimplementado (ADR-0040) |
-| Casos de uso | InitiatePayment, RegisterManualPayment (staff, solo pruebas), HandleProviderWebhook, RefundPayment (total, al cancelar), RegisterManualRefund (staff, solo pruebas), RetryRefund, ReconcilePayments (job) |
+| Casos de uso | InitiatePayment, RegisterManualPayment (staff, en la tienda física, con su método, ADR-0161), HandleProviderWebhook, RefundPayment (total, al cancelar), RegisterManualRefund (staff), RetryRefund, ReconcilePayments (job) |
 | Exporta | Estado del pago por orderId |
-| Implementado | T-190 parte a (ADR-0134): `Payment` con sus intentos (iniciar y capturar a mano); `PaymentsFacade` para Ordering (iniciar, registrar el pago manual, pagos por orden) y `PaymentCaptured`. Parte b (ADR-0135): `Refund` (iniciar al cancelar, completar a mano), cancelar el pago pendiente y `RefundCompleted` |
+| Implementado | T-190 parte a (ADR-0134): `Payment` con sus intentos (iniciar y capturar a mano); `PaymentsFacade` para Ordering (iniciar, registrar el pago manual, pagos por orden) y `PaymentCaptured`. Parte b (ADR-0135): `Refund` (iniciar al cancelar, completar a mano), cancelar el pago pendiente y `RefundCompleted`. T-187 parte a (ADR-0161): el intento capturado de un pago en tienda guarda su método (`PaymentMethod`) |
 
 ## Shipping
 

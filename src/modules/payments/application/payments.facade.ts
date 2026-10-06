@@ -18,6 +18,7 @@ import {
   type OrderId,
   Payment,
   type PaymentId,
+  type PaymentMethod,
   type PaymentProvider,
   type RefundId,
   type StaffId,
@@ -149,16 +150,21 @@ export class PaymentsFacade {
   }
 
   /**
-   * Registers a payment made in the store for the total of the order (UC-PAY-02, ADR-0055), creating the
-   * payment when the customer never started it, and publishes `PaymentCaptured` (BR-PAY-10). Audited, with
-   * the note as its reason.
+   * Registers a payment made in the store for the total of the order (UC-PAY-02, ADR-0055), with how the store
+   * collected it (ADR-0161), creating the payment when the customer never started it, and publishes
+   * `PaymentCaptured` (BR-PAY-10). Audited, with the note as its reason.
    *
    * @throws ManualPaymentsDisabledError; InvalidStateTransitionError when the payment is not a pending manual
    *   one, such as one already captured.
    */
   async captureManually(
     order: PaymentRequest,
-    input: { reference: string; note: string | null; registeredBy: StaffId },
+    input: {
+      reference: string;
+      method: PaymentMethod | null;
+      note: string | null;
+      registeredBy: StaffId;
+    },
   ): Promise<void> {
     this.assertManualPaymentsEnabled();
     return this.transactions.run(async () => {
@@ -177,6 +183,7 @@ export class PaymentsFacade {
       const before = payment.status;
       payment.captureManually({
         reference: input.reference,
+        method: input.method,
         registeredBy: input.registeredBy,
         now,
       });
@@ -188,7 +195,10 @@ export class PaymentsFacade {
       await this.audit.record({
         action: 'payments.manual-capture',
         resource: { type: 'payment', id: payment.id },
-        changes: changesBetween({ status: before }, { status: payment.status }),
+        changes: changesBetween(
+          { status: before, method: null },
+          { status: payment.status, method: input.method },
+        ),
         ...(input.note === null ? {} : { reason: input.note }),
       });
       const captured: PaymentCaptured = {

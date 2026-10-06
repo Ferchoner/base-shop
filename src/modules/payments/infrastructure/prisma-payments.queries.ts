@@ -106,6 +106,9 @@ function toPaymentView(row: PaymentRow): PaymentView {
     capturedAmount: money(row.capturedAmount),
     refundedAmount: money(row.refundedAmount),
     capturedAt: row.capturedAt,
+    method:
+      row.attempts.findLast(({ status }) => status === 'CAPTURED')?.method ??
+      null,
     refunds: row.refunds.map((refund) => ({
       id: refund.id,
       amount: money(refund.amount),
@@ -126,6 +129,7 @@ function toAdminPaymentView(row: PaymentRow): AdminPaymentView {
     attempts: row.attempts.map((attempt) => ({
       status: attempt.status,
       providerReference: attempt.providerReference,
+      method: attempt.method,
       failureCode: attempt.failureCode,
       registeredBy:
         attempt.registeredBy === null

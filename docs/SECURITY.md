@@ -108,7 +108,7 @@ RBAC (ADR-0017):
 - Los webhooks verifican la firma de cada proveedor y se deduplican.
 - El monto a cobrar se obtiene de la orden, nunca del cliente.
 - Los cambios que afectan pagos requieren revisión humana (`TEAM_GUIDE.md`).
-- El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible si la variable de entorno que habilita el pago manual está activa (ADR-0040, ADR-0051). La variable es `MANUAL_PAYMENTS_ENABLED`, `false` por defecto (ADR-0134).
+- El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible si la variable de entorno que habilita el pago manual está activa (ADR-0040, ADR-0051). La variable es `MANUAL_PAYMENTS_ENABLED`, `false` por defecto (ADR-0134). Desde la versión 1.2 es el cobro real de la tienda física (ADR-0161): el operador la enciende cuando la tienda cobra, y cada cobro guarda quién lo registró, su comprobante y cómo se cobró.
 
 ## Subida de archivos
 

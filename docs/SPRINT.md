@@ -48,6 +48,14 @@ T-187 parte a (ADR-0161), sin el método del pago en tienda, que llega en el seg
 - **Sin carrito:** una orden vencida no restaura ninguno, y la anonimización borra la respuesta que guardó el staff, solo la de esa orden.
 - **Correo:** el de una orden de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
 
+### Resultado del paso 1 (parte a, segundo pull request)
+
+T-187 parte a queda hecha (ADR-0161):
+
+- **Pago en tienda real:** deja de ser solo para pruebas en el código, `.env.example` y la documentación. `MANUAL_PAYMENTS_ENABLED` sigue apagado por defecto: el operador lo enciende cuando la tienda cobra.
+- **Método:** `manual-capture` acepta `method`, opcional para no romper `/v1`: `CASH`, `CARD_TERMINAL` o `TRANSFER`. Lo guarda el intento capturado, con una restricción en la base, y lo muestran `AdminPayment` y `AdminOrder.payment`. La auditoría lo registra.
+- **Sin cambios:** el reembolso manual.
+
 ### Risks
 
 - **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor (ADR-0161).

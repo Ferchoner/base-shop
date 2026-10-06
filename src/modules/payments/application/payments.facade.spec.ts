@@ -80,6 +80,7 @@ function existing(provider: PaymentProvider, captured = false): Payment {
   if (captured) {
     payment.captureManually({
       reference: 'Ticket 1',
+      method: null,
       registeredBy: staff,
       now: NOW,
     });
@@ -204,6 +205,7 @@ describe('PaymentsFacade: a payment made in the store (UC-PAY-02)', () => {
   const capture = (facade: PaymentsFacade, note: string | null = 'Efectivo') =>
     facade.captureManually(order, {
       reference: 'Ticket 00452',
+      method: 'CASH',
       note,
       registeredBy: staff,
     });
@@ -226,7 +228,10 @@ describe('PaymentsFacade: a payment made in the store (UC-PAY-02)', () => {
       {
         action: 'payments.manual-capture',
         resource: { type: 'payment', id: payment.id },
-        changes: { status: { from: 'PENDING', to: 'CAPTURED' } },
+        changes: {
+          status: { from: 'PENDING', to: 'CAPTURED' },
+          method: { from: null, to: 'CASH' },
+        },
         reason: 'Efectivo',
       },
     ]);

@@ -11,6 +11,7 @@
   - Rol sembrado Vendedor, y `orders.place` para el Administrador.
   - Una variante que no existe responde 404 en las cotizaciones, en lugar de un error 500.
   - El correo de un pedido de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
+- T-187 parte a, segundo pull request (ADR-0161): el pago en tienda deja de ser solo para pruebas. `POST /v1/admin/orders/{orderId}/manual-capture` acepta `method`, opcional (`CASH`, `CARD_TERMINAL` o `TRANSFER`), y `AdminPayment.attempts[].method` y `AdminOrder.payment.method` lo muestran. `MANUAL_PAYMENTS_ENABLED` sigue en `false` por defecto: el operador lo enciende cuando la tienda cobra.
 
 ## 1.1.0 (2026-10-06)
 

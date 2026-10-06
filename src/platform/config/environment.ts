@@ -100,8 +100,8 @@ export class EnvironmentVariables {
   VAT_RATE_BP: number = 1_600;
 
   /**
-   * Whether the staff can register payments made in the store, and customers choose that method (ADR-0040,
-   * ADR-0055, BR-PAY-09). Only for tests: off unless turned on.
+   * Whether the staff can register payments made in the physical store, and customers choose that method (ADR-0040,
+   * ADR-0055, ADR-0161, BR-PAY-09). Off unless the operator turns it on, once the store collects payments.
    */
   @Expose()
   @Transform(({ value }: { value: unknown }) => parseBoolean(value))

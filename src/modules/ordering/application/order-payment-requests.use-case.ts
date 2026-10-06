@@ -15,6 +15,7 @@ import { OrderRepository } from '../domain/order.repository.js';
 import type { PublicCode } from '../domain/public-code.js';
 import {
   OrderPayments,
+  type PaymentMethod,
   type PaymentProvider,
   type PaymentStart,
 } from './payment-ports.js';
@@ -60,7 +61,8 @@ export class OrderPaymentRequests {
   }
 
   /**
-   * Registers a payment made in the store for the total of an unpaid or expired order (UC-PAY-02, ADR-0055).
+   * Registers a payment made in the store for the total of an unpaid or expired order (UC-PAY-02, ADR-0055), with
+   * how the store collected it (ADR-0161).
    * The order follows the normal or the late payment flow in the background, when `PaymentCaptured` arrives.
    *
    * @throws ManualPaymentsDisabledError, before anything else; NotFoundError; InvalidStateTransitionError for
@@ -70,6 +72,7 @@ export class OrderPaymentRequests {
     orderId: OrderId;
     staffId: StaffId;
     reference: string;
+    method: PaymentMethod | null;
     note: string | null;
   }): Promise<void> {
     this.payments.assertManualCaptureEnabled();
@@ -84,6 +87,7 @@ export class OrderPaymentRequests {
       }
       await this.payments.captureManually(order, {
         reference: input.reference,
+        method: input.method,
         note: input.note,
         registeredBy: input.staffId,
       });
