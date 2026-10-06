@@ -178,6 +178,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0158 | Cierre del proyecto como MVP | Aceptada |
 | ADR-0159 | Versiones después del MVP | Aceptada |
 | ADR-0160 | Varios almacenes propios | Aceptada |
+| ADR-0161 | Ventas asistidas en la tienda física | Aceptada |
 
 ---
 
@@ -4928,3 +4929,54 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - el reintegro vuelve a los stock items de los que salió cada línea, según los movimientos de venta de la orden y descontando lo ya reintegrado ahí, aunque el almacén esté inactivo; con `warehouseId`, va a ese almacén activo;
   - los ajustes aceptan almacenes inactivos, y el motivo `WAREHOUSE_TRANSFER` llega con dos migraciones, porque un valor nuevo de un enum de PostgreSQL no se usa en la transacción que lo crea;
   - el listado de envíos filtra por `warehouseId`, y `AdminOrder.shipment` lo muestra.
+
+## ADR-0161 — Ventas asistidas en la tienda física
+
+- **Fecha:** 2026-10-06
+- **Contexto:** Segundo incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.2. El usuario quiere que un cliente en la tienda física, con la ayuda de un administrador o un vendedor, haga un pedido desde el portal administrativo. Hoy no se puede:
+  - el staff no compra (BR-USR-08, ADR-0043): `NoStaffPurchases` responde 403 en el carrito y el checkout, y ninguna ruta de `/v1/admin` crea órdenes. Solo la recompra copia una orden cancelada al carrito del cliente (ADR-0139);
+  - toda orden sale de un carrito (`orders.source_cart_id` es obligatorio), y al vencer sus líneas regresan a él (BR-ORD-14);
+  - el pago en tienda es solo para pruebas y no guarda el método (ADR-0040, BR-PAY-09);
+  - toda orden se envía: exige una dirección con teléfono, cobra el envío y crea un envío al pagarse. Recoger en tienda quedó fuera del MVP (ADR-0078);
+  - la reserva elige el almacén por prioridad, no el de la tienda (ADR-0160);
+  - la orden no registra quién la colocó ni por qué canal, y colocarla no se audita, porque no era una acción del staff (ADR-0132).
+
+  El único camino hoy es que el vendedor compre como invitado en la tienda en línea, sin que quede registrado quién lo hizo.
+- **Decisión** (del usuario, con las recomendaciones del análisis):
+  - **Dos escenarios, en dos partes de la versión 1.2:**
+    - **(a) pedido asistido con envío:** el vendedor arma el pedido con el cliente presente, el cliente paga en tienda y el pedido se envía como hoy;
+    - **(b) venta de mostrador:** el cliente paga y se lleva la mercancía en el momento, sin dirección ni costo de envío, con el stock de la tienda. Su plan precisa cómo se registra la entrega en tienda y si admite una venta sin email. Recoger en tienda los pedidos en línea queda para después, aunque usaría la misma entrega.
+  - **El staff registra pedidos a nombre de un cliente, sin comprar para sí:** BR-USR-08 pasa a "las cuentas de staff no compran para sí; pueden registrar pedidos a nombre de un cliente". El staff sigue sin carrito (BR-CRT-08), y `NoStaffPurchases` sigue en el carrito y el checkout de la tienda en línea.
+  - **Rutas del staff:** `POST /v1/admin/orders/quote` cotiza y `POST /v1/admin/orders` coloca. Las líneas van en la solicitud, sin carrito, con `expectedTotal` (BR-ORD-06) e `Idempotency-Key`. La orden no tiene carrito de origen: si vence, sus líneas no regresan a ninguno.
+  - **Para quién es el pedido:**
+    - un cliente registrado, que el staff busca (`customers.read`), con su email verificado (BR-USR-05) y una de sus direcciones o una escrita para la orden;
+    - o un invitado, con email de contacto y la versión del aviso de privacidad, como en la tienda en línea (ADR-0010).
+  - **Quién y por dónde:** la orden guarda `placedBy`, el miembro del staff, y `channel`, `ONLINE` o `STORE`. La primera fila del historial lleva al staff como actor y la colocación se audita como `orders.place`. El listado del staff filtra por canal y por quién colocó la orden.
+  - **Permiso y rol:**
+    - el permiso nuevo `orders.place`, que recibe también el rol Administrador;
+    - el rol sembrado "Vendedor", con `orders.read`, `orders.place`, `customers.read`, `catalog.read` e `inventory.read`;
+    - registrar el cobro sigue con `payments.manage`, que el Vendedor no tiene, así que quien coloca el pedido no confirma que se pagó. Un operador que quiera juntar las dos cosas crea su propio rol, dentro de BR-USR-20.
+  - **Pago en tienda real:** el pago manual deja de ser solo para pruebas (cambia ADR-0040 y BR-PAY-09). Sigue detrás de `MANUAL_PAYMENTS_ENABLED`, que el operador enciende cuando cobra en tienda, y guarda el método (efectivo, terminal o transferencia) con la referencia. Sirve también para las órdenes en línea que se pagan en tienda (ADR-0055).
+  - **Almacén:** la solicitud indica el almacén de la tienda, y la reserva usa solo ese almacén, con una política de asignación propia (ADR-0160). Los permisos por almacén siguen diferidos.
+  - **Aviso de privacidad:** el vendedor presenta el aviso a un invitado, y la orden guarda su versión, como hoy, y quién la capturó (`placedBy`). El cliente registrado lo aceptó al crear su cuenta.
+    - **PENDIENTE DE DECISIÓN:** la validación legal de que el staff capture datos personales en la tienda. Queda en la lista de `PROJECT.md` §9, antes de operar con clientes reales.
+  - **El mismo tiempo de apartado:** el TTL de la reserva (`RESERVATION_TTL`, 20 minutos) no cambia, porque el cliente paga en el momento. Apartar mercancía para pagarla días después queda fuera.
+  - **Fuera de esta versión:** la caja y los cortes de caja, la factura CFDI (ADR-0027), el apartado, recoger en tienda los pedidos en línea y el segundo factor del staff (ADR-0048).
+  - **Implementación:** T-187, en dos partes, cada una con su plan aprobado antes de implementarla:
+    - **(a)** el permiso y el rol; cotizar y colocar los pedidos del staff; `placedBy` y `channel`; el almacén fijo; la auditoría y los filtros; el pago en tienda con su método; y lo que la anonimización debe borrar de una orden del staff, como su respuesta guardada por idempotencia;
+    - **(b)** la venta de mostrador, con su entrega en tienda.
+- **Alternativas consideradas:**
+  - **Un carrito del staff:** reutilizaría el checkout, pero contradice BR-CRT-08 y juntaría en una cuenta los pedidos de varios clientes.
+  - **Armar el pedido en el carrito del cliente:** tocaría el carrito en línea que el cliente puede estar usando, y no sirve para un invitado.
+  - **Que el vendedor compre como invitado en la tienda en línea:** no registra quién vendió, no elige el almacén y no se audita.
+  - **Dar `payments.manage` al Vendedor:** el mismo usuario colocaría la orden y confirmaría su pago.
+  - **Solo el escenario (a):** dejaría fuera la venta de mostrador, la forma habitual de vender en una tienda física.
+- **Consecuencias:**
+  - El staff coloca órdenes, y queda registrado y auditado quién lo hizo.
+  - Cobrar en tienda a clientes reales pasa a ser una decisión de configuración del operador.
+  - **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor.
+  - Habrá más cuentas de staff sin segundo factor.
+  - Cambios compatibles en `/v1`: rutas nuevas, campos nuevos en `AdminOrder` y en el registro del pago, y filtros nuevos.
+  - Al implementarse, modifica ADR-0040, ADR-0043, ADR-0111, ADR-0132, ADR-0137 y ADR-0160, y las reglas BR-USR-08, BR-PAY-09 y BR-ORD-14. La parte (b) modifica además ADR-0078 y BR-SHP-11.
+- **Revisar si:** se agregan la caja, la factura, el apartado o recoger en tienda los pedidos en línea.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-06). Se implementa en T-187, en la versión 1.2.

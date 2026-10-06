@@ -33,10 +33,10 @@ Fuera del MVP (ver ADR-0018):
 - Promociones y cupones. La orden guarda un campo de descuento desde el inicio.
 - Devoluciones y reembolsos parciales como proceso de negocio. `Refund` queda modelado dentro de `Payment`.
 - Envíos parciales.
-- Métodos de pago asíncronos (efectivo en tiendas de conveniencia y transferencia a través de un proveedor, ADR-0013). El pago manual en tienda (ADR-0055) es solo para pruebas.
+- Métodos de pago asíncronos (efectivo en tiendas de conveniencia y transferencia a través de un proveedor, ADR-0013). El pago manual en tienda (ADR-0055) es solo para pruebas; deja de serlo en la versión 1.2 (ADR-0161).
 - Múltiples almacenes en operación (el modelo los soporta). Se agregaron en la versión 1.1.0 (ADR-0160).
 - Múltiples monedas.
-- Recoger en tienda (ADR-0078).
+- Recoger en tienda (ADR-0078). La versión 1.2 agrega la entrega en tienda de las ventas de mostrador (ADR-0161).
 - Proveedores de pago en línea (PayPal, Mercado Pago y Stripe), con la conciliación de pagos y el reintento de reembolsos fallidos (ADR-0158).
 - Despliegue: el MVP corre solo en el entorno local (ADR-0031, ADR-0158).
 
@@ -95,7 +95,7 @@ Roles del personal: Superadministrador, Administrador y Operador (ADR-0043).
 
 ## 8. Estado
 
-Fase: MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, publicada el 2026-10-06, agrega varios almacenes propios (ADR-0160); no hay ninguna en curso. El alcance de la §3 está construido y probado, y corre solo en el entorno local. Lo que queda fuera del MVP (T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69) espera a que una entidad quiera usar el proyecto; la §9 es la lista para retomarlo.
+Fase: MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). La versión 1.1.0, publicada el 2026-10-06, agrega varios almacenes propios (ADR-0160). En curso: la versión 1.2, ventas asistidas en la tienda física (ADR-0161). El alcance de la §3 está construido y probado, y corre solo en el entorno local. Lo que queda fuera del MVP (T-191, T-192, T-193, T-200 y T-330, y las decisiones P-05, P-06, P-07, P-13, P-14, P-24, P-31 y P-69) espera a que una entidad quiera usar el proyecto; la §9 es la lista para retomarlo.
 
 Sprints: Sprint 0 (Discovery and Architecture) cerrado el 2026-09-26: especificación técnica, arquitectura, modelo de datos y contratos de la API aprobados. Sprint 1 (fundaciones técnicas) cerrado el 2026-09-28: configuración, estructura de módulos, Docker, base de datos, mecanismos transversales y CI. Sprint 2 (Identity & Access) cerrado el 2026-09-29: registro, verificación de email, sesiones, recuperación de contraseña, staff, roles, permisos y direcciones. Sprint 3 (catálogo vendible) cerrado el 2026-10-01: categorías, marcas, productos con variantes e imágenes, precios, stock con reservas, costo de envío y tienda pública. Sprint 4 (compra con pago en tienda) cerrado el 2026-10-02: carrito, checkout, órdenes, pago en tienda, reembolsos, vencimiento y recompra. Sprint 5 (entrega del pedido) cerrado el 2026-10-02: envíos, reintegro de stock, correos al cliente y limpieza diaria. Sprint 6 (privacidad y operación) cerrado el 2026-10-03: anonimización, consulta y archivo de la auditoría, imagen de producción reducida y enlace de acceso a los pedidos de invitado. Sprint 7 (entrega garantizada de eventos) cerrado el 2026-10-03: outbox transaccional con reintentos y consulta del staff, y plazos de conservación configurables. Sprint 8 (ciclo de conservación de datos personales) cerrado el 2026-10-03: bloqueo y anonimización automáticos de los datos personales de las órdenes, su consulta auditada, cuentas inactivas y política de conservación pública. Sprint 9 (calidad antes de operar) cerrado el 2026-10-04: auditoría de seguridad contra el OWASP API Security Top 10, contrato de la API comprobado y OpenAPI versionado, y cobertura con umbral en la CI. Ver `SPRINT.md` y `PROGRESS.md`.
 
@@ -108,6 +108,7 @@ base-shop no tiene una entidad vendedora definida: cada operador resuelve esta l
   - las preguntas de ADR-0070, entre ellas qué datos exigen conservar las obligaciones fiscales y mercantiles, y el plazo de prescripción que aplica;
   - el texto del aviso de privacidad, con su versión y los plazos vigentes, que publica `GET /v1/privacy/retention-policy` (ADR-0067, ADR-0152);
   - la presentación del plazo de entrega estimado (ADR-0083);
+  - la captura de datos personales por el staff en la tienda física: cómo presenta el aviso de privacidad a un invitado y cómo queda constancia (ADR-0161);
   - una nueva revisión cuando se publique el reglamento de la ley de 2025.
 - **Impuestos y envíos, con el contador y el administrador (P-69):** el IVA del costo de envío, el modo de redondeo del IVA y los valores del método de envío con costos reales (ADR-0079, ADR-0092, ADR-0094).
 - **Infraestructura:** hosting, despliegue, secretos en el servidor y proveedor real de correos (P-05, P-06, P-13, P-24).

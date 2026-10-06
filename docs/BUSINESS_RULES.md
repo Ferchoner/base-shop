@@ -12,7 +12,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-USR-06. El staff se suspende, nunca se borra. Un cliente que pide eliminar su cuenta se anonimiza; sus órdenes se conservan (ADR-0038).
 - BR-USR-07. Un rol solo se borra si no tiene usuarios asignados.
 - BR-USR-08. Cada cuenta es de tipo cliente o staff. Las cuentas de staff no compran y los clientes nunca tienen roles (ADR-0043).
-- BR-USR-09. Las cuentas de staff solo las crea un superadministrador, con contraseña temporal que se cambia obligatoriamente en el primer inicio de sesión.
+- BR-USR-09. Las cuentas de staff las crea quien tenga `staff.manage`, sin dar roles con permisos que no tiene (BR-USR-20), con contraseña temporal que se cambia obligatoriamente en el primer inicio de sesión (ADR-0116, ADR-0154).
 - BR-USR-10. Las contraseñas de todas las cuentas cumplen la política de ADR-0047 (implementada en ADR-0115: `PasswordPolicy`).
 - BR-USR-11. El enlace de verificación de email es de un solo uso y vence a las 24 horas (`EMAIL_VERIFICATION_TTL`); cambiar el email obliga a verificarlo de nuevo, y el email anterior recibe un aviso (ADR-0046, ADR-0117).
 - BR-USR-12. La respuesta a una solicitud de reenvío de verificación no revela si el email existe (ADR-0046).
