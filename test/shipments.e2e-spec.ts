@@ -87,6 +87,7 @@ describe('Shipments (e2e, T-195)', () => {
     await prisma.pricePeriod.deleteMany();
     await prisma.variantPrice.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     await prisma.user.deleteMany();
@@ -351,6 +352,57 @@ describe('Shipments (e2e, T-195)', () => {
       version: 1,
     });
     expect(unpaidView.body.shipment).toBeNull();
+  });
+
+  it('ships from the warehouse the order was reserved in: the first by priority that holds all of it (ADR-0160)', async () => {
+    const north = newId();
+    await prisma.warehouse.create({
+      data: {
+        id: north,
+        code: 'NORTE',
+        name: 'Almacén norte',
+        status: 'ACTIVE',
+        priority: 2,
+      },
+    });
+    const [shirt, cap] = [await variant(), await variant('Gorra')];
+    // The main warehouse has no caps, so only the north one holds the whole order.
+    await prisma.stockItem.updateMany({
+      where: { variantId: cap, warehouseId: MAIN },
+      data: { onHand: 0 },
+    });
+    for (const variantId of [shirt, cap]) {
+      await prisma.stockItem.create({
+        data: { id: newId(), variantId, warehouseId: north, onHand: 3 },
+      });
+    }
+    const { id } = await customerOrder([
+      { variantId: shirt, quantity: 2 },
+      { variantId: cap, quantity: 1 },
+    ]);
+
+    await paid(id);
+
+    const { body } = await list().expect(200);
+    expect(body.data).toEqual([
+      expect.objectContaining({ orderId: id, warehouseId: north }),
+    ]);
+    expect(
+      await prisma.stockItem.findMany({
+        where: { warehouseId: north },
+        orderBy: { onHand: 'asc' },
+        select: { onHand: true, reserved: true },
+      }),
+    ).toEqual([
+      { onHand: 1, reserved: 0 },
+      { onHand: 2, reserved: 0 },
+    ]);
+    expect(
+      await prisma.stockItem.findFirstOrThrow({
+        where: { variantId: shirt, warehouseId: MAIN },
+        select: { onHand: true },
+      }),
+    ).toEqual({ onHand: 10 });
   });
 
   it('records the carrier and the tracking number, audited, and the order shows them', async () => {

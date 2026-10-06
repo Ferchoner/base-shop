@@ -94,7 +94,7 @@ Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFai
 | Category, Brand | Activa, Desactivada (o borrada si está vacía) | ADR-0038 |
 | Cart | Active, CheckedOut, Merged | DOMAIN_MODEL |
 | PriceList | Activa (la predeterminada no se desactiva) | ADR-0039 |
-| Warehouse | Activo (exactamente uno en el MVP; la API no crea ni desactiva almacenes) | ADR-0038, ADR-0081 |
+| Warehouse | Activo o Inactivo; puede haber varios activos, con prioridad (ADR-0160) | ADR-0038, ADR-0160 |
 
 Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT; ProductVariant Descontinuada → Activa; Category y Brand Desactivada → Activa. La anonimización es irreversible.
 
@@ -236,7 +236,7 @@ Criterios de aceptación:
 
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
-| UC-INV-01 | Consultar y editar el almacén | Staff (`inventory.read` / `inventory.write`) | BR-INV-08, ADR-0081 |
+| UC-INV-01 | Consultar y editar los almacenes | Staff (`inventory.read` / `inventory.write`) | BR-INV-08, ADR-0160 |
 | UC-INV-02 | Registrar entrada de stock | Staff (`inventory.write`) | BR-INV-05 |
 | UC-INV-03 | Ajustar stock con motivo | Staff (`inventory.write`) | BR-INV-01, BR-INV-05, BR-INV-11, ADR-0069 |
 | UC-INV-04 | Consultar stock y movimientos | Staff (`inventory.read`) | — |
@@ -249,7 +249,7 @@ Criterios de aceptación:
 Criterios de aceptación:
 
 - **UC-INV-03:** un ajuste que deje `onHand` por debajo de `reserved` o de cero se rechaza; todo ajuste registra movimiento y motivo, y se audita. El motivo se elige del catálogo de ADR-0069 y su dirección se valida (por ejemplo, Dañado solo resta); con "Otro", la nota es obligatoria.
-- **UC-INV-05:** todo o nada; con N solicitudes concurrentes sobre el mismo stock nunca se reserva más que lo disponible (prueba de concurrencia contra PostgreSQL real); a lo sumo una reserva activa por orden.
+- **UC-INV-05:** todo o nada, en un solo almacén: el primero por prioridad que tiene todo el pedido, y el siguiente si otra orden se llevó las unidades antes (ADR-0160); con N solicitudes concurrentes sobre el mismo stock nunca se reserva más que lo disponible (prueba de concurrencia contra PostgreSQL real); a lo sumo una reserva activa por orden.
 - **UC-INV-06:** `onHand` y `reserved` disminuyen en la cantidad reservada; la reserva pasa a Committed. Confirmar dos veces no repite nada, y una reserva activa se confirma aunque haya pasado su `expiresAt`, mientras el job no la venza (ADR-0128).
 - **UC-INV-07:** `reserved` vuelve a disminuir y la reserva pasa a Released, una sola vez (ADR-0128).
 - **UC-INV-08:** las reservas vencidas se liberan en el minuto siguiente a su vencimiento, por lotes e idempotente.
@@ -384,7 +384,7 @@ Criterios de aceptación:
 - **UC-SHI-06:** la orden pasa a Delivered; el envío queda en estado terminal.
 - **UC-SHI-07 / 09:** solo desde Dispatched (fallida) y desde DeliveryFailed (devuelto); la orden permanece en Shipped; sin reintento, cancelación ni reembolso automáticos; el stock que regresa se reintegra con UC-INV-09.
 - **UC-SHI-03, 04 y 08 (implementación, ADR-0140):**
-  - Ordering crea el envío al pasar la orden a Paid, también con el pago tardío y al reintentar el surtido, con el almacén activo, la dirección y las líneas de la orden; el envío guarda el código de la orden y el SKU y el nombre de cada artículo;
+  - Ordering crea el envío al pasar la orden a Paid, también con el pago tardío y al reintentar el surtido, con el almacén de su reserva confirmada (ADR-0160), la dirección y las líneas de la orden; el envío guarda el código de la orden y el SKU y el nombre de cada artículo;
   - cancelar una orden en Paid cancela su envío (Cancelled); si el envío ya salió, la orden no se cancela;
   - la paquetería y la guía se capturan en Pending, o en Dispatched por paquetería, con `version`, y se auditan;
   - la lista muestra por defecto los envíos en Pending, del más antiguo al más reciente;

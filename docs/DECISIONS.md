@@ -98,7 +98,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0078 | Envíos sin paquetería | Aceptada |
 | ADR-0079 | IVA del costo de envío y base del umbral de envío gratis | Aceptada |
 | ADR-0080 | Efecto de desactivar categorías y marcas en la tienda | Aceptada |
-| ADR-0081 | Un solo almacén en el MVP | Aceptada |
+| ADR-0081 | Un solo almacén en el MVP | Reemplazada por ADR-0160 |
 | ADR-0082 | Recompra del staff cuando el carrito original ya no existe | Aceptada |
 | ADR-0083 | Plazo de entrega estimado | Aceptada |
 | ADR-0084 | Formato de código, ramas y mensajes de commit | Aceptada |
@@ -325,7 +325,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - TTL de reserva fijo, configurable, con valor inicial de 20 minutos.
 - **Alternativas consideradas:** `SELECT … FOR UPDATE`; división entre almacenes; descuento de stock al despachar; TTL por método de pago.
 - **Consecuencias:** Requiere pruebas de concurrencia contra PostgreSQL real. El TTL corto obliga a no ofrecer métodos de pago asíncronos (ADR-0013).
-- **Estado:** Aceptada. Las reservas y su TTL configurable (`RESERVATION_TTL`) se implementaron en ADR-0128.
+- **Estado:** Aceptada. Las reservas y su TTL configurable (`RESERVATION_TTL`) se implementaron en ADR-0128. ADR-0160: con varios almacenes, la asignación es una política de dominio que reserva cada orden completa en el primer almacén activo que la tiene toda.
 
 ---
 
@@ -1256,7 +1256,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Un producto está disponible si al menos una de sus variantes vendibles lo está; el filtro "solo disponibles" (ADR-0060) usa esta definición.
   - Las cantidades exactas solo se ven en las rutas administrativas (`inventory.read`).
 - **Consecuencias:** En la vista del carrito y en la cotización del checkout, cada línea indica si la cantidad pedida puede surtirse (sí o no), sin revelar la cantidad disponible; así el cliente sabe qué ajustar antes de colocar la orden.
-- **Estado:** Aceptada. `InventoryFacade.canFulfill` responde solo sí o no por línea, así que las cantidades no salen de Inventory (ADR-0128). La tienda calcula la disponibilidad en el almacén activo (ADR-0129).
+- **Estado:** Aceptada. `InventoryFacade.canFulfill` responde solo sí o no por línea, así que las cantidades no salen de Inventory (ADR-0128). La tienda calcula la disponibilidad en el almacén activo (ADR-0129). ADR-0160: una variante está disponible si algún almacén activo tiene una unidad libre.
 
 ---
 
@@ -1721,7 +1721,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 - **Alternativas consideradas:** Mantener la creación de almacenes con un indicador de predeterminado; permitir almacenes inactivos adicionales sin uso.
 - **Consecuencias:** Modifica los contratos aprobados (ADR-0071) en dos endpoints y el modelo de datos (ADR-0066) en un índice; aún no hay implementación ni migraciones.
 - **Revisar si:** se decide operar más de un almacén.
-- **Estado:** Aceptada (aprobación formal 2026-09-26). El almacén lo crea una migración en T-160 (ADR-0127). ADR-0160 la reemplaza al implementarse en la versión 1.1 (T-162).
+- **Estado:** Reemplazada por ADR-0160 en T-162 parte a (versión 1.1): puede haber varios almacenes activos, cada orden se reserva en uno por prioridad, y la migración `20261006120000_inventory_warehouse_priority` quita el índice de un solo almacén activo. El primer almacén lo creó una migración en T-160 (ADR-0127).
 
 ---
 
@@ -3418,7 +3418,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Hay una variable nueva en `.env.example`.
   - T-170, T-180 y T-190 usarán la fachada desde un puerto propio.
   - Las pruebas de concurrencia contra PostgreSQL muestran que N reservas simultáneas nunca reservan más de lo disponible, y que dos reservas con líneas en orden contrario no se bloquean entre sí.
-- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30). ADR-0133 hace que `reserve` sea todo o nada por sí misma, también dentro de la transacción de quien llama. T-230 agrega `expire` (ADR-0136).
+- **Estado:** Aceptada (plan de T-160 parte b aprobado el 2026-09-30). ADR-0133 hace que `reserve` sea todo o nada por sí misma, también dentro de la transacción de quien llama. T-230 agrega `expire` (ADR-0136). ADR-0160: `reserve` elige el almacén por prioridad; `canFulfill` responde si algún almacén cubre cada línea, y `canFulfillTogether`, si cabe en el pedido junto con las demás.
 
 ---
 
@@ -3502,7 +3502,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Paginación:** `toPageResponse` pasa a cada elemento su posición en la página.
   - **Excepción de ADR-0060:** deja de ser solo una convención, porque ahora la verifica un test.
   - **Sprint 3:** con T-140 completa, terminan sus tareas.
-- **Estado:** Aceptada (plan de T-140 parte c aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-140 parte c aprobado el 2026-09-30). ADR-0160: la disponibilidad agrega los almacenes activos, con una fila por variante.
 
 ---
 
@@ -4001,7 +4001,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b resuelve la carrera entre cancelar y despachar. La cancelación ya bloquea el envío por su orden.
   - El contrato suma CANCELLED a los estados del envío y `cancelledAt` a `AdminShipment`.
   - Las pruebas que pagan órdenes borran también sus envíos.
-- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación. La parte b está en ADR-0141.
+- **Estado:** Aceptada (plan de T-195 aprobado el 2026-10-02, con sus 4 recomendaciones). `id` y `version` en `AdminOrder.shipment`, como pide el contrato (`API_SPEC.md` §8.9), se agregaron durante la implementación. La parte b está en ADR-0141. ADR-0160: el envío sale del almacén de la reserva confirmada (`InventoryFacade.allocationOf`), no del almacén activo.
 
 ---
 
@@ -4868,12 +4868,13 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - la API no crea ni desactiva almacenes (ADR-0081).
 - **Decisión** (del usuario, con las recomendaciones del análisis):
   - **Un almacén por orden:** el pedido completo sale de un solo almacén. No se dividen pedidos ni hay envíos parciales (ADR-0018).
-  - **Asignación por prioridad:** cada almacén tiene una prioridad. La reserva recorre los almacenes activos de mayor a menor prioridad y reserva el pedido completo en el primero que lo cubre. Cada intento es todo o nada y se deshace solo (ADR-0133), con el orden de bloqueo por `stock_item_id` (BR-INV-14).
+  - **Asignación por prioridad:** cada almacén tiene una prioridad de 1 a 1000, donde 1 es la primera; si empatan, decide el `code`. La reserva recorre los almacenes activos de mayor a menor prioridad y reserva el pedido completo en el primero que lo cubre. Cada intento es todo o nada y se deshace solo (ADR-0133), con el orden de bloqueo por `stock_item_id` (BR-INV-14).
   - **Sin un almacén que cubra todo, falta stock,** aunque la suma de los almacenes alcance.
   - **Disponibilidad:**
     - en la tienda, una variante está disponible si algún almacén activo tiene al menos una unidad libre (ADR-0061);
     - el carrito sigue respondiendo `canFulfill` por línea: algún almacén la cubre;
-    - la cotización responde por el pedido completo con `readyToPlace`.
+    - la cotización responde por el pedido completo con `readyToPlace`. Marca `canFulfill: false` en las líneas que le faltan al almacén más cercano: el que deja menos líneas fuera, el primero por prioridad si empatan. Sin esas líneas, el pedido cabe en ese almacén;
+    - si ningún almacén cubre el pedido, el 409 `insufficient-stock` de la reserva lista esas mismas líneas, así que la cotización y el error coinciden.
   - **Reintegro al origen:** cada unidad vuelve al almacén del que salió, según sus movimientos de venta; el staff puede indicar otro.
   - **Ciclo de vida:** el staff crea almacenes, edita su prioridad y los desactiva si no tienen unidades reservadas. Un almacén inactivo no vende ni reserva su stock. Sigue sin reactivación (ADR-0076).
   - **Transferencias:** mover stock entre almacenes es, por ahora, un ajuste en cada uno con el motivo nuevo `WAREHOUSE_TRANSFER` (suma o resta, ADR-0069). La transferencia como operación propia queda en T-163 (DEFERRED).
@@ -4902,7 +4903,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **`reservations.warehouse_id`:** aseguraría un almacén por orden en el esquema, pero cerraría la puerta a dividir pedidos.
   - **Permisos por almacén** y **transferencias como operación propia (T-163):** se deciden cuando hagan falta.
 - **Consecuencias:**
-  - Un pedido puede fallar por falta de stock aunque la suma de los almacenes alcance; la cotización y el carrito lo avisan.
+  - Un pedido puede fallar por falta de stock aunque la suma de los almacenes alcance; la cotización lo avisa, línea por línea.
   - El stock de un almacén desactivado queda inmovilizado hasta ajustarlo.
   - Cambios compatibles en `/v1`:
     - rutas para crear y desactivar almacenes;
@@ -4913,4 +4914,10 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - el significado de `canFulfill` y `readyToPlace`.
   - Al implementarse, reemplaza ADR-0081 y modifica ADR-0011, ADR-0061, ADR-0069, ADR-0127, ADR-0128, ADR-0129, ADR-0140 y ADR-0142, y las reglas BR-INV-08 y BR-INV-12.
 - **Revisar si:** se decide dividir pedidos, elegir por cercanía o limitar los permisos por almacén.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-05). Se implementa en T-162, en la versión 1.1.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-05). Se implementa en T-162, en la versión 1.1. Parte a (plan aprobado el 2026-10-05, con sus 10 recomendaciones):
+  - la migración quita `warehouses_single_active` y agrega `priority`, con 1 para los almacenes existentes;
+  - la política `ONE_WAREHOUSE_PER_ORDER` produce los planes; cada intento de reserva es un savepoint propio, así que una orden solo retiene filas de un almacén a la vez;
+  - `InventoryFacade.allocationOf` da los almacenes de la reserva confirmada y reemplaza a `activeWarehouseId`. Ordering rechaza más de un grupo en vez de perderlo;
+  - la tienda agrega la disponibilidad con un `LATERAL` sobre los almacenes activos;
+  - el plan de la parte a precisó la cotización y el 409 por el almacén más cercano;
+  - mientras llega la parte b, el reintegro va al primer almacén activo por prioridad.

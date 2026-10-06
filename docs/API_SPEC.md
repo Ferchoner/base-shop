@@ -279,7 +279,7 @@ Error de validación:
 | `not-found` | 404 | E-04 | Recurso inexistente, ajeno o consulta de invitado sin coincidencia | — |
 | `version-conflict` | 409 | E-05 | `version` desactualizada | `currentVersion` |
 | `total-mismatch` | 409 | E-06 | Total recalculado distinto de `expectedTotal` | `currentTotal` (Money) |
-| `insufficient-stock` | 409 | E-07 | No se puede reservar alguna línea | `lines` (`variantId`, `canFulfill`) |
+| `insufficient-stock` | 409 | E-07 | No se puede reservar alguna línea | `lines` (`variantId`, `canFulfill`): las que le faltan al almacén más cercano (ADR-0160) |
 | `variant-not-sellable` | 409 | E-10 | Variante no publicada, descontinuada o sin precio | `variantIds` |
 | `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120, ADR-0123) |
 | `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado | `field` |
@@ -478,7 +478,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 - Precios calculados al leer (BR-CRT-04).
 - Una línea con variante no vendible se conserva con `sellable: false`, `unitPrice` y `lineTotal` en `null`, y no suma al subtotal.
-- `canFulfill` indica si la cantidad pedida puede surtirse, sin revelar existencias (ADR-0061).
+- `canFulfill` indica si algún almacén puede surtir la cantidad pedida de la línea, sin revelar existencias (ADR-0061, ADR-0160).
 - `id` es `null` en `GET /v1/me/cart` cuando el cliente aún no tiene carrito.
 
 ### 8.7 `CheckoutQuote`
@@ -500,6 +500,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 - `taxTotal` informativo: IVA contenido en el subtotal y en el costo de envío; `shippingTaxAmount` es la parte del envío (ADR-0008, ADR-0079, BR-ORD-16).
 - `readyToPlace`: todas las líneas vendibles y surtibles.
+- `canFulfill` de cada línea indica si cabe en el pedido junto con las demás: cada orden sale completa de un almacén, y se marcan las líneas que le faltan al almacén más cercano, el que deja menos fuera, o el primero por prioridad si empatan. Son las mismas que lista el 409 `insufficient-stock` al colocar la orden (ADR-0160).
 - `grandTotal.amount` es el valor que el cliente envía como `expectedTotal`.
 - `estimatedDelivery`: plazo de entrega estimado en días hábiles, contado desde la confirmación del pago; es un estimado, no una fecha comprometida (ADR-0083).
 - `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
@@ -1105,7 +1106,7 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 
 El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
-**Almacenes.** `Warehouse { id, code, name, address: Address | null, status, createdAt, updatedAt }`. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081): `GET` devuelve `{ "data": [Warehouse] }` sin paginación y `PATCH` acepta `{ "name", "address" }`. La API no crea ni desactiva almacenes. En entradas y ajustes, `warehouseId` debe ser el almacén activo; otro valor → 404.
+**Almacenes.** `Warehouse { id, code, name, address: Address | null, status, priority, createdAt, updatedAt }`. `priority` va de 1 a 1000 (1 es la primera): cada orden se reserva completa en el primer almacén activo que la tiene toda; si empatan, por `code` (ADR-0160). `GET` devuelve `{ "data": [Warehouse] }` sin paginación, por prioridad y luego por código, y `PATCH` acepta `{ "name", "address" }`. En entradas y ajustes, `warehouseId` debe ser un almacén activo; otro valor → 404.
 
 **`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
 
@@ -1138,7 +1139,7 @@ Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161, sección 
   - SKU y título salen de Catalog en cada página.
 - **Movimientos:** `type` acepta uno o más tipos separados por comas. `from` y `to` aceptan fecha o fecha y hora ISO 8601, ambos incluidos; una fecha sola en `to` incluye todo el día.
 - **Entradas y ajustes:**
-  - la variante debe existir, en cualquier estado; si no, o si `warehouseId` no es el almacén activo, 404;
+  - la variante debe existir, en cualquier estado; si no, o si `warehouseId` no es un almacén activo, 404;
   - un ajuste lleva de ±1 a ±100,000 unidades;
   - errores en el ajuste: 400 `validation-error` con `reasonDirection` en `quantity` si el motivo solo resta y la cantidad suma, e `isNotEmpty` en `note` con `OTHER` sin nota;
   - el 409 `insufficient-stock` lleva `lines: [{ variantId, canFulfill: false }]`;
@@ -1147,7 +1148,7 @@ Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161, sección 
 
 UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 
-Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva todo o nada (`reserve`), confirma (`commit`) y libera (`release`) por orden, y responde por línea si una cantidad puede surtirse (`canFulfill`), sin revelar existencias. Una reserva dura `RESERVATION_TTL` (20 minutos por defecto). Se puede confirmar mientras esté activa, hasta que el job de T-230 la venza.
+Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva todo o nada (`reserve`), confirma (`commit`) y libera (`release`) por orden, y responde por línea si una cantidad puede surtirse (`canFulfill`), sin revelar existencias. Desde T-162 parte a (ADR-0160), `reserve` usa un solo almacén por orden, el primero por prioridad que la tiene toda; `canFulfillTogether` responde si cada línea cabe junto con las demás, y `allocationOf` da los almacenes de la reserva confirmada. Una reserva dura `RESERVATION_TTL` (20 minutos por defecto). Se puede confirmar mientras esté activa, hasta que el job de T-230 la venza.
 
 ---
 
@@ -1543,7 +1544,7 @@ UC-SHI-01 (costo) ocurre dentro de la cotización; UC-SHI-03 (crear envío), den
 
 Implementado en T-195 parte a (ADR-0140):
 
-- **Creación:** Ordering crea el envío en la transacción en que la orden pasa a PAID, con el almacén activo, la dirección de envío y una partida por línea. `orderCode`, `sku` y `productName` se copian de la orden; `orderCode` se muestra con guion.
+- **Creación:** Ordering crea el envío en la transacción en que la orden pasa a PAID, desde el almacén de su reserva confirmada (`warehouseId`, ADR-0160), con la dirección de envío y una partida por línea. `orderCode`, `sku` y `productName` se copian de la orden; `orderCode` se muestra con guion.
 - **Cancelación:** el envío pasa de PENDING a CANCELLED, con `cancelledAt`, cuando se cancela su orden pagada (§15.7). No hay ruta para cancelar un envío por separado.
 - **Listado:** sin `status`, solo los PENDING. `q` busca el código de la orden exacto (con o sin guion, sin distinguir mayúsculas) o la guía exacta, sin distinguir mayúsculas. `createdTo` con solo la fecha incluye todo ese día (§5.3). Desempate por ID.
 - **Paquetería y guía:**

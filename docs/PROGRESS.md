@@ -176,6 +176,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] MVP cerrado el 2026-10-04 (ADR-0158)
 - [x] Versión 1.0.0: el MVP con las correcciones del 2026-10-05; el desarrollo sigue por versiones (ADR-0159)
 - [ ] Versión 1.1: varios almacenes propios (paso 0 y T-162 en dos partes); plan en `SPRINT.md`
+- [x] T-162 parte a: varios almacenes activos con prioridad; cada orden se reserva completa en el primero que la tiene toda y sale de él; la tienda suma los almacenes activos, y la cotización y el 409 marcan lo que le falta al almacén más cercano (ADR-0160)
 
 ## Fuera del MVP
 

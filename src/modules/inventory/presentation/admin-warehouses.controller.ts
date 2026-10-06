@@ -18,8 +18,8 @@ import {
 const warehouse = (id: string) => pathId<'Warehouse'>(id, 'Warehouse');
 
 /**
- * The warehouse (UC-INV-01, API_SPEC.md §13, ADR-0081, ADR-0127): the MVP has exactly one, created by a
- * migration. The API reads it and changes its name and address; it never creates or deactivates one.
+ * The warehouses (UC-INV-01, API_SPEC.md §13, ADR-0127, ADR-0160): the first one comes from a migration, and each
+ * order is reserved in one of the active ones by priority. The API reads them and changes their name and address.
  */
 @ApiTags('Administración: inventario')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -33,7 +33,7 @@ export class AdminWarehousesController {
   @ApiOperation({
     summary: 'Listar los almacenes',
     description:
-      'Sin paginar. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081).',
+      'Sin paginar, por prioridad y luego por código. Cada pedido se reserva completo en el primer almacén activo que lo tiene todo (ADR-0160).',
   })
   @ApiOkResponse({ type: WarehouseListDto })
   @RequirePermissions('inventory.read')

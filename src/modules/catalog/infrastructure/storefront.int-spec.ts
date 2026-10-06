@@ -106,7 +106,7 @@ describe('Storefront (T-140 part c, ADR-0060)', () => {
     await prisma.variantPrice.deleteMany();
     await prisma.priceList.deleteMany({ where: { isDefault: false } });
     await prisma.stockItem.deleteMany();
-    await prisma.warehouse.deleteMany({ where: { status: 'INACTIVE' } });
+    await prisma.warehouse.deleteMany({ where: { id: { not: warehouseId } } });
     await prisma.productImage.deleteMany();
     await prisma.productCategory.deleteMany();
     await prisma.productVariant.deleteMany();
@@ -359,7 +359,7 @@ describe('Storefront (T-140 part c, ADR-0060)', () => {
       expect(titles(await search({}))).toEqual(['Lámpara']);
     });
 
-    it('tells available from sold out by the units not reserved in the active warehouse (ADR-0061)', async () => {
+    it('tells available from sold out by the units not reserved in an active warehouse (ADR-0061)', async () => {
       const soldOut = await createProduct('Agotado');
       const reserved = await addVariant(soldOut, 'AGO-1', { talla: 'S' });
       const noStock = await addVariant(soldOut, 'AGO-2', { talla: 'M' });
@@ -401,6 +401,62 @@ describe('Storefront (T-140 part c, ADR-0060)', () => {
         items: [{ title: 'Disponible' }],
         totalItems: 1,
       });
+    });
+
+    it('adds up the active warehouses: a variant is available in any of them, and each product and variant comes once (ADR-0160)', async () => {
+      const north = await prisma.warehouse.create({
+        data: {
+          id: newId(),
+          code: 'NORTE',
+          name: 'Almacén norte',
+          status: 'ACTIVE',
+          priority: 2,
+        },
+      });
+      const shirt = await createProduct('Camisa');
+      const [taken, both] = [
+        await addVariant(shirt, 'CAM-1', { talla: 'S' }),
+        await addVariant(shirt, 'CAM-2', { talla: 'M' }),
+      ];
+      await price(taken, 1_000);
+      await price(both, 2_000);
+      // Every unit of the main warehouse is reserved; the north one has the shirts the store sells.
+      await stock(taken, 1, 1);
+      await stock(taken, 2, 0, north.id);
+      await stock(both, 1, 0);
+      await stock(both, 1, 0, north.id);
+      await publish(shirt);
+      const elsewhere = await createProduct('Gorra');
+      const cap = await addVariant(elsewhere, 'GOR-1');
+      await price(cap, 1_000);
+      await stock(cap, 1, 1);
+      await stock(cap, 3, 3, north.id);
+      await publish(elsewhere);
+
+      const all = await search({ sort: 'title' });
+      const detail = await storefront.product('camisa');
+
+      expect(
+        all.items.map(({ title, available, fromPrice }) => [
+          title,
+          available,
+          fromPrice.amount,
+        ]),
+      ).toEqual([
+        ['Camisa', true, 1_000],
+        ['Gorra', false, 1_000],
+      ]);
+      expect(all.totalItems).toBe(2);
+      expect(await search({ availableOnly: true })).toMatchObject({
+        items: [{ title: 'Camisa' }],
+        totalItems: 1,
+      });
+      expect(
+        detail.variants.map(({ sku, available }) => [sku, available]),
+      ).toEqual([
+        ['CAM-1', true],
+        ['CAM-2', true],
+      ]);
     });
   });
 

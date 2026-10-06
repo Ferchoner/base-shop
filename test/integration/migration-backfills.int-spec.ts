@@ -3,6 +3,7 @@ import { MigrationDatabase, migrationNames } from './migration-database.js';
 
 const ORDERING_RETENTION = '20261004120000_ordering_retention';
 const LAST_ACTIVE_AT = '20261004210000_identity_last_active_at';
+const WAREHOUSE_PRIORITY = '20261006120000_inventory_warehouse_priority';
 
 const at = (day: number) => new Date(Date.UTC(2026, 0, day, 12));
 
@@ -13,7 +14,11 @@ const at = (day: number) => new Date(Date.UTC(2026, 0, day, 12));
 describe('Migration backfills (T-300)', () => {
   it('knows the migrations it tests', () => {
     expect(migrationNames()).toEqual(
-      expect.arrayContaining([ORDERING_RETENTION, LAST_ACTIVE_AT]),
+      expect.arrayContaining([
+        ORDERING_RETENTION,
+        LAST_ACTIVE_AT,
+        WAREHOUSE_PRIORITY,
+      ]),
     );
   });
 
@@ -245,6 +250,51 @@ describe('Migration backfills (T-300)', () => {
           [id],
         ),
       ).rejects.toThrow(/null value/);
+    });
+  });
+
+  describe(`${WAREHOUSE_PRIORITY} (T-162, ADR-0160)`, () => {
+    let database: MigrationDatabase;
+
+    beforeAll(async () => {
+      database = await MigrationDatabase.create();
+      await database.migrateUpTo(WAREHOUSE_PRIORITY);
+    });
+
+    afterAll(async () => {
+      await database.drop();
+    });
+
+    const insertWarehouse = (code: string, status: 'ACTIVE' | 'INACTIVE') =>
+      database.client.query(
+        `INSERT INTO warehouses (id, code, name, status, updated_at)
+         VALUES ($1, $2, $2, $3::catalog_status, now())`,
+        [randomUUID(), code, status],
+      );
+
+    it('makes every existing warehouse the first by priority, and lets several be active', async () => {
+      // The warehouse its earlier migration created, and an inactive one: the only active one was enforced.
+      await insertWarehouse('CERRADO', 'INACTIVE');
+      await expect(insertWarehouse('NORTE', 'ACTIVE')).rejects.toThrow(
+        /warehouses_single_active/,
+      );
+
+      await database.apply(WAREHOUSE_PRIORITY);
+
+      const { rows } = await database.client.query<{
+        code: string;
+        priority: number;
+      }>('SELECT code, priority FROM warehouses ORDER BY code');
+      expect(rows).toEqual([
+        { code: 'CERRADO', priority: 1 },
+        { code: 'PRINCIPAL', priority: 1 },
+      ]);
+      await insertWarehouse('NORTE', 'ACTIVE');
+      await expect(
+        database.client.query(
+          `UPDATE warehouses SET priority = 0 WHERE code = 'NORTE'`,
+        ),
+      ).rejects.toThrow(/warehouses_priority_check/);
     });
   });
 });

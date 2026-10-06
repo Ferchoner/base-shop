@@ -65,11 +65,11 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 |---|---|
 | Aggregates | `Warehouse`; `StockItem` (por variante y almacén: onHand, reserved, version); `Reservation` (referencia, líneas, status, expiresAt) |
 | Registros | `StockMovement` (append-only, no es aggregate) |
-| Domain services | Asignación de almacén (un solo almacén hoy) |
+| Domain services | Asignación de almacén: la política `ONE_WAREHOUSE_PER_ORDER` reserva cada orden completa en el primer almacén activo, por prioridad, que la tiene toda; un plan por almacén candidato, preparado para políticas que dividan pedidos (ADR-0160) |
 | Eventos | `StockReserved`, `ReservationReleased`, `ReservationExpired`, `ReservationCommitted`, `StockAdjusted` (solo si tienen consumidor; ninguno todavía, ADR-0128) |
 | Repositories | `WarehouseRepository`, `StockLedgerRepository` (cambios atómicos de `stock_items` con su movimiento, ADR-0127), `ReservationRepository` |
 | Casos de uso | ReceiveStock y AdjustStock (`StockEntries`), UpdateWarehouse, StockListing (ADR-0127), RestockOrder (órdenes canceladas o con envío devuelto, ADR-0052, ADR-0053), ReserveStock, CommitReservation, ReleaseReservation, ExpireReservations (job), GetAvailability |
-| Exporta | `InventoryFacade`: `canFulfill` (sí o no por línea), `reserve`, `commit` y `release` por orden (ADR-0128); `reserve` es todo o nada por sí misma, también dentro de la transacción de quien llama (ADR-0133); `expire` por orden (ADR-0136); `activeWarehouseId`, el almacén del que salen los envíos (ADR-0140); `restock`, con las líneas de la orden y lo vendido de cada una, y el tope por línea (ADR-0142) |
+| Exporta | `InventoryFacade`: `canFulfill` (sí o no por línea), `reserve`, `commit` y `release` por orden (ADR-0128); `reserve` es todo o nada por sí misma, también dentro de la transacción de quien llama (ADR-0133); `expire` por orden (ADR-0136); `canFulfillTogether`, si cada línea cabe en el pedido junto con las demás, y `allocationOf`, los almacenes de la reserva confirmada de una orden, de los que salen sus envíos (ADR-0140, ADR-0160); `restock`, con las líneas de la orden y lo vendido de cada una, y el tope por línea (ADR-0142) |
 
 ## Shopping
 

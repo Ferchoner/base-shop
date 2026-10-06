@@ -143,13 +143,22 @@ describe('Database schema (T-110)', () => {
     );
   });
 
-  it('allows at most one active warehouse (ADR-0081)', async () => {
-    // The migration of T-160 created the active one (ADR-0127); another one may only be inactive.
-    await insertWarehouse('INACTIVE');
+  it('lets several warehouses be active, each with a priority from 1 to 1000 (ADR-0160)', async () => {
+    // The migration of T-160 created the first active one (ADR-0127), with priority 1.
+    await insertWarehouse('ACTIVE', 1000);
+    await insertWarehouse('ACTIVE', 1);
+    await client.query('SAVEPOINT warehouses');
 
-    await expect(insertWarehouse('ACTIVE')).rejects.toThrow(
-      /warehouses_single_active/,
+    for (const priority of [0, 1001]) {
+      await expect(insertWarehouse('ACTIVE', priority)).rejects.toThrow(
+        /warehouses_priority_check/,
+      );
+      await client.query('ROLLBACK TO SAVEPOINT warehouses');
+    }
+    const { rows } = await client.query<{ count: string }>(
+      `SELECT count(*) FROM warehouses WHERE status = 'ACTIVE'`,
     );
+    expect(Number(rows[0].count)).toBe(3);
   });
 
   it('keeps audit logs append-only: updates are rejected, deletes are allowed (ADR-0037)', async () => {
@@ -176,12 +185,13 @@ describe('Database schema (T-110)', () => {
 
   async function insertWarehouse(
     status: 'ACTIVE' | 'INACTIVE',
+    priority = 1,
   ): Promise<string> {
     const id = randomUUID();
     await client.query(
-      `INSERT INTO warehouses (id, code, name, status, updated_at)
-       VALUES ($1, $2, 'Main', $3, now())`,
-      [id, `WH-${id.slice(0, 8)}`, status],
+      `INSERT INTO warehouses (id, code, name, status, priority, updated_at)
+       VALUES ($1, $2, 'Main', $3, $4, now())`,
+      [id, `WH-${id.slice(0, 8)}`, status, priority],
     );
     return id;
   }

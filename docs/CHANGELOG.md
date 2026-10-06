@@ -4,6 +4,12 @@
 
 - Plan de la versión 1.1 (nuevo ADR-0160): varios almacenes propios. Cada orden sale completa del almacén de mayor prioridad que la cubre, la tienda suma la disponibilidad de todos y el stock vuelve al almacén del que salió; el diseño queda preparado para dividir pedidos más adelante. Se implementa en T-162, en dos partes; las transferencias como operación propia quedan en T-163 (DEFERRED).
 - Paso 0 de la versión 1.1: revisión contra los ADR sin desajustes, 0 vulnerabilidades y Prisma 7.10.0 todavía la última estable; `DEVELOPMENT_GUIDE.md` suma las prácticas de la review del Sprint 9.
+- T-162 parte a (ADR-0160): varios almacenes activos; ADR-0081 queda reemplazada.
+  - `Warehouse` agrega `priority`, de 1 a 1000, y `GET /v1/admin/inventory/warehouses` ordena por ella y luego por código.
+  - Cada orden se reserva completa en el primer almacén activo que la tiene toda, y su envío sale de él (`AdminShipment.warehouseId`).
+  - La tienda muestra disponible una variante con una unidad libre en cualquier almacén activo.
+  - En el carrito, `canFulfill` dice si algún almacén surte la línea. En la cotización dice si la línea cabe junto con las demás; sin un almacén que tenga todo, se marcan las líneas que le faltan al más cercano, las mismas que lista el 409 `insufficient-stock`.
+  - Entradas y ajustes aceptan cualquier almacén activo.
 
 ## 1.0.0 (2026-10-05)
 

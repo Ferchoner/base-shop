@@ -30,6 +30,7 @@ const warehouse = () =>
     name: 'Almacén principal',
     address: null,
     status: 'ACTIVE',
+    priority: 1,
   });
 
 describe('Warehouse (UC-INV-01, ADR-0127)', () => {
@@ -61,7 +62,7 @@ describe('Warehouse (UC-INV-01, ADR-0127)', () => {
     },
   );
 
-  it('tells whether it is the active warehouse', () => {
+  it('tells whether it is active', () => {
     const inactive = Warehouse.restore({
       ...warehouse().snapshot(),
       status: 'INACTIVE',

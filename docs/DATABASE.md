@@ -340,9 +340,10 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | name | text | No | — |
 | address | jsonb | Sí | Formato de ADR-0057 |
 | status | enum `catalog_status` | No | — |
+| priority | integer | No | 1 por defecto; 1 es la primera (ADR-0160) |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** índice único parcial `(status) WHERE status = 'ACTIVE'`: a lo sumo un almacén activo (ADR-0091). En el MVP existe exactamente uno, creado por el seed; la API no crea ni desactiva almacenes (ADR-0081).
+- **Restricciones:** `CHECK (priority BETWEEN 1 AND 1000)`. Puede haber varios almacenes activos: cada orden se reserva completa en el primero, por prioridad y luego por código, que la tiene toda (ADR-0160). La migración `20261006120000_inventory_warehouse_priority` quitó el índice único parcial `(status) WHERE status = 'ACTIVE'` de ADR-0081 y dejó con prioridad 1 a los almacenes existentes.
 - **Almacén inicial:** la migración `20260930200000_inventory_main_warehouse` (T-160, ADR-0127) inserta "Almacén principal" (`PRINCIPAL`, sin dirección, activo) solo si no existe ningún almacén. `address` guarda los campos de ADR-0057 con los nombres del estado y del municipio.
 
 ### 6.2 `stock_items` (inventory)

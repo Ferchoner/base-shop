@@ -38,6 +38,8 @@ export interface WarehouseSnapshot {
   readonly name: string;
   readonly address: WarehouseAddress | null;
   readonly status: WarehouseStatus;
+  /** 1 is the first: orders are reserved in the first active warehouse that holds them (ADR-0160). */
+  readonly priority: number;
 }
 
 /** Why a state and municipality cannot be an address (BR-ADR-02, BR-ADR-03). */
@@ -79,8 +81,9 @@ export class InvalidWarehouseLocationError extends DomainError {
 }
 
 /**
- * The warehouse (DATABASE.md §6.1). The MVP has exactly one, created by a migration (ADR-0081, ADR-0127);
- * the staff changes only its name and address. It has no `version`: the last change wins (API_SPEC.md §4).
+ * A warehouse (DATABASE.md §6.1). Several may be active, each order reserved in one of them by priority
+ * (ADR-0160); the first one comes from a migration (ADR-0127). The staff changes its name and address. It has
+ * no `version`: the last change wins (API_SPEC.md §4).
  */
 export class Warehouse {
   private constructor(private state: WarehouseSnapshot) {}

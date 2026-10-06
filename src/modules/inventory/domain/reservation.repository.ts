@@ -1,3 +1,4 @@
+import type { Allocation } from './allocation.js';
 import type {
   CommitOutcome,
   OrderId,
@@ -56,4 +57,10 @@ export abstract class ReservationRepository {
 
   /** Whether the stock of the order was confirmed: it has a COMMITTED reservation, so its units left (UC-INV-06). */
   abstract isCommitted(orderId: OrderId): Promise<boolean>;
+
+  /**
+   * The warehouses the confirmed stock of the order left from, with the units of each variant (ADR-0160): a group
+   * per warehouse, by priority and then code. None when its stock was not confirmed.
+   */
+  abstract allocationOf(orderId: OrderId): Promise<Allocation[]>;
 }

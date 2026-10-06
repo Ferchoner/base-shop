@@ -72,10 +72,18 @@ export class ShippingFacadeOrderShipments extends OrderShipments {
 
   async createFor(order: Order): Promise<void> {
     const { id, publicCode, lines } = order.snapshot;
+    const allocation = await this.inventory.allocationOf(id);
+    // One warehouse per order (ADR-0160): a second one would need a partial shipment, which is not enabled, and
+    // the one shipment an order may have would leave it out.
+    if (allocation.length !== 1) {
+      throw new Error(
+        `Order ${id} left ${allocation.length} warehouses; it needs exactly one (ADR-0160)`,
+      );
+    }
     await this.shipping.createShipment({
       orderId: id,
       orderCode: publicCode,
-      warehouseId: await this.inventory.activeWarehouseId(),
+      warehouseId: allocation[0].warehouseId,
       destination: order.deliveryAddress,
       items: lines.map(({ id: orderLineId, sku, productName, quantity }) => ({
         orderLineId,
@@ -212,7 +220,7 @@ export class InventoryFacadeOrderStock extends OrderStock {
   canFulfill(
     lines: readonly StockLine[],
   ): Promise<ReadonlyMap<VariantId, boolean>> {
-    return this.inventory.canFulfill(lines);
+    return this.inventory.canFulfillTogether(lines);
   }
 
   async reserve(

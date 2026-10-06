@@ -103,7 +103,8 @@ export interface ProductDetailView extends ProductSummaryView {
  * Reads of the public store (ADR-0060). Its adapter is the only code allowed to read tables of Pricing and
  * Inventory, only to read them, so filters and totals by price and availability are exact (ADR-0005). A
  * variant is sellable when its product is published, the variant is active and it has a price current at
- * `at` in the default list (BR-PRD-11); it is available with units not reserved in the active warehouse.
+ * `at` in the default list (BR-PRD-11); it is available when some active warehouse has units not reserved
+ * (ADR-0160).
  */
 export abstract class StorefrontQueries {
   /** The visible category with this slug and every visible subcategory under it; empty if it is not visible. */

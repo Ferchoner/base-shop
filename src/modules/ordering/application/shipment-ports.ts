@@ -18,8 +18,8 @@ export interface OrderShipment {
  */
 export abstract class OrderShipments {
   /**
-   * Creates the shipment of an order just paid, PENDING, from the active warehouse, with every line of it; an
-   * order that has one keeps it (BR-SHP-01, BR-SHP-02).
+   * Creates the shipment of an order just paid, PENDING, from the warehouse its confirmed stock left, with every
+   * line of it; an order that has one keeps it (BR-SHP-01, BR-SHP-02, ADR-0160).
    */
   abstract createFor(order: Order): Promise<void>;
 

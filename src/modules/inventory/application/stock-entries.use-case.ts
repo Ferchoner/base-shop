@@ -115,7 +115,7 @@ export class StockEntries {
       throw new NotFoundError('Variant', entry.variantId);
     }
     const warehouse = await this.warehouses.find(entry.warehouseId);
-    // In the MVP only the active warehouse takes stock (ADR-0081); another one is answered as missing.
+    // Only an active warehouse takes stock (ADR-0160); another one is answered as missing.
     if (warehouse === null || !warehouse.isActive) {
       throw new NotFoundError('Warehouse', entry.warehouseId);
     }

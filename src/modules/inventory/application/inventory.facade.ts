@@ -6,6 +6,12 @@ import {
   TransactionManager,
 } from '../../../shared-kernel/index.js';
 import {
+  type Allocation,
+  fulfillableAlone,
+  ONE_WAREHOUSE_PER_ORDER,
+  shortInClosest,
+} from '../domain/allocation.js';
+import {
   type CommitOutcome,
   mergedRequests,
   type OrderId,
@@ -22,10 +28,10 @@ import {
   type VariantId,
 } from '../domain/stock.js';
 import { StockLedgerRepository } from '../domain/stock-ledger.repository.js';
-import type { Warehouse, WarehouseId } from '../domain/warehouse.js';
 import { WarehouseRepository } from '../domain/warehouse.repository.js';
 import { InventoryQueries } from './inventory.queries.js';
 
+export type { Allocation } from '../domain/allocation.js';
 export type {
   CommitOutcome,
   OrderId,
@@ -52,7 +58,8 @@ export const RESERVATION_TTL_SECONDS = Symbol('RESERVATION_TTL_SECONDS');
  * (T-180, T-190). Every operation joins the transaction of its caller, so the checkout reserves, creates the
  * order and marks the cart all at once (ADR-0019). Quantities never leave Inventory: the cart and the quote
  * learn only whether each line can be fulfilled (ADR-0061). Reservations are system operations, so they are
- * not audited; the reservations and the SALE movements, with their order, are the record.
+ * not audited; the reservations and the SALE movements, with their order, are the record. Each order is reserved
+ * in one warehouse, the first by priority that holds all of it (ADR-0160).
  */
 @Injectable()
 export class InventoryFacade {
@@ -67,8 +74,9 @@ export class InventoryFacade {
   ) {}
 
   /**
-   * Whether the active warehouse can fulfill the units asked for each variant now, with the requests of one
-   * variant added up. A variant that never had stock cannot.
+   * Whether some active warehouse alone can fulfill the units asked for each variant now, with the requests of
+   * one variant added up: each line on its own, as the cart shows it (BR-INV-12). A variant that never had stock
+   * cannot.
    *
    * @throws InvalidValueError when a quantity is not a whole number above zero.
    */
@@ -77,16 +85,24 @@ export class InventoryFacade {
   ): Promise<ReadonlyMap<VariantId, boolean>> {
     const merged = mergedRequests(requests);
     if (merged.length === 0) return new Map();
-    const warehouse = await this.activeWarehouse();
-    const available = await this.queries.availableUnits(
-      warehouse.id,
-      merged.map(({ variantId }) => variantId),
-    );
+    return fulfillableAlone(await this.stockOf(merged), merged);
+  }
+
+  /**
+   * Whether each variant can be fulfilled together with the others, as the order of all of them would be
+   * reserved (ADR-0160): the variants the closest warehouse leaves out cannot, and they are the ones a
+   * reservation would answer as short. Every variant can when one warehouse holds all of them.
+   *
+   * @throws InvalidValueError when a quantity is not a whole number above zero.
+   */
+  async canFulfillTogether(
+    requests: readonly StockRequest[],
+  ): Promise<ReadonlyMap<VariantId, boolean>> {
+    const merged = mergedRequests(requests);
+    if (merged.length === 0) return new Map();
+    const short = shortInClosest(await this.stockOf(merged), merged);
     return new Map(
-      merged.map(({ variantId, quantity }) => [
-        variantId,
-        (available.get(variantId) ?? 0) >= quantity,
-      ]),
+      merged.map(({ variantId }) => [variantId, !short.includes(variantId)]),
     );
   }
 
@@ -94,9 +110,10 @@ export class InventoryFacade {
    * Reserves the units of an order until the TTL passes (UC-INV-05): all or nothing (BR-INV-02), and at most
    * one active reservation per order (BR-INV-04), so asking again answers the one it has. It is all or nothing
    * on its own, also inside the transaction of its caller: when a line is short, it undoes what it reserved
-   * and the caller's transaction goes on (ADR-0132).
+   * and the caller's transaction goes on (ADR-0132). Every unit comes from one warehouse: the first active one
+   * by priority that holds all of them, trying the next one when another order took the units first (ADR-0160).
    *
-   * @throws InsufficientStockError with every variant that cannot be fulfilled.
+   * @throws InsufficientStockError with the variants the closest warehouse leaves out (ADR-0160).
    * @throws InvalidValueError for no requests, or a quantity that is not a whole number above zero.
    */
   async reserve(
@@ -108,7 +125,6 @@ export class InventoryFacade {
       throw new InvalidValueError('A reservation needs at least one line');
     }
     return this.transactions.runNested(async () => {
-      const warehouse = await this.activeWarehouse();
       const at = this.clock.now();
       const { opened, receipt } = await this.reservations.open({
         id: newId<'Reservation'>(),
@@ -117,15 +133,26 @@ export class InventoryFacade {
         at,
       });
       if (!opened) return receipt;
-      const missing = await this.reservations.reserve(
-        receipt.reservationId,
-        warehouse.id,
+      const plans = ONE_WAREHOUSE_PER_ORDER.plans(
+        await this.stockOf(merged),
         merged,
-        at,
       );
-      if (missing.length > 0) throw new InsufficientStockError(missing);
-      return receipt;
+      for (const plan of plans) {
+        if (await this.reserveAll(receipt, plan, at)) return receipt;
+      }
+      // What the closest warehouse leaves out now: another order may have taken units since they were read.
+      throw new InsufficientStockError(
+        shortInClosest(await this.stockOf(merged), merged),
+      );
     });
+  }
+
+  /**
+   * The warehouses the confirmed stock of an order left from, with its units: a group per warehouse (ADR-0160),
+   * which is one while an order is reserved in one warehouse. None when its stock was not confirmed.
+   */
+  allocationOf(orderId: OrderId): Promise<Allocation[]> {
+    return this.transactions.run(() => this.reservations.allocationOf(orderId));
   }
 
   /**
@@ -160,7 +187,8 @@ export class InventoryFacade {
    * Brings units of lines of an order back to the stock (UC-INV-09, ADR-0052, ADR-0132, ADR-0142). Ordering
    * names each line with its variant and the units it sold, because Inventory never reads orders. A line sold
    * only if the stock of its order was confirmed, and the restocks of a line, added up, never pass what it sold.
-   * Each line writes a RESTOCK movement in the active warehouse with its reason, order, line, note and who did it.
+   * Each line writes a RESTOCK movement with its reason, order, line, note and who did it, in the first active
+   * warehouse by priority until restocks go back to the warehouse they left (ADR-0160, T-162 part b).
    * It joins the transaction of its caller, which locks the order, so restocks of one order wait for each other.
    *
    * @throws RestockLimitError with every line that would bring back more than it sold.
@@ -200,7 +228,9 @@ export class InventoryFacade {
         }))
         .filter((line) => line.restocked + line.requested > line.sold);
       if (beyond.length > 0) throw new RestockLimitError(beyond);
-      const warehouse = await this.activeWarehouse();
+      const warehouse = await this.warehouses.firstActive();
+      // A migration creates the first one (ADR-0127), and none can be deactivated yet.
+      if (warehouse === null) throw new Error('There is no active warehouse');
       const at = this.clock.now();
       const note = noteOf(input.note);
       return this.ledger.restock(
@@ -220,15 +250,36 @@ export class InventoryFacade {
     });
   }
 
-  /** The warehouse every order is shipped from: the only active one in the MVP (BR-INV-08, ADR-0140). */
-  async activeWarehouseId(): Promise<WarehouseId> {
-    return (await this.activeWarehouse()).id;
+  /** The active warehouses, by priority, with what each has available of the requests. */
+  private stockOf(requests: readonly StockRequest[]) {
+    return this.queries.activeStock(requests.map(({ variantId }) => variantId));
   }
 
-  private async activeWarehouse(): Promise<Warehouse> {
-    const warehouse = await this.warehouses.findActive();
-    // A migration creates it (ADR-0127), and nothing deactivates it in the MVP (ADR-0081).
-    if (warehouse === null) throw new Error('There is no active warehouse');
-    return warehouse;
+  /**
+   * Reserves every group of a plan in its warehouse as one step, which undoes itself when a group is short
+   * (ADR-0133): the units read as available may have gone to another order. Whether it reserved them.
+   */
+  private async reserveAll(
+    receipt: ReservationReceipt,
+    plan: readonly Allocation[],
+    at: Date,
+  ): Promise<boolean> {
+    try {
+      await this.transactions.runNested(async () => {
+        for (const { warehouseId, lines } of plan) {
+          const short = await this.reservations.reserve(
+            receipt.reservationId,
+            warehouseId,
+            lines,
+            at,
+          );
+          if (short.length > 0) throw new InsufficientStockError(short);
+        }
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof InsufficientStockError) return false;
+      throw error;
+    }
   }
 }

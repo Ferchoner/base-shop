@@ -48,7 +48,10 @@ export abstract class CartPrices {
 }
 
 export abstract class CartStock {
-  /** Whether the units of each line are available, yes or no, never how many (ADR-0061). */
+  /**
+   * Whether the units of each line are available in some warehouse, each line on its own, yes or no, never how
+   * many (ADR-0061, ADR-0160).
+   */
   abstract canFulfill(
     lines: readonly { variantId: VariantId; quantity: number }[],
   ): Promise<ReadonlyMap<VariantId, boolean>>;
