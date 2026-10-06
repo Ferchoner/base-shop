@@ -6,54 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.3 — Pago en tienda configurable desde la API. Inicio: 2026-10-06 (plan aprobado ese día).
-
-### Goal
-
-Que el backoffice sepa si el pago manual, el cobro de la tienda física, está habilitado, y que un superadministrador lo encienda o lo apague sin desplegar. El valor pasa de la variable `MANUAL_PAYMENTS_ENABLED` a la base, con una ruta para consultarlo y otra para cambiarlo, reservada al superadministrador (ADR-0162).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.2 en la guía de desarrollo |
-| 1 | T-194: el pago manual en la base; `GET` y `PUT /v1/admin/payment-settings`; permiso `payments.configure`, reservado al superadministrador; los correos leen el valor al enviarse; sin `MANUAL_PAYMENTS_ENABLED` |
-
-- **Criterio de cierre:** los criterios de aceptación de T-194, que fija su plan; la CI en verde en `main`; y la versión 1.3.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** otras configuraciones de la tienda editables desde la API, otros permisos reservados y el segundo factor del staff (ADR-0048); y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de las versiones 1.1 y 1.2. T-194 va en su rama y su pull request, con el plan de ADR-0162. El último pull request sube la versión a 1.3.0.
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 162 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta es un script que no existe, citado entre las alternativas descartadas de ADR-0122.
-- **Dependencias:**
-  - `npm audit` no encuentra vulnerabilidades en las dependencias de producción. En las de desarrollo sigue el aviso moderado de `sprintf-js`, que llega con Jest y ninguna versión corrige (review de la versión 1.1): `npm audit` lo cuenta una vez por cada paquete de Jest que lo trae;
-  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
-  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.2:
-  - un método que devuelve una promesa es `async`, para que todo error llegue como rechazo;
-  - al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa.
-
-### Resultado del paso 1
-
-T-194 (ADR-0162); T-194 queda en DONE.
-
-- **El valor en la base:** `payment_settings`, con una fila de clave fija que un CHECK mantiene sola, creada deshabilitada. Payments la lee en cada pago y reembolso manual y en cada inicio de un pago `MANUAL`, sin caché, y Notifications la pregunta al escribir el correo de orden recibida.
-- **Rutas:** `GET /v1/admin/payment-settings`, con `orders.read`, y `PUT`, con `payments.configure`, versión y auditoría `payment-settings.update`. Sin cambios no se guarda ni se audita.
-- **Permiso reservado:** `payments.configure` solo lo tiene el rol superadministrador; otro rol con él responde 400 `superadminOnly` (BR-USR-21), y el catálogo de permisos lo marca con `superadminOnly`.
-- **Sin la variable:** `MANUAL_PAYMENTS_ENABLED` sale del entorno, de `.env.example` y de las pruebas, y una que quede en el entorno no impide arrancar. El texto del 403 `manual-payments-disabled` dice que un superadministrador lo habilita.
-- **Pruebas:** las e2e encienden el pago manual en la base antes de cada archivo; una prueba con dos conexiones comprueba que de dos cambios con la misma versión gana uno.
-
-### Risks
-
-- **El cobro de la tienda en una cuenta de staff:** encenderlo pasa a depender del superadministrador, que no tiene segundo factor (ADR-0048). Lo atenúan el permiso reservado y la auditoría (ADR-0162).
-- **Reembolsos pendientes con el pago apagado:** no se registran hasta encenderlo otra vez, como con la variable (ADR-0135).
-- **Cambio para el operador:** `MANUAL_PAYMENTS_ENABLED` deja de existir, y después de migrar el pago manual queda apagado. Hoy no hay despliegues; queda en `CHANGELOG.md`.
-- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.3, el pago en tienda configurable desde la API, se cerró el 2026-10-06 y se publica como la 1.3.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -79,6 +32,91 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.3 — Pago en tienda configurable desde la API (2026-10-06)
+
+**Goal:** Que el backoffice sepa si el pago manual, el cobro de la tienda física, está habilitado, y que un superadministrador lo encienda o lo apague sin desplegar. El valor pasa de la variable `MANUAL_PAYMENTS_ENABLED` a la base, con una ruta para consultarlo y otra para cambiarlo, reservada al superadministrador (ADR-0162). **Tareas:** T-194, en una parte, precedida por un paso 0.
+
+**Fecha:** 2026-10-06. **Resultado:** objetivo cumplido. T-194 está en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.3.0, con su tag y su GitHub Release (ADR-0159).
+- El backoffice consulta, con `orders.read`, si el pago manual está habilitado, antes de mostrar sus acciones.
+- Un superadministrador lo enciende o lo apaga sin desplegar, y el cambio vale de inmediato en todas las instancias.
+- `payments.configure` solo lo tiene el rol superadministrador: ningún otro rol puede tenerlo.
+- La variable `MANUAL_PAYMENTS_ENABLED` ya no existe.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0162; revisión contra los ADR sin desajustes; 0 vulnerabilidades en las dependencias de producción; prácticas de la review de la versión 1.2 en la guía | DONE | Paso 0, pull request #113 |
+| El pago manual en la base, con `GET` y `PUT /v1/admin/payment-settings` (UC-PAY-08); `payments.configure`, reservado al superadministrador (BR-USR-21); `superadminOnly` en el catálogo de permisos; los correos leen el valor al escribirse; sin `MANUAL_PAYMENTS_ENABLED` | DONE | T-194, pull request #114 |
+| La descripción de `contactEmail` en las vistas de la orden dice cuándo es `null`; apareció al preparar las notas del Release 1.2.0 | DONE | Pull request #112 |
+| 133 rutas de `/v1`, 2 de ellas nuevas; todos los cambios de contrato son compatibles | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 2,548 tests (1,472 unitarios, 499 de integración y 577 end-to-end), 16 más que en la versión 1.2; cobertura de 98.84% de sentencias, 84.43% de ramas, 99.18% de funciones y 99.46% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; en las de desarrollo, el mismo aviso moderado de `sprintf-js`, sin versión corregida | — | `npm audit` |
+| 162 ADR: 158 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 1 nuevo en esta versión (ADR-0162) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 3 pull requests a `main` (del #112 al #114). El pipeline pasó a la primera en los 3, y en `main` después de cada fusión.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión. La validación legal de los datos personales que captura el staff sigue en la lista de `PROJECT.md` §9 (ADR-0161).
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **El botón que fallaba (G-02):** el backoffice sabe si el pago manual está habilitado antes de mostrar "Registrar pago" y "Registrar reembolso".
+  - **Cambios de contrato:** dos rutas nuevas y un campo nuevo en el catálogo de permisos, compatibles dentro de `/v1`. Cada uno está en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints y de las versiones 1.1 y 1.2, entre ellos el aviso moderado de `sprintf-js` y la validación legal de los datos que captura el staff.
+- **Nuevos:**
+  - **El cobro de la tienda en una cuenta de staff:** encenderlo depende del superadministrador, que no tiene segundo factor (ADR-0048). Lo atenúan el permiso reservado y la auditoría (ADR-0162).
+  - **Reembolsos pendientes con el pago apagado:** no se registran hasta encenderlo otra vez, como pasaba con la variable (ADR-0135).
+  - **Cambio para el operador:** `MANUAL_PAYMENTS_ENABLED` ya no existe, y después de migrar el pago manual queda apagado hasta que un superadministrador lo encienda. Hoy no hay despliegues, y está en `CHANGELOG.md`.
+
+#### Qué funcionó
+
+- **Partir de un precedente:** el método de envío (ADR-0122) ya resolvía una configuración única, editable con versión, auditada y sin guardar nada sin cambios. T-194 siguió el mismo diseño y las mismas pruebas, incluida la de dos conexiones.
+- **El permiso reservado con el mecanismo de siempre:** `payments.configure` es un permiso más del catálogo. La matriz de rutas, el OpenAPI y `GET /v1/me` dicen quién puede cambiar el pago manual, sin otra regla para el backoffice.
+- **Revisar las notas del Release contra el contrato:** al prepararlas apareció una descripción incompleta de `contactEmail`, corregida en un pull request pequeño (#112) sin esperar a la versión.
+- **Las prácticas de la review de la versión 1.2:** la prueba e2e del catálogo de permisos compara cada permiso completo, y se actualizó con `superadminOnly` antes de la primera corrida.
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-194 | 0 de 35 | — |
+
+  El plan (#113) solo cambió documentación, y la corrección (#112), una descripción del contrato.
+
+#### Qué mejorar
+
+- **Pruebas que derivan del catálogo los permisos de un rol:** dos pruebas de integración calculaban los del Administrador como todos menos `staff.manage`, y fallaron en la primera corrida completa al llegar `payments.configure`. Al agregar un permiso al catálogo, se buscan antes las pruebas que derivan de él los permisos de un rol.
+- **Una sección citada antes de comprobarla:** el código citó `API_SPEC.md` §16.5 para la configuración, pero esa sección es la de reembolsos; se corrigió a §16.6 antes del commit. Antes de citar una sección en el código, se confirma su número.
+- **Publicar el tag desde la sesión:** el modo automático bloqueó el tag y el Release de la 1.2.0, aunque el usuario los había autorizado, y el usuario corrió los comandos. Desde la 1.3.0, la sesión deja los comandos listos desde el principio.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 162 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta es un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit` no encuentra vulnerabilidades en las dependencias de producción. En las de desarrollo sigue el aviso moderado de `sprintf-js`, que llega con Jest y ninguna versión corrige (review de la versión 1.1): `npm audit` lo cuenta una vez por cada paquete de Jest que lo trae;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.20);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.2:
+  - un método que devuelve una promesa es `async`, para que todo error llegue como rechazo;
+  - al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa.
+
+#### Resultado del paso 1
+
+T-194 (ADR-0162); T-194 queda en DONE.
+
+- **El valor en la base:** `payment_settings`, con una fila de clave fija que un CHECK mantiene sola, creada deshabilitada. Payments la lee en cada pago y reembolso manual y en cada inicio de un pago `MANUAL`, sin caché, y Notifications la pregunta al escribir el correo de orden recibida.
+- **Rutas:** `GET /v1/admin/payment-settings`, con `orders.read`, y `PUT`, con `payments.configure`, versión y auditoría `payment-settings.update`. Sin cambios no se guarda ni se audita.
+- **Permiso reservado:** `payments.configure` solo lo tiene el rol superadministrador; otro rol con él responde 400 `superadminOnly` (BR-USR-21), y el catálogo de permisos lo marca con `superadminOnly`.
+- **Sin la variable:** `MANUAL_PAYMENTS_ENABLED` sale del entorno, de `.env.example` y de las pruebas, y una que quede en el entorno no impide arrancar. El texto del 403 `manual-payments-disabled` dice que un superadministrador lo habilita.
+- **Pruebas:** las e2e encienden el pago manual en la base antes de cada archivo; una prueba con dos conexiones comprueba que de dos cambios con la misma versión gana uno.
+
+#### Siguiente versión
+
+Ninguna en curso: la siguiente necesita un plan aprobado (ADR-0159). La 1.3 dejó fuera otras configuraciones de la tienda editables desde la API, otros permisos reservados y el segundo factor del staff (ADR-0162). Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las de la 1.2.
 
 ### Versión 1.2 — Ventas asistidas en la tienda física (2026-10-06)
 
