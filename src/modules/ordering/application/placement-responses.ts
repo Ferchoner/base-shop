@@ -7,8 +7,9 @@ import type { Order } from '../domain/order.js';
  */
 export abstract class PlacementResponses {
   /**
-   * Forgets the responses kept for whoever placed these orders: the customer, or the cart of a guest order. It runs
-   * outside the transaction of the caller, and forgetting twice changes nothing.
+   * Forgets the responses kept for whoever placed these orders: the customer, the cart of a guest order, or the
+   * response of each order the staff placed in the store (ADR-0161). It runs outside the transaction of the caller,
+   * and forgetting twice changes nothing.
    */
   abstract forgetOf(orders: readonly Order[]): Promise<void>;
 }

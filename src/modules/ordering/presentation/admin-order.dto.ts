@@ -6,9 +6,11 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -19,7 +21,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PostalAddressDto } from '../../../platform/http/address.dto.js';
+import {
+  AddressInputDto,
+  PostalAddressDto,
+} from '../../../platform/http/address.dto.js';
 import {
   PageMetaDto,
   PageQueryDto,
@@ -28,17 +33,25 @@ import {
   CommaSeparated,
   IsSortOf,
 } from '../../../platform/http/pagination/pagination.js';
+import { MAX_MONEY_AMOUNT } from '../../../shared-kernel/index.js';
 import {
+  ORDER_CHANNELS,
   ORDER_STATUSES,
+  type OrderChannel,
   type OrderStatus,
   RESTOCK_REASONS,
   type RestockReason,
 } from '../application/order-values.js';
 import {
+  MAX_ORDER_LINE_QUANTITY,
+  MAX_STAFF_ORDER_LINES,
+} from '../application/staff-order-limits.js';
+import {
   AdminOrderPaymentDto,
   AdminOrderShipmentDto,
   OrderFieldsDto,
   OrderLineDto,
+  toNormalizedEmail,
 } from './order.dto.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments;
@@ -180,6 +193,31 @@ export class AdminOrderSummaryDto extends OrderFieldsDto {
   })
   customerId: string | null;
 
+  @ApiProperty({
+    enum: ORDER_CHANNELS,
+    description:
+      '`ONLINE`: la colocó el comprador en la tienda en línea, desde su carrito. `STORE`: la colocó el staff en la tienda física a nombre del cliente (ADR-0161).',
+  })
+  channel: OrderChannel;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'La cuenta de staff que colocó una orden `STORE`; `null` en una `ONLINE`.',
+  })
+  placedBy: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'El almacén que eligió el staff para una orden `STORE`: su stock sale solo de ahí; `null` en una `ONLINE`.',
+  })
+  warehouseId: string | null;
+
   /** Versión para el bloqueo optimista. */
   version: number;
 
@@ -282,10 +320,122 @@ export class AdminOrderListQueryDto extends PageQueryDto {
   @IsBoolean()
   hasPendingRefund?: boolean;
 
+  @ApiPropertyOptional({
+    enum: ORDER_CHANNELS,
+    description:
+      '`ONLINE`: las de la tienda en línea; `STORE`: las que colocó el staff en la tienda física (ADR-0161).',
+  })
+  @IsOptional()
+  @IsIn(ORDER_CHANNELS)
+  channel?: OrderChannel;
+
+  /** Las órdenes que colocó en la tienda física esta cuenta de staff (ADR-0161). */
+  @IsOptional()
+  @IsUUID('all')
+  placedBy?: string;
+
   /** `placedAt`, `orderNumber` o `grandTotal`, con `-` para orden descendente; por defecto `-placedAt`. */
   @IsOptional()
   @IsSortOf(['placedAt', 'orderNumber', 'grandTotal'])
   sort?: string;
+}
+
+/** Units of a variant that an order of the staff asks for (UC-ORD-12 and 13). */
+export class StaffOrderLineDto {
+  /** Una variante del catálogo. */
+  @IsUUID('all')
+  variantId: string;
+
+  /** Unidades, de 1 a 30, como una línea del carrito (BR-CRT-02). @example 2 */
+  @IsInt()
+  @Min(1)
+  @Max(MAX_ORDER_LINE_QUANTITY)
+  quantity: number;
+}
+
+/** Request of `POST /v1/admin/orders/quote` (UC-ORD-12, API_SPEC.md §15.7). */
+export class StaffQuoteDto {
+  @ApiProperty({
+    type: () => [StaffOrderLineDto],
+    description: `De 1 a ${MAX_STAFF_ORDER_LINES} líneas, cada variante una sola vez, en el orden en que la orden las numera.`,
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_STAFF_ORDER_LINES)
+  @ArrayUnique((line: StaffOrderLineDto) => line.variantId?.toLowerCase())
+  @ValidateNested({ each: true })
+  @Type(() => StaffOrderLineDto)
+  lines: StaffOrderLineDto[];
+
+  /** El almacén activo del que sale el stock, el de la tienda: no se toma de otro (ADR-0161). */
+  @IsUUID('all')
+  warehouseId: string;
+}
+
+/**
+ * Request of `POST /v1/admin/orders` (UC-ORD-13, API_SPEC.md §15.7): exactly one of `customerId` and `contactEmail`,
+ * and one of `addressId` and `shippingAddress`, which the controller checks.
+ */
+export class PlaceStaffOrderDto extends StaffQuoteDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description:
+      'Un cliente registrado y activo, con el email verificado: el contacto es el email de su cuenta. Exactamente uno de `customerId` y `contactEmail`.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  customerId?: string;
+
+  /**
+   * Email de contacto de un invitado; se guarda en minúsculas. Exactamente uno de `customerId` y `contactEmail`.
+   * @example 'cliente@example.com'
+   */
+  @IsOptional()
+  @Transform(toNormalizedEmail)
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail?: string;
+
+  /**
+   * Versión del aviso de privacidad que el staff presentó al invitado (ADR-0067); obligatoria con `contactEmail`, y
+   * solo con él: un cliente registrado lo aceptó al crear su cuenta.
+   * @example '2026-09'
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 50)
+  @Matches(/\S/, NOT_BLANK)
+  privacyNoticeVersion?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description:
+      'Una dirección guardada del cliente, solo con `customerId`; exactamente uno de `addressId` y `shippingAddress`.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  addressId?: string;
+
+  @ApiPropertyOptional({
+    type: () => AddressInputDto,
+    description: 'Una dirección escrita para la orden, sin guardarla.',
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => AddressInputDto)
+  shippingAddress?: AddressInputDto;
+
+  /**
+   * `grandTotal.amount` de la cotización que aceptó el cliente, en centavos.
+   * @example 129700
+   */
+  @IsInt()
+  @Min(0)
+  @Max(MAX_MONEY_AMOUNT)
+  expectedTotal: number;
 }
 
 /** Request of `POST /v1/admin/orders/{orderId}/cancel` (UC-ORD-07). */

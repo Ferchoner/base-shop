@@ -28,6 +28,11 @@ export const RATE_LIMITS = {
     variable: 'RATE_LIMIT_PLACE_ORDER_EMAIL',
     key: 'contact-email',
   },
+  // The staff is always signed in, so it counts per staff member (ADR-0161).
+  'admin-place-order': {
+    variable: 'RATE_LIMIT_ADMIN_PLACE_ORDER',
+    key: 'user-or-cart',
+  },
 } as const satisfies Record<
   string,
   { variable: keyof EnvironmentVariables; key: RateLimitKey }

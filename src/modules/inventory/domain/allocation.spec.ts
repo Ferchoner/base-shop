@@ -1,9 +1,11 @@
 import { newId } from '../../../shared-kernel/index.js';
 import {
+  fixedWarehouse,
   fulfillableAlone,
   ONE_WAREHOUSE_PER_ORDER,
   shortIn,
   shortInClosest,
+  shortInWarehouse,
   type WarehouseStock,
 } from './allocation.js';
 import type { VariantId } from './stock.js';
@@ -114,5 +116,65 @@ describe('Allocation of an order to the warehouses (ADR-0160)', () => {
       mug,
     ]);
     expect(shortInClosest([], requests)).toEqual([shirt, cap, mug]);
+  });
+
+  describe('the warehouse the staff chose (ADR-0161)', () => {
+    const requests = [
+      { variantId: shirt, quantity: 2 },
+      { variantId: cap, quantity: 1 },
+    ];
+
+    it('plans the order only in that warehouse, when it holds all of it', () => {
+      const holding = [
+        stock(north, [
+          [shirt, 9],
+          [cap, 9],
+        ]),
+        stock(south, [
+          [shirt, 2],
+          [cap, 1],
+        ]),
+      ];
+
+      expect(fixedWarehouse(south).plans(holding, requests)).toEqual([
+        [{ warehouseId: south, lines: requests }],
+      ]);
+      // Never another one, though it holds all of it too.
+      expect(
+        fixedWarehouse(south).plans(
+          [
+            holding[0],
+            stock(south, [
+              [shirt, 2],
+              [cap, 0],
+            ]),
+          ],
+          requests,
+        ),
+      ).toEqual([]);
+      expect(fixedWarehouse(south).plans([holding[0]], requests)).toEqual([]);
+    });
+
+    it('finds short what that warehouse leaves out, or every request when it is not active', () => {
+      const warehouses = [
+        stock(north, [
+          [shirt, 9],
+          [cap, 9],
+        ]),
+        stock(south, [[shirt, 1]]),
+      ];
+
+      expect(shortInWarehouse(warehouses, south, requests)).toEqual([
+        shirt,
+        cap,
+      ]);
+      expect(shortInWarehouse(warehouses, north, requests)).toEqual([]);
+      expect(
+        shortInWarehouse(warehouses, newId<'Warehouse'>(), requests),
+      ).toEqual([shirt, cap]);
+      expect(
+        shortInWarehouse([stock(south, [[shirt, 2]])], south, requests),
+      ).toEqual([cap]);
+    });
   });
 });

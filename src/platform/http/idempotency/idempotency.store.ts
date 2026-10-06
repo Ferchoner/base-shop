@@ -115,6 +115,23 @@ export class IdempotencyStore {
     return count;
   }
 
+  /**
+   * Deletes the responses an endpoint kept of these resources, by the `id` of the body it answered, wherever their
+   * scope (ADR-0161): the staff places orders in its own scope, together with other responses that must stay. A key
+   * still in progress stays, as in `forget`.
+   */
+  async forgetResponsesOf(
+    endpoint: string,
+    resourceIds: readonly string[],
+  ): Promise<number> {
+    if (resourceIds.length === 0) return 0;
+    return this.prisma.$executeRaw`
+      DELETE FROM idempotency_keys
+       WHERE status = 'COMPLETED'
+         AND endpoint = ${endpoint}
+         AND response_body -> 'body' ->> 'id' = ANY(${[...resourceIds]}::text[])`;
+  }
+
   /** Frees the key of an attempt whose result is not kept, so the client can retry with it. */
   async release(attempt: IdempotencyAttempt): Promise<void> {
     await this.prisma.$executeRaw`

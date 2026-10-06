@@ -61,9 +61,9 @@ function lineOf(line: NoticeOrder['lines'][number]): string {
 
 /**
  * The received order (`OrderPlaced`): its lines, totals and shipping address, how long its products are held and
- * the estimated delivery time (ADR-0083). With payments in the store, how to pay (ADR-0055, ADR-0143). The address
- * is what the buyer typed, and a guest's email is not verified, so it is quoted on one line and without links
- * (ADR-0154).
+ * the estimated delivery time (ADR-0083). With payments in the store, how to pay (ADR-0055, ADR-0143). An order the
+ * staff placed in the store, with the customer there paying, says neither (ADR-0161). The address is what the buyer
+ * typed, and a guest's email is not verified, so it is quoted on one line and without links (ADR-0154).
  */
 export function orderPlacedEmail(
   order: NoticeOrder,
@@ -93,12 +93,12 @@ export function orderPlacedEmail(
     `${emailSafeText(address.street)} ${emailSafeText(address.exteriorNumber)}${interior}, ${emailSafeText(address.neighborhood)}`,
     `${address.postalCode} ${address.municipalityName}, ${address.stateName}`,
     '',
-    ...(order.paymentDueAt === null
+    ...(order.paymentDueAt === null || order.placedInStore
       ? []
       : [
           `Apartamos tus productos hasta el ${inMexicoTime(order.paymentDueAt)} (hora del centro de México).`,
         ]),
-    ...(inStorePayments
+    ...(inStorePayments && !order.placedInStore
       ? [
           `Para pagar, presenta el código ${order.publicCode} en la tienda y paga ${inPesos(totals.grandTotal)}.`,
         ]

@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -26,7 +27,9 @@ import { ApiProblemResponses } from '../../../platform/http/problem-details/api-
 import { userScope } from '../../../platform/http/idempotency/idempotency-scope.js';
 import { Idempotent } from '../../../platform/http/idempotency/idempotent.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
+import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
+import type { BuyerChoice } from '../application/order-placement.js';
 import { BlockedOrderData } from '../application/blocked-order-data.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
@@ -34,6 +37,7 @@ import { OrderReader } from '../application/order-reader.js';
 import { OrderReorders } from '../application/order-reorders.use-case.js';
 import { OrderRestocks } from '../application/order-restocks.use-case.js';
 import { type OrderSortField } from '../application/ordering.queries.js';
+import { StaffCheckout } from '../application/staff-checkout.use-case.js';
 import {
   AdminOrderDto,
   AdminOrderListDto,
@@ -41,25 +45,32 @@ import {
   BlockedOrderDataDto,
   BlockedOrderDataRequestDto,
   CancelOrderDto,
+  PlaceStaffOrderDto,
   RestockDto,
   RestockOrderDto,
   RetryFulfillmentDto,
+  StaffQuoteDto,
 } from './admin-order.dto.js';
+import { CheckoutQuoteDto } from './checkout.dto.js';
+import { QUOTE_DESCRIPTION } from './checkout.controller.js';
+import { shippingAddressOf } from './me-orders.controller.js';
 import { ReorderDto } from './order.dto.js';
-import { REORDER_RULES } from './orders.controller.js';
+import { PLACE_ORDER_PROBLEMS, REORDER_RULES } from './orders.controller.js';
 import { ManualCaptureDto } from './payment.dto.js';
 import {
   toAdminOrderDto,
   toAdminOrderSummaryDto,
   toBlockedOrderDataDto,
+  toCheckoutQuoteDto,
   toReorderDto,
 } from './ordering.mappers.js';
 
 const orderIdOf = (id: string) => pathId<'Order'>(id, 'Order');
 
 /**
- * Orders for the staff (UC-ORD-06 to 08, API_SPEC.md §15.7). Changes send the `version` read and lock the
- * order, so a staff action and a payment never change it at the same time (ADR-0133).
+ * Orders for the staff (UC-ORD-06 to 08, 12 and 13, API_SPEC.md §15.7). Changes send the `version` read and lock the
+ * order, so a staff action and a payment never change it at the same time (ADR-0133). In the physical store, the
+ * staff quotes and places orders on behalf of a customer (ADR-0161).
  */
 @ApiTags('Administración: pedidos')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -72,7 +83,68 @@ export class AdminOrdersController {
     private readonly reorders: OrderReorders,
     private readonly restocks: OrderRestocks,
     private readonly blockedData: BlockedOrderData,
+    private readonly staffCheckout: StaffCheckout,
   ) {}
+
+  @ApiOperation({
+    summary: 'Cotizar un pedido en la tienda física',
+    description: `UC-ORD-12 (ADR-0161). ${QUOTE_DESCRIPTION} Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén \`warehouseId\`. Si el almacén no existe o está inactivo, o una variante no existe, 404.`,
+  })
+  @ApiOkResponse({ type: CheckoutQuoteDto })
+  @ApiProblemResponses('not-found')
+  @RequirePermissions('orders.place')
+  @HttpCode(200)
+  @Post('quote')
+  async quote(@Body() body: StaffQuoteDto): Promise<CheckoutQuoteDto> {
+    return toCheckoutQuoteDto(
+      await this.staffCheckout.quote({
+        lines: linesOf(body),
+        warehouseId: toId<'Warehouse'>(body.warehouseId),
+      }),
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Colocar un pedido en la tienda física a nombre de un cliente',
+    description: `UC-ORD-13 (ADR-0161). Exige \`Idempotency-Key\`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con \`contactEmail\` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de \`customerId\` y \`contactEmail\`, y uno de \`addressId\` y \`shippingAddress\`; \`addressId\` solo con \`customerId\`. Recalcula todo sin cache; si el total difiere de \`expectedTotal\` responde 409 \`total-mismatch\` con \`currentTotal\`. Reserva todo el stock en el almacén \`warehouseId\` o nada, y crea la orden \`STORE\` en \`PENDING_PAYMENT\`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como \`orders.place\`.`,
+  })
+  @ApiCreatedResponse({ type: AdminOrderDto })
+  @ApiProblemResponses(
+    ...PLACE_ORDER_PROBLEMS.filter(
+      (code) => code !== 'cart-not-active' && code !== 'empty-cart',
+    ),
+    'email-not-verified',
+  )
+  @RequirePermissions('orders.place')
+  @RateLimit('admin-place-order')
+  @Idempotent(userScope)
+  @Post()
+  async place(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() body: PlaceStaffOrderDto,
+    @Res({ passthrough: true })
+    response: { setHeader(name: string, value: string): void },
+  ): Promise<AdminOrderDto> {
+    const buyer = buyerOf(body);
+    const shippingAddress = shippingAddressOf(body);
+    if ('addressId' in shippingAddress && !('customerId' in buyer)) {
+      throw fieldProblem(
+        'addressId',
+        'onlyWithCustomer',
+        'Solo con `customerId`: un invitado escribe su dirección en `shippingAddress`.',
+      );
+    }
+    const id = await this.staffCheckout.place({
+      staffId: toId<'User'>(actor.id),
+      warehouseId: toId<'Warehouse'>(body.warehouseId),
+      lines: linesOf(body),
+      buyer,
+      shippingAddress,
+      expectedTotal: body.expectedTotal,
+    });
+    response.setHeader('Location', `/v1/admin/orders/${id}`);
+    return this.read(id);
+  }
 
   @ApiOperation({
     summary: 'Volver a comprar un pedido para su comprador',
@@ -117,6 +189,11 @@ export class AdminOrdersController {
             : new Date(query.placedFrom),
         placedTo: rangeEnd(query.placedTo),
         hasPendingRefund: query.hasPendingRefund,
+        channel: query.channel,
+        placedBy:
+          query.placedBy === undefined
+            ? undefined
+            : toId<'User'>(query.placedBy),
       },
       toSortOrders<OrderSortField>(query.sort, '-placedAt'),
       query,
@@ -295,4 +372,56 @@ export class AdminOrdersController {
     if (order === null) throw new NotFoundError('Order', id);
     return toAdminOrderDto(order);
   }
+}
+
+/** The lines of a staff order, as the use case takes them. */
+function linesOf(body: StaffQuoteDto) {
+  return body.lines.map(({ variantId, quantity }) => ({
+    variantId: toId<'Variant'>(variantId),
+    quantity,
+  }));
+}
+
+/**
+ * Who the staff order is for: a customer, or a guest with the version of the privacy notice the staff presented,
+ * exactly one of them (API_SPEC.md §15.7).
+ *
+ * @throws ProblemException `validation-error` on `customerId` with both or neither, or on `privacyNoticeVersion`
+ *   when a guest lacks it or a customer sends it.
+ */
+function buyerOf(body: PlaceStaffOrderDto): BuyerChoice {
+  if ((body.customerId === undefined) === (body.contactEmail === undefined)) {
+    throw fieldProblem(
+      'customerId',
+      'exactlyOneBuyer',
+      'Envía `customerId` o `contactEmail`, solo uno de los dos.',
+    );
+  }
+  if (body.customerId !== undefined) {
+    if (body.privacyNoticeVersion !== undefined) {
+      throw fieldProblem(
+        'privacyNoticeVersion',
+        'onlyForGuest',
+        'Solo con `contactEmail`: un cliente registrado aceptó el aviso al crear su cuenta.',
+      );
+    }
+    return { customerId: toId<'User'>(body.customerId) };
+  }
+  if (body.privacyNoticeVersion === undefined) {
+    throw fieldProblem('privacyNoticeVersion', 'isDefined', 'Es obligatorio.');
+  }
+  return {
+    contactEmail: body.contactEmail!,
+    privacyNoticeVersion: body.privacyNoticeVersion,
+  };
+}
+
+function fieldProblem(
+  field: string,
+  code: string,
+  message: string,
+): ProblemException {
+  return new ProblemException('validation-error', {
+    errors: [{ field, code, message }],
+  });
 }

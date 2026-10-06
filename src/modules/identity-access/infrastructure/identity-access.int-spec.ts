@@ -27,6 +27,7 @@ import { IdentityAccessModule } from '../identity-access.module.js';
 const SUPERADMIN = '01a0ea00-c750-7792-a69b-a7289f1a8f47' as RoleId;
 const ADMINISTRATOR = '01a0ea00-c755-706d-9721-7e4a48b61d77' as RoleId;
 const OPERATOR = '01a0ea00-c755-706d-9721-83f80a3d8630' as RoleId;
+const SELLER = '01a11200-70b6-74a1-961d-f18533fd37bb' as RoleId;
 
 /** Users, roles and permissions of Identity & Access against PostgreSQL 18 (T-130, ADR-0111). */
 describe('Identity & Access persistence (T-130)', () => {
@@ -143,6 +144,24 @@ describe('Identity & Access persistence (T-130)', () => {
           'pricing.read',
           'pricing.write',
           'shipping.manage',
+        ].sort(),
+      );
+    });
+
+    it('creates the Vendedor role, which places orders but does not record their payment (ADR-0161)', async () => {
+      const [seller] = await roles.findByIds([SELLER]);
+
+      expect(seller.snapshot()).toMatchObject({
+        name: 'Vendedor',
+        isSuperadmin: false,
+      });
+      expect([...seller.effectivePermissions()].sort()).toEqual(
+        [
+          'catalog.read',
+          'customers.read',
+          'inventory.read',
+          'orders.place',
+          'orders.read',
         ].sort(),
       );
     });

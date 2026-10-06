@@ -8,9 +8,12 @@ import {
 } from '../../../shared-kernel/index.js';
 import {
   type Allocation,
+  fixedWarehouse,
   fulfillableAlone,
   ONE_WAREHOUSE_PER_ORDER,
   shortInClosest,
+  shortInWarehouse,
+  type WarehouseStock,
 } from '../domain/allocation.js';
 import {
   type CommitOutcome,
@@ -97,16 +100,18 @@ export class InventoryFacade {
   /**
    * Whether each variant can be fulfilled together with the others, as the order of all of them would be
    * reserved (ADR-0160): the variants the closest warehouse leaves out cannot, and they are the ones a
-   * reservation would answer as short. Every variant can when one warehouse holds all of them.
+   * reservation would answer as short. Every variant can when one warehouse holds all of them. With
+   * `warehouseId`, only that warehouse counts, and none can when it is not active (ADR-0161).
    *
    * @throws InvalidValueError when a quantity is not a whole number above zero.
    */
   async canFulfillTogether(
     requests: readonly StockRequest[],
+    warehouseId: WarehouseId | null = null,
   ): Promise<ReadonlyMap<VariantId, boolean>> {
     const merged = mergedRequests(requests);
     if (merged.length === 0) return new Map();
-    const short = shortInClosest(await this.stockOf(merged), merged);
+    const short = shortOf(await this.stockOf(merged), merged, warehouseId);
     return new Map(
       merged.map(({ variantId }) => [variantId, !short.includes(variantId)]),
     );
@@ -118,13 +123,16 @@ export class InventoryFacade {
    * on its own, also inside the transaction of its caller: when a line is short, it undoes what it reserved
    * and the caller's transaction goes on (ADR-0132). Every unit comes from one warehouse: the first active one
    * by priority that holds all of them, trying the next one when another order took the units first (ADR-0160).
+   * With `warehouseId`, only that one, which reserves nothing when it is not active (ADR-0161).
    *
-   * @throws InsufficientStockError with the variants the closest warehouse leaves out (ADR-0160).
+   * @throws InsufficientStockError with the variants the closest warehouse leaves out (ADR-0160), or the chosen
+   *   one.
    * @throws InvalidValueError for no requests, or a quantity that is not a whole number above zero.
    */
   async reserve(
     orderId: OrderId,
     requests: readonly StockRequest[],
+    warehouseId: WarehouseId | null = null,
   ): Promise<ReservationReceipt> {
     const merged = mergedRequests(requests);
     if (merged.length === 0) {
@@ -139,17 +147,29 @@ export class InventoryFacade {
         at,
       });
       if (!opened) return receipt;
-      const plans = ONE_WAREHOUSE_PER_ORDER.plans(
-        await this.stockOf(merged),
-        merged,
-      );
+      const policy =
+        warehouseId === null
+          ? ONE_WAREHOUSE_PER_ORDER
+          : fixedWarehouse(warehouseId);
+      const plans = policy.plans(await this.stockOf(merged), merged);
       for (const plan of plans) {
         if (await this.reserveAll(receipt, plan, at)) return receipt;
       }
-      // What the closest warehouse leaves out now: another order may have taken units since they were read.
+      // What the warehouse leaves out now: another order may have taken units since they were read.
       throw new InsufficientStockError(
-        shortInClosest(await this.stockOf(merged), merged),
+        shortOf(await this.stockOf(merged), merged, warehouseId),
       );
+    });
+  }
+
+  /**
+   * Whether the warehouse exists and is active (ADR-0161), locked in shared mode until the transaction of the caller
+   * ends, so it is not deactivated in between (ADR-0160).
+   */
+  isActiveWarehouse(warehouseId: WarehouseId): Promise<boolean> {
+    return this.transactions.run(async () => {
+      const warehouse = await this.warehouses.lockForStock(warehouseId);
+      return warehouse !== null && warehouse.isActive;
     });
   }
 
@@ -316,4 +336,15 @@ export class InventoryFacade {
       throw error;
     }
   }
+}
+
+/** The variants a reservation would find short: in the closest warehouse, or in the chosen one (ADR-0161). */
+function shortOf(
+  warehouses: readonly WarehouseStock[],
+  requests: readonly StockRequest[],
+  warehouseId: WarehouseId | null,
+): VariantId[] {
+  return warehouseId === null
+    ? shortInClosest(warehouses, requests)
+    : shortInWarehouse(warehouses, warehouseId, requests);
 }

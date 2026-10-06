@@ -22,11 +22,12 @@ Convenciones:
 | Staff — Superadministrador | Todos los permisos; único que gestiona staff y roles | JWT | ADR-0043 |
 | Staff — Administrador | Todos los permisos excepto `staff.manage` | JWT | ADR-0043 |
 | Staff — Operador | Catálogo, precios, inventario, envíos; lectura de pedidos y clientes | JWT | ADR-0043 |
+| Staff — Vendedor | Coloca pedidos en la tienda física a nombre de un cliente; lectura de pedidos, clientes, catálogo e inventario | JWT | ADR-0161 |
 | Proveedor de pago | Envía webhooks (PayPal semiimplementado y no habilitado) | Firma del proveedor | ADR-0040 |
 | Sistema | Jobs programados y reacciones a eventos | — | ADR-0029 |
 | Operador técnico | Ejecuta el script de creación del primer superadministrador | Acceso al servidor | ADR-0043 |
 
-Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el staff no compra; los clientes no tienen roles.
+Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el staff no compra para sí, pero coloca pedidos a nombre de un cliente en la tienda física (BR-ORD-19); los clientes no tienen roles.
 
 ---
 
@@ -104,23 +105,27 @@ Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT;
 
 Catálogo y roles de ADR-0043.
 
-| Permiso | Superadministrador | Administrador | Operador |
-|---|---|---|---|
-| `catalog.read`, `catalog.write` | ✓ | ✓ | ✓ |
-| `pricing.read`, `pricing.write` | ✓ | ✓ | ✓ |
-| `inventory.read`, `inventory.write` | ✓ | ✓ | ✓ |
-| `orders.read` | ✓ | ✓ | ✓ |
-| `orders.manage` | ✓ | ✓ | — |
-| `payments.manage` | ✓ | ✓ | — |
-| `shipping.manage` | ✓ | ✓ | ✓ |
-| `shipping.configure` | ✓ | ✓ | — |
-| `customers.read` | ✓ | ✓ | ✓ |
-| `customers.manage` | ✓ | ✓ | — |
-| `staff.manage` | ✓ | — | — |
-| `audit.read` | ✓ | ✓ | — |
-| `events.manage` (ADR-0150) | ✓ | ✓ | — |
+| Permiso | Superadministrador | Administrador | Operador | Vendedor (ADR-0161) |
+|---|---|---|---|---|
+| `catalog.read` | ✓ | ✓ | ✓ | ✓ |
+| `catalog.write` | ✓ | ✓ | ✓ | — |
+| `pricing.read`, `pricing.write` | ✓ | ✓ | ✓ | — |
+| `inventory.read` | ✓ | ✓ | ✓ | ✓ |
+| `inventory.write` | ✓ | ✓ | ✓ | — |
+| `orders.read` | ✓ | ✓ | ✓ | ✓ |
+| `orders.manage` | ✓ | ✓ | — | — |
+| `orders.read-blocked` (ADR-0152) | ✓ | ✓ | — | — |
+| `orders.place` (ADR-0161) | ✓ | ✓ | — | ✓ |
+| `payments.manage` | ✓ | ✓ | — | — |
+| `shipping.manage` | ✓ | ✓ | ✓ | — |
+| `shipping.configure` | ✓ | ✓ | — | — |
+| `customers.read` | ✓ | ✓ | ✓ | ✓ |
+| `customers.manage` | ✓ | ✓ | — | — |
+| `staff.manage` | ✓ | — | — | — |
+| `audit.read` | ✓ | ✓ | — | — |
+| `events.manage` (ADR-0150) | ✓ | ✓ | — | — |
 
-`shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis.
+`shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis. El Vendedor coloca pedidos en la tienda física, pero no registra su pago (`payments.manage`): quien coloca el pedido no confirma que se pagó (ADR-0161).
 
 ---
 
@@ -301,6 +306,8 @@ Criterios de aceptación:
 | UC-ORD-09 | Marcar orden pagada | Sistema (`PaymentCaptured`) | BR-ORD-08, BR-ORD-09 |
 | UC-ORD-10 | Expirar órdenes impagas | Sistema (job cada minuto) | BR-ORD-07 |
 | UC-ORD-11 | Consultar los datos bloqueados de un pedido | Staff (`orders.read-blocked`) | BR-PRIV-05, ADR-0070, ADR-0152 |
+| UC-ORD-12 | Cotizar un pedido en la tienda física | Staff (`orders.place`) | BR-ORD-19, ADR-0161 |
+| UC-ORD-13 | Colocar un pedido en la tienda física a nombre de un cliente | Staff (`orders.place`) | BR-ORD-01 a BR-ORD-06, BR-ORD-19, BR-USR-05, ADR-0161 |
 
 Criterios de aceptación:
 
@@ -319,8 +326,14 @@ Criterios de aceptación:
 - **UC-ORD-07:** rechazada desde Shipped o posterior; en PendingPayment pasa a Cancelled (terminal) y libera la reserva; en Paid o AwaitingManualFulfillment pasa a Cancelled e inicia el reembolso total (UC-PAY-03); en Paid, el staff con `inventory.write` puede elegir reintegrar el stock completo en la misma operación (ADR-0052); se audita.
 - **UC-ORD-08:** si hay stock, reserva, confirma y pasa a Paid; si se decide no surtir, se cancela según UC-ORD-07.
 - **UC-ORD-09:** con reserva vigente, la confirma y pasa a Paid; si la orden está Expired, aplica BR-ORD-09; idempotente ante eventos duplicados.
-- **UC-ORD-10:** una orden en PendingPayment pasa a Expired junto con su reserva, y sus líneas regresan al carrito del cliente (UC-CRT-08).
+- **UC-ORD-10:** una orden en PendingPayment pasa a Expired junto con su reserva, y sus líneas regresan al carrito del cliente (UC-CRT-08); las de una orden de la tienda física no regresan a ninguno (ADR-0161).
 - **UC-ORD-11 (ADR-0152):** exige un motivo, la reclamación o el requerimiento que se atiende; responde el email, la dirección y el destino del envío de una orden bloqueada, como se guardaron; rechaza una orden que no está bloqueada o que se anonimizó; cada consulta se audita con su motivo y sin los datos, y sin auditoría no hay respuesta.
+- **UC-ORD-12 y 13 (ADR-0161):**
+  - las líneas vienen en la solicitud, sin carrito: de 1 a 100, cada variante una vez, con 1 a 30 unidades;
+  - la cotización y la orden usan solo el stock del almacén que eligió el staff, que debe estar activo;
+  - la orden es de un cliente registrado con el email verificado, con una de sus direcciones o una escrita, o de un invitado con su email y la versión del aviso de privacidad que el staff le presentó;
+  - colocarla revisa, en este orden, al comprador, el almacén, la dirección, que todo sea vendible, el total y el stock, y exige `Idempotency-Key`;
+  - la orden queda en el canal `STORE`, con la cuenta de staff que la colocó y su almacén; se audita como `orders.place`, y la primera fila del historial lleva al staff.
 - **UC-ORD-01 a 03 (implementación, ADR-0132):**
   - la cotización marca las líneas que no se pueden vender y suma solo las demás;
   - colocar la orden bloquea el carrito y revisa, en este orden, al comprador, el carrito, la dirección, que todo sea vendible, el total y el stock;

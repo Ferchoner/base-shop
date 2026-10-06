@@ -37,6 +37,17 @@ Que el staff coloque pedidos a nombre de un cliente presente en la tienda físic
   - cada mutante corre con la suite que tiene su prueba.
 - **Reglas:** BR-USR-09 decía que solo un superadministrador crea staff; ahora sigue a ADR-0116 y ADR-0154, que lo permiten a quien tenga `staff.manage`.
 
+### Resultado del paso 1 (parte a, primer pull request)
+
+T-187 parte a (ADR-0161), sin el método del pago en tienda, que llega en el segundo pull request:
+
+- **Permiso y rol:** `orders.place`, que recibe también el Administrador, y el rol Vendedor, que no registra pagos.
+- **Rutas:** `POST /v1/admin/orders/quote` y `POST /v1/admin/orders`, con las líneas en la solicitud, para un cliente registrado o un invitado. Comparten con el checkout los precios, el envío, el comprador, la dirección y el código público.
+- **Almacén fijo:** la cotización, la reserva, el pago tardío y el reintento de surtido usan solo el almacén que eligió el staff. Uno inactivo responde 404 al colocar, y cuenta como falta de stock al reservar otra vez. Una prueba con dos conexiones comprueba que la última unidad de la tienda va a un solo pedido.
+- **La orden:** guarda `channel`, `placedBy` y `warehouseId`; `orders_channel_check` lo exige en la base. El historial lleva al staff, se audita como `orders.place`, y el listado filtra por canal y por quién la colocó.
+- **Sin carrito:** una orden vencida no restaura ninguno, y la anonimización borra la respuesta que guardó el staff, solo la de esa orden.
+- **Correo:** el de una orden de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
+
 ### Risks
 
 - **Fraude interno:** registrar un cobro sin recibir el dinero. Lo atenúan el permiso separado del cobro, la auditoría y el filtro por vendedor (ADR-0161).

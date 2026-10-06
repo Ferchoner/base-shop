@@ -179,6 +179,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] T-162 parte a: varios almacenes activos con prioridad; cada orden se reserva completa en el primero que la tiene toda y sale de él; la tienda suma los almacenes activos, y la cotización y el 409 marcan lo que le falta al almacén más cercano (ADR-0160)
 - [x] T-162 parte b: el staff crea almacenes, edita su prioridad y los desactiva para siempre; el reintegro vuelve al almacén de origen o al que indique el staff; ajustes en almacenes inactivos con `WAREHOUSE_TRANSFER`; envíos filtrados por almacén (ADR-0160). T-162 en DONE
 - [ ] Versión 1.2: ventas asistidas en la tienda física (paso 0 y T-187 en dos partes); plan en `SPRINT.md`
+- [x] T-187 parte a, primer pull request: el staff con `orders.place` cotiza y coloca pedidos a nombre de un cliente, con el stock solo del almacén que elige; la orden guarda el canal, quién la colocó y el almacén, y se audita; rol Vendedor (ADR-0161)
 
 ## Fuera del MVP
 

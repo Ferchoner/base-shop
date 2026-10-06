@@ -16,6 +16,7 @@ import {
   type OrderStatus,
   priceLine,
   type ReservationId,
+  type WarehouseId,
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
@@ -98,6 +99,21 @@ function saved(status: OrderStatus, paidAt: Date | null = null): Order {
   return Order.restore({ ...placed.snapshot, status, paidAt, version: 3 });
 }
 
+/** The same order, placed by the staff in the store with its stock from `warehouseId` (ADR-0161). */
+function inStore(
+  status: OrderStatus,
+  warehouseId: WarehouseId,
+  paidAt: Date | null = null,
+): Order {
+  return Order.restore({
+    ...saved(status, paidAt).snapshot,
+    channel: 'STORE',
+    sourceCartId: null,
+    placedBy: staff,
+    warehouseId,
+  });
+}
+
 /** The same order, anonymized while it had concluded (ADR-0067). */
 function anonymized(status: OrderStatus, paidAt: Date | null = null): Order {
   const order = saved('EXPIRED');
@@ -164,22 +180,33 @@ function fakeStock(
 ) {
   const calls: string[] = [];
   const restocks: unknown[] = [];
+  /** The warehouse each reservation asked for: `null` for any by priority. */
+  const reservedIn: (WarehouseId | null | undefined)[] = [];
   const reservation = newId<'Reservation'>() as ReservationId;
   const stock: OrderStock = {
     canFulfill: () => {
       throw new Error('Not used by the life of an order');
     },
-    reserve: (_orderId, lines: readonly StockLine[]) => {
+    isActiveWarehouse: () => {
+      throw new Error('Not used by the life of an order');
+    },
+    reserve: (_orderId, lines: readonly StockLine[], warehouseId) => {
       calls.push(`reserve ${lines.map((l) => l.quantity).join(',')}`);
+      reservedIn.push(warehouseId);
       if (options.available === false) {
         return Promise.reject(new Error('insufficient stock'));
       }
       return Promise.resolve({ id: reservation, expiresAt: NOW });
     },
-    reserveIfAvailable: (_orderId, lines: readonly StockLine[]) => {
+    reserveIfAvailable: (
+      _orderId,
+      lines: readonly StockLine[],
+      warehouseId,
+    ) => {
       calls.push(
         `reserveIfAvailable ${lines.map((l) => l.quantity).join(',')}`,
       );
+      reservedIn.push(warehouseId);
       return Promise.resolve(
         options.available === false
           ? null
@@ -210,12 +237,13 @@ function fakeStock(
       return Promise.resolve([]);
     },
   };
-  return { stock, calls, reservation, restocks };
+  return { stock, calls, reservation, restocks, reservedIn };
 }
 
 function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
   const orders = new InMemoryOrders(order);
-  const { stock, calls, reservation, restocks } = fakeStock(options);
+  const { stock, calls, reservation, restocks, reservedIn } =
+    fakeStock(options);
   const audited: AuditEntry[] = [];
   const audit = {
     record: (entry: AuditEntry) => {
@@ -274,6 +302,7 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
     reservation,
     restocks,
     published,
+    reservedIn,
   };
 }
 
@@ -470,6 +499,27 @@ describe('OrderLifecycle: retrying the fulfillment (UC-ORD-08)', () => {
     ]);
   });
 
+  it('reserves a store order again only in its warehouse, and any other by priority (ADR-0161)', async () => {
+    const warehouseId = newId<'Warehouse'>();
+    for (const [order, expected] of [
+      [
+        inStore('AWAITING_MANUAL_FULFILLMENT', warehouseId, CAPTURED),
+        warehouseId,
+      ],
+      [saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED), null],
+    ] as const) {
+      const { lifecycle, reservedIn } = setUp(order);
+
+      await lifecycle.retryFulfillment({
+        orderId: order.id,
+        actorId: staff,
+        version: 3,
+      });
+
+      expect(reservedIn).toEqual([expected]);
+    }
+  });
+
   it('checks the status and the version before reserving', async () => {
     const pending = saved('PENDING_PAYMENT');
     const waiting = saved('AWAITING_MANUAL_FULFILLMENT', CAPTURED);
@@ -573,6 +623,20 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
         status: 'PAID',
         reservationId: reservation,
       });
+    }
+  });
+
+  it('reserves a late payment of a store order again only in its warehouse (ADR-0161)', async () => {
+    const warehouseId = newId<'Warehouse'>();
+    for (const [order, expected] of [
+      [inStore('EXPIRED', warehouseId), warehouseId],
+      [saved('EXPIRED'), null],
+    ] as const) {
+      const { lifecycle, reservedIn } = setUp(order);
+
+      expect(await pay(lifecycle, order)).toBe('paid');
+
+      expect(reservedIn).toEqual([expected]);
     }
   });
 

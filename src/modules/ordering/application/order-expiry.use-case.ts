@@ -27,7 +27,8 @@ export interface OrderExpired extends DomainEvent<'OrderExpired'> {
   readonly orderId: OrderId;
   /** `null` for a guest order. */
   readonly customerId: CustomerId | null;
-  readonly sourceCartId: CartId;
+  /** `null` for a store order: it has no cart to go back to (ADR-0161). */
+  readonly sourceCartId: CartId | null;
   readonly lines: readonly {
     readonly variantId: VariantId;
     readonly quantity: number;

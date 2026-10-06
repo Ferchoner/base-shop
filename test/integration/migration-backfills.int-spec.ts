@@ -4,6 +4,7 @@ import { MigrationDatabase, migrationNames } from './migration-database.js';
 const ORDERING_RETENTION = '20261004120000_ordering_retention';
 const LAST_ACTIVE_AT = '20261004210000_identity_last_active_at';
 const WAREHOUSE_PRIORITY = '20261006120000_inventory_warehouse_priority';
+const STORE_ORDERS = '20261006150100_ordering_store_orders';
 
 const at = (day: number) => new Date(Date.UTC(2026, 0, day, 12));
 
@@ -18,6 +19,7 @@ describe('Migration backfills (T-300)', () => {
         ORDERING_RETENTION,
         LAST_ACTIVE_AT,
         WAREHOUSE_PRIORITY,
+        STORE_ORDERS,
       ]),
     );
   });
@@ -295,6 +297,64 @@ describe('Migration backfills (T-300)', () => {
           `UPDATE warehouses SET priority = 0 WHERE code = 'NORTE'`,
         ),
       ).rejects.toThrow(/warehouses_priority_check/);
+    });
+  });
+
+  describe(`${STORE_ORDERS} (T-187, ADR-0161)`, () => {
+    let database: MigrationDatabase;
+
+    beforeAll(async () => {
+      database = await MigrationDatabase.create();
+      await database.migrateUpTo(STORE_ORDERS);
+    });
+
+    afterAll(async () => {
+      await database.drop();
+    });
+
+    it('leaves every existing order as one of the online store, with its cart, and lets the staff place others', async () => {
+      const [online, cart] = [randomUUID(), randomUUID()];
+      // An order as the table stored it before the migration: every one came from a cart.
+      await database.client.query(
+        `INSERT INTO orders (id, public_code, contact_email, status, currency, subtotal, tax_total, shipping_cost,
+           shipping_tax_amount, shipping_tax_rate_bp, grand_total, shipping_address, delivery_min_business_days,
+           delivery_max_business_days, source_cart_id, privacy_notice_version, placed_at, payment_due_at, updated_at)
+         VALUES ($1, 'ABCD0001', 'cliente@example.com', 'PENDING_PAYMENT', 'MXN', 10000, 1000, 9900, 500, 1600,
+           19900, '{}'::jsonb, 3, 7, $2, '2026-09', $3, $3, $3)`,
+        [online, cart, at(1)],
+      );
+
+      await database.apply(STORE_ORDERS);
+
+      const { rows } = await database.client.query<{
+        channel: string;
+        source_cart_id: string | null;
+        placed_by: string | null;
+        warehouse_id: string | null;
+      }>(
+        'SELECT channel, source_cart_id, placed_by, warehouse_id FROM orders WHERE id = $1',
+        [online],
+      );
+      expect(rows).toEqual([
+        {
+          channel: 'ONLINE',
+          source_cart_id: cart,
+          placed_by: null,
+          warehouse_id: null,
+        },
+      ]);
+      // A store order, without a cart, by a staff member and from a warehouse.
+      await database.client.query(
+        `UPDATE orders SET channel = 'STORE', source_cart_id = NULL, placed_by = $2, warehouse_id = $3
+          WHERE id = $1`,
+        [online, randomUUID(), randomUUID()],
+      );
+      await expect(
+        database.client.query(
+          'UPDATE orders SET placed_by = NULL WHERE id = $1',
+          [online],
+        ),
+      ).rejects.toThrow(/orders_channel_check/);
     });
   });
 });

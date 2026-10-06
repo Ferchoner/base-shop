@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   'orders.manage': 'Cancelar pedidos y resolver los que esperan surtido manual',
   'orders.read-blocked':
     'Consultar los datos personales bloqueados de un pedido, con motivo y auditado',
+  'orders.place': 'Colocar pedidos a nombre de un cliente en la tienda física',
   // Payments
   'payments.manage': 'Registrar pagos manuales y emitir reembolsos',
   // Shipping

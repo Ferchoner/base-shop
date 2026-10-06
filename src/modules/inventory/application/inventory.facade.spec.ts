@@ -791,4 +791,129 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
       }
     });
   });
+
+  describe('the warehouse the staff chose (ADR-0161)', () => {
+    const requests = [
+      { variantId: shirt, quantity: 2 },
+      { variantId: cap, quantity: 1 },
+    ];
+
+    it('reserves only in that warehouse, though the first by priority holds the order too', async () => {
+      const reservations = new FakeReservations();
+
+      await facade(reservations).reserve(orderId, requests, backup);
+
+      expect(reservations.reserved).toEqual([
+        { warehouseId: backup, requests },
+      ]);
+    });
+
+    it('reserves nothing elsewhere when that warehouse is short, and answers what it leaves out', async () => {
+      const reservations = new FakeReservations();
+      const { queries } = availability([
+        {
+          id: warehouseId,
+          units: new Map([
+            [shirt, 10],
+            [cap, 10],
+          ]),
+        },
+        { id: backup, units: new Map([[shirt, 2]]) },
+      ]);
+
+      await expect(
+        facade(reservations, queries).reserve(orderId, requests, backup),
+      ).rejects.toThrow(new InsufficientStockError([cap]));
+      expect(reservations.reserved).toEqual([]);
+    });
+
+    it('answers what that warehouse leaves out when another order took its units first', async () => {
+      const reservations = new FakeReservations(
+        null,
+        new Map([[backup, [cap]]]),
+      );
+      const reads: VariantId[][] = [];
+      let first = true;
+      const queries = {
+        activeStock: (ids: readonly VariantId[]): Promise<WarehouseStock[]> => {
+          reads.push([...ids]);
+          // One cap when the plan is made; none once the other order took it.
+          const caps = first ? 1 : 0;
+          first = false;
+          return Promise.resolve([
+            {
+              warehouseId: backup,
+              available: new Map([
+                [shirt, 5],
+                [cap, caps],
+              ]),
+            },
+          ]);
+        },
+      } as unknown as InventoryQueries;
+
+      await expect(
+        facade(reservations, queries).reserve(orderId, requests, backup),
+      ).rejects.toThrow(new InsufficientStockError([cap]));
+      expect(reservations.reserved).toEqual([
+        { warehouseId: backup, requests },
+      ]);
+      expect(reads).toHaveLength(2);
+    });
+
+    it('answers per variant what that warehouse alone fulfills, and none when it is not active', async () => {
+      const { queries } = availability([
+        {
+          id: warehouseId,
+          units: new Map([
+            [shirt, 10],
+            [cap, 10],
+          ]),
+        },
+        { id: backup, units: new Map([[shirt, 2]]) },
+      ]);
+
+      expect(
+        await facade(new FakeReservations(), queries).canFulfillTogether(
+          requests,
+          backup,
+        ),
+      ).toEqual(
+        new Map([
+          [shirt, true],
+          [cap, false],
+        ]),
+      );
+      expect(
+        await facade(new FakeReservations(), queries).canFulfillTogether(
+          requests,
+          newId<'Warehouse'>(),
+        ),
+      ).toEqual(
+        new Map([
+          [shirt, false],
+          [cap, false],
+        ]),
+      );
+    });
+
+    it('tells whether a warehouse exists and is active', async () => {
+      const inactive = newId<'Warehouse'>();
+      const warehouses = new Warehouses([
+        warehouseOf(warehouseId, 'ACTIVE'),
+        warehouseOf(inactive, 'INACTIVE'),
+      ]);
+      const inventory = facade(
+        new FakeReservations(),
+        stocked().queries,
+        warehouses,
+      );
+
+      expect(await inventory.isActiveWarehouse(warehouseId)).toBe(true);
+      expect(await inventory.isActiveWarehouse(inactive)).toBe(false);
+      expect(await inventory.isActiveWarehouse(newId<'Warehouse'>())).toBe(
+        false,
+      );
+    });
+  });
 });

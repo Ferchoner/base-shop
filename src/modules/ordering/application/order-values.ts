@@ -1,6 +1,8 @@
 // What the presentation layer needs of Ordering's domain, which it cannot import (ADR-0103).
 export {
+  ORDER_CHANNELS,
   ORDER_STATUSES,
+  type OrderChannel,
   type OrderStatus,
   RESTOCK_REASONS,
   type RestockReason,

@@ -67,6 +67,9 @@ const ADMIN_SUMMARY_FIELDS = {
   ...SUMMARY_FIELDS,
   orderNumber: true,
   version: true,
+  channel: true,
+  placedBy: true,
+  warehouseId: true,
   anonymizedAt: true,
   blockedAt: true,
   shippingAddress: true,
@@ -192,6 +195,8 @@ export class PrismaOrderingQueries extends OrderingQueries {
           : filter.hasPendingRefund
             ? PENDING_REFUND
             : { NOT: PENDING_REFUND },
+        filter.channel === undefined ? {} : { channel: filter.channel },
+        filter.placedBy === undefined ? {} : { placedBy: filter.placedBy },
       ],
     };
     const [rows, totalItems] = await Promise.all([
@@ -331,6 +336,10 @@ function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {
     contactEmail: blocked ? null : row.contactEmail,
     orderNumber: Number(row.orderNumber),
     version: row.version,
+    channel: row.channel,
+    placedBy: row.placedBy === null ? null : toId<'User'>(row.placedBy),
+    warehouseId:
+      row.warehouseId === null ? null : toId<'Warehouse'>(row.warehouseId),
     anonymizedAt: row.anonymizedAt,
     blockedAt: row.blockedAt,
     shippingAddress: blocked ? withoutIdentifyingFields(address) : address,

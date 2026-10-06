@@ -42,8 +42,8 @@ export class PrismaOrderRepository extends OrderRepository {
         id, public_code, customer_id, contact_email, status, currency,
         subtotal, tax_total, shipping_cost, shipping_tax_amount, shipping_tax_rate_bp,
         delivery_min_business_days, delivery_max_business_days, discount_total, grand_total,
-        shipping_address, reservation_id, source_cart_id, privacy_notice_version,
-        placed_at, payment_due_at, created_at, updated_at)
+        shipping_address, reservation_id, channel, source_cart_id, placed_by, warehouse_id,
+        privacy_notice_version, placed_at, payment_due_at, created_at, updated_at)
       VALUES (
         ${o.id}::uuid, ${o.publicCode}, ${o.customerId}::uuid, ${o.contactEmail},
         ${o.status}::order_status, ${totals.grandTotal.currency},
@@ -52,7 +52,8 @@ export class PrismaOrderRepository extends OrderRepository {
         ${o.deliveryMinBusinessDays}, ${o.deliveryMaxBusinessDays},
         ${totals.discountTotal.amount}, ${totals.grandTotal.amount},
         ${JSON.stringify(o.shippingAddress)}::jsonb, ${o.reservationId}::uuid,
-        ${o.sourceCartId}::uuid, ${o.privacyNoticeVersion},
+        ${o.channel}::order_channel, ${o.sourceCartId}::uuid, ${o.placedBy}::uuid,
+        ${o.warehouseId}::uuid, ${o.privacyNoticeVersion},
         ${o.placedAt}, ${o.paymentDueAt}, ${o.placedAt}, ${o.placedAt})
       ON CONFLICT (public_code) DO NOTHING`;
     if (inserted === 0) return false;
@@ -78,8 +79,9 @@ export class PrismaOrderRepository extends OrderRepository {
         orderId: o.id,
         fromStatus: null,
         toStatus: o.status,
-        // The customer who placed it; a guest is not an account.
-        actorId: o.customerId,
+        // The staff member who placed it in the store, or the customer who placed it online; a guest is not an
+        // account (ADR-0161).
+        actorId: o.placedBy ?? o.customerId,
         occurredAt: o.placedAt,
       },
     });
@@ -246,7 +248,12 @@ function toSnapshot(row: OrderRow) {
         ? null
         : toId<'Reservation'>(row.reservationId),
     paymentDueAt: row.paymentDueAt,
-    sourceCartId: toId<'Cart'>(row.sourceCartId),
+    channel: row.channel,
+    sourceCartId:
+      row.sourceCartId === null ? null : toId<'Cart'>(row.sourceCartId),
+    placedBy: row.placedBy === null ? null : toId<'User'>(row.placedBy),
+    warehouseId:
+      row.warehouseId === null ? null : toId<'Warehouse'>(row.warehouseId),
     placedAt: row.placedAt,
     paidAt: row.paidAt,
     shippedAt: row.shippedAt,

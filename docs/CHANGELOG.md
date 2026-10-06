@@ -4,6 +4,13 @@
 
 - Plan de la versión 1.2 (nuevo ADR-0161): ventas asistidas en la tienda física. El staff coloca pedidos a nombre de un cliente presente, con envío o como venta de mostrador. Cada pedido registra quién lo colocó y por qué canal y sale del almacén de la tienda, y el pago en tienda deja de ser solo para pruebas. Se implementa en T-187, en dos partes. La validación legal de que el staff capture datos personales queda en la lista de `PROJECT.md` §9.
 - Paso 0 de la versión 1.2: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.1, y BR-USR-09 sigue a ADR-0116 y ADR-0154.
+- T-187 parte a, primer pull request (ADR-0161): pedidos del staff en la tienda física.
+  - `POST /v1/admin/orders/quote` cotiza y `POST /v1/admin/orders` coloca un pedido a nombre de un cliente registrado o de un invitado (UC-ORD-12 y UC-ORD-13), con el permiso nuevo `orders.place`, `Idempotency-Key` y hasta 30 por cuenta de staff cada 10 minutos (`RATE_LIMIT_ADMIN_PLACE_ORDER`).
+  - El stock sale solo del almacén `warehouseId`, también al reservarse otra vez; uno inactivo responde 404.
+  - `AdminOrder` agrega `channel`, `placedBy` y `warehouseId`, y `GET /v1/admin/orders` filtra por `channel` y `placedBy`.
+  - Rol sembrado Vendedor, y `orders.place` para el Administrador.
+  - Una variante que no existe responde 404 en las cotizaciones, en lugar de un error 500.
+  - El correo de un pedido de la tienda no dice cómo pagar en la tienda ni hasta cuándo se apartan los productos.
 
 ## 1.1.0 (2026-10-06)
 

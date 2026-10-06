@@ -115,14 +115,14 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .expect(200)
         .expect('Cache-Control', 'no-store');
 
-      expect(response.body.data).toHaveLength(17);
+      expect(response.body.data).toHaveLength(18);
       expect(response.body.data[0]).toEqual({
         code: 'catalog.read',
         description:
           'Ver el catálogo administrativo, incluidos borradores y archivados',
       });
       // The last one, of the platform (ADR-0150).
-      expect(response.body.data[16]).toEqual({
+      expect(response.body.data[17]).toEqual({
         code: 'events.manage',
         description: 'Ver y reintentar las entregas de eventos de dominio',
       });
@@ -131,6 +131,12 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         code: 'orders.read-blocked',
         description:
           'Consultar los datos personales bloqueados de un pedido, con motivo y auditado',
+      });
+      // For the orders of the physical store (ADR-0161).
+      expect(response.body.data).toContainEqual({
+        code: 'orders.place',
+        description:
+          'Colocar pedidos a nombre de un cliente en la tienda física',
       });
       await http()
         .get('/v1/admin/identity/permissions')
@@ -189,9 +195,10 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .set(asSuperadmin())
         .expect(200);
 
+      // The seeded roles, Vendedor since the physical store (ADR-0161).
       expect(response.body.data.map((r: { name: string }) => r.name)).toEqual([
+        'Vendedor',
         'Superadministrador',
-        'Operador',
       ]);
       expect(response.body.meta).toMatchObject({ page: 1, pageSize: 2 });
     });

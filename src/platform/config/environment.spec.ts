@@ -249,6 +249,7 @@ describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
       RATE_LIMIT_ORDER_ACCESS_IP: '10/1h',
       RATE_LIMIT_PLACE_ORDER: '10/10m',
       RATE_LIMIT_PLACE_ORDER_EMAIL: '5/1h',
+      RATE_LIMIT_ADMIN_PLACE_ORDER: '30/10m',
     });
     // Failed logins per email are no longer limited (ADR-0154).
     expect(environment).not.toHaveProperty('RATE_LIMIT_LOGIN_EMAIL');

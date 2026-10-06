@@ -140,7 +140,10 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       shippingAddress: ADDRESS,
       reservationId: reservation.id,
       paymentDueAt: DUE,
+      channel: 'ONLINE',
       sourceCartId,
+      placedBy: null,
+      warehouseId: null,
       placedAt: NOW,
       paidAt: null,
       shippedAt: null,
@@ -153,6 +156,49 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
       blockedAt: null,
       version: 1,
     });
+  });
+
+  it('is placed in the store by a staff member, without a cart and with the warehouse they chose (ADR-0161)', () => {
+    const placedBy = newId<'User'>();
+    const warehouseId = newId<'Warehouse'>();
+
+    const order = Order.placeInStore({
+      id: newId<'Order'>(),
+      publicCode: 'K7M4Q9XA' as PublicCode,
+      buyer: guest,
+      lines: [line(59_900, 2)],
+      shipping: SHIPPING,
+      shippingAddress: ADDRESS,
+      reservation: { id: newId<'Reservation'>(), expiresAt: DUE },
+      placedBy,
+      warehouseId,
+      now: NOW,
+    });
+
+    expect(order.status).toBe('PENDING_PAYMENT');
+    expect(order.snapshot).toMatchObject({
+      channel: 'STORE',
+      sourceCartId: null,
+      placedBy,
+      warehouseId,
+      contactEmail: 'cliente@example.com',
+      privacyNoticeVersion: '2026-09',
+    });
+    // The same rules as an order of the online store.
+    expect(() =>
+      Order.placeInStore({
+        id: newId<'Order'>(),
+        publicCode: 'K7M4Q9XA' as PublicCode,
+        buyer: guest,
+        lines: [],
+        shipping: SHIPPING,
+        shippingAddress: ADDRESS,
+        reservation: { id: newId<'Reservation'>(), expiresAt: DUE },
+        placedBy,
+        warehouseId,
+        now: NOW,
+      }),
+    ).toThrow(EmptyCartError);
   });
 
   it("keeps the customer's account email, and the privacy notice only for a guest (ADR-0067)", () => {

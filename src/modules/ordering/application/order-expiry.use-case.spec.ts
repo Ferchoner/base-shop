@@ -225,6 +225,27 @@ describe('OrderExpiry (UC-ORD-10, UC-INV-08, ADR-0136)', () => {
     expect(error).not.toHaveBeenCalled();
   });
 
+  it('announces an order the staff placed in the store without a cart, so none gets its lines (ADR-0161)', async () => {
+    const order = Order.restore({
+      ...saved().snapshot,
+      channel: 'STORE',
+      sourceCartId: null,
+      placedBy: newId<'User'>(),
+      warehouseId: newId<'Warehouse'>(),
+    });
+    const { expiry, published } = setUp([order]);
+
+    expect(await expiry.expireDue()).toEqual({ expired: 1, failed: 0 });
+
+    expect(published).toEqual([
+      expect.objectContaining({
+        eventType: 'OrderExpired',
+        orderId: order.id,
+        sourceCartId: null,
+      }),
+    ]);
+  });
+
   it('leaves an order that was paid, cancelled or not due yet when it was locked, or that is gone', async () => {
     const paid = saved('PAID');
     const cancelled = saved('CANCELLED');

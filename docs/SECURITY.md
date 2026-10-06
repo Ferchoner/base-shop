@@ -97,7 +97,7 @@ RBAC (ADR-0017):
 - Rutas administrativas bajo `/v1/admin/{contexto}`: un guard por grupo exige token de staff y el permiso del contexto.
 - Los demás contextos no consultan tablas de Identity.
 - La cancelación y gestión de órdenes requiere el permiso `orders.manage`, reservado a administradores y roles de nivel alto (ADR-0021).
-- Roles iniciales (ADR-0043): Superadministrador (todos los permisos), Administrador (todos excepto `staff.manage`) y Operador (catálogo, precios, inventario, lectura de pedidos, envíos y lectura de clientes).
+- Roles iniciales (ADR-0043): Superadministrador (todos los permisos), Administrador (todos excepto `staff.manage`) y Operador (catálogo, precios, inventario, lectura de pedidos, envíos y lectura de clientes). El rol Vendedor (ADR-0161) coloca pedidos en la tienda física a nombre de un cliente, pero no registra su pago: quien coloca un pedido no confirma que se pagó. Cada pedido del staff queda con la cuenta que lo colocó y se audita.
 - Las cuentas son de tipo cliente o staff; los clientes nunca tienen roles.
 - El primer superadministrador se crea con un script manual; no hay credenciales predeterminadas en el repositorio.
 - El staff se autentica solo con contraseña; el segundo factor (2FA) queda como mejora a mediano o largo plazo, con el diseño preparado (ADR-0048).
@@ -170,6 +170,7 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 | Consulta de pedido, recompra de invitado y uso del enlace de acceso | 10 por IP en 15 minutos (ADR-0071, ADR-0148) |
 | Enlace de acceso a los pedidos de invitado | 3 por email y 10 por IP por hora (ADR-0148) |
 | Colocar orden | 10 por usuario o carrito en 10 minutos; las de invitado, además, 5 por email de contacto por hora (ADR-0154) |
+| Colocar orden en la tienda física | 30 por cuenta de staff en 10 minutos: cada orden aparta stock (ADR-0161) |
 | Todos los endpoints, también los anteriores | 100 solicitudes por minuto por IP (ADR-0154) |
 
 - La tabla de referencia por endpoint está en `API_SPEC.md` (sección 7).
@@ -184,9 +185,9 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 
 ADR-0067 (Ley Federal de Protección de Datos Personales en Posesión de los Particulares de 2025; la validación legal completa corresponde a un especialista):
 
-- Se guarda la versión del aviso de privacidad presentada en el registro y en el checkout de invitado.
+- Se guarda la versión del aviso de privacidad presentada en el registro y en el checkout de invitado. En una orden de invitado que el staff colocó en la tienda física, también la cuenta que capturó los datos (ADR-0161); la validación legal de esa captura está en la lista de `PROJECT.md` §9.
 - Derechos ARCO por canal externo; el staff ejecuta las acciones en el sistema.
-- Anonimización de clientes y compradores invitados, implementada en T-132 (ADR-0145): no deja datos personales del comprador en sus tablas, en las respuestas guardadas por idempotencia ni en los enlaces de acceso a sus pedidos (ADR-0148), y se audita sin valores.
+- Anonimización de clientes y compradores invitados, implementada en T-132 (ADR-0145): no deja datos personales del comprador en sus tablas, en las respuestas guardadas por idempotencia (también la que guardó el staff al colocar una orden en la tienda física, ADR-0161) ni en los enlaces de acceso a sus pedidos (ADR-0148), y se audita sin valores.
 - Logs y auditoría sin valores de datos personales.
 - Eventos de dominio guardados (ADR-0150) sin datos personales: el que lleva uno se publica como volátil y no se guarda (`OrderAccessRequested`), y el último error de cada entrega se guarda redactado como los logs. El staff las consulta y las reintenta con `events.manage`, auditado.
 - Logs (ADR-0097): nunca se registran cuerpos, encabezados, tokens ni cadenas de consulta. Como red de seguridad, el logger reemplaza por `[redacted]` los correos, los JWT y los tokens `Bearer` que aparezcan en mensajes o stack traces, y en formato texto escapa los saltos de línea para que nadie pueda inyectar líneas falsas.

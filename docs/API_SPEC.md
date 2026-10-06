@@ -106,12 +106,12 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Despachar el envío (`POST /v1/admin/shipping/shipments/{shipmentId}/dispatch`) | `ShipmentDispatched` | La orden pasa a SHIPPED, con `shippedAt` igual al despacho (ADR-0141), y se envía el correo "Orden enviada" (ADR-0143) | Estado de la orden; correo del cliente |
 | Marcar el envío como entregado (`POST …/deliver`) | `ShipmentDelivered` | La orden pasa a DELIVERED, con `deliveredAt` igual a la entrega; si seguía en PAID, pasa antes por SHIPPED (ADR-0141) | Estado de la orden |
 | Completar un reembolso (`POST /v1/admin/payments/{paymentId}/refunds/manual`; en el futuro, el proveedor) | `RefundCompleted` | La orden pasa a REFUNDED, con `refundedAt` igual a la fecha del reembolso, y deja de tener `hasPendingRefund` (ADR-0051, ADR-0135), y se envía el correo "Reembolso completado" (ADR-0143) | Estado de la orden; correo del cliente |
-| Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida", con las instrucciones de pago en tienda si el pago manual está habilitado (ADR-0143) | Correo del cliente |
+| Colocar la orden (`POST /v1/orders`, `POST /v1/me/orders`, y el staff en la tienda física con `POST /v1/admin/orders`) | `OrderPlaced` | Se envía el correo "Orden recibida", con las instrucciones de pago en tienda si el pago manual está habilitado (ADR-0143). La de una orden `STORE` no las lleva, ni la fecha hasta la que se apartan los productos: el cliente está en la tienda (ADR-0161) | Correo del cliente |
 | Cancelar la orden (`POST /v1/admin/orders/{orderId}/cancel`) | `OrderCancelled` | Se envía el correo "Orden cancelada", que dice si el reembolso está en proceso (ADR-0143) | Correo del cliente |
 | Pedir un enlace de acceso a los pedidos de invitado (`POST /v1/orders/access-links`, ADR-0148) | `OrderAccessRequested` | Si el email tiene órdenes de invitado, se emite el enlace, que invalida los anteriores del email, y se envía el correo "Consulta tus pedidos"; si no, nada | Correo del invitado |
 | Pedir un enlace de recuperación (`POST /v1/auth/password-reset/request`, ADR-0154) | `PasswordResetRequested` | Si el email es de una cuenta que puede iniciar sesión, se emite el enlace, que invalida los anteriores, y se envía el correo "Restablece tu contraseña"; si no, nada | Correo de la cuenta |
 | Pedir otro enlace de verificación (`POST /v1/auth/email-verification/resend`, ADR-0154) | `EmailVerificationRequested` | Si el email es de un cliente activo sin verificar, se emite el enlace, que invalida los anteriores, y se envía el correo "Confirma tu correo"; si no, nada | Correo del cliente |
-| Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054, ADR-0137): el invitado, o el cliente sin carrito activo, recupera el carrito de la orden activo otra vez; el cliente con carrito activo recibe en él las líneas | Carrito del cliente o del invitado |
+| Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054, ADR-0137): el invitado, o el cliente sin carrito activo, recupera el carrito de la orden activo otra vez; el cliente con carrito activo recibe en él las líneas. Una orden `STORE` no salió de un carrito, y sus líneas no vuelven a ninguno (ADR-0161) | Carrito del cliente o del invitado |
 | Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
 - Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva, el inicio del reembolso y la cancelación del envío (ADR-0140).
@@ -148,13 +148,13 @@ Encabezados de seguridad (ADR-0086): toda respuesta lleva `X-Content-Type-Option
 Reglas:
 
 - Un token de cliente en `/v1/admin` → 403 `forbidden`.
-- Un token de staff en rutas "Solo cliente" de `/v1/me` → 403 `staff-cannot-purchase` (E-09) en carrito y checkout, 403 `forbidden` en el resto.
+- Un token de staff en rutas "Solo cliente" de `/v1/me` → 403 `staff-cannot-purchase` (E-09) en carrito y checkout, 403 `forbidden` en el resto. El staff no compra para sí: coloca órdenes a nombre de un cliente con `POST /v1/admin/orders` (ADR-0161).
 - **Cambio de contraseña obligatorio:** mientras un staff tenga `mustChangePassword`, cualquier ruta excepto `GET /v1/me`, `POST /v1/me/password` y `POST /v1/auth/logout` responde 403 `password-change-required` (E-18) (ADR-0071).
 - Un recurso de otro propietario se responde como inexistente (404), nunca como 403, para no revelar su existencia.
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150 y `orders.read-blocked` de ADR-0152). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152 y `orders.place` de ADR-0161). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -165,6 +165,7 @@ Obligatoria en:
 - `POST /v1/orders` y `POST /v1/me/orders` (colocar orden).
 - `POST /v1/orders/{publicCode}/payments` y `POST /v1/me/orders/{publicCode}/payments` (iniciar pago).
 - `POST /v1/admin/orders/{orderId}/restocks` (reintegrar stock, ADR-0142).
+- `POST /v1/admin/orders` (colocar una orden en la tienda física, ADR-0161).
 
 | Situación | Respuesta |
 |---|---|
@@ -174,7 +175,7 @@ Obligatoria en:
 | Misma llave con la solicitud original en proceso | 409 `idempotency-request-in-progress` con `Retry-After` |
 
 - Formato: 1 a 255 caracteres; se recomienda UUID. Una llave vacía responde 400 `idempotency-key-missing`; una de más de 255 caracteres, 400 `validation-error`.
-- Alcance: usuario autenticado o, para invitados, el `cartId` del cuerpo; y el endpoint, identificado por su ruta declarada (por ejemplo, `POST /v1/orders/{publicCode}/payments`).
+- Alcance: usuario autenticado o, para invitados, el `cartId` del cuerpo; y el endpoint, identificado por su ruta declarada (por ejemplo, `POST /v1/orders/{publicCode}/payments`). Las rutas del staff usan la cuenta del staff.
 - "Mismo contenido" compara los parámetros de la ruta y el cuerpo, sin importar el orden de los campos. Usar la misma llave para pagar otra orden responde 422 (ADR-0099).
 - Se guardan éxitos (estado, cuerpo y `Location`) y errores de negocio; no errores de validación (tampoco los que encuentra el dominio, como un estado que no existe, ADR-0132), 5xx, 401 ni 429, así que tras ellos se puede reintentar con la misma llave. Un error de negocio repetido lleva un `correlationId` nuevo. Retención de 24 horas.
 - El 409 `idempotency-request-in-progress` lleva `Retry-After: 2`. Si la solicitud original quedó abandonada (por ejemplo, porque el servidor se reinició) y sigue "en proceso" después de 60 segundos, la siguiente solicitud con la misma llave y el mismo contenido se ejecuta de nuevo; las reglas del dominio impiden duplicar la orden o el pago (ADR-0099).
@@ -273,7 +274,7 @@ Error de validación:
 | `invalid-webhook-signature` | 401 | E-24 | Firma de webhook inválida | — |
 | `forbidden` | 403 | E-03 | Falta el permiso o el tipo de cuenta no corresponde | — |
 | `email-not-verified` | 403 | E-08 | Cliente sin email verificado coloca una orden | — |
-| `staff-cannot-purchase` | 403 | E-09 | Cuenta de staff en carrito o checkout | — |
+| `staff-cannot-purchase` | 403 | E-09 | Cuenta de staff en el carrito o el checkout de la tienda en línea | — |
 | `password-change-required` | 403 | E-18 | Staff con cambio de contraseña pendiente | — |
 | `manual-payments-disabled` | 403 | E-23 | Pago o reembolso manual con la función deshabilitada | — |
 | `not-found` | 404 | E-04 | Recurso inexistente, ajeno o consulta de invitado sin coincidencia | — |
@@ -329,6 +330,7 @@ Cada endpoint lista solo sus errores específicos.
 | 10 por IP en 15 minutos | `POST /v1/orders/lookup`, `POST /v1/orders/reorder`, `POST /v1/orders/access` |
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 5 por email de contacto por hora | `POST /v1/orders` (ADR-0154) |
+| 30 por cuenta de staff en 10 minutos | `POST /v1/admin/orders` (ADR-0161) |
 | 100 por minuto por IP | Todos los endpoints, también los anteriores (ADR-0154) |
 
 Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`. Los webhooks quedan fuera del límite general (ADR-0071): los protege la verificación de firma.
@@ -338,10 +340,10 @@ Detalles del mecanismo (ADR-0102):
 - En el login solo cuentan los intentos **fallidos**, por IP; un login correcto no gasta el límite. No hay límite por email: dejaría a cualquiera impedir que el titular entre (ADR-0154). En el cambio de contraseña cuentan solo las contraseñas actuales incorrectas, por usuario.
 - Los límites propios se suman al general por IP, porque cuentan por claves que elige el cliente (ADR-0154).
 - Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: la consulta, la recompra de invitado y el uso del enlace de acceso comparten el mismo contador por IP.
-- Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden); `contactEmail` (órdenes de invitado por email).
+- Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden); `contactEmail` (órdenes de invitado por email); cuenta de staff (órdenes en la tienda física). Cada orden del staff aparta stock, así que una cuenta tomada no puede apartarlo todo.
 - El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
 - Una ruta inexistente responde 404 sin gastar el límite general.
-- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER` y `RATE_LIMIT_PLACE_ORDER_EMAIL`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL` y `RATE_LIMIT_ADMIN_PLACE_ORDER`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
 
 ---
 
@@ -535,7 +537,9 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ### 8.9 `AdminOrder`
 
-`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
+`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `channel`, `placedBy`, `warehouseId`, `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
+
+`channel` dice dónde se colocó la orden (ADR-0161): `ONLINE`, en la tienda en línea desde un carrito, o `STORE`, en la tienda física, donde el staff la colocó a nombre del cliente. En una orden `STORE`, `placedBy` es la cuenta de staff que la colocó y `warehouseId` el almacén que eligió, del único que sale su stock; en una `ONLINE`, los dos son `null`.
 
 `blockedAt` dice cuándo se bloquearon los datos personales de la orden (ADR-0151). Desde entonces, `contactEmail` es `null` y `shippingAddress` sigue §8.2, como en una anonimizada, también en el listado.
 
@@ -1243,6 +1247,8 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/orders/access` | Público | UC-ORD-05 |
 | GET | `/v1/admin/orders` | `orders.read` | UC-ORD-06 |
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
+| POST | `/v1/admin/orders/quote` | `orders.place` | UC-ORD-12 (ADR-0161) |
+| POST | `/v1/admin/orders` | `orders.place` + `Idempotency-Key` | UC-ORD-13 (ADR-0161) |
 | POST | `/v1/admin/orders/{orderId}/cancel` | `orders.manage` (+ `inventory.write` con reintegro) | UC-ORD-07 |
 | POST | `/v1/admin/orders/{orderId}/retry-fulfillment` | `orders.manage` | UC-ORD-08 |
 | POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` + `Idempotency-Key` | UC-INV-09 (ADR-0132, ADR-0142) |
@@ -1356,7 +1362,7 @@ Para el invitado que perdió el código de su pedido (ADR-0077). Implementado en
 - Rate limit: comparte con la consulta y la recompra de invitado 10 por IP en 15 minutos.
 - El staff puede usar las dos rutas, como la consulta.
 
-### 15.7 Administración de órdenes (UC-ORD-06 a 08)
+### 15.7 Administración de órdenes (UC-ORD-06 a 08, 12 y 13)
 
 **`GET /v1/admin/orders`** — `orders.read`. Paginado.
 
@@ -1368,10 +1374,31 @@ Para el invitado que perdió el código de su pedido (ADR-0077). Implementado en
 | `guest` | `true` = solo invitados |
 | `placedFrom`, `placedTo` | Fechas |
 | `hasPendingRefund` | `true` = Cancelled con pago capturado y sin reembolso completado (ADR-0051) |
+| `channel` | `ONLINE` o `STORE` (ADR-0161) |
+| `placedBy` | Órdenes que colocó en la tienda física una cuenta de staff (ADR-0161) |
 
 Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: página de `AdminOrder` resumido (sin líneas ni historial).
 
 **`GET /v1/admin/orders/{orderId}`** — `orders.read`. 200 `AdminOrder`.
+
+**`POST /v1/admin/orders/quote`** — `orders.place`. Cotiza un pedido en la tienda física (UC-ORD-12, ADR-0161).
+
+- Request: `{ "lines": [ { "variantId", "quantity" } ], "warehouseId" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera.
+- 200 `CheckoutQuote` (§8.7), como la cotización de un carrito; `canFulfill` dice si cada línea cabe con las demás en el almacén `warehouseId`.
+- Errores: 404 si el almacén no existe o está inactivo, o si una variante no existe; 400 `validation-error`.
+
+**`POST /v1/admin/orders`** — `orders.place`. Coloca una orden en la tienda física, a nombre de un cliente presente (UC-ORD-13, ADR-0161). Exige `Idempotency-Key`, con el alcance de la cuenta de staff. Hasta 30 por cuenta de staff cada 10 minutos.
+
+- Request: `{ "lines", "warehouseId", "customerId" | "contactEmail" + "privacyNoticeVersion", "addressId" | "shippingAddress", "expectedTotal" }`.
+  - Exactamente uno de `customerId` y `contactEmail` (`exactlyOneBuyer`).
+  - Un cliente registrado debe estar activo y con el email verificado; su contacto es el email de su cuenta, y no envía `privacyNoticeVersion` (`onlyForGuest`), porque aceptó el aviso al crear su cuenta.
+  - Un invitado envía `contactEmail` y la versión del aviso de privacidad que el staff le presentó (`privacyNoticeVersion`, 1–50 caracteres).
+  - Exactamente uno de `addressId` y `shippingAddress` (`exactlyOneAddress`); `addressId`, una dirección guardada del cliente, solo con `customerId` (`onlyWithCustomer`).
+  - `lines` como en la cotización.
+- Recalcula todo sin cache, como el checkout. Reserva todo el stock en el almacén `warehouseId`, nunca en otro, o nada, y crea la orden `STORE` en PENDING_PAYMENT, con `placedBy`, en una sola transacción. La orden no tiene carrito: si vence, sus líneas no vuelven a ninguno, y la recompra del staff de una orden de invitado responde 409 `source-cart-unavailable`.
+- El pago tardío y el reintento de surtido reservan otra vez solo en ese almacén; si ya está inactivo, cuenta como falta de stock.
+- 201 `AdminOrder`, con `Location: /v1/admin/orders/{orderId}`. Se audita como `orders.place`, solo con el estado, el canal y el almacén. Se publica `OrderPlaced`.
+- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable`, `total-mismatch` con `currentTotal`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
 
 **`POST /v1/admin/orders/{orderId}/cancel`** — `orders.manage`.
 
@@ -1636,7 +1663,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
-| UC-ORD-01 a 08, 11 | Sección 15 |
+| UC-ORD-01 a 08, 11 a 13 | Sección 15 |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
 | UC-PAY-01, 02, 04, 06, 07 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |

@@ -148,7 +148,12 @@ export class OrderLifecycle {
       assertVersion(order.version, input.version);
       // Checked before reserving, so another status never answers about the stock.
       order.assertFulfillable();
-      const reservation = await this.stock.reserve(order.id, linesOf(order));
+      // A store order only takes the stock of its warehouse (ADR-0161).
+      const reservation = await this.stock.reserve(
+        order.id,
+        linesOf(order),
+        order.snapshot.warehouseId,
+      );
       await this.stock.commit(order.id);
       const before = order.status;
       const now = this.clock.now();
@@ -320,6 +325,7 @@ export class OrderLifecycle {
     const reservation = await this.stock.reserveIfAvailable(
       order.id,
       linesOf(order),
+      order.snapshot.warehouseId,
     );
     if (reservation === null) {
       order.awaitManualFulfillment(capturedAt, now);
