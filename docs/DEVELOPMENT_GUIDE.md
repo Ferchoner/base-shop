@@ -191,6 +191,7 @@ Transacciones (ADR-0093):
 - Las fechas las pone la aplicación con `Clock`. Cada plan decide si una operación lee el reloj una sola vez, para que sus fechas coincidan: en T-190 parte b, la cancelación y el inicio del reembolso lo leen por separado, y sus fechas difieren por milisegundos.
 - Sin abstracciones genéricas (`BaseRepository<T>`, `BaseEntity` con lógica).
 - Ningún módulo importa internos de otro; solo su fachada pública.
+- Un método que devuelve una promesa es `async`, para que todo error llegue como rechazo, también el de una validación: en T-187 parte a, la colocación del staff lanzaba antes de devolver su promesa.
 
 Tests (Jest):
 
@@ -213,6 +214,7 @@ Tests (Jest):
 - Una prueba de respuestas de error idénticas compara los Problem Details sin `correlationId` ni `instance`, que cambian en cada solicitud (T-185, T-181).
 - Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
 - Un error de dominio con `details` se compara con `rejects.toMatchObject({ code, details })`. `toThrow(new Error(…))` solo compara el mensaje: la prueba del tope del reintegro pasaba con otras líneas en el error (T-161).
+- Al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa, también en las suites de otros flujos: en T-187 parte b, `fulfillment` rompió la comparación de la orden en `test/checkout.e2e-spec.ts`, y la encontró recién la primera corrida completa.
 - Los datos de prueba usan valores distintos donde el código elige entre ellos (T-215). Un reembolso igual al total de la orden, una dirección sin número interior o un solo tipo de despacho dejaron pasar mutaciones.
 - Una prueba de un orden usa datos que darían otro resultado con cualquier otro orden: los orígenes de un reintegro, ordenados por prioridad, salían igual ordenados por código (T-162).
 - Cada filtro de un listado se prueba por separado, con datos que solo ese filtro distingue: `resourceType` y `resourceId` probados juntos dejaron pasar dos mutaciones (T-220).
