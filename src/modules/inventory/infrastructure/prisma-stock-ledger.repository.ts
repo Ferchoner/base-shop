@@ -11,6 +11,7 @@ import type {
 } from '../domain/stock.js';
 import {
   type RestockEntry,
+  type RestockOrigin,
   type StockChange,
   type StockEntry,
   StockLedgerRepository,
@@ -59,18 +60,27 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
   async restock(entries: readonly RestockEntry[]): Promise<StockMovement[]> {
     if (entries.length === 0) return [];
     const items = await this.txHost.tx.stockItem.findMany({
-      select: { id: true, variantId: true },
+      select: { id: true, variantId: true, warehouseId: true },
       where: {
-        warehouseId: entries[0].warehouseId,
-        variantId: { in: entries.map(({ variantId }) => variantId) },
+        OR: entries.map(({ variantId, warehouseId }) => ({
+          variantId,
+          warehouseId,
+        })),
       },
     });
-    const itemOf = new Map(items.map(({ id, variantId }) => [variantId, id]));
+    const key = (variantId: string, warehouseId: string) =>
+      `${variantId}/${warehouseId}`;
+    const itemOf = new Map(
+      items.map(({ id, variantId, warehouseId }) => [
+        key(variantId, warehouseId),
+        id,
+      ]),
+    );
+    const itemOfEntry = (entry: RestockEntry) =>
+      itemOf.get(key(entry.variantId, entry.warehouseId)) ?? LAST;
     // Stock items in ascending ID order (BR-INV-14); one that does not exist yet is created last.
     const ordered = [...entries].sort((a, b) =>
-      (itemOf.get(a.variantId) ?? LAST).localeCompare(
-        itemOf.get(b.variantId) ?? LAST,
-      ),
+      itemOfEntry(a).localeCompare(itemOfEntry(b)),
     );
     const movements: StockMovement[] = [];
     for (const entry of ordered) {
@@ -86,6 +96,27 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
       movements.push(movement);
     }
     return movements;
+  }
+
+  async originsOf(orderId: string): Promise<RestockOrigin[]> {
+    const rows = await this.txHost.tx.$queryRaw<
+      { warehouse_id: string; variant_id: string; units: number }[]
+    >`
+      SELECT si.warehouse_id, si.variant_id,
+             (-sum(m.quantity) FILTER (WHERE m.type = 'SALE')
+              - coalesce(sum(m.quantity) FILTER (WHERE m.type = 'RESTOCK'), 0))::int AS units
+        FROM stock_movements m
+        JOIN stock_items si ON si.id = m.stock_item_id
+        JOIN warehouses w ON w.id = si.warehouse_id
+       WHERE m.order_id = ${orderId}::uuid AND m.type IN ('SALE', 'RESTOCK')
+       GROUP BY si.warehouse_id, si.variant_id, w.priority, w.code
+      HAVING count(*) FILTER (WHERE m.type = 'SALE') > 0
+       ORDER BY w.priority, w.code`;
+    return rows.map(({ warehouse_id, variant_id, units }) => ({
+      warehouseId: toId<'Warehouse'>(warehouse_id),
+      variantId: toId<'Variant'>(variant_id),
+      units,
+    }));
   }
 
   async restockedOf(

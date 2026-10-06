@@ -87,6 +87,7 @@ describe('Restocks (e2e, T-161)', () => {
     await prisma.pricePeriod.deleteMany();
     await prisma.variantPrice.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     await prisma.user.deleteMany();
@@ -425,5 +426,62 @@ describe('Restocks (e2e, T-161)', () => {
     expect(
       await prisma.stockMovement.count({ where: { type: 'RESTOCK' } }),
     ).toBe(0);
+  });
+
+  it('brings the goods back to the warehouse they left, or to the active warehouseId the staff names (ADR-0160)', async () => {
+    const north = newId();
+    await prisma.warehouse.create({
+      data: {
+        id: north,
+        code: 'NORTE',
+        name: 'Almacén norte',
+        status: 'INACTIVE',
+        priority: 2,
+      },
+    });
+    const shirt = await variant();
+    const { id, lineIds } = await paidOrder([
+      { variantId: shirt, quantity: 2 },
+    ]);
+    await http()
+      .post(`/v1/admin/orders/${id}/cancel`)
+      .set(signedInAs(manager))
+      .send({ reason: 'Sin stock', version: 2 })
+      .expect(200);
+    const line = { orderLineId: lineIds[0], quantity: 1 };
+
+    const inactive = await restock(id, {
+      reasonCode: 'ORDER_CANCELLED',
+      lines: [line],
+      warehouseId: north,
+    }).expect(404);
+    const invalid = await restock(id, {
+      reasonCode: 'ORDER_CANCELLED',
+      lines: [line],
+      warehouseId: 'norte',
+    }).expect(400);
+    await prisma.warehouse.update({
+      where: { id: north },
+      data: { status: 'ACTIVE' },
+    });
+    const named = await restock(id, {
+      reasonCode: 'ORDER_CANCELLED',
+      lines: [line],
+      warehouseId: north,
+    }).expect(201);
+    const origin = await restock(id, {
+      reasonCode: 'ORDER_CANCELLED',
+      lines: [line],
+    }).expect(201);
+
+    const warehouseOf = async (stockItemId: string) =>
+      (await prisma.stockItem.findUniqueOrThrow({ where: { id: stockItemId } }))
+        .warehouseId;
+    expect(inactive.body.type).toBe('/problems/not-found');
+    expect(invalid.body.errors).toEqual([
+      expect.objectContaining({ field: 'warehouseId', code: 'isUuid' }),
+    ]);
+    expect(await warehouseOf(named.body.movements[0].stockItemId)).toBe(north);
+    expect(await warehouseOf(origin.body.movements[0].stockItemId)).toBe(MAIN);
   });
 });

@@ -355,6 +355,10 @@ export class AdminOrderShipmentDto extends OrderShipmentDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  /** El almacén del que sale: el de la reserva del pedido (ADR-0160). */
+  @ApiProperty({ format: 'uuid' })
+  warehouseId: string;
+
   /** Versión para el bloqueo optimista. */
   version: number;
 }

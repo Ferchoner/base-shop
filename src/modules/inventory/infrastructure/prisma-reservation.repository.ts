@@ -78,6 +78,13 @@ export class PrismaReservationRepository extends ReservationRepository {
     at: Date,
   ): Promise<VariantId[]> {
     const tx = this.txHost.tx;
+    // Shared until the end, so the warehouse is not deactivated with units reserved in it; one deactivated after
+    // it was read reserves nothing (ADR-0160).
+    const [active] = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM warehouses
+       WHERE id = ${warehouseId}::uuid AND status = 'ACTIVE'
+         FOR SHARE`;
+    if (active === undefined) return requests.map(({ variantId }) => variantId);
     const wanted = new Map(
       requests.map(({ variantId, quantity }) => [variantId, quantity]),
     );

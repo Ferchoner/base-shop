@@ -535,7 +535,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ### 8.9 `AdminOrder`
 
-`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
+`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
 
 `blockedAt` dice cuándo se bloquearon los datos personales de la orden (ADR-0151). Desde entonces, `contactEmail` es `null` y `shippingAddress` sigue §8.2, como en una anonimizada, también en el listado.
 
@@ -1098,7 +1098,9 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | Método | Ruta | Permiso | UC |
 |---|---|---|---|
 | GET | `/v1/admin/inventory/warehouses` | `inventory.read` | UC-INV-01 |
+| POST | `/v1/admin/inventory/warehouses` | `inventory.write` | UC-INV-10 |
 | PATCH | `/v1/admin/inventory/warehouses/{warehouseId}` | `inventory.write` | UC-INV-01 |
+| POST | `/v1/admin/inventory/warehouses/{warehouseId}/deactivate` | `inventory.write` | UC-INV-11 |
 | GET | `/v1/admin/inventory/stock-items` | `inventory.read` | UC-INV-04 |
 | GET | `/v1/admin/inventory/stock-items/{stockItemId}/movements` | `inventory.read` | UC-INV-04 |
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
@@ -1106,7 +1108,11 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 
 El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
-**Almacenes.** `Warehouse { id, code, name, address: Address | null, status, priority, createdAt, updatedAt }`. `priority` va de 1 a 1000 (1 es la primera): cada orden se reserva completa en el primer almacén activo que la tiene toda; si empatan, por `code` (ADR-0160). `GET` devuelve `{ "data": [Warehouse] }` sin paginación, por prioridad y luego por código, y `PATCH` acepta `{ "name", "address" }`. En entradas y ajustes, `warehouseId` debe ser un almacén activo; otro valor → 404.
+**Almacenes.** `Warehouse { id, code, name, address: Address | null, status, priority, createdAt, updatedAt }`. `priority` va de 1 a 1000 (1 es la primera): cada orden se reserva completa en el primer almacén activo que la tiene toda; si empatan, por `code` (ADR-0160). `GET` devuelve `{ "data": [Warehouse] }` sin paginación, por prioridad y luego por código, y `PATCH` acepta `{ "name", "address", "priority" }`. En entradas, `warehouseId` debe ser un almacén activo; en ajustes, cualquier almacén, también uno inactivo; otro valor → 404.
+
+**`POST …/warehouses`** (UC-INV-10, ADR-0160) — Request `{ "code", "name", "address", "priority" }`: `code` de 2 a 20 mayúsculas, dígitos y guiones, único; `name` de 1 a 100 caracteres; `address` opcional en formato `AddressInput`; `priority` de 1 a 1000, obligatoria. 201 `Warehouse`, activo, con `Location`. Errores: 409 `duplicate-value` (`code`). Se audita como `warehouses.create`.
+
+**`POST …/warehouses/{warehouseId}/deactivate`** (UC-INV-11, ADR-0076, ADR-0160) — Sin cuerpo. Para siempre: el almacén deja de vender, reservar y recibir mercancía, y conserva su stock. 200 `Warehouse`. Errores: 404; 409 `resource-in-use` si tiene unidades reservadas; 409 `invalid-state-transition` si ya está inactivo, o si es el último activo, con `reason: last-active-warehouse`. Se audita como `warehouses.deactivate`.
 
 **`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
 
@@ -1121,7 +1127,7 @@ El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo ati
 **`POST …/adjustments`** — Ajuste (ADR-0069).
 
 - Request: `{ "variantId", "warehouseId", "quantity": -2, "reasonCode": "DAMAGED", "note": "…" }`.
-- `quantity` entero distinto de 0 con signo; `reasonCode` del catálogo de ajustes; DAMAGED, LOSS_OR_THEFT e INTERNAL_USE solo con cantidad negativa; `note` obligatoria con OTHER.
+- `quantity` entero distinto de 0 con signo; `reasonCode` del catálogo de ajustes; DAMAGED, LOSS_OR_THEFT e INTERNAL_USE solo con cantidad negativa; `note` obligatoria con OTHER. WAREHOUSE_TRANSFER mueve unidades entre almacenes: un ajuste negativo en uno y uno positivo en el otro (ADR-0160).
 - 201 `{ "stockItem", "movement" }`.
 - Errores: 409 `insufficient-stock` si dejaría `onHand` por debajo de `reserved` o de cero (BR-INV-01).
 
@@ -1139,12 +1145,12 @@ Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161, sección 
   - SKU y título salen de Catalog en cada página.
 - **Movimientos:** `type` acepta uno o más tipos separados por comas. `from` y `to` aceptan fecha o fecha y hora ISO 8601, ambos incluidos; una fecha sola en `to` incluye todo el día.
 - **Entradas y ajustes:**
-  - la variante debe existir, en cualquier estado; si no, o si `warehouseId` no es un almacén activo, 404;
+  - la variante debe existir, en cualquier estado; si no, 404. `warehouseId` debe ser un almacén activo en una entrada, y uno existente en un ajuste (ADR-0160); si no, 404;
   - un ajuste lleva de ±1 a ±100,000 unidades;
   - errores en el ajuste: 400 `validation-error` con `reasonDirection` en `quantity` si el motivo solo resta y la cantidad suma, e `isNotEmpty` en `note` con `OTHER` sin nota;
   - el 409 `insufficient-stock` lleva `lines: [{ variantId, canFulfill: false }]`;
   - las notas se guardan sin espacios alrededor.
-- **Auditoría:** `inventory.receipt`, `inventory.adjustment` y `warehouses.update`.
+- **Auditoría:** `inventory.receipt`, `inventory.adjustment`, `warehouses.update`, y desde T-162 `warehouses.create` y `warehouses.deactivate`.
 
 UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 
@@ -1376,7 +1382,8 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 
 **`POST /v1/admin/orders/{orderId}/restocks`** — `inventory.write`. Reintegro independiente de una orden (UC-INV-09, ADR-0052, ADR-0053). Lo atiende Ordering, que le pasa a Inventory cada línea con lo vendido; Inventory verifica con sus movimientos que no se reintegre de más (P-73, ADR-0132). Exige `Idempotency-Key` (ADR-0142).
 
-- Request: `{ "reasonCode": "ORDER_CANCELLED" | "SHIPMENT_RETURNED", "lines": [ { "orderLineId", "quantity" } ], "note" }`.
+- Request: `{ "reasonCode": "ORDER_CANCELLED" | "SHIPMENT_RETURNED", "lines": [ { "orderLineId", "quantity" } ], "note", "warehouseId" }`.
+- Las unidades regresan al almacén del que salió cada línea, aunque esté inactivo, o al almacén activo `warehouseId`, opcional; otro valor → 404 (ADR-0160).
 - La orden debe estar cancelada o reembolsada con stock confirmado, o tener el envío en RETURNED, según el motivo. La suma por línea no supera lo vendido.
 - 201 `{ "movements": [StockMovement] }`.
 - Errores: 409 `restock-not-allowed` (con `lines`); 409 `invalid-state-transition` si la orden no admite reintegro.
@@ -1532,7 +1539,7 @@ Implementado en T-190 parte b (ADR-0135):
 
 | Endpoint | Detalle |
 |---|---|
-| `GET …/shipments` | Paginado. Filtros: `status` (defecto PENDING, UC-SHI-08), `orderId`, `q` (código de orden o guía), `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `createdAt` ascendente: primero los más antiguos), `dispatchedAt` |
+| `GET …/shipments` | Paginado. Filtros: `status` (defecto PENDING, UC-SHI-08), `orderId`, `warehouseId` (ADR-0160), `q` (código de orden o guía), `createdFrom`, `createdTo`. Orden: `createdAt` (defecto `createdAt` ascendente: primero los más antiguos), `dispatchedAt` |
 | `GET …/shipments/{shipmentId}` | 200 `AdminShipment` |
 | `PATCH …/shipments/{shipmentId}` | Request `{ "carrierName", "trackingNumber", "version" }` (1–100 y 1–100, o las dos en `null` para quitarlas de un envío PENDING, ADR-0141). Permitido en PENDING y DISPATCHED, salvo en envíos despachados como entrega propia. 200. Errores: 409 `invalid-state-transition` |
 | `POST …/dispatch` | Request `{ "ownDelivery", "version" }` (`ownDelivery` booleano, por defecto `false`). Desde PENDING. Con `ownDelivery: false` exige `carrierName` y `trackingNumber` ya capturados (BR-SHP-04); con `ownDelivery: true`, el envío no debe tener paquetería ni guía (ADR-0078). La orden pasa a SHIPPED en segundo plano (sección 2.5). 200. Errores: 409 `invalid-state-transition`; 400 `validation-error` (falta paquetería o guía, o hay paquetería o guía en una entrega propia) |
@@ -1625,6 +1632,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-PRC-06 | Sin API pública: fachada interna del módulo |
 | UC-INV-01 a 04 | Sección 13 |
 | UC-INV-09 | Sección 15.7 (ADR-0132) |
+| UC-INV-10 y 11 | Sección 13 (ADR-0160) |
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |

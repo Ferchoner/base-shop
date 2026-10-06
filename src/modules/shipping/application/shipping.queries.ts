@@ -40,6 +40,8 @@ export interface OrderShipmentView {
   readonly dispatchedAt: Date | null;
   readonly deliveredAt: Date | null;
   readonly version: number;
+  /** The warehouse it leaves from: the one its order was reserved in (ADR-0160). */
+  readonly warehouseId: WarehouseId;
 }
 
 /** `AdminShipment` of API_SPEC.md §17. */
@@ -47,7 +49,6 @@ export interface ShipmentView extends OrderShipmentView {
   readonly orderId: OrderId;
   /** Without dash. */
   readonly orderCode: string;
-  readonly warehouseId: WarehouseId;
   /** Whole until its order is anonymized (ADR-0067). */
   /** Without who receives it nor where exactly once its order is blocked or anonymized (ADR-0070). */
   readonly destination: ShipmentDestination;
@@ -72,6 +73,8 @@ export interface ShipmentFilter {
   readonly createdFrom?: Date;
   /** Created at or before. */
   readonly createdTo?: Date;
+  /** Leaving from this warehouse (ADR-0160). */
+  readonly warehouseId?: WarehouseId;
 }
 
 export type ShipmentSortField = 'createdAt' | 'dispatchedAt';

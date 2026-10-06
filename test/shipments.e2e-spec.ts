@@ -349,6 +349,7 @@ describe('Shipments (e2e, T-195)', () => {
     expect(admin.body.shipment).toEqual({
       ...shown,
       id: shipment.id,
+      warehouseId: MAIN,
       version: 1,
     });
     expect(unpaidView.body.shipment).toBeNull();
@@ -384,9 +385,20 @@ describe('Shipments (e2e, T-195)', () => {
     await paid(id);
 
     const { body } = await list().expect(200);
+    const fromNorth = await list(`warehouseId=${north}`).expect(200);
+    const fromMain = await list(`warehouseId=${MAIN}`).expect(200);
+    const order = await http()
+      .get(`/v1/admin/orders/${id}`)
+      .set(signedInAs(manager))
+      .expect(200);
     expect(body.data).toEqual([
       expect.objectContaining({ orderId: id, warehouseId: north }),
     ]);
+    expect([
+      fromNorth.body.meta.totalItems,
+      fromMain.body.meta.totalItems,
+    ]).toEqual([1, 0]);
+    expect(order.body.shipment.warehouseId).toBe(north);
     expect(
       await prisma.stockItem.findMany({
         where: { warehouseId: north },

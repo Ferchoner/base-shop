@@ -17,6 +17,7 @@ import {
   InvalidStateTransitionError,
   Money,
   newId,
+  NotFoundError,
   toId,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
@@ -136,6 +137,7 @@ describe('Ordering: restock of an order (T-161)', () => {
     await prisma.pricePeriod.deleteMany();
     await prisma.variantPrice.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
   });
@@ -492,5 +494,66 @@ describe('Ordering: restock of an order (T-161)', () => {
     ).toEqual(['RestockLimitError', 'ok']);
     expect(await onHandOf(shirt)).toBe(5);
     await expectLedgerBalanced(shirt);
+  });
+
+  it('brings each line back to the warehouse it left, even inactive, or to the active one the staff names (ADR-0160)', async () => {
+    const north = newId<'Warehouse'>();
+    await prisma.warehouse.create({
+      data: {
+        id: north,
+        code: 'NORTE',
+        name: 'Almacén norte',
+        status: 'ACTIVE',
+        priority: 2,
+      },
+    });
+    const shirt = await variant();
+    // Only the north warehouse has shirts, so the order leaves from it.
+    await prisma.stockItem.updateMany({
+      where: { variantId: shirt },
+      data: { onHand: 0 },
+    });
+    await prisma.stockItem.create({
+      data: { id: newId(), variantId: shirt, warehouseId: north, onHand: 5 },
+    });
+    const orderId = await order([{ variantId: shirt, quantity: 3 }]);
+    await cancel(orderId);
+    const [line] = await linesOf(orderId);
+    const onHandIn = async (warehouseId: string) =>
+      (
+        await prisma.stockItem.findUniqueOrThrow({
+          where: { variantId_warehouseId: { variantId: shirt, warehouseId } },
+        })
+      ).onHand;
+    const restockTo = (warehouseId: string | null) =>
+      run(() =>
+        restocks.restock({
+          orderId,
+          reasonCode: 'ORDER_CANCELLED',
+          lines: [{ orderLineId: line, quantity: 1 }],
+          note: null,
+          actorId: staff,
+          warehouseId:
+            warehouseId === null ? null : toId<'Warehouse'>(warehouseId),
+        }),
+      );
+
+    await restockTo(null);
+    await restockTo(MAIN);
+    await prisma.warehouse.update({
+      where: { id: north },
+      data: { status: 'INACTIVE' },
+    });
+    await expect(restockTo(north)).rejects.toThrow(
+      new NotFoundError('Warehouse', north),
+    );
+    await restockTo(null);
+
+    expect([await onHandIn(north), await onHandIn(MAIN)]).toEqual([4, 1]);
+    expect(
+      await prisma.stockMovement.count({
+        where: { type: 'RESTOCK', orderLineId: line },
+      }),
+    ).toBe(3);
   });
 });

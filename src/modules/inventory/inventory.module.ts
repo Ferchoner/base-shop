@@ -5,6 +5,8 @@ import type { EnvironmentVariables } from '../../platform/config/environment.js'
 import { CatalogModule } from '../catalog/index.js';
 import { GeoModule } from '../geo/index.js';
 import { CatalogVariants } from './application/catalog-variants.js';
+import { CreateWarehouse } from './application/create-warehouse.use-case.js';
+import { DeactivateWarehouse } from './application/deactivate-warehouse.use-case.js';
 import {
   InventoryFacade,
   RESERVATION_TTL_SECONDS,
@@ -41,7 +43,9 @@ import { AdminWarehousesController } from './presentation/admin-warehouses.contr
         parseDuration(config.get('RESERVATION_TTL', { infer: true })),
     },
     InventoryFacade,
+    CreateWarehouse,
     UpdateWarehouse,
+    DeactivateWarehouse,
     StockEntries,
     StockListing,
     { provide: WarehouseRepository, useClass: PrismaWarehouseRepository },

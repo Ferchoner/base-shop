@@ -262,6 +262,9 @@ describe('Shipping: shipments (T-195)', () => {
     ]);
     expect(await codes({ status: ['CANCELLED'] })).toEqual(['CCCC3333']);
     expect(await codes({ orderId: first.orderId })).toEqual(['AAAA1111']);
+    expect(await codes({ warehouseId: second.warehouseId })).toEqual([
+      'BBBB2222',
+    ]);
     expect(await codes({ q: 'bbbb-2222' })).toEqual(['BBBB2222']);
     expect(await codes({ q: ' est-0001 ' })).toEqual(['BBBB2222']);
     expect(await codes({ q: 'ZZZZ-ZZZZ' })).toEqual([]);
@@ -295,6 +298,7 @@ describe('Shipping: shipments (T-195)', () => {
       dispatchedAt: null,
       deliveredAt: null,
       version: 2,
+      warehouseId: second.warehouseId,
     });
     expect(await facade.shipmentsOf([])).toEqual(new Map());
     const detail = await queries.findShipment((await lock(first.orderId))!.id);

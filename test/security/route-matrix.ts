@@ -204,7 +204,11 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
     access: ['inventory.read'],
   },
   'GET /v1/admin/inventory/warehouses': { access: ['inventory.read'] },
+  'POST /v1/admin/inventory/warehouses': { access: ['inventory.write'] },
   'PATCH /v1/admin/inventory/warehouses/:warehouseId': {
+    access: ['inventory.write'],
+  },
+  'POST /v1/admin/inventory/warehouses/:warehouseId/deactivate': {
     access: ['inventory.write'],
   },
 

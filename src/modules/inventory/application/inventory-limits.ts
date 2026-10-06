@@ -8,4 +8,9 @@ export {
   STOCK_MOVEMENT_TYPES,
   type StockMovementType,
 } from '../domain/stock.js';
-export { MAX_WAREHOUSE_NAME_LENGTH } from '../domain/warehouse.js';
+export {
+  MAX_WAREHOUSE_NAME_LENGTH,
+  MAX_WAREHOUSE_PRIORITY,
+  MIN_WAREHOUSE_PRIORITY,
+  WAREHOUSE_CODE,
+} from '../domain/warehouse.js';

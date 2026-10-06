@@ -372,14 +372,14 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | type | enum `stock_movement_type` (RECEIPT, ADJUSTMENT, SALE, RESTOCK) | No | SALE al confirmar reserva; RESTOCK al reintegrar (ADR-0052) |
 | quantity | integer | No | Con signo; `CHECK (quantity <> 0)` |
 | on_hand_after | integer | No | `CHECK (on_hand_after >= 0)`; facilita la conciliación |
-| reason_code | enum `stock_movement_reason` (PHYSICAL_COUNT, DAMAGED, LOSS_OR_THEFT, INTERNAL_USE, DATA_ENTRY_ERROR, OTHER, ORDER_CANCELLED, SHIPMENT_RETURNED) | Sí | Obligatorio en ADJUSTMENT y RESTOCK; `NULL` en RECEIPT y SALE (ADR-0069) |
+| reason_code | enum `stock_movement_reason` (PHYSICAL_COUNT, DAMAGED, LOSS_OR_THEFT, INTERNAL_USE, DATA_ENTRY_ERROR, OTHER, ORDER_CANCELLED, SHIPMENT_RETURNED, WAREHOUSE_TRANSFER) | Sí | Obligatorio en ADJUSTMENT y RESTOCK; `NULL` en RECEIPT y SALE (ADR-0069) |
 | note | text | Sí | Opcional; obligatoria con OTHER |
 | order_id | uuid | Sí | Referencia lógica a Ordering (SALE, RESTOCK) |
 | order_line_id | uuid | Sí | Referencia lógica a Ordering (RESTOCK) |
 | actor_id | uuid | Sí | Staff o `NULL` si es el sistema |
 | created_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER'))`; `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`.
+- **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER','WAREHOUSE_TRANSFER'))` (`WAREHOUSE_TRANSFER` desde las migraciones `20261006130000` y `20261006130100`, ADR-0160); `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`.
 - **Índices:** `(stock_item_id, created_at)`; `(order_line_id) WHERE type = 'RESTOCK'` (tope de reintegro, sección 12).
 - **Integridad:** nunca se modifica ni se borra (ADR-0038).
 - **Implementado en T-161 (ADR-0142):** un reintegro escribe un RESTOCK por línea con motivo, orden, línea, nota y actor. Antes suma los RESTOCK de cada `order_line_id`, con el índice parcial, y lo vendido cuenta solo si la orden tiene una reserva COMMITTED. Sin migración.

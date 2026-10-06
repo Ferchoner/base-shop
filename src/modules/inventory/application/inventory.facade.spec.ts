@@ -1,6 +1,7 @@
 import {
   InvalidValueError,
   newId,
+  NotFoundError,
   type TransactionManager,
 } from '../../../shared-kernel/index.js';
 import type { Allocation, WarehouseStock } from '../domain/allocation.js';
@@ -20,6 +21,7 @@ import {
 } from '../domain/stock.js';
 import {
   type RestockEntry,
+  type RestockOrigin,
   StockLedgerRepository,
 } from '../domain/stock-ledger.repository.js';
 import { Warehouse, type WarehouseId } from '../domain/warehouse.js';
@@ -35,34 +37,53 @@ const [shirt, cap, unstocked] = [
   newId<'Variant'>(),
 ];
 
-/** The first active warehouse by priority, or none. */
-class FirstWarehouse extends WarehouseRepository {
-  constructor(private readonly active: boolean) {
+/** Warehouses in memory: the main one, active, and others a test adds. */
+class Warehouses extends WarehouseRepository {
+  constructor(
+    private readonly known: readonly Warehouse[] = [
+      warehouseOf(warehouseId, 'ACTIVE'),
+    ],
+  ) {
     super();
   }
 
-  find(): Promise<Warehouse | null> {
+  find(id: WarehouseId): Promise<Warehouse | null> {
+    return Promise.resolve(this.known.find((known) => known.id === id) ?? null);
+  }
+
+  lockActive(): Promise<Warehouse[]> {
     return Promise.reject(new Error('not used'));
   }
 
-  firstActive(): Promise<Warehouse | null> {
-    return Promise.resolve(
-      this.active
-        ? Warehouse.restore({
-            id: warehouseId,
-            code: 'PRINCIPAL',
-            name: 'Almacén principal',
-            address: null,
-            status: 'ACTIVE',
-            priority: 1,
-          })
-        : null,
-    );
+  lockForStock(id: WarehouseId): Promise<Warehouse | null> {
+    return this.find(id);
+  }
+
+  reservedUnits(): Promise<number> {
+    return Promise.reject(new Error('not used'));
+  }
+
+  insert(): Promise<void> {
+    return Promise.reject(new Error('not used'));
   }
 
   save(): Promise<void> {
     return Promise.reject(new Error('not used'));
   }
+}
+
+function warehouseOf(
+  id: WarehouseId,
+  status: 'ACTIVE' | 'INACTIVE',
+): Warehouse {
+  return Warehouse.restore({
+    id,
+    code: `W-${id.slice(-6)}`.toUpperCase(),
+    name: 'Almacén',
+    address: null,
+    status,
+    priority: 1,
+  });
 }
 
 /**
@@ -140,15 +161,22 @@ class FakeReservations extends ReservationRepository {
   }
 }
 
-/** The ledger in memory: what each line restocked before, and the restocks it writes. */
+/** The ledger in memory: what each line restocked before, where the order left from, and the restocks it writes. */
 class FakeLedger extends StockLedgerRepository {
   readonly written: RestockEntry[] = [];
   readonly asked: string[][] = [];
+  readonly originsAsked: string[] = [];
 
   constructor(
     private readonly before: ReadonlyMap<string, number> = new Map(),
+    private readonly origins: readonly RestockOrigin[] = [],
   ) {
     super();
+  }
+
+  originsOf(orderId: string): Promise<RestockOrigin[]> {
+    this.originsAsked.push(orderId);
+    return Promise.resolve([...this.origins]);
   }
 
   receive(): never {
@@ -243,14 +271,14 @@ function inlineTransactions() {
 const facade = (
   reservations: FakeReservations,
   queries: InventoryQueries = stocked().queries,
-  active = true,
+  warehouses: WarehouseRepository = new Warehouses(),
   ledger: StockLedgerRepository = new FakeLedger(),
   transactions: TransactionManager = inlineTransactions().transactions,
 ) =>
   new InventoryFacade(
     reservations,
     ledger,
-    new FirstWarehouse(active),
+    warehouses,
     queries,
     transactions,
     { now: () => NOW },
@@ -433,7 +461,7 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
       await facade(
         reservations,
         undefined,
-        true,
+        undefined,
         undefined,
         transactions,
       ).reserve(orderId, lines);
@@ -562,24 +590,33 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
     const actorId = newId<'User'>();
     const [first, second] = [newId<'OrderLine'>(), newId<'OrderLine'>()];
 
-    /** A facade whose order had its stock confirmed, or not, and whose lines restocked `before`. */
+    /**
+     * A facade whose order had its stock confirmed, or not, whose lines restocked `before`, and whose shirts left
+     * the backup warehouse and caps the main one, which is inactive now.
+     */
     const restocking = (
       committed: boolean,
       before = new Map<string, number>(),
     ) => {
-      const ledger = new FakeLedger(before);
+      const ledger = new FakeLedger(before, [
+        { warehouseId: backup, variantId: shirt, units: 2 },
+        { warehouseId, variantId: cap, units: 1 },
+      ]);
       return {
         ledger,
         facade: facade(
           new FakeReservations(null, new Map(), committed),
           undefined,
-          true,
+          new Warehouses([
+            warehouseOf(warehouseId, 'INACTIVE'),
+            warehouseOf(backup, 'ACTIVE'),
+          ]),
           ledger,
         ),
       };
     };
 
-    it('brings each line back to the first active warehouse with its reason, order, line, note and staff member', async () => {
+    it('brings each line back to the warehouse it left, even inactive, with its reason, order, line, note and staff member (ADR-0160)', async () => {
       const { facade: inventory, ledger } = restocking(true);
 
       const movements = await inventory.restock({
@@ -596,7 +633,7 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
       expect(ledger.written).toEqual([
         {
           movementId: expect.any(String),
-          warehouseId,
+          warehouseId: backup,
           variantId: shirt,
           quantity: 2,
           note: 'Caja sin abrir',
@@ -607,6 +644,7 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
           orderLineId: first,
         },
         expect.objectContaining({
+          warehouseId,
           variantId: cap,
           quantity: 1,
           orderLineId: second,
@@ -709,26 +747,48 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
       expect([ledger.asked, ledger.written]).toEqual([[], []]);
     });
 
-    it('fails loudly without the warehouse the migration creates', async () => {
-      const ledger = new FakeLedger();
+    it('brings every line to the active warehouse the staff names instead (ADR-0160)', async () => {
+      const { facade: inventory, ledger } = restocking(true);
 
-      await expect(
-        facade(
-          new FakeReservations(null, new Map(), true),
-          undefined,
-          false,
-          ledger,
-        ).restock({
-          orderId,
-          reasonCode: 'ORDER_CANCELLED',
-          note: null,
-          actorId,
-          lines: [
-            { orderLineId: first, variantId: shirt, sold: 1, quantity: 1 },
-          ],
-        }),
-      ).rejects.toThrow('There is no active warehouse');
-      expect(ledger.written).toEqual([]);
+      await inventory.restock({
+        orderId,
+        reasonCode: 'SHIPMENT_RETURNED',
+        note: null,
+        actorId,
+        lines: [
+          { orderLineId: first, variantId: shirt, sold: 2, quantity: 1 },
+          { orderLineId: second, variantId: cap, sold: 1, quantity: 1 },
+        ],
+        warehouseId: backup,
+      });
+
+      expect(
+        ledger.written.map(({ warehouseId: id, variantId }) => [id, variantId]),
+      ).toEqual([
+        [backup, shirt],
+        [backup, cap],
+      ]);
+      expect(ledger.originsAsked).toEqual([]);
+    });
+
+    it('answers a warehouse to bring them to that is inactive or unknown as not found, writing nothing', async () => {
+      for (const named of [warehouseId, newId<'Warehouse'>()]) {
+        const { facade: inventory, ledger } = restocking(true);
+
+        await expect(
+          inventory.restock({
+            orderId,
+            reasonCode: 'ORDER_CANCELLED',
+            note: null,
+            actorId,
+            lines: [
+              { orderLineId: first, variantId: shirt, sold: 1, quantity: 1 },
+            ],
+            warehouseId: named,
+          }),
+        ).rejects.toThrow(new NotFoundError('Warehouse', named));
+        expect(ledger.written).toEqual([]);
+      }
     });
   });
 });

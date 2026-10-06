@@ -245,6 +245,8 @@ Criterios de aceptación:
 | UC-INV-07 | Liberar reserva | Sistema (cancelación) | BR-INV-03 |
 | UC-INV-08 | Expirar reservas | Sistema (job cada minuto) | BR-INV-07, ADR-0029 |
 | UC-INV-09 | Reintegrar stock de una orden cancelada o con envío devuelto | Staff (`inventory.write`) | BR-INV-10, ADR-0052, ADR-0053 |
+| UC-INV-10 | Crear un almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0160 |
+| UC-INV-11 | Desactivar un almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0076, ADR-0160 |
 
 Criterios de aceptación:
 
@@ -255,6 +257,8 @@ Criterios de aceptación:
 - **UC-INV-08:** las reservas vencidas se liberan en el minuto siguiente a su vencimiento, por lotes e idempotente.
 - **UC-INV-09:** solo para órdenes canceladas cuyo stock se había confirmado o con envío en Returned; admite cantidades parciales; la suma reintegrada por línea no supera lo vendido; genera movimiento con motivo y referencia a la orden; se audita. El motivo es Orden cancelada o Envío devuelto, según el caso. Se pide desde Ordering, que le pasa a Inventory las líneas y lo vendido de cada una (P-73, ADR-0132).
 - **UC-INV-09 (implementación, ADR-0142):** exige `Idempotency-Key`; lo vendido cuenta solo si el stock de la orden se confirmó; un reintegro que pasaría de lo vendido en alguna línea no reintegra nada; la orden se bloquea, así que dos reintegros de la misma orden se esperan.
+- **UC-INV-10:** el almacén nace activo, con un código único de 2 a 20 mayúsculas, dígitos y guiones, y una prioridad de 1 a 1000; desde entonces recibe mercancía y reserva pedidos por su prioridad (ADR-0160).
+- **UC-INV-11:** para siempre (ADR-0076); se rechaza si el almacén tiene unidades reservadas o es el último activo. Conserva su stock, que los ajustes pueden mover. Una reserva o una entrada en curso en el almacén termina antes de la desactivación, y dos desactivaciones a la vez nunca dejan ninguno activo (ADR-0160).
 
 ### 5.5 Shopping
 

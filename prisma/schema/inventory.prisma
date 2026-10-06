@@ -18,6 +18,7 @@ enum StockMovementReason {
   OTHER
   ORDER_CANCELLED
   SHIPMENT_RETURNED
+  WAREHOUSE_TRANSFER
 
   @@map("stock_movement_reason")
 }

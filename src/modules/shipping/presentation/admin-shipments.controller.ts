@@ -74,6 +74,10 @@ export class AdminShipmentsController {
           query.orderId === undefined
             ? undefined
             : toId<'Order'>(query.orderId),
+        warehouseId:
+          query.warehouseId === undefined
+            ? undefined
+            : toId<'Warehouse'>(query.warehouseId),
         q: query.q,
         createdFrom:
           query.createdFrom === undefined

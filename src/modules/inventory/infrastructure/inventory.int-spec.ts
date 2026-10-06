@@ -11,8 +11,19 @@ import { validateEnvironment } from '../../../platform/config/environment.js';
 import { EventsModule } from '../../../platform/events/events.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
-import { Clock, newId, NotFoundError } from '../../../shared-kernel/index.js';
+import {
+  Clock,
+  DuplicateValueError,
+  InvalidStateTransitionError,
+  newId,
+  NotFoundError,
+  ResourceInUseError,
+  TransactionManager,
+} from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
+import { CreateWarehouse } from '../application/create-warehouse.use-case.js';
+import { DeactivateWarehouse } from '../application/deactivate-warehouse.use-case.js';
+import { InventoryFacade } from '../application/inventory.facade.js';
 import {
   InventoryQueries,
   type MovementPosition,
@@ -31,8 +42,10 @@ import {
   type StockItemId,
   type VariantId,
 } from '../domain/stock.js';
+import { StockLedgerRepository } from '../domain/stock-ledger.repository.js';
 import {
   InvalidWarehouseLocationError,
+  LastActiveWarehouseError,
   type WarehouseId,
 } from '../domain/warehouse.js';
 import { InventoryModule } from '../inventory.module.js';
@@ -127,18 +140,22 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
   });
 
   afterEach(async () => {
+    await prisma.reservationLine.deleteMany();
+    await prisma.reservation.deleteMany();
     await prisma.stockMovement.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     // Back to the warehouse of the migration.
     await prisma.$executeRaw`
-      UPDATE warehouses SET name = 'Almacén principal', address = NULL WHERE id = ${MAIN}::uuid`;
+      UPDATE warehouses SET name = 'Almacén principal', address = NULL, status = 'ACTIVE', priority = 1
+       WHERE id = ${MAIN}::uuid`;
     await prisma.auditLog.deleteMany({
       where: {
         OR: [
           { action: { startsWith: 'inventory.' } },
-          { action: 'warehouses.update' },
+          { action: { startsWith: 'warehouses.' } },
         ],
       },
     });
@@ -218,7 +235,7 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
     });
 
   describe('the warehouse', () => {
-    it('is the only one, active, created by the migration, and never added twice (ADR-0081)', async () => {
+    it('is created active by the migration, first by priority, and never added twice (ADR-0127)', async () => {
       await prisma.$executeRawUnsafe(readFileSync(MIGRATION, 'utf8'));
 
       expect(await moduleRef.get(InventoryQueries).listWarehouses()).toEqual([
@@ -228,6 +245,7 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
           name: 'Almacén principal',
           address: null,
           status: 'ACTIVE',
+          priority: 1,
         }),
       ]);
     });
@@ -388,7 +406,7 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
       expect(await prisma.stockMovement.count()).toBe(1);
     });
 
-    it('answers a missing variant or a warehouse that is not the active one as not found', async () => {
+    it('answers a missing variant or a warehouse that is not active as not found', async () => {
       const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
       const inactive = newId<'Warehouse'>();
       await prisma.warehouse.create({
@@ -414,11 +432,413 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
             ),
           ).rejects.toThrow(NotFoundError);
         }
+        // An adjustment takes an inactive warehouse, but not one that does not exist (ADR-0160).
+        const unknown = newId<'Warehouse'>();
+        await expect(
+          cls.run(() =>
+            entries().adjust(
+              {
+                variantId: shirt,
+                warehouseId: unknown,
+                quantity: 5,
+                reasonCode: 'PHYSICAL_COUNT',
+              },
+              staffId,
+            ),
+          ),
+        ).rejects.toThrow(new NotFoundError('Warehouse', unknown));
         expect(await prisma.stockItem.count()).toBe(0);
       } finally {
         await prisma.warehouse.delete({ where: { id: inactive } });
       }
     });
+  });
+
+  describe('several warehouses (T-162 part b, ADR-0160)', () => {
+    const create = (code: string, priority: number) =>
+      cls.run(() =>
+        moduleRef
+          .get(CreateWarehouse)
+          .execute({ code, name: `Almacén ${code}`, address: null, priority }),
+      );
+    const deactivate = (id: WarehouseId) =>
+      cls.run(() => moduleRef.get(DeactivateWarehouse).execute(id));
+    const receiveIn = (
+      warehouseId: WarehouseId,
+      variantId: VariantId,
+      quantity: number,
+    ) =>
+      cls.run(() =>
+        entries().receive({ variantId, warehouseId, quantity }, staffId),
+      );
+    const transfer = (
+      warehouseId: WarehouseId,
+      variantId: VariantId,
+      quantity: number,
+    ) =>
+      cls.run(() =>
+        entries().adjust(
+          {
+            variantId,
+            warehouseId,
+            quantity,
+            reasonCode: 'WAREHOUSE_TRANSFER',
+          },
+          staffId,
+        ),
+      );
+    const reserve = (variantId: VariantId, quantity: number) => {
+      const orderId = newId<'Order'>();
+      return cls
+        .run(() =>
+          moduleRef
+            .get(InventoryFacade)
+            .reserve(orderId, [{ variantId, quantity }]),
+        )
+        .then(() => orderId);
+    };
+    const statusOf = async (id: WarehouseId) =>
+      (await prisma.warehouse.findUniqueOrThrow({ where: { id } })).status;
+
+    /** A promise to resolve by hand, to keep a transaction open while another one starts. */
+    function gate() {
+      let open = () => {};
+      const opened = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      return { opened, open };
+    }
+
+    it('creates an active warehouse with its priority, audited, and never two with the same code (UC-INV-10)', async () => {
+      const north = await create('NORTE', 2);
+
+      expect(
+        (await moduleRef.get(InventoryQueries).listWarehouses()).map(
+          ({ code, status, priority }) => [code, status, priority],
+        ),
+      ).toEqual([
+        ['PRINCIPAL', 'ACTIVE', 1],
+        ['NORTE', 'ACTIVE', 2],
+      ]);
+      expect(await audited('warehouses.create')).toEqual([
+        {
+          resourceType: 'warehouse',
+          resourceId: north,
+          changes: {
+            code: { from: null, to: 'NORTE' },
+            name: { from: null, to: 'Almacén NORTE' },
+            priority: { from: null, to: 2 },
+            status: { from: null, to: 'ACTIVE' },
+          },
+        },
+      ]);
+      await expect(create('NORTE', 3)).rejects.toThrow(
+        new DuplicateValueError('code'),
+      );
+    });
+
+    it('changes the priority of a warehouse, audited (ADR-0160)', async () => {
+      await cls.run(() =>
+        moduleRef.get(UpdateWarehouse).execute(MAIN, { priority: 5 }),
+      );
+
+      expect(
+        (await prisma.warehouse.findUniqueOrThrow({ where: { id: MAIN } }))
+          .priority,
+      ).toBe(5);
+      expect(await audited('warehouses.update')).toEqual([
+        expect.objectContaining({
+          changes: { priority: { from: 1, to: 5 } },
+        }),
+      ]);
+    });
+
+    it('deactivates a warehouse for good: it takes no more stock, and adjustments move what it kept (UC-INV-11)', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      const north = await create('NORTE', 2);
+      await receiveIn(north, shirt, 3);
+
+      await deactivate(north);
+      const out = await transfer(north, shirt, -3);
+      const into = await transfer(MAIN, shirt, 3);
+
+      expect(await statusOf(north)).toBe('INACTIVE');
+      expect(await audited('warehouses.deactivate')).toEqual([
+        {
+          resourceType: 'warehouse',
+          resourceId: north,
+          changes: { status: { from: 'ACTIVE', to: 'INACTIVE' } },
+        },
+      ]);
+      await expect(receiveIn(north, shirt, 1)).rejects.toThrow(
+        new NotFoundError('Warehouse', north),
+      );
+      expect([
+        out.movement.reasonCode,
+        out.stockItem.onHand,
+        into.stockItem.onHand,
+      ]).toEqual(['WAREHOUSE_TRANSFER', 0, 3]);
+      await expect(deactivate(north)).rejects.toThrow(
+        InvalidStateTransitionError,
+      );
+      await expect(deactivate(newId<'Warehouse'>())).rejects.toThrow(
+        NotFoundError,
+      );
+    });
+
+    it('never deactivates a warehouse that holds units for orders, nor the last active one', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      const north = await create('NORTE', 2);
+      await receiveIn(north, shirt, 2);
+      const orderId = await reserve(shirt, 1);
+
+      await expect(deactivate(north)).rejects.toThrow(ResourceInUseError);
+      await deactivate(MAIN);
+      await cls.run(() => moduleRef.get(InventoryFacade).release(orderId));
+      await expect(deactivate(north)).rejects.toThrow(LastActiveWarehouseError);
+
+      expect([await statusOf(MAIN), await statusOf(north)]).toEqual([
+        'INACTIVE',
+        'ACTIVE',
+      ]);
+    });
+
+    it('waits for a reservation under way in the warehouse, and then refuses to deactivate it', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      const north = await create('NORTE', 2);
+      await receiveIn(north, shirt, 2);
+      const { opened, open } = gate();
+      // The reservation holds the warehouse until its transaction ends.
+      const reserving = cls.run(() =>
+        moduleRef.get(TransactionManager).run(async () => {
+          await moduleRef
+            .get(InventoryFacade)
+            .reserve(newId<'Order'>(), [{ variantId: shirt, quantity: 1 }]);
+          await opened;
+        }),
+      );
+      await waitForReserved(north, shirt);
+
+      const deactivating = deactivate(north);
+      await waitForLockWaiters(1);
+      open();
+      await reserving;
+
+      await expect(deactivating).rejects.toThrow(ResourceInUseError);
+      expect(await statusOf(north)).toBe('ACTIVE');
+    });
+
+    it('makes a reservation under way wait for a deactivation, and then reserve in the next warehouse', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      await receive(shirt, 1);
+      const north = await create('NORTE', 1);
+      await receiveIn(north, shirt, 5);
+      const { opened, open } = gate();
+      // The north warehouse comes first by code; its deactivation holds it until it commits.
+      const deactivating = cls.run(() =>
+        moduleRef.get(TransactionManager).run(async () => {
+          await moduleRef.get(DeactivateWarehouse).execute(north);
+          await opened;
+        }),
+      );
+      await waitForStatus(north);
+
+      const orderId = newId<'Order'>();
+      const reserving = cls.run(() =>
+        moduleRef
+          .get(InventoryFacade)
+          .reserve(orderId, [{ variantId: shirt, quantity: 1 }]),
+      );
+      await waitForLockWaiters(1);
+      open();
+      await deactivating;
+      await reserving;
+      await cls.run(() => moduleRef.get(InventoryFacade).commit(orderId));
+
+      expect(
+        await cls.run(() =>
+          moduleRef.get(InventoryFacade).allocationOf(orderId),
+        ),
+      ).toEqual([
+        { warehouseId: MAIN, lines: [{ variantId: shirt, quantity: 1 }] },
+      ]);
+      expect(await statusOf(north)).toBe('INACTIVE');
+    });
+
+    it('makes a receipt under way wait for a deactivation, and then answers the warehouse as not found', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      const north = await create('NORTE', 2);
+      const { opened, open } = gate();
+      const deactivating = cls.run(() =>
+        moduleRef.get(TransactionManager).run(async () => {
+          await moduleRef.get(DeactivateWarehouse).execute(north);
+          await opened;
+        }),
+      );
+      await waitForStatus(north);
+
+      const receiving = receiveIn(north, shirt, 3);
+      await waitForLockWaiters(1);
+      open();
+      await deactivating;
+
+      await expect(receiving).rejects.toThrow(
+        new NotFoundError('Warehouse', north),
+      );
+      expect(
+        await prisma.stockItem.count({ where: { warehouseId: north } }),
+      ).toBe(0);
+    });
+
+    it('finds where the stock of an order left from, by priority, without what came back there nor other orders', async () => {
+      const [shirt, cap] = await createVariants(
+        'Camisa de lino',
+        'CAM-LINO-M',
+        'GORRA-AZUL',
+      );
+      // The north warehouse comes first by priority, though its code comes before the main one's.
+      const north = await create('NORTE', 2);
+      await prisma.warehouse.update({
+        where: { id: MAIN },
+        data: { priority: 3 },
+      });
+      const item = async (warehouseId: WarehouseId, variantId: VariantId) => {
+        const id = newId<'StockItem'>();
+        await prisma.stockItem.create({
+          data: { id, variantId, warehouseId, onHand: 10 },
+        });
+        return id;
+      };
+      const [mainShirt, northShirt, northCap] = [
+        await item(MAIN, shirt),
+        await item(north, shirt),
+        await item(north, cap),
+      ];
+      const [orderId, other] = [newId<'Order'>(), newId<'Order'>()];
+      const line = newId<'OrderLine'>();
+      const movement = (
+        stockItemId: string,
+        type: 'SALE' | 'RESTOCK',
+        quantity: number,
+        order: string,
+      ) =>
+        prisma.stockMovement.create({
+          data: {
+            id: newId(),
+            stockItemId,
+            type,
+            quantity,
+            onHandAfter: 10,
+            orderId: order,
+            ...(type === 'RESTOCK'
+              ? { reasonCode: 'ORDER_CANCELLED', orderLineId: line }
+              : {}),
+          },
+        });
+      // As a split order would leave: shirts from both warehouses; one came back to the main one, and a cap
+      // went to the north one, which it never left.
+      await movement(northShirt, 'SALE', -1, orderId);
+      await movement(mainShirt, 'SALE', -2, orderId);
+      await movement(mainShirt, 'RESTOCK', 1, orderId);
+      await movement(northCap, 'RESTOCK', 1, orderId);
+      await movement(northShirt, 'SALE', -5, other);
+
+      expect(
+        await moduleRef.get(StockLedgerRepository).originsOf(orderId),
+      ).toEqual([
+        { warehouseId: north, variantId: shirt, units: 1 },
+        { warehouseId: MAIN, variantId: shirt, units: 1 },
+      ]);
+    });
+
+    it('lets one of two deactivations at the same time through when they would leave no warehouse active', async () => {
+      const north = await create('NORTE', 2);
+      const client = await lockingClient();
+      // Hold the main warehouse, which both lock, so both deactivations are under way at once.
+      await client.query('SELECT id FROM warehouses WHERE id = $1 FOR UPDATE', [
+        MAIN,
+      ]);
+
+      const results = Promise.allSettled([deactivate(MAIN), deactivate(north)]);
+      await waitForLockWaiters(2);
+      await client.query('COMMIT');
+      await client.end();
+      const settled = await results;
+
+      expect(
+        settled.filter(({ status }) => status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        settled.find(
+          (result): result is PromiseRejectedResult =>
+            result.status === 'rejected',
+        )?.reason,
+      ).toBeInstanceOf(LastActiveWarehouseError);
+      expect(
+        await prisma.warehouse.count({ where: { status: 'ACTIVE' } }),
+      ).toBe(1);
+    });
+
+    async function lockingClient(): Promise<pg.Client> {
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
+      });
+      await client.connect();
+      await client.query('BEGIN');
+      return client;
+    }
+
+    /** Waits until another transaction holds units of the variant in the warehouse, uncommitted. */
+    async function waitForReserved(
+      warehouseId: WarehouseId,
+      variantId: VariantId,
+    ): Promise<void> {
+      const client = await lockingClient();
+      try {
+        // NOWAIT fails while the reservation holds the stock item: then it is under way.
+        for (let tries = 0; tries < 100; tries += 1) {
+          await client.query('SAVEPOINT probe');
+          try {
+            await client.query(
+              'SELECT id FROM stock_items WHERE warehouse_id = $1 AND variant_id = $2 FOR UPDATE NOWAIT',
+              [warehouseId, variantId],
+            );
+            await client.query('ROLLBACK TO SAVEPOINT probe');
+          } catch {
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        throw new Error('The reservation never started');
+      } finally {
+        await client.query('ROLLBACK');
+        await client.end();
+      }
+    }
+
+    /** Waits until another transaction holds the warehouse row, as a deactivation under way does. */
+    async function waitForStatus(warehouseId: WarehouseId): Promise<void> {
+      const client = await lockingClient();
+      try {
+        for (let tries = 0; tries < 100; tries += 1) {
+          await client.query('SAVEPOINT probe');
+          try {
+            await client.query(
+              'SELECT id FROM warehouses WHERE id = $1 FOR SHARE NOWAIT',
+              [warehouseId],
+            );
+            await client.query('ROLLBACK TO SAVEPOINT probe');
+          } catch {
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        throw new Error('The deactivation never started');
+      } finally {
+        await client.query('ROLLBACK');
+        await client.end();
+      }
+    }
   });
 
   describe('changes at the same time', () => {

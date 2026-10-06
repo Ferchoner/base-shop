@@ -230,6 +230,11 @@ export class AdminShipmentListQueryDto extends PageQueryDto {
   @IsUUID('all')
   orderId?: string;
 
+  /** Los envíos que salen de este almacén (ADR-0160). */
+  @IsOptional()
+  @IsUUID('all')
+  warehouseId?: string;
+
   /**
    * El código público de la orden, con o sin guion, o el número de guía, sin distinguir mayúsculas y minúsculas.
    * @example 'K7M4-Q9XA'

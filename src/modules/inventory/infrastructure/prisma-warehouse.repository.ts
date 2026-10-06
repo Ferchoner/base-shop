@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
+import { uniqueViolationIndex } from '../../../platform/persistence/prisma-errors.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
-import { toId } from '../../../shared-kernel/index.js';
+import { DuplicateValueError, toId } from '../../../shared-kernel/index.js';
 import {
   Warehouse,
   type WarehouseAddress,
@@ -25,26 +26,58 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
     );
   }
 
-  async firstActive(): Promise<Warehouse | null> {
-    return toWarehouse(
-      await this.txHost.tx.warehouse.findFirst({
-        where: { status: 'ACTIVE' },
-        orderBy: [{ priority: 'asc' }, { code: 'asc' }],
-      }),
-    );
+  async lockActive(): Promise<Warehouse[]> {
+    const rows = await this.txHost.tx.$queryRaw<WarehouseRow[]>`
+      SELECT id, code, name, address, status, priority FROM warehouses
+       WHERE status = 'ACTIVE'
+       ORDER BY id
+         FOR UPDATE`;
+    return rows.map((row) => toWarehouse(row)!);
+  }
+
+  async lockForStock(id: WarehouseId): Promise<Warehouse | null> {
+    const [row] = await this.txHost.tx.$queryRaw<WarehouseRow[]>`
+      SELECT id, code, name, address, status, priority FROM warehouses
+       WHERE id = ${id}::uuid
+         FOR SHARE`;
+    return toWarehouse(row ?? null);
+  }
+
+  async reservedUnits(id: WarehouseId): Promise<number> {
+    const { _sum } = await this.txHost.tx.stockItem.aggregate({
+      where: { warehouseId: id },
+      _sum: { reserved: true },
+    });
+    return _sum.reserved ?? 0;
+  }
+
+  async insert(warehouse: Warehouse): Promise<void> {
+    const { address, ...data } = warehouse.snapshot();
+    try {
+      await this.txHost.tx.warehouse.create({
+        data: {
+          ...data,
+          address: jsonAddress(address),
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (uniqueViolationIndex(error) === 'warehouses_code_key') {
+        throw new DuplicateValueError('code');
+      }
+      throw error;
+    }
   }
 
   async save(warehouse: Warehouse): Promise<void> {
-    const { id, name, address } = warehouse.snapshot();
+    const { id, name, address, status, priority } = warehouse.snapshot();
     await this.txHost.tx.warehouse.update({
       where: { id },
       data: {
         name,
-        // A JSON column is cleared with `DbNull`: a plain `null` would not reach the database.
-        address:
-          address === null
-            ? Prisma.DbNull
-            : (address as unknown as Prisma.InputJsonValue),
+        address: jsonAddress(address),
+        status,
+        priority,
         // The time comes from the application, as for every `@updatedAt` of Prisma (DEVELOPMENT_GUIDE.md).
         updatedAt: new Date(),
       },
@@ -52,16 +85,25 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
   }
 }
 
-function toWarehouse(
-  row: {
-    id: string;
-    code: string;
-    name: string;
-    address: unknown;
-    status: 'ACTIVE' | 'INACTIVE';
-    priority: number;
-  } | null,
-): Warehouse | null {
+interface WarehouseRow {
+  id: string;
+  code: string;
+  name: string;
+  address: unknown;
+  status: 'ACTIVE' | 'INACTIVE';
+  priority: number;
+}
+
+/** A JSON column is cleared with `DbNull`: a plain `null` would not reach the database. */
+function jsonAddress(
+  address: WarehouseAddress | null,
+): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  return address === null
+    ? Prisma.DbNull
+    : (address as unknown as Prisma.InputJsonValue);
+}
+
+function toWarehouse(row: WarehouseRow | null): Warehouse | null {
   return row === null
     ? null
     : Warehouse.restore({

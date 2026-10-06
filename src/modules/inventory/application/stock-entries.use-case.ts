@@ -40,8 +40,9 @@ interface Entry {
 
 /**
  * Receipts (UC-INV-02) and adjustments (UC-INV-03) of the staff, ADR-0069 and ADR-0127. The variant must exist
- * in Catalog, in any status, and the warehouse must be the active one. Each one changes `onHand` with one
- * conditional atomic update, writes its movement and is audited, all in one transaction.
+ * in Catalog, in any status. A receipt goes to an active warehouse; an adjustment to any, so the stock left in
+ * an inactive one can be corrected or moved (ADR-0160). Each one changes `onHand` with one conditional atomic
+ * update, writes its movement and is audited, all in one transaction.
  */
 @Injectable()
 export class StockEntries {
@@ -57,8 +58,14 @@ export class StockEntries {
   /** Adds units received, creating the stock item on the first receipt of the variant. */
   async receive(entry: Entry, staffId: string): Promise<StockEntryView> {
     const quantity = receiptQuantity(entry.quantity);
-    await this.requireVariantAndWarehouse(entry);
+    await this.requireVariant(entry.variantId);
     const change = await this.transactions.run(async () => {
+      // Shared until the end, so the warehouse is not deactivated while it takes the units (ADR-0160).
+      const warehouse = await this.warehouses.lockForStock(entry.warehouseId);
+      // Only an active warehouse takes stock; another one is answered as missing.
+      if (warehouse === null || !warehouse.isActive) {
+        throw new NotFoundError('Warehouse', entry.warehouseId);
+      }
       const received = await this.ledger.receive({
         ...this.base(entry, staffId),
         quantity,
@@ -84,8 +91,11 @@ export class StockEntries {
       reasonCode: entry.reasonCode,
       note,
     });
-    await this.requireVariantAndWarehouse(entry);
+    await this.requireVariant(entry.variantId);
     const change = await this.transactions.run(async () => {
+      if ((await this.warehouses.find(entry.warehouseId)) === null) {
+        throw new NotFoundError('Warehouse', entry.warehouseId);
+      }
       const adjusted = await this.ledger.adjust({
         ...this.base(entry, staffId),
         quantity: entry.quantity,
@@ -110,14 +120,9 @@ export class StockEntries {
     };
   }
 
-  private async requireVariantAndWarehouse(entry: Entry): Promise<void> {
-    if (!(await this.variants.exists(entry.variantId))) {
-      throw new NotFoundError('Variant', entry.variantId);
-    }
-    const warehouse = await this.warehouses.find(entry.warehouseId);
-    // Only an active warehouse takes stock (ADR-0160); another one is answered as missing.
-    if (warehouse === null || !warehouse.isActive) {
-      throw new NotFoundError('Warehouse', entry.warehouseId);
+  private async requireVariant(variantId: VariantId): Promise<void> {
+    if (!(await this.variants.exists(variantId))) {
+      throw new NotFoundError('Variant', variantId);
     }
   }
 

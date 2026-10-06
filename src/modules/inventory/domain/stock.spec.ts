@@ -26,7 +26,11 @@ describe('Stock rules (UC-INV-02, UC-INV-03, ADR-0069)', () => {
   );
 
   it('takes an adjustment either way for the reasons that allow it', () => {
-    for (const reasonCode of ['PHYSICAL_COUNT', 'DATA_ENTRY_ERROR'] as const) {
+    for (const reasonCode of [
+      'PHYSICAL_COUNT',
+      'DATA_ENTRY_ERROR',
+      'WAREHOUSE_TRANSFER',
+    ] as const) {
       for (const quantity of [5, -5, MAX_STOCK_QUANTITY, -MAX_STOCK_QUANTITY]) {
         expect(() =>
           checkAdjustment({ quantity, reasonCode, note: null }),
@@ -74,7 +78,7 @@ describe('Stock rules (UC-INV-02, UC-INV-03, ADR-0069)', () => {
         expect.objectContaining({ field: 'quantity', code: 'reasonDirection' }),
       ],
     });
-    expect(ADJUSTMENT_REASONS).toHaveLength(6);
+    expect(ADJUSTMENT_REASONS).toHaveLength(7);
   });
 
   it('keeps a note trimmed, and none for blank', () => {
