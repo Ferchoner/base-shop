@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## 1.3.0 (2026-10-06)
+
+El pago en tienda configurable desde la API (ADR-0162).
 
 - La descripción de `contactEmail` en `Order`, `AdminOrder` y sus listados dice cuándo es `null`: en una orden anonimizada o bloqueada, y en una venta de mostrador sin datos del comprador (ADR-0161). Antes decía que solo en las anonimizadas.
 - Plan de la versión 1.3 (nuevo ADR-0162): el pago en tienda configurable desde la API. El valor de `MANUAL_PAYMENTS_ENABLED` pasa a la base, con una ruta para consultarlo y otra para cambiarlo, reservada al superadministrador con el permiso nuevo `payments.configure`. Se implementa en T-194.
@@ -10,6 +12,7 @@
   - `payments.configure` es un permiso nuevo que solo tiene el rol superadministrador: crear o editar otro rol con él responde 400 `validation-error` con `superadminOnly`. `GET /v1/admin/identity/permissions` agrega `superadminOnly` a cada permiso.
   - El cambio vale de inmediato: el registro del pago y del reembolso manual, el inicio de un pago `MANUAL` y el correo de orden recibida leen el valor al ocurrir. El 403 `manual-payments-disabled` dice que un superadministrador lo habilita.
   - **Cambio para el operador:** `MANUAL_PAYMENTS_ENABLED` deja de existir. Después de migrar, el pago manual queda deshabilitado hasta que un superadministrador lo habilite.
+- Versión 1.3.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.3.0` y un GitHub Release.
 
 ## 1.2.0 (2026-10-06)
 
