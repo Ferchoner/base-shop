@@ -8,7 +8,7 @@
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
-7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una ruta nueva va también en la tabla de resumen de su sección de `API_SPEC.md`, y todo cambio del contrato (rutas, DTOs, descripciones o errores) se guarda con `npm run openapi:update` en `docs/openapi/v1.json`: la prueba de contrato falla hasta entonces (ADR-0155). Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
+7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una ruta nueva va también en la tabla de resumen de su sección de `API_SPEC.md`, y todo cambio del contrato (rutas, DTOs, descripciones o errores) se guarda con `npm run openapi:update` en `docs/openapi/v1.json`: la prueba de contrato falla hasta entonces (ADR-0155). Por eso la tabla y el documento van en el mismo commit que la ruta, que se verifica solo: en T-162 parte b, el commit `feat` no llevaba las tablas. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
 8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
@@ -214,11 +214,13 @@ Tests (Jest):
 - Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
 - Un error de dominio con `details` se compara con `rejects.toMatchObject({ code, details })`. `toThrow(new Error(…))` solo compara el mensaje: la prueba del tope del reintegro pasaba con otras líneas en el error (T-161).
 - Los datos de prueba usan valores distintos donde el código elige entre ellos (T-215). Un reembolso igual al total de la orden, una dirección sin número interior o un solo tipo de despacho dejaron pasar mutaciones.
+- Una prueba de un orden usa datos que darían otro resultado con cualquier otro orden: los orígenes de un reintegro, ordenados por prioridad, salían igual ordenados por código (T-162).
 - Cada filtro de un listado se prueba por separado, con datos que solo ese filtro distingue: `resourceType` y `resourceId` probados juntos dejaron pasar dos mutaciones (T-220).
 - Si el código agrupa o corta por día, las pruebas usan instantes que caen en días distintos en UTC y en México, como las 03:00 UTC (T-220).
 - En las e2e, un límite por email cuenta durante toda la suite, así que cada prueba usa su propio email. Los correos de la orden llegan al mismo `EmailSender` falso que los demás: una prueba de otro correo lo filtra por su asunto (T-186).
 - Las pruebas de mutación de cada tarea quitan o limitan los mutantes que pueden no terminar, como cambiar el orden de una lectura por lotes (T-220).
   - Una corrida que pase de una hora se parte en tandas: un proceso en segundo plano tiene un límite de 2 horas, y uno cortado deja un mutante aplicado (T-310).
+  - Cada mutante corre con la suite que tiene su prueba: uno sobrevivió porque su prueba nueva estaba en integración y el script corría la e2e (T-162).
 - Un control que puede pasar sin revisar nada muestra lo que revisó, o falla: el escaneo de secretos pasaba sin leer el repositorio desde un worktree (ADR-0156), y desde entonces dice cuántos commits revisó.
 - Una tabla que llenan todas las suites, como el outbox de eventos (`domain_events`), se vacía antes de cada prueba que la cuenta o la recorre (T-109).
 - `npx tsc --noEmit` compila también las specs de integración y e2e: al quitar un campo de una firma, se busca en ellas antes del commit. En T-161, el commit feat no compilaba por sí solo.
