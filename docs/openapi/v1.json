@@ -358,7 +358,7 @@
             "type": "string"
           },
           "warehouseId": {
-            "description": "Debe ser el almacén activo.",
+            "description": "Debe ser un almacén activo.",
             "format": "uuid",
             "type": "string"
           }
@@ -5289,7 +5289,7 @@
             "type": "string"
           },
           "warehouseId": {
-            "description": "Debe ser el almacén activo.",
+            "description": "Debe ser un almacén activo.",
             "format": "uuid",
             "type": "string"
           }
@@ -7016,8 +7016,13 @@
             "example": "Almacén principal",
             "type": "string"
           },
+          "priority": {
+            "description": "Orden en que se reservan los pedidos, de 1 a 1000; 1 es el primero. Cada pedido se reserva completo en el primer\nalmacén activo que lo tiene todo; con la misma prioridad, por `code` (ADR-0160).",
+            "example": 1,
+            "type": "number"
+          },
           "status": {
-            "description": "`ACTIVE` o `INACTIVE`; en el MVP, el único almacén está activo (ADR-0081).",
+            "description": "`ACTIVE` o `INACTIVE`; solo los almacenes activos venden y reservan (ADR-0160).",
             "enum": [
               "ACTIVE",
               "INACTIVE"
@@ -7036,7 +7041,8 @@
           "createdAt",
           "updatedAt",
           "code",
-          "name"
+          "name",
+          "priority"
         ],
         "type": "object"
       },
@@ -13521,7 +13527,7 @@
     },
     "/v1/admin/inventory/warehouses": {
       "get": {
-        "description": "Sin paginar. En el MVP hay exactamente un almacén, creado por el seed (ADR-0081).",
+        "description": "Sin paginar, por prioridad y luego por código. Cada pedido se reserva completo en el primer almacén activo que lo tiene todo (ADR-0160).",
         "operationId": "AdminWarehousesController_list_v1",
         "parameters": [],
         "responses": {

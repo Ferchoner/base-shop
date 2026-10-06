@@ -93,6 +93,7 @@ describe('Checkout and orders (e2e, T-180)', () => {
     await prisma.pricePeriod.deleteMany();
     await prisma.variantPrice.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     await prisma.customerAddress.deleteMany();
@@ -548,6 +549,82 @@ describe('Checkout and orders (e2e, T-180)', () => {
       expect(await reserved(shirt.id)).toBe(0);
       expect(await prisma.order.count()).toBe(0);
       expect(await cartStatus(cartId)).toBe('ACTIVE');
+    });
+
+    it('places the order in one warehouse: the quote and the 409 name what the closest one lacks (ADR-0160)', async () => {
+      const north = newId();
+      await prisma.warehouse.create({
+        data: {
+          id: north,
+          code: 'NORTE',
+          name: 'Almacén norte',
+          status: 'ACTIVE',
+          priority: 2,
+        },
+      });
+      const shirt = await variant({ price: 10_000, stock: 2 });
+      const hat = await variant({ price: 10_000, stock: 0 });
+      await prisma.stockItem.create({
+        data: { id: newId(), variantId: hat.id, warehouseId: north, onHand: 1 },
+      });
+      const cartId = await guestCart(
+        { variantId: shirt.id, quantity: 2 },
+        { variantId: hat.id, quantity: 1 },
+      );
+      const quote = async () =>
+        (await http().post('/v1/checkout/quote').send({ cartId }).expect(200))
+          .body as {
+          lines: { variantId: string; canFulfill: boolean }[];
+          readyToPlace: boolean;
+        };
+      const reservedIn = async (variantId: string, warehouseId: string) =>
+        (
+          await prisma.stockItem.findUniqueOrThrow({
+            where: { variantId_warehouseId: { variantId, warehouseId } },
+          })
+        ).reserved;
+
+      // Each line alone fits somewhere, but no warehouse holds both: the main one, first, lacks the hat.
+      const cart = await http().get(`/v1/carts/${cartId}`).expect(200);
+      const split = await quote();
+      const short = await placeGuest(
+        guestOrder(cartId, { expectedTotal: 39_900 }),
+      ).expect(409);
+      await prisma.stockItem.create({
+        data: {
+          id: newId(),
+          variantId: shirt.id,
+          warehouseId: north,
+          onHand: 2,
+        },
+      });
+      const whole = await quote();
+      await placeGuest(guestOrder(cartId, { expectedTotal: 39_900 })).expect(
+        201,
+      );
+
+      expect(
+        cart.body.lines.map(
+          ({ canFulfill }: { canFulfill: boolean }) => canFulfill,
+        ),
+      ).toEqual([true, true]);
+      expect([
+        split.lines.map(({ canFulfill }) => canFulfill),
+        split.readyToPlace,
+      ]).toEqual([[true, false], false]);
+      expect(short.body).toMatchObject({
+        type: '/problems/insufficient-stock',
+        lines: [{ variantId: hat.id, canFulfill: false }],
+      });
+      expect([
+        whole.lines.map(({ canFulfill }) => canFulfill),
+        whole.readyToPlace,
+      ]).toEqual([[true, true], true]);
+      expect([
+        await reservedIn(shirt.id, north),
+        await reservedIn(hat.id, north),
+        await reservedIn(shirt.id, MAIN),
+      ]).toEqual([2, 1, 0]);
     });
 
     it('answers 409 variant-not-sellable for a line that can no longer be sold', async () => {

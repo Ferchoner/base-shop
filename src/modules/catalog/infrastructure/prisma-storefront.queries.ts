@@ -43,14 +43,14 @@ const VISIBLE_CATEGORIES = Prisma.sql`visible (id) AS (
 
 /**
  * Sellable variants (BR-PRD-11), with the price current at `at` in the default list and whether they are
- * available: units not reserved in the active warehouse (ADR-0061, ADR-0081). `where` narrows the variants
- * (`v`) or their products (`p`) before anything else is read.
+ * available: some active warehouse has a unit not reserved (ADR-0061, ADR-0160). One row per variant, whatever
+ * the number of warehouses. `where` narrows the variants (`v`) or their products (`p`) before anything else is read.
  */
 function sellable(at: Date, where: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`
     SELECT v.id AS variant_id, v.product_id, v.sku, v.options, v.created_at, p.brand_id,
            pp.amount, pp.compare_at_amount, pl.currency,
-           coalesce(si.on_hand - si.reserved, 0) > 0 AS available
+           coalesce(stock.available, false) AS available
       FROM product_variants v
       JOIN products p ON p.id = v.product_id AND p.status = 'PUBLISHED'
       JOIN variant_prices vp ON vp.variant_id = v.id
@@ -58,8 +58,11 @@ function sellable(at: Date, where: Prisma.Sql): Prisma.Sql {
       JOIN price_periods pp ON pp.variant_price_id = vp.id
                            AND pp.effective_from <= ${at}::timestamptz
                            AND (pp.effective_to IS NULL OR pp.effective_to > ${at}::timestamptz)
-      LEFT JOIN warehouses w ON w.status = 'ACTIVE'
-      LEFT JOIN stock_items si ON si.variant_id = v.id AND si.warehouse_id = w.id
+      LEFT JOIN LATERAL (
+            SELECT bool_or(si.on_hand - si.reserved > 0) AS available
+              FROM stock_items si
+              JOIN warehouses w ON w.id = si.warehouse_id AND w.status = 'ACTIVE'
+             WHERE si.variant_id = v.id) stock ON true
      WHERE v.status = 'ACTIVE' AND ${where}`;
 }
 

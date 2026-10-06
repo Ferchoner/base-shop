@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import { newId, toId } from '../../../shared-kernel/index.js';
+import type { Allocation } from '../domain/allocation.js';
 import type {
   CommitOutcome,
   OrderId,
@@ -156,6 +157,29 @@ export class PrismaReservationRepository extends ReservationRepository {
 
   expire(orderId: OrderId, at: Date): Promise<boolean> {
     return this.free(orderId, 'EXPIRED', at);
+  }
+
+  async allocationOf(orderId: OrderId): Promise<Allocation[]> {
+    const rows = await this.txHost.tx.$queryRaw<
+      { warehouse_id: string; variant_id: string; quantity: number }[]
+    >`
+      SELECT si.warehouse_id, si.variant_id, rl.quantity
+        FROM reservations r
+        JOIN reservation_lines rl ON rl.reservation_id = r.id
+        JOIN stock_items si ON si.id = rl.stock_item_id
+        JOIN warehouses w ON w.id = si.warehouse_id
+       WHERE r.order_id = ${orderId}::uuid AND r.status = 'COMMITTED'
+       ORDER BY w.priority, w.code, si.variant_id`;
+    const groups = new Map<string, StockRequest[]>();
+    for (const { warehouse_id, variant_id, quantity } of rows) {
+      const lines = groups.get(warehouse_id) ?? [];
+      lines.push({ variantId: toId<'Variant'>(variant_id), quantity });
+      groups.set(warehouse_id, lines);
+    }
+    return [...groups].map(([warehouseId, lines]) => ({
+      warehouseId: toId<'Warehouse'>(warehouseId),
+      lines,
+    }));
   }
 
   /** Ends the active reservation of the order with `status` and gives back the units it held. */

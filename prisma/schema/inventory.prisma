@@ -38,13 +38,14 @@ model Warehouse {
   /// Address in the ADR-0057 format.
   address   Json?         @db.JsonB
   status    CatalogStatus
+  /// 1 is the first: an order is reserved in the first active warehouse that holds all of it, by priority and then
+  /// code (ADR-0160). From 1 to 1000 (CHECK in the migration).
+  priority  Int           @default(1)
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   stockItems StockItem[]
 
-  /// At most one active warehouse (ADR-0081).
-  @@unique([status], map: "warehouses_single_active", where: raw("status = 'ACTIVE'::catalog_status"))
   @@map("warehouses")
 }
 

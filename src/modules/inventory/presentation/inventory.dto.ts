@@ -66,9 +66,16 @@ export class WarehouseDto {
   @ApiProperty({ type: () => PostalAddressDto, nullable: true })
   address: PostalAddressDto | null;
 
-  /** `ACTIVE` o `INACTIVE`; en el MVP, el único almacén está activo (ADR-0081). */
+  /** `ACTIVE` o `INACTIVE`; solo los almacenes activos venden y reservan (ADR-0160). */
   @ApiProperty({ enum: ['ACTIVE', 'INACTIVE'] })
   status: string;
+
+  /**
+   * Orden en que se reservan los pedidos, de 1 a 1000; 1 es el primero. Cada pedido se reserva completo en el primer
+   * almacén activo que lo tiene todo; con la misma prioridad, por `code` (ADR-0160).
+   * @example 1
+   */
+  priority: number;
 
   @ApiProperty(DATE_TIME)
   createdAt: Date;
@@ -272,7 +279,7 @@ export class ReceiptDto {
   @IsUUID()
   variantId: string;
 
-  /** Debe ser el almacén activo. */
+  /** Debe ser un almacén activo. */
   @IsUUID()
   warehouseId: string;
 
@@ -296,7 +303,7 @@ export class AdjustmentDto {
   @IsUUID()
   variantId: string;
 
-  /** Debe ser el almacén activo. */
+  /** Debe ser un almacén activo. */
   @IsUUID()
   warehouseId: string;
 

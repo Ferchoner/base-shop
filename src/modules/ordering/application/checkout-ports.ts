@@ -88,7 +88,10 @@ export interface StockReservation {
 
 /** The stock of Inventory, for the checkout and the life of an order. */
 export abstract class OrderStock {
-  /** Whether each variant can be fulfilled now, without revealing quantities (ADR-0061). */
+  /**
+   * Whether each variant can be fulfilled now together with the others, as the order would be reserved: the
+   * ones the closest warehouse leaves out cannot (ADR-0160). Never reveals quantities (ADR-0061).
+   */
   abstract canFulfill(
     lines: readonly StockLine[],
   ): Promise<ReadonlyMap<VariantId, boolean>>;

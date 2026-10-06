@@ -76,6 +76,7 @@ describe('Inventory: reservations (T-160 part b)', () => {
     await prisma.reservation.deleteMany();
     await prisma.stockMovement.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     await prisma.auditLog.deleteMany({
@@ -502,6 +503,177 @@ describe('Inventory: reservations (T-160 part b)', () => {
       expect(a).toEqual(b);
       expect((await stockOf(shirt)).reserved).toBe(2);
       expect(await prisma.reservation.count()).toBe(1);
+    });
+  });
+
+  describe('several warehouses (ADR-0160)', () => {
+    /** Another warehouse; only an active one takes stock and orders. */
+    async function warehouse(
+      code: string,
+      priority: number,
+      status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE',
+    ): Promise<WarehouseId> {
+      const id = newId<'Warehouse'>();
+      await prisma.warehouse.create({
+        data: { id, code, name: code, status, priority },
+      });
+      return id;
+    }
+
+    /** Units of the variant received in an active warehouse through Inventory. */
+    async function stockIn(
+      warehouseId: WarehouseId,
+      variantId: VariantId,
+      quantity: number,
+    ): Promise<void> {
+      await cls.run(() =>
+        moduleRef
+          .get(StockEntries)
+          .receive({ variantId, warehouseId, quantity }, newId()),
+      );
+    }
+
+    const reservedIn = async (warehouseId: WarehouseId, variantId: VariantId) =>
+      (
+        await prisma.stockItem.findUnique({
+          where: { variantId_warehouseId: { variantId, warehouseId } },
+          select: { reserved: true },
+        })
+      )?.reserved ?? 0;
+
+    it('reserves the whole order in the first active warehouse that holds it, by priority and then code', async () => {
+      const [shirt, cap] = await stocked(1, 0);
+      const north = await warehouse('NORTE', 2);
+      const archive = await warehouse('ARCHIVO', 2);
+      const closed = await warehouse('CERRADO', 1, 'INACTIVE');
+      for (const id of [north, archive]) {
+        await stockIn(id, shirt, 5);
+        await stockIn(id, cap, 1);
+      }
+      // The inactive one comes first and holds the whole order, but sells nothing.
+      await prisma.stockItem.createMany({
+        data: [shirt, cap].map((variantId) => ({
+          id: newId(),
+          variantId,
+          warehouseId: closed,
+          onHand: 9,
+          reserved: 0,
+        })),
+      });
+      const orderId = newId<'Order'>();
+
+      await reserve(orderId, [
+        { variantId: shirt, quantity: 2 },
+        { variantId: cap, quantity: 1 },
+      ]);
+      await commit(orderId);
+
+      expect(await cls.run(() => inventory.allocationOf(orderId))).toEqual([
+        {
+          warehouseId: archive,
+          lines: expect.arrayContaining([
+            { variantId: shirt, quantity: 2 },
+            { variantId: cap, quantity: 1 },
+          ]),
+        },
+      ]);
+      expect(await stockOf(shirt)).toMatchObject({ onHand: 1, reserved: 0 });
+      expect(
+        await prisma.stockItem.findMany({
+          where: { warehouseId: { in: [north, closed] } },
+          select: { onHand: true, reserved: true },
+        }),
+      ).toEqual(
+        expect.arrayContaining([
+          { onHand: 5, reserved: 0 },
+          { onHand: 1, reserved: 0 },
+          { onHand: 9, reserved: 0 },
+        ]),
+      );
+    });
+
+    it('answers what the closest warehouse leaves out when none holds the order, and reserves nothing', async () => {
+      const [shirt, cap] = await stocked(2, 0);
+      const north = await warehouse('NORTE', 2);
+      await stockIn(north, cap, 1);
+      const lines = [
+        { variantId: shirt, quantity: 2 },
+        { variantId: cap, quantity: 1 },
+      ];
+
+      // The main warehouse leaves out the cap and the north one the shirts: the main one comes first.
+      await expect(reserve(newId<'Order'>(), lines)).rejects.toThrow(
+        new InsufficientStockError([cap]),
+      );
+      expect(await cls.run(() => inventory.canFulfill(lines))).toEqual(
+        new Map([
+          [shirt, true],
+          [cap, true],
+        ]),
+      );
+      expect(await cls.run(() => inventory.canFulfillTogether(lines))).toEqual(
+        new Map([
+          [shirt, true],
+          [cap, false],
+        ]),
+      );
+      expect([
+        await reservedIn(MAIN, shirt),
+        await reservedIn(north, cap),
+      ]).toEqual([0, 0]);
+      expect(await prisma.reservationLine.count()).toBe(0);
+    });
+
+    it('answers no allocation for an order whose stock was not confirmed', async () => {
+      const [shirt] = await stocked(3);
+      const orderId = newId<'Order'>();
+      await reserve(orderId, [{ variantId: shirt, quantity: 1 }]);
+
+      expect(await cls.run(() => inventory.allocationOf(orderId))).toEqual([]);
+    });
+
+    it('reserves in the next warehouse the order that lost the last units of the first one to another', async () => {
+      const [shirt] = await stocked(1);
+      const north = await warehouse('NORTE', 2);
+      await stockIn(north, shirt, 1);
+      const { id } = await stockOf(shirt);
+      // Hold the main warehouse's units: both orders read them as available and wait to reserve them.
+      const client = await holder();
+      await client.query(
+        'SELECT id FROM stock_items WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const [first, second] = [newId<'Order'>(), newId<'Order'>()];
+
+      const results = Promise.all([
+        reserve(first, [{ variantId: shirt, quantity: 1 }]),
+        reserve(second, [{ variantId: shirt, quantity: 1 }]),
+      ]);
+      await waitForLockWaiters(2);
+      await client.query('COMMIT');
+      await client.end();
+      await results;
+      await commit(first);
+      await commit(second);
+
+      const allocations = await Promise.all(
+        [first, second].map((orderId) =>
+          cls.run(() => inventory.allocationOf(orderId)),
+        ),
+      );
+      expect(
+        allocations.map(([{ warehouseId }]) => warehouseId).sort(),
+      ).toEqual([MAIN, north].sort());
+      expect(await stockOf(shirt)).toMatchObject({ onHand: 0, reserved: 0 });
+      expect(await reservedIn(north, shirt)).toBe(0);
+      expect(
+        await prisma.stockItem.findUniqueOrThrow({
+          where: {
+            variantId_warehouseId: { variantId: shirt, warehouseId: north },
+          },
+          select: { onHand: true },
+        }),
+      ).toEqual({ onHand: 0 });
     });
   });
 });

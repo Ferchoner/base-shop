@@ -25,9 +25,12 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
     );
   }
 
-  async findActive(): Promise<Warehouse | null> {
+  async firstActive(): Promise<Warehouse | null> {
     return toWarehouse(
-      await this.txHost.tx.warehouse.findFirst({ where: { status: 'ACTIVE' } }),
+      await this.txHost.tx.warehouse.findFirst({
+        where: { status: 'ACTIVE' },
+        orderBy: [{ priority: 'asc' }, { code: 'asc' }],
+      }),
     );
   }
 
@@ -56,6 +59,7 @@ function toWarehouse(
     name: string;
     address: unknown;
     status: 'ACTIVE' | 'INACTIVE';
+    priority: number;
   } | null,
 ): Warehouse | null {
   return row === null
@@ -66,5 +70,6 @@ function toWarehouse(
         name: row.name,
         address: (row.address ?? null) as WarehouseAddress | null,
         status: row.status,
+        priority: row.priority,
       });
 }

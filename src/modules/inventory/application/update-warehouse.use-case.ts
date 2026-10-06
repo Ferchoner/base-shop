@@ -27,7 +27,7 @@ function auditedFields(warehouse: Warehouse): Record<string, unknown> {
 }
 
 /**
- * Changes the name or the address of the warehouse (UC-INV-01, ADR-0081, ADR-0127). The address is checked
+ * Changes the name or the address of a warehouse (UC-INV-01, ADR-0127). The address is checked
  * against the INEGI catalog and keeps the names of its state and municipality (ADR-0057). Without changes,
  * nothing is saved or audited.
  */

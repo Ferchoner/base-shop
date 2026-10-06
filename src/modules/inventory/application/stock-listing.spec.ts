@@ -5,6 +5,7 @@ import {
   type PageRequest,
   type SortOrder,
 } from '../../../shared-kernel/index.js';
+import type { WarehouseStock } from '../domain/allocation.js';
 import type { StockLevel, StockMovement, VariantId } from '../domain/stock.js';
 import { CatalogVariants, type VariantLabel } from './catalog-variants.js';
 import {
@@ -122,7 +123,7 @@ class FixedStock extends InventoryQueries {
     return Promise.resolve(this.filtered(filter));
   }
 
-  availableUnits(): Promise<ReadonlyMap<VariantId, number>> {
+  activeStock(): Promise<WarehouseStock[]> {
     return Promise.reject(new Error('not used'));
   }
 

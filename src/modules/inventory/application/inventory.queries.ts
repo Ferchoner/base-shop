@@ -3,6 +3,7 @@ import type {
   PageRequest,
   SortOrder,
 } from '../../../shared-kernel/index.js';
+import type { WarehouseStock } from '../domain/allocation.js';
 import type {
   StockItemId,
   StockLevel,
@@ -30,6 +31,7 @@ export interface WarehouseView {
   readonly name: string;
   readonly address: WarehouseAddress | null;
   readonly status: WarehouseStatus;
+  readonly priority: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -80,11 +82,13 @@ export abstract class InventoryQueries {
 
   abstract findStock(id: StockItemId): Promise<StockLevel | null>;
 
-  /** Units available (`onHand - reserved`) of each variant with a stock item in the warehouse. */
-  abstract availableUnits(
-    warehouseId: WarehouseId,
+  /**
+   * Every active warehouse, by priority and then code, with the units available (`onHand - reserved`) of the
+   * variants it has a stock item of (ADR-0160).
+   */
+  abstract activeStock(
     variantIds: readonly VariantId[],
-  ): Promise<ReadonlyMap<VariantId, number>>;
+  ): Promise<WarehouseStock[]>;
 
   /**
    * Up to `limit` movements of a stock item, newest first (by `createdAt`, then ID), after `position` when

@@ -72,6 +72,7 @@ describe('Inventory (e2e, T-160 part a)', () => {
   afterEach(async () => {
     await prisma.stockMovement.deleteMany();
     await prisma.stockItem.deleteMany();
+    await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
     await prisma.$executeRaw`
@@ -140,7 +141,17 @@ describe('Inventory (e2e, T-160 part a)', () => {
       .send({ warehouseId: MAIN, ...body });
 
   describe('the warehouse', () => {
-    it('lists the one warehouse, and changes its name and address', async () => {
+    it('lists the warehouses by priority and then code, and changes the name and address of one (ADR-0160)', async () => {
+      const second = newId();
+      await prisma.warehouse.create({
+        data: {
+          id: second,
+          code: 'ALTERNO',
+          name: 'Almacén alterno',
+          status: 'ACTIVE',
+          priority: 2,
+        },
+      });
       const list = await http()
         .get(`${INVENTORY}/warehouses`)
         .set(reader())
@@ -164,9 +175,11 @@ describe('Inventory (e2e, T-160 part a)', () => {
             name: 'Almacén principal',
             address: null,
             status: 'ACTIVE',
+            priority: 1,
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
           },
+          expect.objectContaining({ id: second, code: 'ALTERNO', priority: 2 }),
         ],
       });
       expect(changed.body).toMatchObject({

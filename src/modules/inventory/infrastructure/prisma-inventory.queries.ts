@@ -16,6 +16,7 @@ import {
   type StockFilter,
   type WarehouseView,
 } from '../application/inventory.queries.js';
+import type { WarehouseStock } from '../domain/allocation.js';
 import type {
   StockItemId,
   StockLevel,
@@ -78,7 +79,7 @@ export class PrismaInventoryQueries extends InventoryQueries {
 
   async listWarehouses(): Promise<WarehouseView[]> {
     const rows = await this.txHost.tx.warehouse.findMany({
-      orderBy: { code: 'asc' },
+      orderBy: [{ priority: 'asc' }, { code: 'asc' }],
     });
     return rows.map(toWarehouseView);
   }
@@ -137,20 +138,29 @@ export class PrismaInventoryQueries extends InventoryQueries {
         });
   }
 
-  async availableUnits(
-    warehouseId: WarehouseId,
+  async activeStock(
     variantIds: readonly VariantId[],
-  ): Promise<ReadonlyMap<VariantId, number>> {
-    const rows = await this.txHost.tx.stockItem.findMany({
-      where: { warehouseId, variantId: { in: [...variantIds] } },
-      select: { variantId: true, onHand: true, reserved: true },
+  ): Promise<WarehouseStock[]> {
+    const warehouses = await this.txHost.tx.warehouse.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: [{ priority: 'asc' }, { code: 'asc' }],
+      select: {
+        id: true,
+        stockItems: {
+          where: { variantId: { in: [...variantIds] } },
+          select: { variantId: true, onHand: true, reserved: true },
+        },
+      },
     });
-    return new Map(
-      rows.map(({ variantId, onHand, reserved }) => [
-        toId<'Variant'>(variantId),
-        onHand - reserved,
-      ]),
-    );
+    return warehouses.map(({ id, stockItems }) => ({
+      warehouseId: toId<'Warehouse'>(id),
+      available: new Map(
+        stockItems.map(({ variantId, onHand, reserved }) => [
+          toId<'Variant'>(variantId),
+          onHand - reserved,
+        ]),
+      ),
+    }));
   }
 
   async listMovements(
@@ -202,6 +212,7 @@ function toWarehouseView(row: {
   name: string;
   address: unknown;
   status: 'ACTIVE' | 'INACTIVE';
+  priority: number;
   createdAt: Date;
   updatedAt: Date;
 }): WarehouseView {
@@ -211,6 +222,7 @@ function toWarehouseView(row: {
     name: row.name,
     address: (row.address ?? null) as WarehouseAddress | null,
     status: row.status,
+    priority: row.priority,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

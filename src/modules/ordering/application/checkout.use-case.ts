@@ -66,6 +66,7 @@ export interface QuoteLine {
   readonly taxRateBp: number | null;
   readonly taxAmount: Money | null;
   readonly sellable: boolean;
+  /** Whether the line fits in the order with the others: false for the ones placing it would find short (ADR-0160). */
   readonly canFulfill: boolean;
 }
 

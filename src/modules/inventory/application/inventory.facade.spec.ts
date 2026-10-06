@@ -3,6 +3,7 @@ import {
   newId,
   type TransactionManager,
 } from '../../../shared-kernel/index.js';
+import type { Allocation, WarehouseStock } from '../domain/allocation.js';
 import type {
   CommitOutcome,
   OrderId,
@@ -27,14 +28,15 @@ import { InventoryFacade } from './inventory.facade.js';
 import type { InventoryQueries } from './inventory.queries.js';
 
 const NOW = new Date('2026-10-01T12:00:00.000Z');
-const warehouseId = newId<'Warehouse'>();
+const [warehouseId, backup] = [newId<'Warehouse'>(), newId<'Warehouse'>()];
 const [shirt, cap, unstocked] = [
   newId<'Variant'>(),
   newId<'Variant'>(),
   newId<'Variant'>(),
 ];
 
-class OneWarehouse extends WarehouseRepository {
+/** The first active warehouse by priority, or none. */
+class FirstWarehouse extends WarehouseRepository {
   constructor(private readonly active: boolean) {
     super();
   }
@@ -43,7 +45,7 @@ class OneWarehouse extends WarehouseRepository {
     return Promise.reject(new Error('not used'));
   }
 
-  findActive(): Promise<Warehouse | null> {
+  firstActive(): Promise<Warehouse | null> {
     return Promise.resolve(
       this.active
         ? Warehouse.restore({
@@ -52,6 +54,7 @@ class OneWarehouse extends WarehouseRepository {
             name: 'Almacén principal',
             address: null,
             status: 'ACTIVE',
+            priority: 1,
           })
         : null,
     );
@@ -62,7 +65,10 @@ class OneWarehouse extends WarehouseRepository {
   }
 }
 
-/** Reservations in memory: an order may already have one; `short` variants cannot be reserved. */
+/**
+ * Reservations in memory: an order may already have one; in each warehouse, the `short` variants cannot be
+ * reserved, as when another order took them after they were read.
+ */
 class FakeReservations extends ReservationRepository {
   readonly reserved: { warehouseId: WarehouseId; requests: StockRequest[] }[] =
     [];
@@ -70,8 +76,12 @@ class FakeReservations extends ReservationRepository {
 
   constructor(
     private readonly existing: ReservationReceipt | null = null,
-    private readonly short: readonly VariantId[] = [],
+    private readonly short: ReadonlyMap<
+      WarehouseId,
+      readonly VariantId[]
+    > = new Map(),
     private readonly committed = false,
+    private readonly allocation: Allocation[] = [],
   ) {
     super();
   }
@@ -101,10 +111,11 @@ class FakeReservations extends ReservationRepository {
     requests: readonly StockRequest[],
   ): Promise<VariantId[]> {
     this.reserved.push({ warehouseId: reservedIn, requests: [...requests] });
+    const short = this.short.get(reservedIn) ?? [];
     return Promise.resolve(
       requests
         .map(({ variantId }) => variantId)
-        .filter((variantId) => this.short.includes(variantId)),
+        .filter((variantId) => short.includes(variantId)),
     );
   }
 
@@ -122,6 +133,10 @@ class FakeReservations extends ReservationRepository {
 
   isCommitted(): Promise<boolean> {
     return Promise.resolve(this.committed);
+  }
+
+  allocationOf(): Promise<Allocation[]> {
+    return Promise.resolve(this.allocation);
   }
 }
 
@@ -171,52 +186,92 @@ class FakeLedger extends StockLedgerRepository {
   }
 }
 
-/** Available units by variant; it remembers what it was asked. */
-function availability(units: ReadonlyMap<VariantId, number>) {
+/** The active warehouses by priority, with their available units by variant; it remembers what it was asked. */
+function availability(
+  warehouses: readonly {
+    id: WarehouseId;
+    units: ReadonlyMap<VariantId, number>;
+  }[],
+) {
   const asked: VariantId[][] = [];
   const queries = {
-    availableUnits: (_warehouse: WarehouseId, ids: readonly VariantId[]) => {
+    activeStock: (ids: readonly VariantId[]): Promise<WarehouseStock[]> => {
       asked.push([...ids]);
       return Promise.resolve(
-        new Map([...units].filter(([id]) => ids.includes(id))),
+        warehouses.map(({ id, units }) => ({
+          warehouseId: id,
+          available: new Map([...units].filter(([unit]) => ids.includes(unit))),
+        })),
       );
     },
   } as unknown as InventoryQueries;
   return { queries, asked };
 }
 
-const inline = {
-  run: <T>(work: () => Promise<T>) => work(),
-  runNested: <T>(work: () => Promise<T>) => work(),
-} as unknown as TransactionManager;
+/** Both warehouses with plenty of everything but `unstocked`. */
+const stocked = () =>
+  availability([
+    {
+      id: warehouseId,
+      units: new Map([
+        [shirt, 10],
+        [cap, 10],
+      ]),
+    },
+    {
+      id: backup,
+      units: new Map([
+        [shirt, 10],
+        [cap, 10],
+      ]),
+    },
+  ]);
+
+/** Runs the work as is, counting the nested steps it opens. */
+function inlineTransactions() {
+  const steps = { nested: 0 };
+  const transactions = {
+    run: <T>(work: () => Promise<T>) => work(),
+    runNested: <T>(work: () => Promise<T>) => {
+      steps.nested += 1;
+      return work();
+    },
+  } as unknown as TransactionManager;
+  return { transactions, steps };
+}
 
 const facade = (
   reservations: FakeReservations,
-  queries: InventoryQueries = availability(new Map()).queries,
+  queries: InventoryQueries = stocked().queries,
   active = true,
   ledger: StockLedgerRepository = new FakeLedger(),
+  transactions: TransactionManager = inlineTransactions().transactions,
 ) =>
   new InventoryFacade(
     reservations,
     ledger,
-    new OneWarehouse(active),
+    new FirstWarehouse(active),
     queries,
-    inline,
+    transactions,
     { now: () => NOW },
     20 * 60,
   );
 
-describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
+describe('InventoryFacade (UC-INV-05 to 07, ADR-0128, ADR-0160)', () => {
   const orderId = newId<'Order'>();
 
   describe('canFulfill', () => {
-    it('answers per variant whether the units asked for, added up, are available, and never the units', async () => {
-      const { queries, asked } = availability(
-        new Map([
-          [shirt, 5],
-          [cap, 0],
-        ]),
-      );
+    it('answers per variant whether some warehouse alone has the units asked for, added up, and never the units', async () => {
+      const { queries, asked } = availability([
+        {
+          id: warehouseId,
+          units: new Map([
+            [shirt, 2],
+            [cap, 0],
+          ]),
+        },
+        { id: backup, units: new Map([[shirt, 5]]) },
+      ]);
 
       const answer = await facade(new FakeReservations(), queries).canFulfill([
         { variantId: shirt, quantity: 3 },
@@ -243,20 +298,114 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
     });
 
     it('asks nothing for no requests', async () => {
-      const { queries, asked } = availability(new Map());
+      const { queries, asked } = stocked();
 
       expect(
         await facade(new FakeReservations(), queries).canFulfill([]),
+      ).toEqual(new Map());
+      expect(
+        await facade(new FakeReservations(), queries).canFulfillTogether([]),
       ).toEqual(new Map());
       expect(asked).toEqual([]);
     });
   });
 
-  describe('reserve', () => {
-    it('opens a reservation until the TTL passes and reserves every request, added up, in the active warehouse', async () => {
-      const reservations = new FakeReservations();
+  describe('canFulfillTogether', () => {
+    it('answers every variant can when one warehouse holds all of them, even if not the first', async () => {
+      const { queries } = availability([
+        { id: warehouseId, units: new Map([[shirt, 5]]) },
+        {
+          id: backup,
+          units: new Map([
+            [shirt, 3],
+            [cap, 1],
+          ]),
+        },
+      ]);
 
-      const receipt = await facade(reservations).reserve(orderId, [
+      expect(
+        await facade(new FakeReservations(), queries).canFulfillTogether([
+          { variantId: shirt, quantity: 2 },
+          { variantId: cap, quantity: 1 },
+          { variantId: shirt, quantity: 1 },
+        ]),
+      ).toEqual(
+        new Map([
+          [shirt, true],
+          [cap, true],
+        ]),
+      );
+    });
+
+    it('marks what the closest warehouse leaves out, the first by priority on a tie, though each line alone can', async () => {
+      const { queries } = availability([
+        {
+          id: warehouseId,
+          units: new Map([
+            [shirt, 2],
+            [cap, 1],
+          ]),
+        },
+        { id: backup, units: new Map([[shirt, 5]]) },
+      ]);
+      const inventory = facade(new FakeReservations(), queries);
+
+      // The first leaves out the shirts and the backup the cap: the first wins the tie.
+      expect(
+        await inventory.canFulfillTogether([
+          { variantId: shirt, quantity: 3 },
+          { variantId: cap, quantity: 1 },
+        ]),
+      ).toEqual(
+        new Map([
+          [shirt, false],
+          [cap, true],
+        ]),
+      );
+      // With a second cap, the first leaves out both lines and the backup only the caps: the backup is closer.
+      expect(
+        await inventory.canFulfillTogether([
+          { variantId: shirt, quantity: 3 },
+          { variantId: cap, quantity: 2 },
+        ]),
+      ).toEqual(
+        new Map([
+          [shirt, true],
+          [cap, false],
+        ]),
+      );
+      expect(
+        await inventory.canFulfill([
+          { variantId: shirt, quantity: 3 },
+          { variantId: cap, quantity: 1 },
+        ]),
+      ).toEqual(
+        new Map([
+          [shirt, true],
+          [cap, true],
+        ]),
+      );
+    });
+
+    it('answers no variant can without an active warehouse', async () => {
+      expect(
+        await facade(
+          new FakeReservations(),
+          availability([]).queries,
+        ).canFulfillTogether([{ variantId: shirt, quantity: 1 }]),
+      ).toEqual(new Map([[shirt, false]]));
+    });
+  });
+
+  describe('reserve', () => {
+    it('opens a reservation until the TTL passes and reserves every request, added up, in the first warehouse that holds them', async () => {
+      const reservations = new FakeReservations();
+      const { queries } = availability([
+        { id: warehouseId, units: new Map([[shirt, 2]]) },
+        { id: backup, units: new Map([[shirt, 3]]) },
+      ]);
+
+      const receipt = await facade(reservations, queries).reserve(orderId, [
         { variantId: shirt, quantity: 1 },
         { variantId: shirt, quantity: 2 },
       ]);
@@ -266,8 +415,35 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
         expiresAt: new Date('2026-10-01T12:20:00.000Z'),
       });
       expect(reservations.reserved).toEqual([
-        { warehouseId, requests: [{ variantId: shirt, quantity: 3 }] },
+        { warehouseId: backup, requests: [{ variantId: shirt, quantity: 3 }] },
       ]);
+    });
+
+    it('tries the next warehouse when the units it read went to another order, each try undoing itself', async () => {
+      const reservations = new FakeReservations(
+        null,
+        new Map([[warehouseId, [cap]]]),
+      );
+      const { transactions, steps } = inlineTransactions();
+      const lines = [
+        { variantId: shirt, quantity: 1 },
+        { variantId: cap, quantity: 1 },
+      ];
+
+      await facade(
+        reservations,
+        undefined,
+        true,
+        undefined,
+        transactions,
+      ).reserve(orderId, lines);
+
+      expect(reservations.reserved).toEqual([
+        { warehouseId, requests: lines },
+        { warehouseId: backup, requests: lines },
+      ]);
+      // The reservation itself, and one step for each warehouse it tried.
+      expect(steps.nested).toBe(3);
     });
 
     it('answers the reservation the order already has without reserving again (BR-INV-04)', async () => {
@@ -286,16 +462,81 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
       expect(reservations.reserved).toEqual([]);
     });
 
-    it('rejects the reservation with every variant that cannot be fulfilled (BR-INV-02)', async () => {
-      const reservations = new FakeReservations(null, [cap, unstocked]);
+    it('rejects the reservation with what the closest warehouse leaves out when none holds the order (BR-INV-02)', async () => {
+      const reservations = new FakeReservations();
+      const { queries, asked } = availability([
+        {
+          id: warehouseId,
+          units: new Map([
+            [shirt, 1],
+            [cap, 1],
+          ]),
+        },
+        { id: backup, units: new Map([[shirt, 1]]) },
+      ]);
 
       await expect(
-        facade(reservations).reserve(orderId, [
+        facade(reservations, queries).reserve(orderId, [
           { variantId: shirt, quantity: 1 },
-          { variantId: cap, quantity: 1 },
+          { variantId: cap, quantity: 2 },
           { variantId: unstocked, quantity: 1 },
         ]),
       ).rejects.toThrow(new InsufficientStockError([cap, unstocked]));
+      expect(reservations.reserved).toEqual([]);
+      expect(asked).toHaveLength(2);
+    });
+
+    it('rejects the reservation with what is short now when every warehouse it tried lost the units', async () => {
+      const reservations = new FakeReservations(
+        null,
+        new Map([
+          [warehouseId, [cap]],
+          [backup, [shirt]],
+        ]),
+      );
+      let reads = 0;
+      const queries = {
+        // Plenty of everything at first; after the tries, the first warehouse has no caps left.
+        activeStock: (): Promise<WarehouseStock[]> => {
+          reads += 1;
+          return Promise.resolve([
+            {
+              warehouseId,
+              available: new Map([
+                [shirt, 5],
+                [cap, reads === 1 ? 5 : 0],
+              ]),
+            },
+            {
+              warehouseId: backup,
+              available: new Map([
+                [shirt, reads === 1 ? 5 : 0],
+                [cap, reads === 1 ? 5 : 0],
+              ]),
+            },
+          ]);
+        },
+      } as unknown as InventoryQueries;
+
+      await expect(
+        facade(reservations, queries).reserve(orderId, [
+          { variantId: shirt, quantity: 1 },
+          { variantId: cap, quantity: 1 },
+        ]),
+      ).rejects.toThrow(new InsufficientStockError([cap]));
+      expect(reservations.reserved.map(({ warehouseId: id }) => id)).toEqual([
+        warehouseId,
+        backup,
+      ]);
+    });
+
+    it('rejects every line without an active warehouse', async () => {
+      await expect(
+        facade(new FakeReservations(), availability([]).queries).reserve(
+          orderId,
+          [{ variantId: shirt, quantity: 1 }],
+        ),
+      ).rejects.toThrow(new InsufficientStockError([shirt]));
     });
 
     it('rejects a reservation without requests', async () => {
@@ -303,14 +544,18 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
         facade(new FakeReservations()).reserve(orderId, []),
       ).rejects.toThrow(InvalidValueError);
     });
+  });
 
-    it('fails loudly without the warehouse the migration creates', async () => {
-      await expect(
-        facade(new FakeReservations(), undefined, false).reserve(orderId, [
-          { variantId: shirt, quantity: 1 },
-        ]),
-      ).rejects.toThrow('There is no active warehouse');
-    });
+  it('answers the warehouses the confirmed stock of an order left from', async () => {
+    const allocation: Allocation[] = [
+      { warehouseId: backup, lines: [{ variantId: shirt, quantity: 2 }] },
+    ];
+
+    expect(
+      await facade(
+        new FakeReservations(null, new Map(), true, allocation),
+      ).allocationOf(orderId),
+    ).toBe(allocation);
   });
 
   describe('restock (UC-INV-09, ADR-0052, ADR-0142)', () => {
@@ -326,7 +571,7 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
       return {
         ledger,
         facade: facade(
-          new FakeReservations(null, [], committed),
+          new FakeReservations(null, new Map(), committed),
           undefined,
           true,
           ledger,
@@ -334,7 +579,7 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
       };
     };
 
-    it('brings each line back to the active warehouse with its reason, order, line, note and staff member', async () => {
+    it('brings each line back to the first active warehouse with its reason, order, line, note and staff member', async () => {
       const { facade: inventory, ledger } = restocking(true);
 
       const movements = await inventory.restock({
@@ -462,6 +707,28 @@ describe('InventoryFacade (UC-INV-05 to 07, ADR-0128)', () => {
         ).rejects.toThrow(InvalidValueError);
       }
       expect([ledger.asked, ledger.written]).toEqual([[], []]);
+    });
+
+    it('fails loudly without the warehouse the migration creates', async () => {
+      const ledger = new FakeLedger();
+
+      await expect(
+        facade(
+          new FakeReservations(null, new Map(), true),
+          undefined,
+          false,
+          ledger,
+        ).restock({
+          orderId,
+          reasonCode: 'ORDER_CANCELLED',
+          note: null,
+          actorId,
+          lines: [
+            { orderLineId: first, variantId: shirt, sold: 1, quantity: 1 },
+          ],
+        }),
+      ).rejects.toThrow('There is no active warehouse');
+      expect(ledger.written).toEqual([]);
     });
   });
 });
