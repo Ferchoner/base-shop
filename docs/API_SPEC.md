@@ -537,7 +537,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ### 8.9 `AdminOrder`
 
-`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `channel`, `placedBy`, `warehouseId`, `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `refunds[]`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
+`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `channel`, `placedBy`, `warehouseId`, `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `method`, cómo cobró la tienda un pago manual (ADR-0161), y `refunds[]`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
 
 `channel` dice dónde se colocó la orden (ADR-0161): `ONLINE`, en la tienda en línea desde un carrito, o `STORE`, en la tienda física, donde el staff la colocó a nombre del cliente. En una orden `STORE`, `placedBy` es la cuenta de staff que la colocó y `warehouseId` el almacén que eligió, del único que sale su stock; en una `ONLINE`, los dos son `null`.
 
@@ -1504,19 +1504,21 @@ Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas qu
 
 ### 16.3 Consulta administrativa
 
-`AdminPayment { id, orderId, orderCode, provider, status, amount, capturedAmount, refundedAmount, currency, providerPaymentId, capturedAt, attempts: [ { status, providerReference, failureCode, registeredBy, createdAt } ], refunds: [ { id, amount, status, providerRefundId, registeredBy, createdAt, completedAt } ], createdAt, updatedAt, version }`.
+`AdminPayment { id, orderId, orderCode, provider, status, amount, capturedAmount, refundedAmount, currency, providerPaymentId, capturedAt, attempts: [ { status, providerReference, method, failureCode, registeredBy, createdAt } ], refunds: [ { id, amount, status, providerRefundId, registeredBy, createdAt, completedAt } ], createdAt, updatedAt, version }`.
 
 - **`GET /v1/admin/payments`** — Paginado. Filtros: `status`, `provider`, `orderId`, `capturedFrom`, `capturedTo`. Orden: `createdAt` (defecto `-createdAt`), `amount`.
 - **`GET /v1/admin/payments/{paymentId}`** — 200 `AdminPayment`.
 - **Implementado en T-190 parte a (ADR-0134):** `orderCode` con guion; `attempts` del más antiguo al más reciente (iniciar el pago guarda uno PENDING, y registrarlo, uno CAPTURED con el comprobante y el staff); `refunds` vacío hasta la parte b; filtros de varios valores separados por comas.
+- **Desde T-187 (ADR-0161):** el intento CAPTURED de un pago en tienda lleva `method`, cómo cobró la tienda: `CASH`, `CARD_TERMINAL` o `TRANSFER`. Es `null` en los demás intentos, en los anteriores a ADR-0161 y cuando el staff no lo dijo.
 
-### 16.4 Registrar pago manual (UC-PAY-02, ADR-0040, ADR-0055)
+### 16.4 Registrar pago manual (UC-PAY-02, ADR-0040, ADR-0055, ADR-0161)
 
 - **`POST /v1/admin/orders/{orderId}/manual-capture`** — `payments.manage`. Antes era `POST /v1/admin/payments/manual-captures` con `orderId` en el cuerpo; la atiende Ordering, que conoce la orden (ADR-0134).
-- Request: `{ "reference": "Ticket 00452", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `note` 0–500, que queda como motivo de la auditoría.
+- Request: `{ "reference": "Ticket 00452", "method": "CASH", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `method`, opcional, cómo se cobró: `CASH` (efectivo), `CARD_TERMINAL` (terminal bancaria) o `TRANSFER` (transferencia), y sin él el pago queda sin método (ADR-0161); `note` 0–500, que queda como motivo de la auditoría.
+- Es el cobro real de la tienda física desde la versión 1.2 (ADR-0161): deja de ser solo para pruebas, y el operador lo enciende con `MANUAL_PAYMENTS_ENABLED`.
 - Registra el cobro por el total de la orden (crea el Payment si no existe) y produce `PaymentCaptured`; la orden sigue el flujo normal o el de pago tardío (ADR-0012), en segundo plano (sección 2.5): la respuesta trae el pago capturado, y la orden puede seguir unos instantes en su estado anterior.
 - Solo órdenes en PENDING_PAYMENT o EXPIRED.
-- 200 `AdminOrder` con su pago capturado, como las demás acciones sobre la orden (ADR-0134). Auditado como `payments.manual-capture`.
+- 200 `AdminOrder` con su pago capturado, como las demás acciones sobre la orden (ADR-0134); `payment.method` dice cómo se cobró. Auditado como `payments.manual-capture`, con el cambio de estado y el método.
 - Errores: 403 `manual-payments-disabled`, antes que cualquier otro; 404 (orden inexistente); 409 `invalid-state-transition` (otro estado de la orden o pago ya capturado).
 
 ### 16.5 Reembolsos (UC-PAY-06, UC-PAY-07, ADR-0051, ADR-0052)

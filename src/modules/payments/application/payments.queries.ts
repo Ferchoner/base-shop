@@ -8,6 +8,7 @@ import type {
   OrderId,
   PaymentAttempt,
   PaymentId,
+  PaymentMethod,
   PaymentProvider,
   PaymentStatus,
 } from '../domain/payment.js';
@@ -33,6 +34,8 @@ export interface PaymentView {
   readonly capturedAmount: Money;
   readonly refundedAmount: Money;
   readonly capturedAt: Date | null;
+  /** How the store collected a captured manual payment; `null` otherwise, or when the staff did not say (ADR-0161). */
+  readonly method: PaymentMethod | null;
   readonly refunds: readonly RefundView[];
 }
 

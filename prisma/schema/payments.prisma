@@ -54,15 +54,26 @@ model Payment {
   @@map("payments")
 }
 
+/// How the store collected a manual payment (ADR-0161).
+enum PaymentMethod {
+  CASH
+  CARD_TERMINAL
+  TRANSFER
+
+  @@map("payment_method")
+}
+
 model PaymentAttempt {
-  id                String        @id @db.Uuid
-  paymentId         String        @map("payment_id") @db.Uuid
+  id                String         @id @db.Uuid
+  paymentId         String         @map("payment_id") @db.Uuid
   status            PaymentStatus
-  providerReference String?       @map("provider_reference")
-  failureCode       String?       @map("failure_code")
+  providerReference String?        @map("provider_reference")
+  /// Only on a captured manual payment; `null` before ADR-0161, or when the staff did not say.
+  method            PaymentMethod?
+  failureCode       String?        @map("failure_code")
   /// Staff who registered a manual payment; no foreign key.
-  registeredBy      String?       @map("registered_by") @db.Uuid
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  registeredBy      String?        @map("registered_by") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 

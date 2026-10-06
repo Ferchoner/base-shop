@@ -118,6 +118,7 @@ export class PrismaPaymentRepository extends PaymentRepository {
         paymentId,
         status: attempt.status,
         providerReference: attempt.providerReference,
+        method: attempt.method,
         failureCode: attempt.failureCode,
         registeredBy: attempt.registeredBy,
         createdAt: attempt.createdAt,
@@ -171,6 +172,7 @@ function toPayment(row: PaymentRow): Payment {
     attempts: row.attempts.map((attempt) => ({
       status: attempt.status,
       providerReference: attempt.providerReference,
+      method: attempt.method,
       failureCode: attempt.failureCode,
       registeredBy:
         attempt.registeredBy === null

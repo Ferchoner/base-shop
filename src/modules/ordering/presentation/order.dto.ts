@@ -23,6 +23,10 @@ import {
 } from '../../../platform/http/address.dto.js';
 import { MoneyDto } from '../../../platform/http/money.dto.js';
 import {
+  PAYMENT_METHODS,
+  type PaymentMethod,
+} from '../application/payment-ports.js';
+import {
   PageMetaDto,
   PageQueryDto,
 } from '../../../platform/http/pagination/page-query.dto.js';
@@ -306,6 +310,14 @@ export class AdminOrderPaymentDto extends OrderPaymentDto {
   /** Cuándo se cobró; `null` si no se ha cobrado. */
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   capturedAt: Date | null;
+
+  @ApiProperty({
+    enum: PAYMENT_METHODS,
+    nullable: true,
+    description:
+      'Cómo cobró la tienda un pago manual: `CASH`, `CARD_TERMINAL` o `TRANSFER` (ADR-0161); `null` si no se ha cobrado así, o si el staff no lo dijo.',
+  })
+  method: PaymentMethod | null;
 
   /** Sus reembolsos, del más antiguo al más reciente. */
   @ApiProperty({ type: () => [OrderRefundDto] })

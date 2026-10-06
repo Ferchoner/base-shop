@@ -340,7 +340,7 @@ export class AdminOrdersController {
   @ApiOperation({
     summary: 'Registrar el pago en tienda de un pedido',
     description:
-      'Solo con el pago manual habilitado y desde `PENDING_PAYMENT` o `EXPIRED` (ADR-0055). Registra el cobro por el total del pedido y responde el pedido con su pago capturado; el pedido pasa a `PAID`, o sigue el flujo de pago tardío, en segundo plano (API_SPEC.md §2.5).',
+      'Solo con el pago manual habilitado y desde `PENDING_PAYMENT` o `EXPIRED` (ADR-0055). Registra el cobro por el total del pedido, con el comprobante y cómo se cobró (`method`, ADR-0161), y responde el pedido con su pago capturado; el pedido pasa a `PAID`, o sigue el flujo de pago tardío, en segundo plano (API_SPEC.md §2.5).',
   })
   @ApiOkResponse({ type: AdminOrderDto })
   @ApiProblemResponses(
@@ -362,6 +362,7 @@ export class AdminOrdersController {
       orderId: id,
       staffId: toId<'User'>(actor.id),
       reference: body.reference.trim(),
+      method: body.method ?? null,
       note: note === '' ? null : note,
     });
     return this.read(id);

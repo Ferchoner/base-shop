@@ -190,7 +190,7 @@ describe('LOG_LEVEL (ADR-0097)', () => {
 });
 
 describe('MANUAL_PAYMENTS_ENABLED (ADR-0040)', () => {
-  it('defaults to false: manual payments are only for tests', () => {
+  it('defaults to false: the operator turns payments in the store on (ADR-0161)', () => {
     expect(validateEnvironment(REQUIRED).MANUAL_PAYMENTS_ENABLED).toBe(false);
   });
 

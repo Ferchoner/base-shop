@@ -41,6 +41,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     const attempt = {
       status: 'PENDING',
       providerReference: null,
+      method: null,
       failureCode: null,
       registeredBy: null,
       createdAt: STARTED,
@@ -58,6 +59,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
 
     payment.captureManually({
       reference: 'Ticket 00452',
+      method: 'CASH',
       registeredBy: staff,
       now: PAID,
     });
@@ -70,6 +72,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(payment.snapshot.attempts.at(-1)).toEqual({
       status: 'CAPTURED',
       providerReference: 'Ticket 00452',
+      method: 'CASH',
       failureCode: null,
       registeredBy: staff,
       createdAt: PAID,
@@ -80,6 +83,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     const captured = start();
     captured.captureManually({
       reference: 'Ticket 1',
+      method: null,
       registeredBy: staff,
       now: PAID,
     });
@@ -87,6 +91,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(() =>
       captured.captureManually({
         reference: 'Ticket 2',
+        method: null,
         registeredBy: staff,
         now: PAID,
       }),
@@ -99,6 +104,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(() =>
       start('PAYPAL').captureManually({
         reference: 'Ticket 3',
+        method: null,
         registeredBy: staff,
         now: PAID,
       }),
@@ -116,6 +122,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(saved.newAttempts).toEqual([]);
     saved.captureManually({
       reference: 'Ticket 00452',
+      method: null,
       registeredBy: staff,
       now: PAID,
     });
@@ -134,6 +141,7 @@ describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
     if (provider === 'MANUAL') {
       payment.captureManually({
         reference: 'Ticket 00452',
+        method: null,
         registeredBy: staff,
         now: PAID,
       });

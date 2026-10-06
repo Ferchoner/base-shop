@@ -14,7 +14,11 @@ import {
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
 import { PaymentsQueries } from '../application/payments.queries.js';
-import { type OrderId, Payment } from '../domain/payment.js';
+import {
+  type OrderId,
+  Payment,
+  type PaymentMethod,
+} from '../domain/payment.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
 import { PaymentsModule } from '../payments.module.js';
 
@@ -77,12 +81,16 @@ describe('Payments: persistence (T-190)', () => {
       now: START,
     });
 
-  async function captured(amount = 19_900): Promise<Payment> {
+  async function captured(
+    amount = 19_900,
+    method: PaymentMethod | null = null,
+  ): Promise<Payment> {
     const payment = started(amount);
     await run(() => payments.insert(payment, START));
     const saved = (await run(() => payments.findByOrder(payment.orderId)))!;
     saved.captureManually({
       reference: 'Ticket 00452',
+      method,
       registeredBy: newId<'User'>(),
       now: LATER,
     });
@@ -114,12 +122,41 @@ describe('Payments: persistence (T-190)', () => {
     expect(await run(() => payments.findByOrder(newId<'Order'>()))).toBeNull();
   });
 
+  it('keeps how the store collected a manual payment, and shows it with the payment (ADR-0161)', async () => {
+    const transfer = await captured(19_900, 'TRANSFER');
+    const unsaid = await captured(9_900);
+
+    const read = await run(() => payments.findByOrder(transfer.orderId));
+    expect(
+      read?.snapshot.attempts.map(({ status, method }) => [status, method]),
+    ).toEqual([
+      ['PENDING', null],
+      ['CAPTURED', 'TRANSFER'],
+    ]);
+    const byOrder = await queries.paymentsOf([
+      transfer.orderId,
+      unsaid.orderId,
+    ]);
+    expect(byOrder.get(transfer.orderId)?.method).toBe('TRANSFER');
+    expect(byOrder.get(unsaid.orderId)?.method).toBeNull();
+    expect(
+      (await queries.findPayment(transfer.id))?.attempts.map(
+        ({ method }) => method,
+      ),
+    ).toEqual([null, 'TRANSFER']);
+    // Only a captured attempt tells how the money came in.
+    await expect(
+      prisma.$executeRaw`UPDATE payment_attempts SET method = 'CASH' WHERE status = 'PENDING'`,
+    ).rejects.toThrow(/payment_attempts_method_check/);
+  });
+
   it('rejects saving a payment read at another version', async () => {
     const payment = started();
     await run(() => payments.insert(payment, START));
     const stale = Payment.restore({ ...payment.snapshot, version: 5 });
     stale.captureManually({
       reference: 'Ticket',
+      method: null,
       registeredBy: newId<'User'>(),
       now: LATER,
     });

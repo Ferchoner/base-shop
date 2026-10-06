@@ -21,8 +21,10 @@ import {
   IsSortOf,
 } from '../../../platform/http/pagination/pagination.js';
 import {
+  PAYMENT_METHODS,
   PAYMENT_PROVIDERS,
   PAYMENT_STATUSES,
+  type PaymentMethod,
   type PaymentProvider,
   type PaymentStatus,
 } from '../application/payment-values.js';
@@ -43,6 +45,14 @@ export class PaymentAttemptDto {
     description: 'Comprobante de la tienda en un pago manual.',
   })
   providerReference: string | null;
+
+  @ApiProperty({
+    enum: PAYMENT_METHODS,
+    nullable: true,
+    description:
+      'Cómo cobró la tienda un pago manual: `CASH`, `CARD_TERMINAL` o `TRANSFER` (ADR-0161); `null` en los demás intentos, o si el staff no lo dijo.',
+  })
+  method: PaymentMethod | null;
 
   /** El código de error del proveedor; `null` si no falló. */
   @ApiProperty({ type: String, nullable: true })

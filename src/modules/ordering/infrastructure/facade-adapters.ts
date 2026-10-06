@@ -50,6 +50,7 @@ import type { LocationProblem } from '../domain/ordering-errors.js';
 import {
   type OrderPayment,
   OrderPayments,
+  type PaymentMethod,
   type PaymentProvider,
   type PaymentStart,
 } from '../application/payment-ports.js';
@@ -367,7 +368,12 @@ export class PaymentsFacadeOrderPayments extends OrderPayments {
 
   captureManually(
     order: Order,
-    input: { reference: string; note: string | null; registeredBy: StaffId },
+    input: {
+      reference: string;
+      method: PaymentMethod | null;
+      note: string | null;
+      registeredBy: StaffId;
+    },
   ): Promise<void> {
     return this.payments.captureManually(requestOf(order), input);
   }
@@ -411,6 +417,7 @@ function toOrderPayment(payment: PaymentView): OrderPayment {
     capturedAmount: payment.capturedAmount,
     refundedAmount: payment.refundedAmount,
     capturedAt: payment.capturedAt,
+    method: payment.method,
     refunds: payment.refunds.map(
       ({ id, amount, status, createdAt, completedAt }) => ({
         id,

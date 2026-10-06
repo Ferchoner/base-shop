@@ -15,10 +15,15 @@ export type OrderId = Id<'Order'>;
 /** A staff member of Identity, known here only by its ID (ADR-0005). */
 export type StaffId = Id<'User'>;
 
-/** ADR-0040: the manual method, for tests, and PayPal, prepared but not enabled (BR-PAY-13). */
+/** ADR-0040: the manual method, paid in the physical store (ADR-0161), and PayPal, prepared but not enabled (BR-PAY-13). */
 export const PAYMENT_PROVIDERS = ['MANUAL', 'PAYPAL'] as const;
 
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number];
+
+/** How the store collected a manual payment (ADR-0161): cash, a card terminal or a bank transfer. */
+export const PAYMENT_METHODS = ['CASH', 'CARD_TERMINAL', 'TRANSFER'] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /** REQUIREMENTS.md §3.2; transitions are monotonic (BR-PAY-05). */
 export const PAYMENT_STATUSES = [
@@ -39,6 +44,8 @@ export interface PaymentAttempt {
   readonly status: PaymentStatus;
   /** The receipt of the store, for a manual payment. */
   readonly providerReference: string | null;
+  /** How the store collected a manual payment; `null` for a provider, or when the staff did not say (ADR-0161). */
+  readonly method: PaymentMethod | null;
   readonly failureCode: string | null;
   /** The staff member who registered a manual payment. */
   readonly registeredBy: StaffId | null;
@@ -127,6 +134,7 @@ export class Payment {
     payment.attempt({
       status: 'PENDING',
       providerReference: null,
+      method: null,
       failureCode: null,
       registeredBy: null,
       createdAt: input.now,
@@ -184,12 +192,13 @@ export class Payment {
 
   /**
    * The staff registers a payment made in the store (UC-PAY-02, ADR-0055): the whole amount is captured, with
-   * the receipt of the store and who registered it.
+   * the receipt of the store, how it was collected (ADR-0161) and who registered it.
    *
    * @throws InvalidStateTransitionError unless it is a pending manual payment.
    */
   captureManually(input: {
     reference: string;
+    method: PaymentMethod | null;
     registeredBy: StaffId;
     now: Date;
   }): void {
@@ -208,6 +217,7 @@ export class Payment {
     this.attempt({
       status: 'CAPTURED',
       providerReference: input.reference,
+      method: input.method,
       failureCode: null,
       registeredBy: input.registeredBy,
       createdAt: input.now,

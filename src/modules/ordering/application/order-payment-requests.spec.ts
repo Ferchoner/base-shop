@@ -143,7 +143,7 @@ function setUp(order: Order, options: { enabled?: boolean } = {}) {
     },
     captureManually: (payable, input) => {
       calls.push(
-        `captureManually ${payable.id} ${input.reference} ${input.note} ${input.registeredBy}`,
+        `captureManually ${payable.id} ${input.reference} ${input.method} ${input.note} ${input.registeredBy}`,
       );
       return Promise.resolve();
     },
@@ -259,6 +259,7 @@ describe('OrderPaymentRequests: a payment made in the store (UC-PAY-02)', () => 
       orderId,
       staffId: staff,
       reference: 'Ticket 00452',
+      method: 'CARD_TERMINAL',
       note: null,
     });
 
@@ -271,7 +272,7 @@ describe('OrderPaymentRequests: a payment made in the store (UC-PAY-02)', () => 
 
       expect(calls).toEqual([
         'assertManualCaptureEnabled',
-        `captureManually ${order.id} Ticket 00452 null ${staff}`,
+        `captureManually ${order.id} Ticket 00452 CARD_TERMINAL null ${staff}`,
       ]);
     }
   });
