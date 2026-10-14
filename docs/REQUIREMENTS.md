@@ -204,20 +204,22 @@ Criterios de aceptación:
 | UC-CAT-12 | Gestionar categorías | Staff (`catalog.write`) | BR-PRD-03, BR-PRD-10, BR-PRD-13 |
 | UC-CAT-13 | Gestionar marcas | Staff (`catalog.write`) | BR-PRD-10, BR-PRD-13 |
 | UC-CAT-14 | Listado administrativo del catálogo | Staff (`catalog.read`) | ADR-0016 |
+| UC-CAT-15 | Buscar una variante por su código (SKU o GTIN) | Staff (`catalog.read`) | BR-PRD-19, ADR-0163 |
 
 Criterios de aceptación:
 
 - **UC-CAT-01 / 02:** solo productos publicados y variantes activas con precio vigente; un producto sin variantes con precio no aparece; imágenes siempre como arreglo (vacío si no hay) con URL absoluta; paginación, `sort` y filtros no declarados se rechazan; listados sin texto de búsqueda cacheados con TTL de 120 s e invalidada por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`. Cada variante se muestra como disponible o agotada, sin cantidades (ADR-0061).
 - **UC-CAT-01 (búsqueda y filtros):** búsqueda por texto en español, sin acentos y por prefijo, sobre título, marca y categorías; filtros por categoría (con subcategorías), marcas, rango de precio y solo disponibles; órdenes por relevancia, más recientes, precio y nombre; el precio de un producto es el más bajo entre sus variantes vendibles; los totales de paginación son exactos porque el filtrado ocurre en la base.
 - **UC-CAT-01 / 03 (categorías y marcas inactivas):** el árbol público muestra solo categorías visibles (activas y con todos sus ancestros activos); filtrar por una categoría oculta o una marca inactiva responde 400; los productos de categorías ocultas o marcas inactivas siguen visibles, pero no como parte de esa categoría (ADR-0080).
-- **UC-CAT-06:** SKU duplicado o reutilizado se rechaza; combinación de opciones repetida en el producto se rechaza. Peso (gramos) y dimensiones (centímetros) son opcionales y, si se capturan, deben ser positivos.
-- **UC-CAT-07:** SKU y opciones solo se editan si el producto nunca se ha publicado (el SKU anterior se libera); después se rechazan; no se agregan dimensiones de opciones a productos publicados; peso, dimensiones y estado se editan siempre.
+- **UC-CAT-06:** SKU duplicado o reutilizado se rechaza; combinación de opciones repetida en el producto se rechaza. Peso (gramos) y dimensiones (centímetros) son opcionales y, si se capturan, deben ser positivos. El GTIN es opcional, con su dígito verificador, y no se repite entre variantes activas (BR-PRD-19).
+- **UC-CAT-07:** SKU y opciones solo se editan si el producto nunca se ha publicado (el SKU anterior se libera); después se rechazan; no se agregan dimensiones de opciones a productos publicados; peso, dimensiones y estado se editan siempre. El GTIN se cambia o se quita siempre, también después de publicar (ADR-0163).
 - **UC-CAT-09:** se rechaza sin al menos una variante activa; se permite sin precio y sin imagen.
 - **UC-CAT-08 (reactivación):** solo desde descontinuada; se rechaza si otra variante activa del producto tiene la misma combinación de opciones; SKU y opciones no cambian.
 - **UC-CAT-10:** el slug sigue reservado; el producto deja de mostrarse en la tienda. Reactivar lo lleva de ARCHIVED a DRAFT, conserva slug y `firstPublishedAt`, y no lo muestra en la tienda hasta que se publique.
 - **UC-CAT-11:** se aceptan JPEG, PNG y WebP validados por contenido, de hasta 5 MB; el nombre en disco lo genera el servidor; borrar una imagen borra registro y archivo.
 - **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
 - **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente (`storeVisibility`, ADR-0129).
+- **UC-CAT-15 (ADR-0163):** encuentra la variante por su SKU exacto, sin distinguir mayúsculas, o por su GTIN, aunque se lea con otros ceros a la izquierda; responde todas las coincidencias, las activas primero, con su producto y si coincidieron por SKU o por GTIN; sin coincidencias, una lista vacía.
 - **UC-CAT-01 / 02 (implementación, ADR-0129):** filtrar por una categoría o marca que no existe, o que está oculta o inactiva, responde 400 con el mismo código. Las imágenes de variantes que no se venden no se muestran.
 
 ### 5.3 Pricing

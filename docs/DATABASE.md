@@ -245,6 +245,8 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | id | uuid | No | PK |
 | product_id | uuid | No | FK → `products.id` `RESTRICT` |
 | sku | text | No | `UNIQUE`; normalizado en mayúsculas; nunca se reutiliza (BR-PRD-09) |
+| gtin | varchar(14) | Sí | El código de barras del fabricante, como se capturó (ADR-0163); `CHECK (gtin ~ '^([0-9]{8}\|[0-9]{12,14})$')`. El dígito verificador lo valida la aplicación |
+| gtin_key | char(14) | Sí | El GTIN completado con ceros a 14 dígitos, como se comparan; `CHECK (gtin_key IS NOT DISTINCT FROM lpad(gtin, 14, '0'))` |
 | options | jsonb | No | Objeto atributo → valor (por ejemplo, talla y color); `{}` si no hay opciones |
 | status | enum `variant_status` (ACTIVE, DISCONTINUED) | No | — |
 | weight_grams | integer | Sí | `CHECK (weight_grams > 0)` (ADR-0058) |
@@ -252,8 +254,9 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** índice único parcial `(product_id, options) WHERE status = 'ACTIVE'` (ADR-0076): `jsonb` normaliza el orden de las llaves, así que dos combinaciones iguales entre variantes activas chocan (BR-PRD-02). Las descontinuadas no cuentan, lo que permite corregir una variante descontinuándola y creando otra con las mismas opciones (ADR-0068).
+- **GTIN:** índice único parcial `(gtin_key) WHERE status = 'ACTIVE'` (`product_variants_active_gtin_key`, ADR-0163): dos variantes activas de cualquier producto no comparten un GTIN, y una descontinuada deja libre el suyo, como con las opciones (BR-PRD-19). La migración `20261014120000_catalog_variant_gtin` (T-142) agrega las dos columnas, vacías en las variantes que ya existían.
 - **Índices:** `(product_id)`.
-- **Integridad:** nunca se borra; se descontinúa. SKU y opciones son editables solo mientras el producto no tiene `first_published_at`; peso, dimensiones y estado, siempre (ADR-0068).
+- **Integridad:** nunca se borra; se descontinúa. SKU y opciones son editables solo mientras el producto no tiene `first_published_at`; GTIN, peso, dimensiones y estado, siempre (ADR-0068, ADR-0163).
 
 ### 4.6 `product_images`
 

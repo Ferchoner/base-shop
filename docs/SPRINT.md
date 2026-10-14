@@ -38,6 +38,15 @@ Que el backoffice imprima tickets con los datos de la tienda y el almacén del q
   - antes de citar una sección en el código, se confirma su número;
   - al pedir la aprobación del tag y del Release, la sesión deja listos sus comandos.
 
+### Resultado del paso 1
+
+T-142 (ADR-0163); T-142 queda en DONE.
+
+- **El código en la base:** `gtin`, como se capturó, y `gtin_key`, completado a 14 dígitos, con dos CHECK que exigen el formato y que la llave sea la del código. El de la llave usa `IS NOT DISTINCT FROM`: con `=`, una llave sin su código pasaba como `NULL`, y lo encontró una prueba de integración.
+- **Sin repetirse:** un índice único parcial entre variantes activas de cualquier producto, como las opciones. Una descontinuada deja libre su GTIN, y reactivarla con uno tomado responde 409.
+- **Validación:** el formato en el DTO y el dígito verificador en el dominio, con `gtinCheckDigit`. El GTIN se corrige también después de publicar.
+- **Búsqueda:** `GET /v1/admin/catalog/variants/lookup` responde una lista, las activas primero, con `matchedBy`; el `q` del listado busca también por GTIN.
+
 ### Risks
 
 - **Datos personales en la nota del pago:** la anonimización la conserva, y la nota es texto libre. Lo acepta el usuario, y la operación indicará no escribir datos sensibles (ADR-0163).

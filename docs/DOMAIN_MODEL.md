@@ -40,11 +40,11 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Product` (título, descripción, brandId, categoryIds, status; contiene `ProductVariant`, con peso y dimensiones opcionales, y `ProductImage`); `Category` (árbol por parentId); `Brand` |
-| Value Objects | `Sku`, `Slug`, `VariantOptions` |
+| Aggregates | `Product` (título, descripción, brandId, categoryIds, status; contiene `ProductVariant`, con peso y dimensiones opcionales y el código de barras de su fabricante, GTIN (ADR-0163), y `ProductImage`); `Category` (árbol por parentId); `Brand` |
+| Value Objects | `Sku`, `Gtin` (con su dígito verificador y su llave de 14 dígitos), `Slug`, `VariantOptions` |
 | Eventos | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` |
 | Repositories | `ProductRepository`, `CategoryRepository`, `BrandRepository`; `CatalogQueryService` (lectura) |
-| Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, ReactivateVariant, PublishProduct, ArchiveProduct, ReactivateProduct (ADR-0076), AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug |
+| Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, ReactivateVariant, PublishProduct, ArchiveProduct, ReactivateProduct (ADR-0076), AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug y LookUpVariants, por SKU o GTIN (UC-CAT-15) |
 | Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado; fachada `CatalogFacade.variants` (ADR-0125) |
 
 ## Pricing
