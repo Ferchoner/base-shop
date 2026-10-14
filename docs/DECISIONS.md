@@ -180,6 +180,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0160 | Varios almacenes propios | Aceptada |
 | ADR-0161 | Ventas asistidas en la tienda física | Aceptada |
 | ADR-0162 | Pago manual habilitado desde la API | Aceptada |
+| ADR-0163 | Datos para el ticket, nota del pago y GTIN | Aceptada |
 
 ---
 
@@ -5064,3 +5065,45 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Notifications pregunta con su puerto `InStorePayments`, cuyo adaptador usa la fachada de Payments;
   - `MANUAL_PAYMENTS_ENABLED` sale del entorno y de `.env.example`; el texto del 403 dice que un superadministrador lo habilita;
   - las e2e empiezan cada archivo con el pago manual habilitado (`test/e2e-manual-payments.ts`), y las de integración que lo necesitan lo encienden y lo apagan.
+
+## ADR-0163 — Datos para el ticket, nota del pago y GTIN
+
+- **Fecha:** 2026-10-14
+- **Contexto:** Cuarto incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.4. El usuario trajo requerimientos nuevos del backoffice, y el análisis separó lo que hace la API de lo que hace su cliente:
+  - **Tickets y códigos de barras:** el cliente arma e imprime el ticket con los datos de `AdminOrder`. A la API le faltan los datos generales de la tienda para el encabezado, y el almacén del que salieron los productos: la orden trae solo su `id`, y traducirlo exige `inventory.read`.
+  - **Códigos del fabricante:** la mayoría de los productos traen el código de barras de su fabricante, un EAN o un UPC, que hoy se llaman GTIN. La variante solo tiene el SKU, un código interno que queda fijo al publicar (BR-PRD-12), y no hay una búsqueda exacta para un lector de códigos.
+  - **Nota del pago:** `manual-capture` recibe `note`, pero solo queda como motivo de la auditoría `payments.manual-capture`, igual que la del reembolso manual. Leerla exige `audit.read`, que el cajero no tiene, y la consulta llega a 3 meses atrás (ADR-0146).
+  - **Decisiones del análisis para las versiones siguientes** (2026-10-14):
+    - la nota de servicio es una orden de trabajo, con folio, equipo recibido, diagnóstico y estados, y va con los servicios;
+    - los servicios se venden solo en la tienda física, sin fecha, cita ni cupo, con el stock actual en una cantidad alta; falta impedir que se vendan en la tienda en línea;
+    - el precio preferente del vendedor (regateo) se descarta por su complejidad y su riesgo; se trabajará con promociones (T-200);
+    - la carga masiva de productos, variantes y stock se decide en detalle en su propia versión.
+- **Decisión** (del usuario, con las recomendaciones del análisis):
+  - **Datos del ticket:** variables de configuración generales, iguales para todas las tiendas: `STORE_NAME`, `STORE_ADDRESS`, `STORE_TAX_ID` (RFC), `STORE_PHONE` y `TICKET_FOOTER`, con "Este ticket no es un comprobante fiscal." por defecto. Se validan al arrancar, y cambiarlas exige reiniciar, como `VAT_RATE_BP` (ADR-0122).
+  - **`GET /v1/admin/store-profile`:** publica esos datos con `orders.read`, para que todo cliente imprima lo mismo.
+  - **El ticket no tiene fines legales:** no es un comprobante fiscal, la factura CFDI sigue fuera (ADR-0027), y su leyenda lo dice. El cliente lo arma y lo imprime; la API no genera PDF ni imágenes.
+  - **Almacén en la orden:** `AdminOrder` muestra el código y el nombre del almacén del que salieron los productos: el de la venta en tienda (ADR-0161) o el del envío (ADR-0160).
+  - **Nota del pago:** el intento capturado y el reembolso manual guardan su nota. `AdminPayment` la muestra en `attempts[].note` y `refunds[].note`, y `AdminOrder` en `payment.note`. Una migración copia las notas que ya están en la auditoría.
+  - **La anonimización conserva la nota:** el usuario acepta el riesgo, y la operación indicará no escribir datos sensibles en ella.
+  - **GTIN:** la variante agrega `gtin`, opcional:
+    - solo dígitos, de 8, 12, 13 o 14, con su dígito verificador;
+    - sin repetirse entre variantes, comparado completado a 14 dígitos: un UPC de 12 y el mismo código como EAN-13 con un 0 al frente son el mismo;
+    - se puede corregir aunque el producto esté publicado, a diferencia del SKU.
+  - **Búsqueda exacta para el lector:** `GET /v1/admin/catalog/variants/lookup?code=…`, con `catalog.read`, encuentra la variante por SKU o por GTIN y responde su producto, sus opciones y su estado. El `q` del listado de productos también busca por GTIN.
+  - **Implementación:** en dos partes: T-142, el GTIN y su búsqueda; y T-188, los datos del ticket, junto con T-197, la nota del pago.
+- **Alternativas consideradas:**
+  - **Los datos del ticket en el cliente:** cada cliente los repetiría, y podrían no coincidir.
+  - **Los datos del ticket editables en la base, como la configuración de pagos (ADR-0162):** casi nunca cambian, y el usuario prefirió variables de configuración.
+  - **Un ticket en PDF generado por la API:** la impresión depende del dispositivo, como una impresora térmica de 58 u 80 mm, que conoce el cliente.
+  - **Leer la nota desde la auditoría:** exige `audit.read` y solo llega a 3 meses atrás.
+  - **Usar el SKU como código del fabricante:** el SKU es interno y queda fijo al publicar; el código del fabricante es el mismo en todas las tiendas.
+  - **Varios GTIN por variante:** casi todo producto trae uno; se puede agregar después.
+  - **Registrar códigos propios en GS1 México:** solo hace falta para vender productos propios en otras cadenas. Un producto sin código del fabricante usa su SKU impreso como Code 128.
+- **Consecuencias:**
+  - El cliente imprime el ticket con los datos de la tienda, el almacén y la leyenda, y escanea el código del fabricante sin volver a etiquetar.
+  - El cajero ve la nota del pago sin `audit.read`.
+  - La nota de un pago puede conservar datos personales después de anonimizar la orden: el usuario acepta ese riesgo.
+  - Cambios compatibles en `/v1`: dos rutas nuevas y campos nuevos en `AdminOrder`, `AdminPayment` y las variantes. Por eso es una versión menor (ADR-0159).
+  - Al implementarse, modifica ADR-0067 y ADR-0145 (la anonimización conserva la nota), ADR-0134 y ADR-0135 (la nota del pago y del reembolso), y la regla BR-PRD-12 (el GTIN no queda fijo).
+- **Revisar si:** los datos del ticket deben cambiar por tienda, o una variante necesita varios GTIN.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-14, con las recomendaciones del plan). Se implementa en T-142, T-188 y T-197, en la versión 1.4.
