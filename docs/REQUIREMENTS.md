@@ -36,7 +36,7 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Módulo | Responsabilidad en el MVP | Fuera del MVP |
 |---|---|---|
 | Identity & Access | Registro, autenticación, verificación de email, cuentas de staff, roles, permisos, direcciones | 2FA (preparado, ADR-0048) |
-| Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | — |
+| Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | Código de barras del fabricante (GTIN) en la versión 1.4 (ADR-0163) |
 | Pricing | Una lista predeterminada, precios inmediatos y programados | Listas adicionales (modelo preparado, ADR-0039) |
 | Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160) |
 | Shopping | Carrito de invitado y de cliente registrado | — |

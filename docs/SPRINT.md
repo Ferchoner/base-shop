@@ -6,7 +6,47 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.3, el pago en tienda configurable desde la API, se cerró el 2026-10-06 y se publica como la 1.3.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+1.4 — Datos para el ticket, nota del pago y GTIN. Inicio: 2026-10-14 (plan aprobado ese día).
+
+### Goal
+
+Que el backoffice imprima tickets con los datos de la tienda y el almacén del que salieron los productos, vea la nota de cada pago y reembolso manual, y encuentre una variante escaneando el código de barras de su fabricante (ADR-0163).
+
+### Tasks
+
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.3 en la guía de desarrollo |
+| 1 | T-142: `gtin` en la variante, con su dígito verificador y sin repetirse; búsqueda exacta por SKU o GTIN |
+| 2 | T-188: datos de la tienda como variables de configuración, `GET /v1/admin/store-profile` y el almacén de la orden. T-197: la nota del pago y del reembolso, con las notas anteriores desde la auditoría |
+
+- **Criterio de cierre:** los criterios de aceptación de T-142, T-188 y T-197, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.4.0 publicada con su tag y su GitHub Release (ADR-0159).
+- **Fuera de esta versión:** la impresión y el diseño del ticket y de las etiquetas, que hace el cliente; la factura CFDI (ADR-0027); varios GTIN por variante; y todo lo que ADR-0158 dejó fuera del MVP.
+- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.4.0.
+- **Siguientes versiones, sin plan aprobado (ADR-0163):** la 1.5, carga masiva (T-146); la 1.6, servicios y órdenes de trabajo (T-189); y la 1.7, promociones (T-200).
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 163 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta es un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit` encontró tres avisos críticos nuevos en `handlebars` 4.7.9, que llega con `ts-jest`, solo en desarrollo. La auditoría de la CI falla con avisos críticos, así que la 4.7.10, que los corrige, entra en este paso, sin más cambios que el lockfile. Dependabot aún no lo había detectado;
+  - en producción sigue sin vulnerabilidades, y en desarrollo sigue el aviso moderado de `sprintf-js`, que ninguna versión corrige;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.22);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.3:
+  - al agregar un permiso al catálogo, se buscan antes las pruebas que derivan de él los permisos de un rol;
+  - antes de citar una sección en el código, se confirma su número;
+  - al pedir la aprobación del tag y del Release, la sesión deja listos sus comandos.
+
+### Risks
+
+- **Datos personales en la nota del pago:** la anonimización la conserva, y la nota es texto libre. Lo acepta el usuario, y la operación indicará no escribir datos sensibles (ADR-0163).
+- **GTIN repetidos o mal capturados:** el dígito verificador y la comparación a 14 dígitos los detectan al guardar.
+- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
+
+### Review
+
+PENDIENTE.
 
 ---
 
