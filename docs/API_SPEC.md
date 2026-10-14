@@ -846,6 +846,7 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implem
 | PATCH | `/v1/admin/catalog/products/{productId}/variants/{variantId}` | `catalog.write` | UC-CAT-07 |
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/discontinue` | `catalog.write` | UC-CAT-08 |
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/reactivate` | `catalog.write` | UC-CAT-08 |
+| GET | `/v1/admin/catalog/variants/lookup` | `catalog.read` | UC-CAT-15 (ADR-0163) |
 | POST | `/v1/admin/catalog/products/{productId}/images` | `catalog.write` | UC-CAT-11 |
 | PATCH, DELETE | `/v1/admin/catalog/products/{productId}/images/{imageId}` | `catalog.write` | UC-CAT-11 |
 | PUT | `/v1/admin/catalog/products/{productId}/images/order` | `catalog.write` | UC-CAT-11 |
@@ -915,7 +916,7 @@ Representación `AdminProduct`:
   "categories": [ { "id": "…", "name": "…" } ],
   "status": "PUBLISHED",
   "storeVisibility": "VISIBLE",
-  "variants": [ { "id": "…", "sku": "…", "options": {}, "status": "ACTIVE", "weightGrams": 350, "lengthCm": 30.0, "widthCm": 20.0, "heightCm": 3.0, "editableIdentity": false } ],
+  "variants": [ { "id": "…", "sku": "…", "gtin": "7501055363063", "options": {}, "status": "ACTIVE", "weightGrams": 350, "lengthCm": 30.0, "widthCm": 20.0, "heightCm": 3.0, "editableIdentity": false } ],
   "images": [],
   "publishedAt": "…", "firstPublishedAt": "…", "archivedAt": null,
   "version": 7, "createdAt": "…", "updatedAt": "…"
@@ -927,7 +928,7 @@ Representación `AdminProduct`:
 
 | Endpoint | Detalle |
 |---|---|
-| `GET /v1/admin/catalog/products` | `catalog.read`. Paginado. Filtros: `q` (título o SKU), `status`, `brandId`, `categoryId`. Orden: `updatedAt` (defecto `-updatedAt`), `title`, `createdAt`, `publishedAt`. Devuelve `AdminProduct` sin `description` |
+| `GET /v1/admin/catalog/products` | `catalog.read`. Paginado. Filtros: `q` (título, SKU o GTIN), `status`, `brandId`, `categoryId`. Orden: `updatedAt` (defecto `-updatedAt`), `title`, `createdAt`, `publishedAt`. Devuelve `AdminProduct` sin `description` |
 | `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [] }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
 | `GET /v1/admin/catalog/products/{productId}` | `catalog.read`. 200 `AdminProduct` |
 | `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
@@ -945,7 +946,7 @@ Implementado en T-140 parte a (ADR-0123):
 - **Publicar sin variante activa:** 409 `invalid-state-transition` con `reason: no-active-variant`.
 - **Producto archivado:** no se edita ni cambia sus variantes: 409 `invalid-state-transition` con `currentStatus: ARCHIVED`.
 - **Campos fijos:** `field-locked` lleva `fields` (`slug`, `sku`, `options`).
-- **Listado:** no incluye `description`; `q` busca en el título y en los SKU; con `sort=publishedAt`, los nunca publicados van al final.
+- **Listado:** no incluye `description`; `q` busca en el título y en los SKU, y desde T-142 en los GTIN (ADR-0163); con `sort=publishedAt`, los nunca publicados van al final.
 - **Alta:** responde 201 con `Location: /v1/admin/catalog/products/{id}`.
 - **Auditoría:** cada cambio se audita (`products.*`); uno sin efecto no se guarda ni se audita.
 
@@ -967,6 +968,13 @@ Implementado en T-140 parte a (ADR-0123):
 - **Medidas:** `lengthCm`, `widthCm` y `heightCm` con un decimal; `null` en el `PATCH` borra un valor.
 - **Variante de otro producto:** 404.
 - **Descontinuar:** publica `VariantDiscontinued`, que vacía la cache pública.
+
+Desde T-142 (ADR-0163), el código de barras del fabricante, `gtin`:
+
+- **Qué es:** el EAN o el UPC que el fabricante imprime en el empaque, que GS1 llama GTIN. `AdminProduct.variants[].gtin` lo muestra como se capturó, o `null`; la tienda pública no lo muestra.
+- **Alta y edición:** opcional en el `POST`, y en el `PATCH` se cambia o se quita con `null` también después de la primera publicación, a diferencia del SKU. Se audita con los demás campos de la variante.
+- **Formato:** 8, 12, 13 o 14 dígitos; si no, 400 `validation-error` con `matches` en `gtin`. Si el último dígito no es el verificador de los demás, 400 con `gtinCheckDigit`.
+- **Sin repetirse:** dos variantes activas, de cualquier producto, no tienen el mismo GTIN: 409 `duplicate-value` con `field: gtin`. Se comparan completados con ceros a 14 dígitos, así que un UPC de 12 y el mismo código como EAN-13 con un 0 al frente son el mismo. Una variante descontinuada deja libre el suyo, y reactivarla con un GTIN que ya tiene otra activa responde el mismo 409.
 
 ### 11.8 Imágenes (UC-CAT-11, ADR-0024)
 
@@ -1032,6 +1040,19 @@ Implementado en T-150 (ADR-0120):
 - **Respuestas:** el alta responde 201 con `Location: /v1/admin/catalog/categories/{id}` (o `…/brands/{id}`); editar, desactivar y reactivar responden 200 con `AdminCategory` o `AdminBrand`. Un ID que no es UUID responde 404.
 - **Marcas:** `q` busca parte del nombre sin distinguir mayúsculas; `status` acepta uno o más estados; `sort` solo `name` o `-name`.
 - **Auditoría:** cada cambio se audita con los campos que cambiaron (`categories.*` y `brands.*`); un `PATCH` sin cambios no se guarda ni se audita.
+
+### 11.10 Buscar una variante por su código (UC-CAT-15, ADR-0163)
+
+**`GET /v1/admin/catalog/variants/lookup?code=…`** — `catalog.read`. Para el lector de códigos del mostrador.
+
+- **`code`:** obligatorio, de 1 a 64 letras, dígitos, `-`, `_` y `.`; si no, 400 `validation-error` en `code`.
+- **Qué compara:** el SKU exacto, sin distinguir mayúsculas, y, si `code` tiene 8, 12, 13 o 14 dígitos, el GTIN completado con ceros a 14 dígitos.
+- **Response 200:** `{ "data": [ { "id", "sku", "gtin", "options", "status", "matchedBy", "product": { "id", "title", "slug", "status" } } ] }`.
+  - `matchedBy` es `SKU` o `GTIN`;
+  - las variantes activas van primero, y luego por SKU;
+  - es una lista porque un SKU de dígitos puede coincidir con el GTIN de otra variante, y varias descontinuadas pueden compartir un GTIN;
+  - sin coincidencias, `data` va vacía; no responde 404.
+- Solo se vende una variante activa de un producto `PUBLISHED`; la lista también trae las demás, para que el staff sepa por qué no se vende.
 
 ---
 
@@ -1687,7 +1708,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-IAM-20, 21 | Sin API: scripts (ADR-0043, ADR-0057) |
 | UC-IAM-22 | Sección 10 |
 | UC-IAM-23 | Sección 23 |
-| UC-CAT-01 a 14 | Sección 11 |
+| UC-CAT-01 a 15 | Sección 11 |
 | UC-PRC-01 a 05 | Sección 12 |
 | UC-PRC-06 | Sin API pública: fachada interna del módulo |
 | UC-INV-01 a 04 | Sección 13 |

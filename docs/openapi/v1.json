@@ -1992,6 +1992,12 @@
             "description": "SKU y opciones editables: el producto nunca se ha publicado (ADR-0068).",
             "type": "boolean"
           },
+          "gtin": {
+            "description": "Código de barras del fabricante (EAN o UPC), como se capturó; `null` si no tiene (ADR-0163).",
+            "example": "7501055363063",
+            "nullable": true,
+            "type": "string"
+          },
           "heightCm": {
             "description": "Centímetros, un decimal; `null` si no se dio.",
             "nullable": true,
@@ -2042,6 +2048,7 @@
         },
         "required": [
           "id",
+          "gtin",
           "options",
           "status",
           "weightGrams",
@@ -3125,6 +3132,12 @@
       },
       "CreateVariantDto": {
         "properties": {
+          "gtin": {
+            "description": "Código de barras del fabricante (EAN o UPC): 8, 12, 13 o 14 dígitos con su dígito verificador; sin repetirse entre variantes activas (ADR-0163). Opcional.",
+            "example": "7501055363063",
+            "nullable": true,
+            "type": "string"
+          },
           "heightCm": {
             "description": "Centímetros, mayor que 0, un decimal.",
             "maximum": 999999.9,
@@ -7288,6 +7301,12 @@
       },
       "UpdateVariantDto": {
         "properties": {
+          "gtin": {
+            "description": "Código de barras del fabricante, con las reglas del alta; se puede corregir aunque el producto ya se haya publicado, y `null` lo quita (ADR-0163).",
+            "example": "7501055363063",
+            "nullable": true,
+            "type": "string"
+          },
           "heightCm": {
             "description": "Centímetros, mayor que 0, un decimal; `null` lo quita.",
             "maximum": 999999.9,
@@ -7370,6 +7389,111 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "VariantLookupDto": {
+        "properties": {
+          "gtin": {
+            "description": "Código de barras del fabricante; `null` si no tiene.",
+            "example": "7501055363063",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "matchedBy": {
+            "description": "Si el código coincidió con su SKU o con su GTIN.",
+            "enum": [
+              "SKU",
+              "GTIN"
+            ],
+            "type": "string"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Sus valores de las opciones del producto, por nombre.",
+            "example": {
+              "color": "Azul",
+              "talla": "M"
+            },
+            "type": "object"
+          },
+          "product": {
+            "$ref": "#/components/schemas/VariantLookupProductDto"
+          },
+          "sku": {
+            "example": "CAM-LIN-AZ-M",
+            "type": "string"
+          },
+          "status": {
+            "description": "`ACTIVE` o `DISCONTINUED`; una descontinuada no se vende.",
+            "enum": [
+              "ACTIVE",
+              "DISCONTINUED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "gtin",
+          "options",
+          "status",
+          "matchedBy",
+          "product",
+          "sku"
+        ],
+        "type": "object"
+      },
+      "VariantLookupListDto": {
+        "properties": {
+          "data": {
+            "description": "Las activas primero; vacía si ninguna coincide.",
+            "items": {
+              "$ref": "#/components/schemas/VariantLookupDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "VariantLookupProductDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "slug": {
+            "example": "camisa-de-lino",
+            "type": "string"
+          },
+          "status": {
+            "description": "Solo `PUBLISHED` se vende.",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "example": "Camisa de lino",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "title",
+          "slug"
+        ],
         "type": "object"
       },
       "WarehouseDto": {
@@ -9056,7 +9180,7 @@
             }
           },
           {
-            "description": "Parte del título o de un SKU, sin distinguir mayúsculas.",
+            "description": "Parte del título, de un SKU o de un GTIN, sin distinguir mayúsculas.",
             "in": "query",
             "name": "q",
             "required": false,
@@ -10509,7 +10633,7 @@
     },
     "/v1/admin/catalog/products/{productId}/variants/{variantId}": {
       "patch": {
-        "description": "SKU y opciones solo mientras el producto nunca se ha publicado (409 `field-locked`); peso y medidas siempre.",
+        "description": "SKU y opciones solo mientras el producto nunca se ha publicado (409 `field-locked`); GTIN, peso y medidas siempre.",
         "operationId": "AdminProductsController_updateVariant_v1",
         "parameters": [
           {
@@ -10773,7 +10897,7 @@
     },
     "/v1/admin/catalog/products/{productId}/variants/{variantId}/reactivate": {
       "post": {
-        "description": "Con el mismo SKU y opciones; 409 `duplicate-value` si otra variante activa tiene su combinación.",
+        "description": "Con el mismo SKU, GTIN y opciones; 409 `duplicate-value` si otra variante activa tiene su combinación o su GTIN.",
         "operationId": "AdminProductsController_reactivateVariant_v1",
         "parameters": [
           {
@@ -10900,6 +11024,98 @@
         ],
         "x-required-permissions": [
           "catalog.write"
+        ]
+      }
+    },
+    "/v1/admin/catalog/variants/lookup": {
+      "get": {
+        "description": "El SKU exacto, sin distinguir mayúsculas, o el GTIN (EAN o UPC) completado con ceros a 14 dígitos, así que un UPC y el mismo código como EAN-13 son uno. Devuelve una lista, con las variantes activas primero: un SKU de dígitos puede coincidir con el GTIN de otra variante, y varias descontinuadas pueden compartir un GTIN. Vacía si ninguna coincide.",
+        "operationId": "AdminVariantsController_lookUp_v1",
+        "parameters": [
+          {
+            "description": "El código leído o capturado: el SKU, sin distinguir mayúsculas, o el GTIN, con o sin ceros a la izquierda.",
+            "in": "query",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "example": "7501055363063",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariantLookupListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Buscar una variante por su código",
+        "tags": [
+          "Administración: catálogo"
+        ],
+        "x-required-permissions": [
+          "catalog.read"
         ]
       }
     },

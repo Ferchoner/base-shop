@@ -266,6 +266,7 @@ describe('Product images (T-140 part b)', () => {
       const variantId = await run(() =>
         moduleRef.get(ProductVariants).add(id, {
           sku: `SKU-${newId()}`,
+          gtin: null,
           options: {},
           weightGrams: null,
           lengthCm: null,

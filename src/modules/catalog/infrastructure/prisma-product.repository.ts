@@ -19,6 +19,7 @@ import {
 import type { ProductId } from '../domain/product-id.js';
 import { ProductRepository } from '../domain/product.repository.js';
 import {
+  gtinKey,
   sameOptions,
   type VariantOptions,
   type VariantSnapshot,
@@ -37,6 +38,7 @@ const DUPLICATE_FIELDS: Readonly<Record<string, string>> = {
   products_slug_key: 'slug',
   product_variants_sku_key: 'sku',
   product_variants_active_options_key: 'options',
+  product_variants_active_gtin_key: 'gtin',
 };
 
 /** `products`, `product_categories` and `product_variants`, always through the active transaction. */
@@ -149,6 +151,8 @@ export class PrismaProductRepository extends ProductRepository {
       const before = stored.get(variant.id);
       const data = {
         sku: variant.sku,
+        gtin: variant.gtin,
+        gtinKey: variant.gtin === null ? null : gtinKey(variant.gtin),
         options: variant.options,
         status: variant.status,
         weightGrams: variant.weightGrams,
@@ -190,6 +194,7 @@ function toProduct(row: ProductRow): Product {
 function sameVariant(a: VariantSnapshot, b: VariantSnapshot): boolean {
   return (
     a.sku === b.sku &&
+    a.gtin === b.gtin &&
     a.status === b.status &&
     a.weightGrams === b.weightGrams &&
     a.lengthCm === b.lengthCm &&
@@ -203,6 +208,7 @@ function toVariant(row: VariantRow): VariantSnapshot {
   return {
     id: toId<'Variant'>(row.id),
     sku: row.sku,
+    gtin: row.gtin,
     options: row.options as VariantOptions,
     status: row.status,
     weightGrams: row.weightGrams,

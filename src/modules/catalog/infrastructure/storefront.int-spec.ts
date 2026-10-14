@@ -160,6 +160,7 @@ describe('Storefront (T-140 part c, ADR-0060)', () => {
     run(async () =>
       moduleRef.get(ProductVariants).add(productId, {
         sku,
+        gtin: null,
         options,
         weightGrams: null,
         lengthCm: null,

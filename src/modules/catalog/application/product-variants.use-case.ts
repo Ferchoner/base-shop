@@ -40,6 +40,7 @@ export class ProductVariants {
     productId: ProductId,
     input: VariantDimensions & {
       sku: string;
+      gtin: string | null;
       options: Readonly<Record<string, unknown>>;
       version: number;
     },

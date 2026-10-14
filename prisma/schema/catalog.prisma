@@ -89,6 +89,10 @@ model ProductVariant {
   id          String        @id @db.Uuid
   productId   String        @map("product_id") @db.Uuid
   sku         String        @unique
+  /// The barcode of its manufacturer, as entered (ADR-0163).
+  gtin        String?       @db.VarChar(14)
+  /// The GTIN completed with zeros to 14 digits, how codes are compared. CHECK: lpad(gtin, 14, '0') (manual SQL).
+  gtinKey     String?       @map("gtin_key") @db.Char(14)
   options     Json          @db.JsonB
   status      VariantStatus
   weightGrams Int?          @map("weight_grams")
@@ -103,6 +107,8 @@ model ProductVariant {
 
   /// Option combinations are unique among active variants only (BR-PRD-02, ADR-0076).
   @@unique([productId, options], map: "product_variants_active_options_key", where: raw("status = 'ACTIVE'::variant_status"))
+  /// A GTIN is unique among active variants only, like the options (ADR-0163).
+  @@unique([gtinKey], map: "product_variants_active_gtin_key", where: raw("status = 'ACTIVE'::variant_status"))
   @@index([productId])
   @@map("product_variants")
 }

@@ -1,11 +1,14 @@
 import { InvalidValueError } from '../../../shared-kernel/index.js';
-import { InvalidOptionsError } from './product-errors.js';
+import { InvalidGtinError, InvalidOptionsError } from './product-errors.js';
 import {
+  gtinKey,
+  gtinKeyOf,
   MAX_DIMENSION_CM,
   MAX_WEIGHT_GRAMS,
   optionNamesOf,
   sameOptions,
   validDimensions,
+  validGtin,
   validOptions,
   validSku,
 } from './variant.js';
@@ -124,6 +127,77 @@ describe('Variant values (BR-PRD-01, BR-PRD-02, BR-PRD-14, ADR-0071, ADR-0123)',
       expect(() => validDimensions({ ...NO_SIZE, ...size })).toThrow(
         InvalidValueError,
       );
+    });
+  });
+
+  describe('GTIN, the barcode of the manufacturer (ADR-0163)', () => {
+    it.each([
+      ['96385074', 'GTIN-8'],
+      ['036000291452', 'a UPC'],
+      ['7501031311309', 'an EAN-13'],
+      ['7501055363070', 'an EAN-13 whose check digit is 0'],
+      ['10012345678902', 'a GTIN-14'],
+    ])('takes %p, %s, as it was entered', (gtin) => {
+      expect(validGtin(gtin)).toBe(gtin);
+    });
+
+    it.each([
+      '',
+      '1234567',
+      '123456789',
+      '12345678901',
+      '123456789012345',
+      '75010553630A3',
+    ])('rejects %p, which is not 8, 12, 13 or 14 digits', (gtin) => {
+      expect(() => validGtin(gtin)).toThrow(new InvalidGtinError('gtin'));
+    });
+
+    it.each(['7501031311308', '036000291453', '96385075'])(
+      'rejects %p, whose check digit does not match',
+      (gtin) => {
+        expect(() => validGtin(gtin)).toThrow(
+          new InvalidGtinError('gtinCheckDigit'),
+        );
+      },
+    );
+
+    it('answers each error on the gtin field, with its code', () => {
+      expect(new InvalidGtinError('gtinCheckDigit')).toMatchObject({
+        code: 'validation-error',
+        details: {
+          errors: [
+            {
+              field: 'gtin',
+              code: 'gtinCheckDigit',
+              message: 'El dígito verificador no corresponde a este código.',
+            },
+          ],
+        },
+      });
+      expect(new InvalidGtinError('gtin')).toMatchObject({
+        details: {
+          errors: [
+            {
+              field: 'gtin',
+              code: 'gtin',
+              message: 'Debe tener 8, 12, 13 o 14 dígitos.',
+            },
+          ],
+        },
+      });
+    });
+
+    it('compares codes completed with zeros to 14 digits: a UPC and the same code as an EAN-13 are one', () => {
+      expect(gtinKey('036000291452')).toBe('00036000291452');
+      expect(gtinKey('0036000291452')).toBe('00036000291452');
+      expect(gtinKey('96385074')).toBe('00000096385074');
+      expect(gtinKey('10012345678902')).toBe('10012345678902');
+    });
+
+    it('looks up by GTIN only a code with its shape', () => {
+      expect(gtinKeyOf('036000291452')).toBe('00036000291452');
+      expect(gtinKeyOf('CAM-M')).toBeNull();
+      expect(gtinKeyOf('1234567')).toBeNull();
     });
   });
 });

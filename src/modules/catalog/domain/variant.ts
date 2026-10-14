@@ -1,5 +1,5 @@
 import { type Id, InvalidValueError } from '../../../shared-kernel/index.js';
-import { InvalidOptionsError } from './product-errors.js';
+import { InvalidGtinError, InvalidOptionsError } from './product-errors.js';
 
 export type VariantId = Id<'Variant'>;
 
@@ -21,6 +21,9 @@ export const MAX_OPTION_VALUE_LENGTH = 50;
 /** 1 to 64 letters, digits, `-`, `_` and `.`; stored in uppercase (BR-PRD-01). */
 export const SKU_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
+/** The barcode of a manufacturer, an EAN or a UPC, which GS1 calls GTIN (ADR-0163): 8, 12, 13 or 14 digits. */
+export const GTIN_PATTERN = /^(\d{8}|\d{12,14})$/;
+
 /** Limits of the columns: `integer` grams and `numeric(7,1)` centimeters (DATABASE.md §4.5). */
 export const MAX_WEIGHT_GRAMS = 2_147_483_647;
 export const MAX_DIMENSION_CM = 999_999.9;
@@ -36,6 +39,8 @@ export interface VariantDimensions {
 export interface VariantSnapshot extends VariantDimensions {
   readonly id: VariantId;
   readonly sku: string;
+  /** The barcode of its manufacturer, as it was entered; `null` without one (ADR-0163). */
+  readonly gtin: string | null;
   readonly options: VariantOptions;
   readonly status: VariantStatus;
 }
@@ -48,6 +53,41 @@ export function validSku(sku: string): string {
     );
   }
   return sku.toUpperCase();
+}
+
+/**
+ * A GTIN with its check digit (ADR-0163): the last digit, from the others weighted 3 and 1 from the right, as GS1
+ * computes it.
+ *
+ * @throws InvalidGtinError.
+ */
+export function validGtin(gtin: string): string {
+  if (!GTIN_PATTERN.test(gtin)) throw new InvalidGtinError('gtin');
+  const digits = [...gtin].map(Number);
+  const check = digits.pop();
+  const sum = digits
+    .reverse()
+    .reduce(
+      (total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1),
+      0,
+    );
+  if ((10 - (sum % 10)) % 10 !== check) {
+    throw new InvalidGtinError('gtinCheckDigit');
+  }
+  return gtin;
+}
+
+/**
+ * The GTIN completed with zeros to 14 digits, how two codes are compared (ADR-0163): a UPC of 12 digits and the same
+ * code as an EAN-13 with a leading 0 are one.
+ */
+export function gtinKey(gtin: string): string {
+  return gtin.padStart(14, '0');
+}
+
+/** The key of a code with the shape of a GTIN, to look a variant up by it; `null` for any other code. */
+export function gtinKeyOf(code: string): string | null {
+  return GTIN_PATTERN.test(code) ? gtinKey(code) : null;
 }
 
 /**

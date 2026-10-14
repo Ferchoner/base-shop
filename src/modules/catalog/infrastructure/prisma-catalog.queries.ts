@@ -19,12 +19,17 @@ import {
   type ProductFilter,
   type ProductImageView,
   type ProductSortField,
+  type VariantLookupView,
   type VariantSnapshot,
 } from '../application/catalog.queries.js';
 import type { BrandId } from '../domain/brand.js';
 import type { CategoryId } from '../domain/category.js';
 import type { ProductId } from '../domain/product-id.js';
-import type { VariantId, VariantOptions } from '../domain/variant.js';
+import {
+  gtinKeyOf,
+  type VariantId,
+  type VariantOptions,
+} from '../domain/variant.js';
 
 const CATEGORY_FIELDS = {
   id: true,
@@ -155,6 +160,7 @@ export class PrismaCatalogQueries extends CatalogQueries {
                   some: { sku: { contains: filter.q.toUpperCase() } },
                 },
               },
+              { variants: { some: { gtin: { contains: filter.q } } } },
             ],
           }),
       ...(filter.statuses === undefined
@@ -209,6 +215,38 @@ export class PrismaCatalogQueries extends CatalogQueries {
         { product: { title: { contains: text, mode: 'insensitive' } } },
       ],
     });
+  }
+
+  async lookUpVariants(code: string): Promise<VariantLookupView[]> {
+    const sku = code.toUpperCase();
+    const key = gtinKeyOf(code);
+    const rows = await this.txHost.tx.productVariant.findMany({
+      where: { OR: [{ sku }, ...(key === null ? [] : [{ gtinKey: key }])] },
+      include: {
+        product: {
+          select: { id: true, title: true, slug: true, status: true },
+        },
+      },
+      orderBy: { sku: 'asc' },
+    });
+    return rows
+      .map((row) => ({
+        id: toId<'Variant'>(row.id),
+        sku: row.sku,
+        gtin: row.gtin,
+        options: row.options as VariantOptions,
+        status: row.status,
+        matchedBy: row.sku === sku ? ('SKU' as const) : ('GTIN' as const),
+        product: {
+          id: toId<'Product'>(row.product.id),
+          title: row.product.title,
+          slug: row.product.slug,
+          status: row.product.status,
+        },
+      }))
+      .sort(
+        (a, b) => Number(b.status === 'ACTIVE') - Number(a.status === 'ACTIVE'),
+      );
   }
 
   async findImagesOfProducts(
@@ -275,6 +313,7 @@ function toProductView(
     variants: row.variants.map((variant) => ({
       id: toId<'Variant'>(variant.id),
       sku: variant.sku,
+      gtin: variant.gtin,
       options: variant.options as VariantOptions,
       status: variant.status,
       weightGrams: variant.weightGrams,

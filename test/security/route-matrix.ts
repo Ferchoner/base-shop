@@ -122,6 +122,7 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/catalog/categories/:categoryId/reactivate': {
     access: ['catalog.write'],
   },
+  'GET /v1/admin/catalog/variants/lookup': { access: ['catalog.read'] },
   'GET /v1/admin/catalog/products': { access: ['catalog.read'] },
   'POST /v1/admin/catalog/products': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products/:productId': { access: ['catalog.read'] },

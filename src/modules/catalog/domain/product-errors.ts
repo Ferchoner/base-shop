@@ -41,6 +41,22 @@ abstract class FieldError extends DomainError {
   }
 }
 
+/**
+ * Not the barcode of a manufacturer (ADR-0163): 8, 12, 13 or 14 digits (`gtin`), whose last one is the check digit
+ * of the others (`gtinCheckDigit`).
+ */
+export class InvalidGtinError extends FieldError {
+  constructor(code: 'gtin' | 'gtinCheckDigit') {
+    super(
+      'gtin',
+      code,
+      code === 'gtin'
+        ? 'Debe tener 8, 12, 13 o 14 dígitos.'
+        : 'El dígito verificador no corresponde a este código.',
+    );
+  }
+}
+
 /** The options of a variant break the rules of ADR-0071 (API_SPEC.md §11.7). */
 export class InvalidOptionsError extends FieldError {
   constructor(message: string) {

@@ -25,6 +25,7 @@ import {
   IsSortOf,
 } from '../../../platform/http/pagination/pagination.js';
 import {
+  GTIN_PATTERN,
   MAX_ALT_TEXT_LENGTH,
   MAX_CATEGORIES_PER_PRODUCT,
   MAX_DESCRIPTION_LENGTH,
@@ -56,6 +57,14 @@ const SKU_FORMAT = {
     message: 'De 1 a 64 letras, dígitos, "-", "_" y ".".',
   },
 };
+const GTIN_FORMAT = {
+  context: { message: 'Debe tener 8, 12, 13 o 14 dígitos.' },
+};
+const NULLABLE_GTIN = {
+  type: String,
+  nullable: true,
+  example: '7501055363063',
+} as const;
 const DATE_TIME = { type: String, format: 'date-time' } as const;
 const NULLABLE_DATE_TIME = { ...DATE_TIME, nullable: true } as const;
 const NULLABLE_NUMBER = { type: Number, nullable: true } as const;
@@ -101,6 +110,13 @@ export class AdminVariantDto {
   /** @example 'CAM-LIN-AZ-M' */
   sku: string;
 
+  @ApiProperty({
+    ...NULLABLE_GTIN,
+    description:
+      'Código de barras del fabricante (EAN o UPC), como se capturó; `null` si no tiene (ADR-0163).',
+  })
+  gtin: string | null;
+
   /** Sus valores de las opciones del producto, por nombre. */
   @ApiProperty(OPTIONS)
   options: Record<string, string>;
@@ -127,6 +143,60 @@ export class AdminVariantDto {
 
   /** SKU y opciones editables: el producto nunca se ha publicado (ADR-0068). */
   editableIdentity: boolean;
+}
+
+// --- Look-up by code (API_SPEC.md §11.10, ADR-0163) ---
+
+export class VariantLookupProductDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** @example 'Camisa de lino' */
+  title: string;
+
+  /** @example 'camisa-de-lino' */
+  slug: string;
+
+  /** Solo `PUBLISHED` se vende. */
+  @ApiProperty({ enum: PRODUCT_STATUSES })
+  status: string;
+}
+
+export class VariantLookupDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** @example 'CAM-LIN-AZ-M' */
+  sku: string;
+
+  @ApiProperty({
+    ...NULLABLE_GTIN,
+    description: 'Código de barras del fabricante; `null` si no tiene.',
+  })
+  gtin: string | null;
+
+  /** Sus valores de las opciones del producto, por nombre. */
+  @ApiProperty(OPTIONS)
+  options: Record<string, string>;
+
+  /** `ACTIVE` o `DISCONTINUED`; una descontinuada no se vende. */
+  @ApiProperty({ enum: VARIANT_STATUSES })
+  status: string;
+
+  /** Si el código coincidió con su SKU o con su GTIN. */
+  @ApiProperty({ enum: ['SKU', 'GTIN'] })
+  matchedBy: string;
+
+  @ApiProperty({ type: () => VariantLookupProductDto })
+  product: VariantLookupProductDto;
+}
+
+export class VariantLookupListDto {
+  @ApiProperty({
+    type: () => [VariantLookupDto],
+    description: 'Las activas primero; vacía si ninguna coincide.',
+  })
+  data: VariantLookupDto[];
 }
 
 export class AdminProductDto {
@@ -205,8 +275,18 @@ export class AdminProductListDto {
 
 // --- Requests ---
 
+export class VariantLookupQueryDto {
+  /**
+   * El código leído o capturado: el SKU, sin distinguir mayúsculas, o el GTIN, con o sin ceros a la izquierda.
+   * @example '7501055363063'
+   */
+  @IsString()
+  @Matches(SKU_PATTERN, SKU_FORMAT)
+  code: string;
+}
+
 export class AdminProductListQueryDto extends PageQueryDto {
-  /** Parte del título o de un SKU, sin distinguir mayúsculas. */
+  /** Parte del título, de un SKU o de un GTIN, sin distinguir mayúsculas. */
   @IsOptional()
   @IsString()
   @Length(1, 100)
@@ -418,6 +498,17 @@ export class CreateVariantDto {
   sku: string;
 
   @ApiPropertyOptional({
+    ...NULLABLE_GTIN,
+    description:
+      'Código de barras del fabricante (EAN o UPC): 8, 12, 13 o 14 dígitos con su dígito verificador; sin repetirse entre variantes activas (ADR-0163). Opcional.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Matches(GTIN_PATTERN, GTIN_FORMAT)
+  gtin?: string | null;
+
+  @ApiPropertyOptional({
     ...OPTIONS,
     description:
       'Hasta 3 opciones: nombres de 1 a 30 caracteres, en minúsculas; valores de 1 a 50. Las mismas opciones que las demás variantes del producto.',
@@ -482,6 +573,17 @@ export class UpdateVariantDto {
   @IsString()
   @Matches(SKU_PATTERN, SKU_FORMAT)
   sku?: string;
+
+  @ApiPropertyOptional({
+    ...NULLABLE_GTIN,
+    description:
+      'Código de barras del fabricante, con las reglas del alta; se puede corregir aunque el producto ya se haya publicado, y `null` lo quita (ADR-0163).',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Matches(GTIN_PATTERN, GTIN_FORMAT)
+  gtin?: string | null;
 
   @ApiPropertyOptional({
     ...OPTIONS,
