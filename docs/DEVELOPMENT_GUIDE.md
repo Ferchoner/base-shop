@@ -8,7 +8,7 @@
 4. Implementar una tarea acotada.
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
-7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una ruta nueva va también en la tabla de resumen de su sección de `API_SPEC.md`, y todo cambio del contrato (rutas, DTOs, descripciones o errores) se guarda con `npm run openapi:update` en `docs/openapi/v1.json`: la prueba de contrato falla hasta entonces (ADR-0155). Por eso la tabla y el documento van en el mismo commit que la ruta, que se verifica solo: en T-162 parte b, el commit `feat` no llevaba las tablas. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
+7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una ruta nueva va también en la tabla de resumen de su sección de `API_SPEC.md`, y todo cambio del contrato (rutas, DTOs, descripciones o errores) se guarda con `npm run openapi:update` en `docs/openapi/v1.json`: la prueba de contrato falla hasta entonces (ADR-0155). Por eso la tabla y el documento van en el mismo commit que la ruta, que se verifica solo: en T-162 parte b, el commit `feat` no llevaba las tablas. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran, y antes de citar una en el código se confirma su número: en T-194, el código citó `API_SPEC.md` §16.5, que es la de reembolsos. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
 8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
@@ -216,6 +216,7 @@ Tests (Jest):
 - Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
 - Un error de dominio con `details` se compara con `rejects.toMatchObject({ code, details })`. `toThrow(new Error(…))` solo compara el mensaje: la prueba del tope del reintegro pasaba con otras líneas en el error (T-161).
 - Al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa, también en las suites de otros flujos: en T-187 parte b, `fulfillment` rompió la comparación de la orden en `test/checkout.e2e-spec.ts`, y la encontró recién la primera corrida completa.
+- Al agregar un permiso al catálogo, se buscan antes las pruebas que derivan de él los permisos de un rol: en T-194, dos pruebas de integración calculaban los del Administrador como todos menos `staff.manage`, y fallaron en la primera corrida completa.
 - Los datos de prueba usan valores distintos donde el código elige entre ellos (T-215). Un reembolso igual al total de la orden, una dirección sin número interior o un solo tipo de despacho dejaron pasar mutaciones.
 - Una prueba de un orden usa datos que darían otro resultado con cualquier otro orden: los orígenes de un reintegro, ordenados por prioridad, salían igual ordenados por código (T-162).
 - Cada filtro de un listado se prueba por separado, con datos que solo ese filtro distingue: `resourceType` y `resourceId` probados juntos dejaron pasar dos mutaciones (T-220).
@@ -315,7 +316,7 @@ Versiones (ADR-0159):
 - Cada versión menor es un incremento con su plan aprobado, que se registra en `SPRINT.md` como "Versión X.Y". Sus cambios se anotan en la sección "Unreleased" de `CHANGELOG.md`.
 - Para publicar una versión:
   1. En el último pull request del incremento, `npm version X.Y.Z --no-git-tag-version` cambia `package.json` y `package-lock.json`, y "Unreleased" pasa a ser "X.Y.Z (fecha)".
-  2. Al fusionarlo, con la aprobación del usuario, se crea el tag anotado sobre el commit de la fusión y se publica: `git tag -a vX.Y.Z <commit> -m "X.Y.Z"` y `git push origin vX.Y.Z`.
+  2. Al fusionarlo, con la aprobación del usuario, se crea el tag anotado sobre el commit de la fusión y se publica: `git tag -a vX.Y.Z <commit> -m "X.Y.Z"` y `git push origin vX.Y.Z`. Al pedir la aprobación, la sesión deja listos los tres comandos, con el commit y las notas: si el modo automático le bloquea el tag o el Release, el usuario los corre (versión 1.2.0).
   3. `gh release create vX.Y.Z --title "X.Y.Z" --notes-file <notas>`, con notas en inglés, como los pull requests (ADR-0084), que resumen su sección de `CHANGELOG.md`.
 
 ## Configuración local
