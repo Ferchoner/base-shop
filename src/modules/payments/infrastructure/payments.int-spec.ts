@@ -84,12 +84,14 @@ describe('Payments: persistence (T-190)', () => {
   async function captured(
     amount = 19_900,
     method: PaymentMethod | null = null,
+    note: string | null = null,
   ): Promise<Payment> {
     const payment = started(amount);
     await run(() => payments.insert(payment, START));
     const saved = (await run(() => payments.findByOrder(payment.orderId)))!;
     saved.captureManually({
       reference: 'Ticket 00452',
+      note,
       method,
       registeredBy: newId<'User'>(),
       now: LATER,
@@ -150,12 +152,73 @@ describe('Payments: persistence (T-190)', () => {
     ).rejects.toThrow(/payment_attempts_method_check/);
   });
 
+  it('keeps the note of the staff on a manual payment and on its refund, and shows them (ADR-0163)', async () => {
+    const payment = await captured(
+      19_900,
+      'CASH',
+      'Pagó con un billete de 500',
+    );
+    const unsaid = await captured(9_900);
+    const refundId = newId<'Refund'>();
+    await run(async () => {
+      const locked = (await payments.lock(payment.id))!;
+      locked.startRefund(refundId, LATER);
+      locked.completeManualRefund({
+        reference: 'Devolución 00087',
+        note: 'Devuelto en efectivo',
+        registeredBy: newId<'User'>(),
+        now: LATER,
+      });
+      await payments.save(locked, LATER);
+    });
+
+    const read = (await run(() => payments.findByOrder(payment.orderId)))!;
+    expect(read.snapshot.attempts.map(({ note }) => note)).toEqual([
+      null,
+      'Pagó con un billete de 500',
+    ]);
+    expect(read.snapshot.refunds.map(({ note }) => note)).toEqual([
+      'Devuelto en efectivo',
+    ]);
+    const byOrder = await queries.paymentsOf([payment.orderId, unsaid.orderId]);
+    expect(byOrder.get(payment.orderId)).toMatchObject({
+      note: 'Pagó con un billete de 500',
+      refunds: [expect.objectContaining({ note: 'Devuelto en efectivo' })],
+    });
+    expect(byOrder.get(unsaid.orderId)?.note).toBeNull();
+    expect(
+      (await queries.findPayment(payment.id))?.attempts.map(({ note }) => note),
+    ).toEqual([null, 'Pagó con un billete de 500']);
+    // From 1 to 500 characters, as the reason of the audit.
+    for (const [change, check] of [
+      [
+        prisma.$executeRaw`UPDATE payment_attempts SET note = '' WHERE payment_id = ${payment.id}::uuid`,
+        'payment_attempts_note_check',
+      ],
+      [
+        prisma.$executeRaw`UPDATE payment_attempts SET note = ${'x'.repeat(501)} WHERE payment_id = ${payment.id}::uuid`,
+        'payment_attempts_note_check',
+      ],
+      [
+        prisma.$executeRaw`UPDATE refunds SET note = '' WHERE id = ${refundId}::uuid`,
+        'refunds_note_check',
+      ],
+      [
+        prisma.$executeRaw`UPDATE refunds SET note = ${'x'.repeat(501)} WHERE id = ${refundId}::uuid`,
+        'refunds_note_check',
+      ],
+    ] as const) {
+      await expect(change).rejects.toThrow(new RegExp(check));
+    }
+  });
+
   it('rejects saving a payment read at another version', async () => {
     const payment = started();
     await run(() => payments.insert(payment, START));
     const stale = Payment.restore({ ...payment.snapshot, version: 5 });
     stale.captureManually({
       reference: 'Ticket',
+      note: null,
       method: null,
       registeredBy: newId<'User'>(),
       now: LATER,
@@ -232,6 +295,7 @@ describe('Payments: persistence (T-190)', () => {
       const locked = (await payments.lock(payment.id))!;
       locked.completeManualRefund({
         reference: 'Devolución 00087',
+        note: null,
         registeredBy: staff,
         now: DONE,
       });
@@ -274,6 +338,7 @@ describe('Payments: persistence (T-190)', () => {
         status: 'COMPLETED',
         providerRefundId: 'Devolución 00087',
         registeredBy: staff,
+        note: null,
         createdAt: LATER,
         completedAt: DONE,
       },

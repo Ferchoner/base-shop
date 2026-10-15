@@ -4,14 +4,19 @@ import { OrderReader } from './order-reader.js';
 import type { OrderingQueries } from './ordering.queries.js';
 import type { OrderPayment, OrderPayments } from './payment-ports.js';
 import type { OrderShipment, OrderShipments } from './shipment-ports.js';
+import type { OrderWarehouses } from './warehouse-ports.js';
 
 const [paid, unpaid] = [newId<'Order'>(), newId<'Order'>()];
+/** Warehouses: of the store, of a shipment, and one that no longer exists. */
+const [STORE, NORTH, GONE] = [newId(), newId(), newId()];
 const payment = { id: 'payment-1' } as unknown as OrderPayment;
 
 function setUp(
   shipmentsByOrder: ReadonlyMap<OrderId, OrderShipment> = new Map(),
+  adminOrder: Record<string, unknown> = { id: paid },
 ) {
   const shipmentsAsked: OrderId[][] = [];
+  const warehousesAsked: string[] = [];
   const asked: OrderId[][] = [];
   const guests: string[][] = [];
   const payments = {
@@ -32,7 +37,7 @@ function setUp(
         email === 'cliente@example.com' ? { id: paid } : null,
       );
     },
-    findAdminOrder: () => Promise.resolve({ id: paid }),
+    findAdminOrder: () => Promise.resolve(adminOrder),
     listCustomerOrders: () => page([paid, unpaid]),
     listOrders: () => page([unpaid, paid]),
   } as unknown as OrderingQueries;
@@ -42,11 +47,20 @@ function setUp(
       return Promise.resolve(shipmentsByOrder);
     },
   } as unknown as OrderShipments;
+  const warehouses = {
+    warehouse: (id: string) => {
+      warehousesAsked.push(id);
+      return Promise.resolve(
+        id === GONE ? null : { id, code: `CODE-${id}`, name: `Almacén ${id}` },
+      );
+    },
+  } as unknown as OrderWarehouses;
   return {
-    reader: new OrderReader(queries, payments, shipments),
+    reader: new OrderReader(queries, payments, shipments, warehouses),
     asked,
     guests,
     shipmentsAsked,
+    warehousesAsked,
   };
 }
 
@@ -68,8 +82,40 @@ describe('OrderReader (ADR-0134)', () => {
       id: paid,
       payment,
       shipment: null,
+      fulfilledFrom: null,
     });
     expect(asked).toEqual([[paid], [unpaid], [paid]]);
+  });
+
+  it('shows the staff the warehouse the goods of an order left from: that of the sale in the store, or that of the shipment (ADR-0163)', async () => {
+    const shipped = new Map([
+      [paid, { warehouseId: NORTH } as unknown as OrderShipment],
+    ]);
+    const atStore = setUp(shipped, { id: paid, warehouseId: STORE });
+    const online = setUp(shipped, { id: paid, warehouseId: null });
+    const unshipped = setUp(new Map(), { id: paid, warehouseId: null });
+    const gone = setUp(new Map(), { id: paid, warehouseId: GONE });
+
+    expect((await atStore.reader.adminOrder(paid))?.fulfilledFrom).toEqual({
+      id: STORE,
+      code: `CODE-${STORE}`,
+      name: `Almacén ${STORE}`,
+    });
+    expect((await online.reader.adminOrder(paid))?.fulfilledFrom).toEqual({
+      id: NORTH,
+      code: `CODE-${NORTH}`,
+      name: `Almacén ${NORTH}`,
+    });
+    expect((await unshipped.reader.adminOrder(paid))?.fulfilledFrom).toBeNull();
+    expect((await gone.reader.adminOrder(paid))?.fulfilledFrom).toBeNull();
+    expect(
+      [atStore, online, unshipped, gone].map(
+        ({ warehousesAsked }) => warehousesAsked,
+      ),
+    ).toEqual([[STORE], [NORTH], [], [GONE]]);
+    expect(await atStore.reader.order(paid)).not.toHaveProperty(
+      'fulfilledFrom',
+    );
   });
 
   it('finds a guest order with its code and the contact email as orders keep it, with its payment (ADR-0138)', async () => {

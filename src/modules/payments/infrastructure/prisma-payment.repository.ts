@@ -121,6 +121,7 @@ export class PrismaPaymentRepository extends PaymentRepository {
         method: attempt.method,
         failureCode: attempt.failureCode,
         registeredBy: attempt.registeredBy,
+        note: attempt.note,
         createdAt: attempt.createdAt,
       })),
     });
@@ -137,6 +138,7 @@ export class PrismaPaymentRepository extends PaymentRepository {
         status: refund.status,
         providerRefundId: refund.providerRefundId,
         registeredBy: refund.registeredBy,
+        note: refund.note,
         completedAt: refund.completedAt,
         updatedAt: now,
       };
@@ -178,6 +180,7 @@ function toPayment(row: PaymentRow): Payment {
         attempt.registeredBy === null
           ? null
           : toId<'User'>(attempt.registeredBy),
+      note: attempt.note,
       createdAt: attempt.createdAt,
     })),
     refunds: row.refunds.map((refund) => ({
@@ -187,6 +190,7 @@ function toPayment(row: PaymentRow): Payment {
       providerRefundId: refund.providerRefundId,
       registeredBy:
         refund.registeredBy === null ? null : toId<'User'>(refund.registeredBy),
+      note: refund.note,
       createdAt: refund.createdAt,
       completedAt: refund.completedAt,
     })),

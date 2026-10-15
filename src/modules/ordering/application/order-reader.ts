@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  Page,
-  PageRequest,
-  SortOrder,
+import {
+  type Page,
+  type PageRequest,
+  type SortOrder,
+  toId,
 } from '../../../shared-kernel/index.js';
 import {
   type CustomerId,
@@ -23,6 +24,10 @@ import {
 } from './ordering.queries.js';
 import { type OrderPayment, OrderPayments } from './payment-ports.js';
 import { type OrderShipment, OrderShipments } from './shipment-ports.js';
+import {
+  type FulfillmentWarehouse,
+  OrderWarehouses,
+} from './warehouse-ports.js';
 
 /**
  * A view of an order with its payment and its shipment, each `null` while it has none (API_SPEC.md §8.8 and
@@ -31,6 +36,12 @@ import { type OrderShipment, OrderShipments } from './shipment-ports.js';
 export type WithPaymentAndShipment<View> = View & {
   readonly payment: OrderPayment | null;
   readonly shipment: OrderShipment | null;
+};
+
+/** An order as the staff sees it, with the warehouse its goods left from (ADR-0163). */
+export type AdminOrderRead = WithPaymentAndShipment<AdminOrderView> & {
+  /** The warehouse of a sale in the store, or that of the shipment; `null` while an online order has none. */
+  readonly fulfilledFrom: FulfillmentWarehouse | null;
 };
 
 /**
@@ -43,6 +54,7 @@ export class OrderReader {
     private readonly queries: OrderingQueries,
     private readonly payments: OrderPayments,
     private readonly shipments: OrderShipments,
+    private readonly warehouses: OrderWarehouses,
   ) {}
 
   async order(id: OrderId): Promise<WithPaymentAndShipment<OrderView> | null> {
@@ -87,10 +99,17 @@ export class OrderReader {
       .items;
   }
 
-  async adminOrder(
-    id: OrderId,
-  ): Promise<WithPaymentAndShipment<AdminOrderView> | null> {
-    return this.attach(await this.queries.findAdminOrder(id));
+  async adminOrder(id: OrderId): Promise<AdminOrderRead | null> {
+    const order = await this.attach(await this.queries.findAdminOrder(id));
+    if (order === null) return null;
+    const warehouseId = order.warehouseId ?? order.shipment?.warehouseId;
+    return {
+      ...order,
+      fulfilledFrom:
+        warehouseId === undefined
+          ? null
+          : await this.warehouses.warehouse(toId<'Warehouse'>(warehouseId)),
+    };
   }
 
   async customerOrders(

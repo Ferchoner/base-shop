@@ -47,6 +47,11 @@ import { OrderPayments } from './application/payment-ports.js';
 import { ReorderCarts } from './application/reorder-ports.js';
 import { PlacementResponses } from './application/placement-responses.js';
 import { OrderShipments } from './application/shipment-ports.js';
+import { OrderWarehouses } from './application/warehouse-ports.js';
+import {
+  STORE_PROFILE,
+  type StoreProfile,
+} from './application/store-profile.js';
 import { VAT_RATE_BP } from './application/vat-rate.js';
 import { OrderAccessTokenRepository } from './domain/order-access-token.js';
 import { OrderRepository } from './domain/order.repository.js';
@@ -55,6 +60,7 @@ import {
   GeoShippingLocations,
   IdentityFacadeCheckoutCustomers,
   InventoryFacadeOrderStock,
+  InventoryFacadeOrderWarehouses,
   PaymentsFacadeOrderPayments,
   PricingFacadeCheckoutPrices,
   ShippingFacadeCheckoutShipping,
@@ -77,6 +83,7 @@ import { ShipmentDispatchedHandler } from './infrastructure/shipment-dispatched.
 import { ShipmentReturnedHandler } from './infrastructure/shipment-returned.event-handler.js';
 import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
 import { AdminOrdersController } from './presentation/admin-orders.controller.js';
+import { AdminStoreProfileController } from './presentation/admin-store-profile.controller.js';
 import { CheckoutController } from './presentation/checkout.controller.js';
 import { MeCheckoutController } from './presentation/me-checkout.controller.js';
 import { MeOrdersController } from './presentation/me-orders.controller.js';
@@ -105,6 +112,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrdersController,
     MeOrdersController,
     AdminOrdersController,
+    AdminStoreProfileController,
   ],
   providers: [
     {
@@ -112,6 +120,19 @@ import { OrdersController } from './presentation/orders.controller.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
         config.get('VAT_RATE_BP', { infer: true }),
+    },
+    {
+      provide: STORE_PROFILE,
+      inject: [ConfigService],
+      useFactory: (
+        config: ConfigService<EnvironmentVariables, true>,
+      ): StoreProfile => ({
+        name: config.get('STORE_NAME', { infer: true }),
+        address: config.get('STORE_ADDRESS', { infer: true }) ?? null,
+        taxId: config.get('STORE_TAX_ID', { infer: true }) ?? null,
+        phone: config.get('STORE_PHONE', { infer: true }) ?? null,
+        ticketFooter: config.get('TICKET_FOOTER', { infer: true }),
+      }),
     },
     {
       provide: PERSONAL_DATA_RETENTION,
@@ -172,6 +193,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: OrderPayments, useClass: PaymentsFacadeOrderPayments },
     { provide: ReorderCarts, useClass: ShoppingFacadeReorderCarts },
     { provide: OrderShipments, useClass: ShippingFacadeOrderShipments },
+    { provide: OrderWarehouses, useClass: InventoryFacadeOrderWarehouses },
     { provide: PlacementResponses, useClass: IdempotencyPlacementResponses },
   ],
   exports: [OrderingFacade],

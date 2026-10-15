@@ -10,6 +10,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsOptional,
+  IsString,
   Length,
   Matches,
   Max,
@@ -22,6 +23,16 @@ import {
 } from 'class-validator';
 import { durationSeconds } from './duration.js';
 import { RATE_LIMIT_PATTERN } from './rate-limit-value.js';
+
+/** The RFC of a business or a person (ADR-0163): 3 or 4 letters, the 6 digits of a date and 3 letters or digits. */
+const RFC_PATTERN = /^[A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}$/;
+
+/** What the ticket of an order says when `TICKET_FOOTER` is not set (ADR-0163). */
+export const DEFAULT_TICKET_FOOTER = 'Este ticket no es un comprobante fiscal.';
+
+/** A trimmed text, or `undefined` when it is empty, so an optional variable left blank stays unset. */
+const trimmedOrUnset = ({ value }: { value: unknown }) =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 
 /** An address, or `Name <address>`; one line only, so it cannot inject email headers. */
 const MAIL_FROM_PATTERN =
@@ -98,6 +109,64 @@ export class EnvironmentVariables {
   @Min(0)
   @Max(10_000)
   VAT_RATE_BP: number = 1_600;
+
+  /**
+   * Name of the store on the ticket of an order (ADR-0163): 1 to 100 characters, the same for every store. Required
+   * in production.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() !== ''
+      ? value.trim()
+      : 'base-shop',
+  )
+  @IsString()
+  @MaxLength(100, { message: '$property must have at most 100 characters' })
+  STORE_NAME: string = 'base-shop';
+
+  /** Address of the store on the ticket, on one line: up to 300 characters. Optional. */
+  @Expose()
+  @Transform(trimmedOrUnset)
+  @IsOptional()
+  @IsString()
+  @MaxLength(300, { message: '$property must have at most 300 characters' })
+  STORE_ADDRESS?: string;
+
+  /** RFC of the store on the ticket (ADR-0163), in uppercase. Optional. */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() !== ''
+      ? value.trim().toUpperCase()
+      : undefined,
+  )
+  @IsOptional()
+  @Matches(RFC_PATTERN, {
+    message:
+      '$property must be an RFC: 3 or 4 letters, the 6 digits of a date and 3 letters or digits',
+  })
+  STORE_TAX_ID?: string;
+
+  /** Phone of the store on the ticket: up to 30 characters. Optional. */
+  @Expose()
+  @Transform(trimmedOrUnset)
+  @IsOptional()
+  @IsString()
+  @MaxLength(30, { message: '$property must have at most 30 characters' })
+  STORE_PHONE?: string;
+
+  /**
+   * Legend at the foot of the ticket (ADR-0163): up to 500 characters. Blank, it keeps the default, so the ticket
+   * always says that it is no tax receipt.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() !== ''
+      ? value.trim()
+      : DEFAULT_TICKET_FOOTER,
+  )
+  @IsString()
+  @MaxLength(500, { message: '$property must have at most 500 characters' })
+  TICKET_FOOTER: string = DEFAULT_TICKET_FOOTER;
 
   /**
    * How long a reservation of stock holds it while the order waits for its payment, from 5 minutes to 2 hours
@@ -450,11 +519,13 @@ export class EnvironmentVariables {
 }
 
 /**
- * Variables that production must set explicitly. With the development defaults, emails would go nowhere and
- * their links would point to localhost (ADR-0110), access tokens would be signed with a key that changes on
- * every restart (ADR-0114), and image URLs would point to localhost (ADR-0121).
+ * Variables that production must set explicitly. With the development defaults, tickets would carry the name of
+ * the project instead of the store (ADR-0163), emails would go nowhere and their links would point to localhost
+ * (ADR-0110), access tokens would be signed with a key that changes on every restart (ADR-0114), and image URLs
+ * would point to localhost (ADR-0121).
  */
 export const REQUIRED_IN_PRODUCTION = [
+  'STORE_NAME',
   'SMTP_HOST',
   'SMTP_PORT',
   'MAIL_FROM',

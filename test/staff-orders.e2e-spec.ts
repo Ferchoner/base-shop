@@ -291,6 +291,8 @@ describe('Orders of the staff in the store (e2e, T-187)', () => {
       channel: 'STORE',
       placedBy: seller.id,
       warehouseId: store,
+      // Where the goods leave from, for the ticket (ADR-0163).
+      fulfilledFrom: { id: store, code: 'TIENDA', name: 'Tienda' },
       customerId: null,
       contactEmail: 'cliente@example.com',
       grandTotal: { amount: 29_900 },

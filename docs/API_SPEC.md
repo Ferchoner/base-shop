@@ -540,11 +540,13 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ### 8.9 `AdminOrder`
 
-`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `channel`, `placedBy`, `warehouseId`, `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `method`, cómo cobró la tienda un pago manual (ADR-0161), y `refunds[]`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
+`Order` más `id`, `orderNumber`, `customerId` (o `null` si es invitado), `channel`, `placedBy`, `warehouseId`, `version`, `anonymizedAt`, `payment` completo (`id`, `amount`, `capturedAmount`, `refundedAmount`, `status`, `method`, cómo cobró la tienda un pago manual (ADR-0161), `note`, la nota del staff al registrarlo (ADR-0163), y `refunds[]`, cada uno con su `note`), `shipment` completo (`id`, `status`, `version`, y `warehouseId`, el almacén del que sale, ADR-0160) y `statusHistory[]` (`fromStatus`, `toStatus`, `actorId`, `reason`, `occurredAt`). Cada línea lleva además su `id`, que nombra el reintegro (ADR-0142). En una orden anonimizada, `contactEmail` es `null` y `shippingAddress` sigue §8.2 (ADR-0145).
 
 `channel` dice dónde se colocó la orden (ADR-0161): `ONLINE`, en la tienda en línea desde un carrito, o `STORE`, en la tienda física, donde el staff la colocó a nombre del cliente. En una orden `STORE`, `placedBy` es la cuenta de staff que la colocó y `warehouseId` el almacén que eligió, del único que sale su stock; en una `ONLINE`, los dos son `null`.
 
 `blockedAt` dice cuándo se bloquearon los datos personales de la orden (ADR-0151). Desde entonces, `contactEmail` es `null` y `shippingAddress` sigue §8.2, como en una anonimizada, también en el listado.
+
+`fulfilledFrom` (ADR-0163), solo en el detalle, es el almacén del que salieron los productos, para el ticket: `{ "id", "code", "name" }` del almacén de una orden `STORE`, o del de su envío en una `ONLINE`; `null` mientras una `ONLINE` no tiene envío. Se muestra aunque el almacén esté inactivo. El listado no lo trae.
 
 ### 8.10 `Account` (`GET /v1/me`)
 
@@ -1280,8 +1282,9 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/admin/orders/{orderId}/restocks` | `inventory.write` + `Idempotency-Key` | UC-INV-09 (ADR-0132, ADR-0142) |
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 | POST | `/v1/admin/orders/{orderId}/blocked-data` | `orders.read-blocked` | UC-ORD-11 (ADR-0152) |
+| GET | `/v1/admin/store-profile` | `orders.read` | UC-ORD-15 (ADR-0163) |
 
-Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es).
+Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es). Los datos de la tienda para el ticket viven en `/v1/admin/store-profile` (§15.8).
 
 ### 15.2 Cotizar (UC-ORD-01)
 
@@ -1490,6 +1493,16 @@ Implementado en T-180 parte b (ADR-0133):
 - Errores: 400 `validation-error` sin motivo o con uno vacío o de más de 500 caracteres; 404 `not-found`; 409 `invalid-state-transition` con `currentStatus` si la orden no está bloqueada (sus datos ya se ven en `AdminOrder`) o se anonimizó (ya no los tiene).
 - Se audita `orders.read-blocked-data` con el motivo y sin los datos, en la misma transacción: si la auditoría falla, no se responde nada.
 
+### 15.8 Datos de la tienda para el ticket (UC-ORD-15, ADR-0163)
+
+**`GET /v1/admin/store-profile`** — `orders.read`. El cliente arma e imprime el ticket de una orden con `AdminOrder` y estos datos; la API no genera PDF ni imágenes.
+
+- **Response 200:** `StoreProfile { "name", "address", "taxId", "phone", "ticketFooter" }`.
+- **De dónde salen:** de las variables de configuración `STORE_NAME`, `STORE_ADDRESS`, `STORE_TAX_ID`, `STORE_PHONE` y `TICKET_FOOTER`, iguales para todas las tiendas. Se validan al arrancar, y cambiarlas exige reiniciar la API.
+- **`name`:** de 1 a 100 caracteres; obligatorio en producción, y "base-shop" en desarrollo.
+- **`address`, `taxId` y `phone`:** opcionales, `null` si no se configuraron. La dirección es una línea de hasta 300 caracteres; el RFC tiene 12 o 13 caracteres y sale en mayúsculas; el teléfono, hasta 30.
+- **`ticketFooter`:** hasta 500 caracteres. Por defecto, y si la variable queda vacía, "Este ticket no es un comprobante fiscal.": el ticket no tiene fines legales, y la factura CFDI sigue fuera (ADR-0027).
+
 ---
 
 ## 16. Endpoints — Payments
@@ -1541,17 +1554,18 @@ Ordering usa a Payments y Payments nunca usa a Ordering (ADR-0134): las rutas qu
 
 ### 16.3 Consulta administrativa
 
-`AdminPayment { id, orderId, orderCode, provider, status, amount, capturedAmount, refundedAmount, currency, providerPaymentId, capturedAt, attempts: [ { status, providerReference, method, failureCode, registeredBy, createdAt } ], refunds: [ { id, amount, status, providerRefundId, registeredBy, createdAt, completedAt } ], createdAt, updatedAt, version }`.
+`AdminPayment { id, orderId, orderCode, provider, status, amount, capturedAmount, refundedAmount, currency, providerPaymentId, capturedAt, attempts: [ { status, providerReference, method, failureCode, registeredBy, note, createdAt } ], refunds: [ { id, amount, status, providerRefundId, registeredBy, note, createdAt, completedAt } ], createdAt, updatedAt, version }`.
 
 - **`GET /v1/admin/payments`** — Paginado. Filtros: `status`, `provider`, `orderId`, `capturedFrom`, `capturedTo`. Orden: `createdAt` (defecto `-createdAt`), `amount`.
 - **`GET /v1/admin/payments/{paymentId}`** — 200 `AdminPayment`.
 - **Implementado en T-190 parte a (ADR-0134):** `orderCode` con guion; `attempts` del más antiguo al más reciente (iniciar el pago guarda uno PENDING, y registrarlo, uno CAPTURED con el comprobante y el staff); `refunds` vacío hasta la parte b; filtros de varios valores separados por comas.
 - **Desde T-187 (ADR-0161):** el intento CAPTURED de un pago en tienda lleva `method`, cómo cobró la tienda: `CASH`, `CARD_TERMINAL` o `TRANSFER`. Es `null` en los demás intentos, en los anteriores a ADR-0161 y cuando el staff no lo dijo.
+- **Desde T-197 (ADR-0163):** el intento CAPTURED de un pago manual lleva `note`, la que escribió el staff al registrarlo, y el reembolso manual completado la suya. Son `null` sin nota y en los demás intentos y reembolsos. Las anteriores a T-197 se copiaron de la auditoría. La anonimización las conserva, así que no deben llevar datos sensibles.
 
 ### 16.4 Registrar pago manual (UC-PAY-02, ADR-0040, ADR-0055, ADR-0161)
 
 - **`POST /v1/admin/orders/{orderId}/manual-capture`** — `payments.manage`. Antes era `POST /v1/admin/payments/manual-captures` con `orderId` en el cuerpo; la atiende Ordering, que conoce la orden (ADR-0134).
-- Request: `{ "reference": "Ticket 00452", "method": "CASH", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `method`, opcional, cómo se cobró: `CASH` (efectivo), `CARD_TERMINAL` (terminal bancaria) o `TRANSFER` (transferencia), y sin él el pago queda sin método (ADR-0161); `note` 0–500, que queda como motivo de la auditoría.
+- Request: `{ "reference": "Ticket 00452", "method": "CASH", "note": "…" }`. `reference` 1–100 (comprobante de la tienda); `method`, opcional, cómo se cobró: `CASH` (efectivo), `CARD_TERMINAL` (terminal bancaria) o `TRANSFER` (transferencia), y sin él el pago queda sin método (ADR-0161); `note` 0–500, que queda como motivo de la auditoría y, desde T-197, en el pago, donde la muestran `AdminPayment` y `AdminOrder.payment.note` (ADR-0163). Una nota en blanco no se guarda.
 - Es el cobro real de la tienda física desde la versión 1.2 (ADR-0161): deja de ser solo para pruebas. Desde la versión 1.3 lo enciende un superadministrador con `PUT /v1/admin/payment-settings` (§16.6, ADR-0162); antes, el operador con la variable `MANUAL_PAYMENTS_ENABLED`.
 - Registra el cobro por el total de la orden (crea el Payment si no existe) y produce `PaymentCaptured`; la orden sigue el flujo normal o el de pago tardío (ADR-0012), en segundo plano (sección 2.5): la respuesta trae el pago capturado, y la orden puede seguir unos instantes en su estado anterior.
 - Solo órdenes en PENDING_PAYMENT o EXPIRED.
@@ -1567,7 +1581,7 @@ UC-PAY-03 (inicio del reembolso al cancelar) ocurre dentro de `POST /v1/admin/or
 
 Implementado en T-190 parte b (ADR-0135):
 
-- **Reembolso manual:** `reference` 1–100 caracteres sin quedar en blanco, que queda como `providerRefundId`; `note` 0–500, motivo de la auditoría `payments.manual-refund`; `version` entero ≥ 1. Solo un reembolso PENDING de un pago MANUAL: uno manual nunca falla, y los fallidos llegan con un proveedor (T-192). Responde el pago REFUNDED, con `refundedAmount` igual a lo capturado y el reembolso COMPLETED con `registeredBy` y `completedAt`.
+- **Reembolso manual:** `reference` 1–100 caracteres sin quedar en blanco, que queda como `providerRefundId`; `note` 0–500, motivo de la auditoría `payments.manual-refund` y, desde T-197, `note` del reembolso (ADR-0163); `version` entero ≥ 1. Solo un reembolso PENDING de un pago MANUAL: uno manual nunca falla, y los fallidos llegan con un proveedor (T-192). Responde el pago REFUNDED, con `refundedAmount` igual a lo capturado y el reembolso COMPLETED con `registeredBy` y `completedAt`.
 - **Orden de las validaciones:** 403 `manual-payments-disabled`, 404, 409 `version-conflict` y 409 `invalid-state-transition`. Desde T-161, `restock` ya no es un campo del registro y responde 400 `validation-error` (ADR-0142).
 - **La orden:** pasa a REFUNDED en segundo plano (sección 2.5).
 - **Reintentar:** UC-PAY-07 pasa a T-192 (ADR-0134).
@@ -1717,7 +1731,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |
-| UC-ORD-01 a 08, 11 a 14 | Sección 15 |
+| UC-ORD-01 a 08, 11 a 15 | Sección 15 |
 | UC-ORD-09, 10 | Sin API: evento `PaymentCaptured` y job |
 | UC-PAY-01, 02, 04, 06, 07, 08 | Secciones 15.7, 16 y 19 |
 | UC-PAY-03 | Dentro de la cancelación de órdenes |

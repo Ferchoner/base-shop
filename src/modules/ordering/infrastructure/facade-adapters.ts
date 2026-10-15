@@ -59,6 +59,10 @@ import {
   ReorderCarts,
   type ReorderLine,
 } from '../application/reorder-ports.js';
+import {
+  type FulfillmentWarehouse,
+  OrderWarehouses,
+} from '../application/warehouse-ports.js';
 
 // Ordering's ports answered with the facades of the modules that own the data (ADR-0005, ADR-0132). Ordering uses
 // them, and none of them uses Ordering, so they never form a cycle.
@@ -346,6 +350,18 @@ export class GeoShippingLocations extends ShippingLocations {
   }
 }
 
+/** The code and name of the warehouse of an order, from the facade of Inventory (ADR-0163). */
+@Injectable()
+export class InventoryFacadeOrderWarehouses extends OrderWarehouses {
+  constructor(private readonly inventory: InventoryFacade) {
+    super();
+  }
+
+  warehouse(id: WarehouseId): Promise<FulfillmentWarehouse | null> {
+    return this.inventory.warehouse(id);
+  }
+}
+
 /** Ordering uses Payments, and Payments never uses Ordering (ADR-0134). */
 @Injectable()
 export class PaymentsFacadeOrderPayments extends OrderPayments {
@@ -418,11 +434,13 @@ function toOrderPayment(payment: PaymentView): OrderPayment {
     refundedAmount: payment.refundedAmount,
     capturedAt: payment.capturedAt,
     method: payment.method,
+    note: payment.note,
     refunds: payment.refunds.map(
-      ({ id, amount, status, createdAt, completedAt }) => ({
+      ({ id, amount, status, note, createdAt, completedAt }) => ({
         id,
         amount,
         status,
+        note,
         createdAt,
         completedAt,
       }),

@@ -285,6 +285,14 @@ export class OrderRefundDto {
   @ApiProperty({ enum: ['PENDING', 'COMPLETED', 'FAILED'] })
   status: string;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'La nota que el staff escribió al registrar el reembolso manual (ADR-0163); `null` sin ella.',
+  })
+  note: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 
@@ -320,6 +328,14 @@ export class AdminOrderPaymentDto extends OrderPaymentDto {
       'Cómo cobró la tienda un pago manual: `CASH`, `CARD_TERMINAL` o `TRANSFER` (ADR-0161); `null` si no se ha cobrado así, o si el staff no lo dijo.',
   })
   method: PaymentMethod | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'La nota que el staff escribió al registrar el pago manual (ADR-0163); `null` sin ella, o si no se ha cobrado así. La anonimización la conserva, así que no lleva datos sensibles.',
+  })
+  note: string | null;
 
   /** Sus reembolsos, del más antiguo al más reciente. */
   @ApiProperty({ type: () => [OrderRefundDto] })

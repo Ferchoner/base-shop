@@ -83,6 +83,7 @@ function existing(provider: PaymentProvider, captured = false): Payment {
   if (captured) {
     payment.captureManually({
       reference: 'Ticket 1',
+      note: null,
       method: null,
       registeredBy: staff,
       now: NOW,
@@ -254,9 +255,11 @@ describe('PaymentsFacade: a payment made in the store (UC-PAY-02)', () => {
       status: 'CAPTURED',
       capturedAt: NOW,
     });
-    expect(payment.newAttempts.map(({ status }) => status)).toEqual([
-      'PENDING',
-      'CAPTURED',
+    expect(
+      payment.newAttempts.map(({ status, note }) => ({ status, note })),
+    ).toEqual([
+      { status: 'PENDING', note: null },
+      { status: 'CAPTURED', note: 'Efectivo' },
     ]);
     expect(audited).toEqual([
       {
@@ -289,9 +292,12 @@ describe('PaymentsFacade: a payment made in the store (UC-PAY-02)', () => {
     await capture(facade, null);
 
     expect(payments.inserted).toEqual([]);
-    expect(payments.saved[0].newAttempts.map(({ status }) => status)).toEqual([
-      'CAPTURED',
-    ]);
+    expect(
+      payments.saved[0].newAttempts.map(({ status, note }) => ({
+        status,
+        note,
+      })),
+    ).toEqual([{ status: 'CAPTURED', note: null }]);
     expect(audited[0]).not.toHaveProperty('reason');
   });
 
@@ -384,6 +390,7 @@ describe('PaymentsFacade: refunds (UC-PAY-03 and 06, ADR-0135)', () => {
     const [saved] = payments.saved;
     const [refund] = saved.snapshot.refunds;
     expect(saved.status).toBe('REFUNDED');
+    expect(refund.note).toBe('Efectivo');
     expect(audited).toEqual([
       {
         action: 'payments.manual-refund',

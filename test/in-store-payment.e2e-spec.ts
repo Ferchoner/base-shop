@@ -392,6 +392,12 @@ describe('In-store payment (e2e, T-190)', () => {
         cartId,
         provider: 'MANUAL',
       }).expect(201);
+      // An online order leaves its warehouse with its shipment, which comes with the payment (ADR-0163).
+      const unpaid = await http()
+        .get(`/v1/admin/orders/${id}`)
+        .set(signedInAs(cashier))
+        .expect(200);
+      expect(unpaid.body.fulfilledFrom).toBeNull();
 
       const { body } = await capture(id, cashier, { method: 'CASH' }).expect(
         200,
@@ -404,6 +410,7 @@ describe('In-store payment (e2e, T-190)', () => {
         capturedAmount: mxn(19_900),
         capturedAt: expect.any(String),
         method: 'CASH',
+        note: 'Pagó en efectivo',
       });
       const order = await http()
         .get(`/v1/admin/orders/${id}`)
@@ -412,6 +419,12 @@ describe('In-store payment (e2e, T-190)', () => {
       expect(order.body).toMatchObject({
         status: 'PAID',
         paidAt: body.payment.capturedAt,
+        payment: { note: 'Pagó en efectivo' },
+        fulfilledFrom: {
+          id: MAIN,
+          code: 'PRINCIPAL',
+          name: 'Almacén principal',
+        },
       });
       expect(
         await prisma.stockItem.findFirstOrThrow({
@@ -435,12 +448,14 @@ describe('In-store payment (e2e, T-190)', () => {
             providerReference: null,
             method: null,
             registeredBy: null,
+            note: null,
           },
           {
             status: 'CAPTURED',
             providerReference: 'Ticket 00452',
             method: 'CASH',
             registeredBy: cashier.id,
+            note: 'Pagó en efectivo',
           },
         ],
         refunds: [],
@@ -473,11 +488,12 @@ describe('In-store payment (e2e, T-190)', () => {
       const { body } = await capture(id, cashier, { note: ' ' }).expect(200);
       await idle();
 
-      // Without a method, the payment has none (ADR-0161).
+      // Without a method, the payment has none (ADR-0161), and a blank note is no note (ADR-0163).
       expect(body.payment).toMatchObject({
         provider: 'MANUAL',
         status: 'CAPTURED',
         method: null,
+        note: null,
       });
       expect(
         (await prisma.order.findUniqueOrThrow({ where: { id } })).status,

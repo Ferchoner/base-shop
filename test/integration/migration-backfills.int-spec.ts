@@ -6,6 +6,7 @@ const LAST_ACTIVE_AT = '20261004210000_identity_last_active_at';
 const WAREHOUSE_PRIORITY = '20261006120000_inventory_warehouse_priority';
 const STORE_ORDERS = '20261006150100_ordering_store_orders';
 const IN_STORE_DELIVERY = '20261006170000_ordering_in_store_delivery';
+const PAYMENT_NOTES = '20261014130000_payments_notes';
 
 const at = (day: number) => new Date(Date.UTC(2026, 0, day, 12));
 
@@ -22,6 +23,7 @@ describe('Migration backfills (T-300)', () => {
         WAREHOUSE_PRIORITY,
         STORE_ORDERS,
         IN_STORE_DELIVERY,
+        PAYMENT_NOTES,
       ]),
     );
   });
@@ -396,6 +398,149 @@ describe('Migration backfills (T-300)', () => {
           [shipped],
         ),
       ).rejects.toThrow(/orders_fulfillment_check/);
+    });
+  });
+
+  describe(`${PAYMENT_NOTES} (T-197, ADR-0163)`, () => {
+    let database: MigrationDatabase;
+
+    beforeAll(async () => {
+      database = await MigrationDatabase.create();
+      await database.migrateUpTo(PAYMENT_NOTES);
+    });
+
+    afterAll(async () => {
+      await database.drop();
+    });
+
+    const staff = randomUUID();
+
+    /** A captured manual payment, with its pending and captured attempts. */
+    async function capturedPayment(code: string): Promise<string> {
+      const id = randomUUID();
+      await database.client.query(
+        `INSERT INTO payments (id, order_id, order_code, provider, status, amount, captured_amount, currency,
+           captured_at, updated_at)
+         VALUES ($1, $2, $3, 'MANUAL', 'CAPTURED', 19900, 19900, 'MXN', $4, $4)`,
+        [id, randomUUID(), code, at(2)],
+      );
+      await database.client.query(
+        `INSERT INTO payment_attempts (id, payment_id, status, provider_reference, registered_by, created_at)
+         VALUES ($1, $3, 'PENDING', NULL, NULL, $4), ($2, $3, 'CAPTURED', 'Ticket 1', $5, $4)`,
+        [randomUUID(), randomUUID(), id, at(2), staff],
+      );
+      return id;
+    }
+
+    const audit = (
+      action: string,
+      paymentId: string,
+      reason: string | null,
+      { result = 'SUCCESS', resourceType = 'payment' } = {},
+    ) =>
+      database.client.query(
+        `INSERT INTO audit_logs (id, occurred_at, actor_type, actor_id, action, resource_type, resource_id, result,
+           reason)
+         VALUES ($1, $2, 'USER', $3, $4, $5, $6, $7, $8)`,
+        [
+          randomUUID(),
+          at(2),
+          staff,
+          action,
+          resourceType,
+          paymentId,
+          result,
+          reason,
+        ],
+      );
+
+    /** A refund of the whole payment. */
+    const refund = (paymentId: string, status: 'COMPLETED' | 'FAILED') =>
+      database.client.query(
+        `INSERT INTO refunds (id, payment_id, amount, status, provider_refund_id, registered_by, updated_at,
+           completed_at)
+         VALUES ($1, $2, 19900, $3, 'Devolución 1', $4, $5, $6)`,
+        [
+          randomUUID(),
+          paymentId,
+          status,
+          staff,
+          at(3),
+          status === 'COMPLETED' ? at(3) : null,
+        ],
+      );
+
+    it('copies the note of each manual payment and refund from the reason of its successful audit entry, and no other', async () => {
+      const noted = await capturedPayment('NOTE0001');
+      await audit(
+        'payments.manual-capture',
+        noted,
+        'Pagó con un billete de 500',
+      );
+      const silent = await capturedPayment('NOTE0002');
+      await audit('payments.manual-capture', silent, null);
+      // A refund that failed lets the payment be refunded again (BR-PAY-14): only the completed one has the note.
+      const refunded = await capturedPayment('NOTE0003');
+      await refund(refunded, 'FAILED');
+      await refund(refunded, 'COMPLETED');
+      await audit('payments.manual-refund', refunded, 'Devuelto en efectivo');
+      const unaudited = await capturedPayment('NOTE0004');
+      await audit('payments.manual-capture', unaudited, 'Pagó con tarjeta');
+      await refund(unaudited, 'COMPLETED');
+      // Entries that are not the successful registration of the payment or its refund.
+      const others = await capturedPayment('NOTE0005');
+      await refund(others, 'COMPLETED');
+      await audit('orders.cancel', others, 'Otro motivo');
+      for (const action of [
+        'payments.manual-capture',
+        'payments.manual-refund',
+      ]) {
+        await audit(action, others, 'Intento fallido', { result: 'FAILED' });
+        await audit(action, others, 'Otro recurso', { resourceType: 'order' });
+      }
+
+      await database.apply(PAYMENT_NOTES);
+
+      const attempts = await database.client.query<{
+        code: string;
+        status: string;
+        note: string | null;
+      }>(
+        `SELECT payments.order_code AS code, attempts.status, attempts.note
+           FROM payment_attempts AS attempts JOIN payments ON payments.id = attempts.payment_id
+          ORDER BY payments.order_code, attempts.status::text DESC`,
+      );
+      expect(attempts.rows).toEqual([
+        { code: 'NOTE0001', status: 'PENDING', note: null },
+        {
+          code: 'NOTE0001',
+          status: 'CAPTURED',
+          note: 'Pagó con un billete de 500',
+        },
+        { code: 'NOTE0002', status: 'PENDING', note: null },
+        { code: 'NOTE0002', status: 'CAPTURED', note: null },
+        { code: 'NOTE0003', status: 'PENDING', note: null },
+        { code: 'NOTE0003', status: 'CAPTURED', note: null },
+        { code: 'NOTE0004', status: 'PENDING', note: null },
+        { code: 'NOTE0004', status: 'CAPTURED', note: 'Pagó con tarjeta' },
+        { code: 'NOTE0005', status: 'PENDING', note: null },
+        { code: 'NOTE0005', status: 'CAPTURED', note: null },
+      ]);
+      const refunds = await database.client.query<{
+        code: string;
+        status: string;
+        note: string | null;
+      }>(
+        `SELECT payments.order_code AS code, refunds.status, refunds.note
+           FROM refunds JOIN payments ON payments.id = refunds.payment_id
+          ORDER BY payments.order_code, refunds.status::text`,
+      );
+      expect(refunds.rows).toEqual([
+        { code: 'NOTE0003', status: 'COMPLETED', note: 'Devuelto en efectivo' },
+        { code: 'NOTE0003', status: 'FAILED', note: null },
+        { code: 'NOTE0004', status: 'COMPLETED', note: null },
+        { code: 'NOTE0005', status: 'COMPLETED', note: null },
+      ]);
     });
   });
 });

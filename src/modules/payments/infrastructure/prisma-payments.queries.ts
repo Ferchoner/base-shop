@@ -107,6 +107,7 @@ export class PrismaPaymentsQueries extends PaymentsQueries {
 
 function toPaymentView(row: PaymentRow): PaymentView {
   const money = (amount: number) => Money.of(amount, row.currency as Currency);
+  const captured = row.attempts.findLast(({ status }) => status === 'CAPTURED');
   return {
     id: toId<'Payment'>(row.id),
     orderId: toId<'Order'>(row.orderId),
@@ -116,15 +117,15 @@ function toPaymentView(row: PaymentRow): PaymentView {
     capturedAmount: money(row.capturedAmount),
     refundedAmount: money(row.refundedAmount),
     capturedAt: row.capturedAt,
-    method:
-      row.attempts.findLast(({ status }) => status === 'CAPTURED')?.method ??
-      null,
+    method: captured?.method ?? null,
+    note: captured?.note ?? null,
     refunds: row.refunds.map((refund) => ({
       id: refund.id,
       amount: money(refund.amount),
       status: refund.status,
       providerRefundId: refund.providerRefundId,
       registeredBy: refund.registeredBy,
+      note: refund.note,
       createdAt: refund.createdAt,
       completedAt: refund.completedAt,
     })),
@@ -145,6 +146,7 @@ function toAdminPaymentView(row: PaymentRow): AdminPaymentView {
         attempt.registeredBy === null
           ? null
           : toId<'User'>(attempt.registeredBy),
+      note: attempt.note,
       createdAt: attempt.createdAt,
     })),
     createdAt: row.createdAt,

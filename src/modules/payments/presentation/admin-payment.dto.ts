@@ -65,6 +65,14 @@ export class PaymentAttemptDto {
   })
   registeredBy: string | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'La nota que el staff escribió al registrar el pago manual (ADR-0163); `null` sin ella o en los demás intentos. La anonimización la conserva, así que no lleva datos sensibles.',
+  })
+  note: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 }
@@ -91,6 +99,14 @@ export class RefundDto {
   /** Staff que registró el reembolso manual; `null` en los demás. */
   @ApiProperty({ type: String, nullable: true, format: 'uuid' })
   registeredBy: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'La nota que el staff escribió al registrar el reembolso manual (ADR-0163); `null` sin ella o en los demás.',
+  })
+  note: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
