@@ -47,6 +47,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRD-17. Una categoría es visible si está activa y todos sus ancestros también; desactivarla oculta sus subcategorías. Los productos de una categoría oculta o de una marca inactiva siguen visibles en la tienda, pero no como parte de esa categoría; no se puede filtrar por categorías ocultas ni por marcas inactivas (ADR-0080).
 - BR-PRD-18. La imagen en posición 1 de la galería es la principal del producto, y la primera imagen de una variante es la suya; el staff las elige reordenando la galería (ADR-0124, ADR-0131).
 - BR-PRD-19. El GTIN de una variante es el código de barras de su fabricante, un EAN o un UPC: opcional, de 8, 12, 13 o 14 dígitos y con su dígito verificador. Dos variantes activas, de cualquier producto, no tienen el mismo; se comparan completados con ceros a 14 dígitos, así que un UPC y el mismo código como EAN-13 con un 0 al frente son uno. Una variante descontinuada deja libre el suyo (ADR-0163).
+- BR-PRD-20. Un producto marcado como solo de tienda (`storeOnly`), como un servicio, nunca se vende en línea: la tienda pública no lo muestra, y el carrito, el checkout en línea y la recompra no lo aceptan. En la tienda física se vende como cualquier otro: en la venta de mostrador y en los pedidos del staff (ADR-0165).
 
 ## Precios
 

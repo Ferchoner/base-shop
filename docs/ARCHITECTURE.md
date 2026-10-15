@@ -138,7 +138,7 @@ Ver ADR-0005.
 - Almacén en memoria del proceso; si se escala a varias instancias, se cambia a un almacén compartido.
 - Solo se cachean lecturas públicas del catálogo: árbol de categorías, marcas, detalle de producto y listados de la tienda sin texto de búsqueda (ADR-0060, ADR-0129).
 - TTL de 120 segundos, configurable.
-- Invalidación inmediata por `ProductPublished`, `ProductArchived` y `VariantDiscontinued`; el resto, por TTL.
+- Invalidación inmediata por `ProductPublished`, `ProductArchived`, `VariantDiscontinued` y `ProductStoreOnlyChanged` (ADR-0165); el resto, por TTL.
 - Implementación (ADR-0104): `AppCache` separa los datos en espacios de nombres, cada uno con su almacén (`namespace('catalog').getOrLoad(clave, carga)`), y cada espacio se vacía por separado. El handler `PublicCatalogCacheInvalidation` de Catalog vacía todo el espacio `catalog` con cualquiera de los tres eventos. El TTL se configura con `CACHE_TTL_SECONDS`. Las reglas de límites de ADR-0103 ya impiden usar el cache desde Domain y Application. Cada espacio guarda hasta 1 000 valores (`MAX_ENTRIES_PER_NAMESPACE`) y, al pasar de ahí, descarta el que se usó hace más tiempo (`LruStore`, ADR-0129).
 
 ## Jobs programados

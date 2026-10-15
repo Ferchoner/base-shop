@@ -37,6 +37,17 @@ Que los servicios se vendan solo en la tienda física, y que el mostrador reciba
   - en una prueba de bloqueo, la operación espera en el candado que se prueba, no antes;
   - la regla de comparar los errores de dominio por `code` y `details` nombra también `toEqual`, que solo compara el mensaje. Ya estaba en la guía desde T-161, y la parte b de T-146 no la siguió.
 
+### Resultado del paso 1
+
+T-189 parte a (ADR-0165).
+
+- **La marca:** `storeOnly` en el producto, en el alta, la edición, la vista, el filtro del listado y la carga masiva, que suma la columna; la plantilla de productos trae un servicio de ejemplo.
+- **Una regla, pocos lugares:** la consulta de la tienda pública, el adaptador del carrito, que siempre es en línea, y la validación compartida de los checkouts, que ahora recibe el canal. Con eso, la recompra lo omite sin tocarla, y la venta de mostrador lo vende.
+- **Cache:** `ProductStoreOnlyChanged` la vacía cuando cambia la marca de un producto publicado; una prueba end-to-end lo saca de la tienda y lo regresa al instante.
+- **`STORE_ONLY` en `storeVisibility`:** sin el valor nuevo, un servicio publicado aparecería sin precio.
+- **Dos comparaciones completas, encontradas al correr las pruebas:** la prueba end-to-end del alta compara `AdminProduct` completo, y la de integración compara su auditoría; las dos fallaron con `storeOnly`. La búsqueda previa cubrió las respuestas, como pide la guía, pero no la auditoría: la guía suma que un dato auditado también cambia lo que registra la auditoría.
+- **Mutación:** 53 mutantes, todos muertos. Cuatro sobrevivieron a la primera corrida y cada uno dejó una prueba: la venta de mostrador coloca, y no solo cotiza, un producto de tienda; un `storeOnly` inválido en la primera fila deja sin revisar las variantes de su producto, y el alta y la edición responden 400 a un `storeOnly` que no es booleano.
+
 ### Risks
 
 - **Datos personales de clientes sin cuenta:** las órdenes de trabajo guardan nombre y teléfono; siguen el ciclo de conservación de las órdenes, y la validación legal pendiente los incluye (`PROJECT.md` §9).
