@@ -17,6 +17,8 @@ export interface ImportRowError {
 export class FileImportError extends DomainError {
   readonly code = 'validation-error';
   readonly category = 'invalid';
+  /** Always set by the constructor; `declare` narrows the type without redefining the field. */
+  declare readonly details: { readonly errors: readonly ImportRowError[] };
 
   constructor(
     errors: readonly ImportRowError[],
