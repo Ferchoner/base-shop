@@ -6,66 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.4 — Datos para el ticket, nota del pago y GTIN. Inicio: 2026-10-14 (plan aprobado ese día).
-
-### Goal
-
-Que el backoffice imprima tickets con los datos de la tienda y el almacén del que salieron los productos, vea la nota de cada pago y reembolso manual, y encuentre una variante escaneando el código de barras de su fabricante (ADR-0163).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.3 en la guía de desarrollo |
-| 1 | T-142: `gtin` en la variante, con su dígito verificador y sin repetirse; búsqueda exacta por SKU o GTIN |
-| 2 | T-188: datos de la tienda como variables de configuración, `GET /v1/admin/store-profile` y el almacén de la orden. T-197: la nota del pago y del reembolso, con las notas anteriores desde la auditoría |
-
-- **Criterio de cierre:** los criterios de aceptación de T-142, T-188 y T-197, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.4.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** la impresión y el diseño del ticket y de las etiquetas, que hace el cliente; la factura CFDI (ADR-0027); varios GTIN por variante; y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.4.0.
-- **Siguientes versiones, sin plan aprobado (ADR-0163):** la 1.5, carga masiva (T-146); la 1.6, servicios y órdenes de trabajo (T-189); y la 1.7, promociones (T-200).
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 163 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta es un script que no existe, citado entre las alternativas descartadas de ADR-0122.
-- **Dependencias:**
-  - `npm audit` encontró tres avisos críticos nuevos en `handlebars` 4.7.9, que llega con `ts-jest`, solo en desarrollo. La auditoría de la CI falla con avisos críticos, así que la 4.7.10, que los corrige, entra en este paso, sin más cambios que el lockfile. Dependabot aún no lo había detectado;
-  - en producción sigue sin vulnerabilidades, y en desarrollo sigue el aviso moderado de `sprintf-js`, que ninguna versión corrige;
-  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.22);
-  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.3:
-  - al agregar un permiso al catálogo, se buscan antes las pruebas que derivan de él los permisos de un rol;
-  - antes de citar una sección en el código, se confirma su número;
-  - al pedir la aprobación del tag y del Release, la sesión deja listos sus comandos.
-
-### Resultado del paso 1
-
-T-142 (ADR-0163); T-142 queda en DONE.
-
-- **El código en la base:** `gtin`, como se capturó, y `gtin_key`, completado a 14 dígitos, con dos CHECK que exigen el formato y que la llave sea la del código. El de la llave usa `IS NOT DISTINCT FROM`: con `=`, una llave sin su código pasaba como `NULL`, y lo encontró una prueba de integración.
-- **Sin repetirse:** un índice único parcial entre variantes activas de cualquier producto, como las opciones. Una descontinuada deja libre su GTIN, y reactivarla con uno tomado responde 409.
-- **Validación:** el formato en el DTO y el dígito verificador en el dominio, con `gtinCheckDigit`. El GTIN se corrige también después de publicar.
-- **Búsqueda:** `GET /v1/admin/catalog/variants/lookup` responde una lista, las activas primero, con `matchedBy`; el `q` del listado busca también por GTIN.
-
-### Resultado del paso 2
-
-T-188 y T-197 (ADR-0163); las dos quedan en DONE.
-
-- **Datos de la tienda:** `STORE_NAME`, obligatoria en producción, `STORE_ADDRESS`, `STORE_TAX_ID`, con el formato del RFC, `STORE_PHONE` y `TICKET_FOOTER`, cuya leyenda no se puede dejar vacía. `GET /v1/admin/store-profile` los publica con `orders.read`.
-- **Almacén de la orden:** `AdminOrder.fulfilledFrom`, con código y nombre: el de la venta en tienda o el del envío, por una consulta nueva de la fachada de Inventory.
-- **Nota del pago:** el intento capturado y el reembolso manual la guardan, de 1 a 500 caracteres, y la muestran `AdminPayment` y `AdminOrder.payment`. Una migración copió las anteriores desde la auditoría, y la anonimización las conserva.
-- **Una sección citada antes de comprobarla, otra vez:** el código citó `API_SPEC.md` §15.10 para el perfil de la tienda, pero §15 terminaba en §15.7. La práctica nueva de la guía lo encontró antes del commit.
-- **Pruebas de mutación:** 66 mutantes, todos atrapados después de reforzar dos pruebas. La copia desde la auditoría tiene ahora un caso para cada condición que excluye un registro: otra acción, un resultado fallido, otro recurso y un reembolso fallido. El RFC se prueba también con un carácter de más, uno de menos y otro antes. La condición de un motivo nulo salió de la migración, porque no cambiaba nada.
-
-### Risks
-
-- **Datos personales en la nota del pago:** la anonimización la conserva, y la nota es texto libre. Lo acepta el usuario, y la operación indicará no escribir datos sensibles (ADR-0163).
-- **GTIN repetidos o mal capturados:** el dígito verificador y la comparación a 14 dígitos los detectan al guardar.
-- **Cambios de contrato:** todos compatibles dentro de `/v1`, y cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.4, datos para el ticket, nota del pago y GTIN, se cerró el 2026-10-15 y se publica como la 1.4.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -91,6 +32,104 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.4 — Datos para el ticket, nota del pago y GTIN (2026-10-15)
+
+**Goal:** Que el backoffice imprima tickets con los datos de la tienda y el almacén del que salieron los productos, vea la nota de cada pago y reembolso manual, y encuentre una variante escaneando el código de barras de su fabricante (ADR-0163). **Tareas:** T-142, T-188 y T-197, en dos partes, precedidas por un paso 0.
+
+**Fecha:** 2026-10-15. **Resultado:** objetivo cumplido. T-142, T-188 y T-197 están en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.4.0, con su tag y su GitHub Release (ADR-0159).
+- El backoffice tiene lo que necesita para imprimir el ticket: los datos de la tienda, el almacén del que salieron los productos y la leyenda de que no es un comprobante fiscal.
+- El staff ve la nota de cada pago y reembolso manual, también la de los anteriores.
+- El mostrador encuentra una variante escaneando el código de barras de su fabricante.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0163, que registra las decisiones del usuario sobre los requisitos nuevos; revisión contra los ADR sin desajustes; `handlebars` 4.7.10, que corrige tres avisos críticos en desarrollo; prácticas de la review de la versión 1.3 en la guía | DONE | Paso 0, pull request #116 |
+| `gtin` en la variante, con su dígito verificador y sin repetirse entre variantes activas (BR-PRD-19); `GET /v1/admin/catalog/variants/lookup` por SKU o GTIN (UC-CAT-15) | DONE | T-142, pull request #117 |
+| Los datos de la tienda como variables de configuración, publicados en `GET /v1/admin/store-profile` (UC-ORD-15); `AdminOrder.fulfilledFrom` (BR-ORD-21); la nota del pago y del reembolso manual, con las anteriores copiadas de la auditoría (BR-PAY-09) | DONE | T-188 y T-197, pull request #118 |
+| 135 rutas de `/v1`, 2 de ellas nuevas; todos los cambios de contrato son compatibles | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 2,602 tests (1,513 unitarios, 506 de integración y 583 end-to-end), 54 más que en la versión 1.3; cobertura de 98.89% de sentencias, 84.51% de ramas, 99.19% de funciones y 99.51% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; en las de desarrollo, el mismo aviso moderado de `sprintf-js`, sin versión corregida | — | `npm audit` |
+| 163 ADR: 159 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 1 nuevo en esta versión (ADR-0163) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 3 pull requests a `main` (del #116 al #118). El pipeline pasó a la primera en #116 y #117. En #118 falló la prueba de humo de las imágenes de producción, que no daba `STORE_NAME`, y pasó con la corrección. En `main` pasó después de cada fusión.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión. La validación legal de los datos personales que captura el staff sigue en la lista de `PROJECT.md` §9 (ADR-0161). Los detalles de la carga masiva y de las promociones se deciden en el plan de su versión (ADR-0163).
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Un ticket sin los datos de la tienda:** el backoffice no tenía de dónde sacar el nombre, la dirección, el RFC ni el almacén de la orden.
+  - **La nota del pago, invisible:** solo quedaba como motivo de la auditoría, que el staff de la tienda no lee.
+  - **Cambios de contrato:** dos rutas nuevas y campos nuevos en `AdminProduct`, `AdminOrder` y `AdminPayment`, compatibles dentro de `/v1`. Cada uno está en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints y de las versiones 1.1 a 1.3, entre ellos el aviso moderado de `sprintf-js` y la validación legal de los datos que captura el staff.
+- **Nuevos:**
+  - **Datos personales en la nota del pago:** la nota es texto libre, y la anonimización la conserva. Lo acepta el usuario, y la operación indicará no escribir datos sensibles (ADR-0163).
+  - **Notas que no se copiaron:** las de los registros de auditoría ya archivados fuera de la base.
+  - **GTIN repetidos o mal capturados:** el dígito verificador y la comparación a 14 dígitos los detectan al guardar.
+  - **Cambio para el operador:** `STORE_NAME` es obligatoria en producción, y sin ella la API no arranca. Hoy no hay despliegues, y está en `CHANGELOG.md`.
+
+#### Qué funcionó
+
+- **Decidir antes de planear:** el análisis de los requisitos nuevos llevó cada pregunta al usuario, y sus respuestas quedaron en ADR-0163 antes de escribir código. Por ejemplo: la nota de servicio es una orden de trabajo, los datos del ticket son configuración y el precio preferente del vendedor se descarta. Las versiones 1.5 a 1.7 quedaron previstas con sus tareas.
+- **Configuración en lugar de una tabla:** los datos de la tienda son iguales para todas, así que bastaron variables validadas al arrancar y una ruta de lectura, sin migración, sin ruta de edición y sin auditoría nueva.
+- **Recuperar las notas desde la auditoría:** la auditoría ya guardaba el motivo de cada pago y reembolso manual, así que una migración copió las notas anteriores.
+- **El paso 0 antes que Dependabot:** `npm audit` encontró tres avisos críticos en `handlebars`, que la auditoría de la CI habría rechazado, y se corrigieron en el plan.
+- **Las prácticas de la review de la versión 1.3:** confirmar el número de una sección antes de citarla encontró §15.10 en lugar de §15.8 antes del commit.
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-142 | 0 de 36 | — |
+  | T-188 y T-197 | 0 de 66 | — |
+
+  En T-188 y T-197, las pruebas se reforzaron antes de correr la mutación: la copia desde la auditoría tiene un caso para cada condición del `UPDATE`, y el RFC, uno para cada parte del formato. En T-142, una prueba de integración encontró un CHECK que dejaba pasar una llave sin su código. El plan (#116) solo cambió documentación y el lockfile.
+
+#### Qué mejorar
+
+- **Una variable obligatoria en producción sin la prueba de humo:** `STORE_NAME` entró a `REQUIRED_IN_PRODUCTION`, pero la prueba de humo de las imágenes no la daba, y la CI de #118 falló. Al volver obligatoria una variable en producción, se agrega también a `.github/scripts/smoke-test-images.sh`, y la prueba de humo corre en local antes del pull request.
+- **Docker Desktop caído a mitad de una parte:** no arrancó por un socket que no se pudo renombrar, y las pruebas de integración y end-to-end esperaron. Se resolvió cerrándolo y abriéndolo otra vez. Restablecerlo de fábrica habría borrado los volúmenes locales, entre ellos la base de Docker Compose, así que no se hace sin la autorización del usuario.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 163 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta es un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit` encontró tres avisos críticos nuevos en `handlebars` 4.7.9, que llega con `ts-jest`, solo en desarrollo. La auditoría de la CI falla con avisos críticos, así que la 4.7.10, que los corrige, entra en este paso, sin más cambios que el lockfile. Dependabot aún no lo había detectado;
+  - en producción sigue sin vulnerabilidades, y en desarrollo sigue el aviso moderado de `sprintf-js`, que ninguna versión corrige;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.22);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.3:
+  - al agregar un permiso al catálogo, se buscan antes las pruebas que derivan de él los permisos de un rol;
+  - antes de citar una sección en el código, se confirma su número;
+  - al pedir la aprobación del tag y del Release, la sesión deja listos sus comandos.
+
+#### Resultado del paso 1
+
+T-142 (ADR-0163); T-142 queda en DONE.
+
+- **El código en la base:** `gtin`, como se capturó, y `gtin_key`, completado a 14 dígitos, con dos CHECK que exigen el formato y que la llave sea la del código. El de la llave usa `IS NOT DISTINCT FROM`: con `=`, una llave sin su código pasaba como `NULL`, y lo encontró una prueba de integración.
+- **Sin repetirse:** un índice único parcial entre variantes activas de cualquier producto, como las opciones. Una descontinuada deja libre su GTIN, y reactivarla con uno tomado responde 409.
+- **Validación:** el formato en el DTO y el dígito verificador en el dominio, con `gtinCheckDigit`. El GTIN se corrige también después de publicar.
+- **Búsqueda:** `GET /v1/admin/catalog/variants/lookup` responde una lista, las activas primero, con `matchedBy`; el `q` del listado busca también por GTIN.
+
+#### Resultado del paso 2
+
+T-188 y T-197 (ADR-0163); las dos quedan en DONE.
+
+- **Datos de la tienda:** `STORE_NAME`, obligatoria en producción, `STORE_ADDRESS`, `STORE_TAX_ID`, con el formato del RFC, `STORE_PHONE` y `TICKET_FOOTER`, cuya leyenda no se puede dejar vacía. `GET /v1/admin/store-profile` los publica con `orders.read`.
+- **Almacén de la orden:** `AdminOrder.fulfilledFrom`, con código y nombre: el de la venta en tienda o el del envío, por una consulta nueva de la fachada de Inventory.
+- **Nota del pago:** el intento capturado y el reembolso manual la guardan, de 1 a 500 caracteres, y la muestran `AdminPayment` y `AdminOrder.payment`. Una migración copió las anteriores desde la auditoría, y la anonimización las conserva.
+- **Una sección citada antes de comprobarla, otra vez:** el código citó `API_SPEC.md` §15.10 para el perfil de la tienda, pero §15 terminaba en §15.7. La práctica nueva de la guía lo encontró antes del commit.
+- **Pruebas de mutación:** 66 mutantes, todos atrapados después de reforzar dos pruebas. La copia desde la auditoría tiene ahora un caso para cada condición que excluye un registro: otra acción, un resultado fallido, otro recurso y un reembolso fallido. El RFC se prueba también con un carácter de más, uno de menos y otro antes. La condición de un motivo nulo salió de la migración, porque no cambiaba nada.
+
+#### Siguiente versión
+
+Ninguna en curso: la siguiente necesita un plan aprobado (ADR-0159). ADR-0163 dejó previstas la 1.5, carga masiva (T-146); la 1.6, servicios y órdenes de trabajo (T-189); y la 1.7, promociones (T-200), cada una con su plan. La 1.4 dejó fuera la impresión y el diseño del ticket y de las etiquetas, que hace el cliente, la factura CFDI (ADR-0027) y varios GTIN por variante. Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las de la 1.3.
 
 ### Versión 1.3 — Pago en tienda configurable desde la API (2026-10-06)
 
