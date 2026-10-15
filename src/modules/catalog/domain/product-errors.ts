@@ -35,6 +35,12 @@ export class NoActiveVariantError extends DomainError {
 abstract class FieldError extends DomainError {
   readonly code = 'validation-error';
   readonly category = 'invalid';
+  /** Always set by the constructor; `declare` narrows the type without redefining the field. */
+  declare readonly details: {
+    readonly errors: readonly [
+      { field: string; code: string; message: string },
+    ];
+  };
 
   protected constructor(field: string, code: string, message: string) {
     super(`${field}: ${code}`, { errors: [{ field, code, message }] });
