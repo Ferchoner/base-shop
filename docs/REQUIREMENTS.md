@@ -259,7 +259,7 @@ Criterios de aceptación:
 | UC-INV-09 | Reintegrar stock de una orden cancelada o con envío devuelto | Staff (`inventory.write`) | BR-INV-10, ADR-0052, ADR-0053 |
 | UC-INV-10 | Crear un almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0160 |
 | UC-INV-11 | Desactivar un almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0076, ADR-0160 |
-| UC-INV-12 | Carga masiva de entradas de mercancía | Staff (`inventory.write`) | BR-INV-08, BR-INV-13, ADR-0164 |
+| UC-INV-12 | Carga masiva de entradas de mercancía | Staff (`inventory.write`) | BR-INV-08, BR-INV-13, BR-INV-15, ADR-0164 |
 
 Criterios de aceptación:
 
@@ -272,6 +272,7 @@ Criterios de aceptación:
 - **UC-INV-09 (implementación, ADR-0142):** exige `Idempotency-Key`; lo vendido cuenta solo si el stock de la orden se confirmó; un reintegro que pasaría de lo vendido en alguna línea no reintegra nada; la orden se bloquea, así que dos reintegros de la misma orden se esperan.
 - **UC-INV-10:** el almacén nace activo, con un código único de 2 a 20 mayúsculas, dígitos y guiones, y una prioridad de 1 a 1000; desde entonces recibe mercancía y reserva pedidos por su prioridad (ADR-0160).
 - **UC-INV-11:** para siempre (ADR-0076); se rechaza si el almacén tiene unidades reservadas o es el último activo. Conserva su stock, que los ajustes pueden mover. Una reserva o una entrada en curso en el almacén termina antes de la desactivación, y dos desactivaciones a la vez nunca dejan ninguno activo (ADR-0160).
+- **UC-INV-12 (implementación, ADR-0164):** cada fila deja su movimiento `RECEIPT`, en el orden del archivo, aunque el SKU se repita; un almacén desactivado mientras la carga espera, o una existencia que pasaría de 2,147,483,647 unidades, es un error de su fila; la carga suma sobre lo que dejó un cambio que terminó antes; el mismo archivo enviado dos veces a la vez se guarda una sola vez; 5,000 filas caben en una transacción; la plantilla `docs/templates/stock.csv` se importa sin errores después de la de productos.
 - **UC-INV-12 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, cada una una entrada de mercancía (UC-INV-02) por SKU y código de almacén activo; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un archivo idéntico a uno ya cargado se rechaza, con la fecha de la carga anterior.
 
 ### 5.5 Shopping

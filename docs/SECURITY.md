@@ -128,8 +128,8 @@ RBAC (ADR-0017):
 - Las imágenes no se reescriben, así que conservan sus metadatos EXIF, que pueden incluir la ubicación donde se tomó la foto: el staff debe subir fotos sin ubicación (ADR-0121).
 - `/media` es público y no pasa por el rate limiting de la API; cuando exista hosting (P-06), conviene servirlo desde un servidor web o un CDN.
 - Cargas masivas en CSV (ADR-0126, ADR-0164):
-  - solo con el permiso de escritura de su módulo: `pricing.write` o `catalog.write`;
-  - el archivo se recibe en memoria, con su límite aplicado al recibirlo (1 MB de precios y 5 MB de productos), y se lee como texto UTF-8; no se guarda ni se ejecuta;
+  - solo con el permiso de escritura de su módulo: `pricing.write`, `catalog.write` o `inventory.write`;
+  - el archivo se recibe en memoria, con su límite aplicado al recibirlo (1 MB de precios y de existencias, y 5 MB de productos), y se lee como texto UTF-8; no se guarda ni se ejecuta. De uno de existencias solo se guarda su huella SHA-256, para no cargarlo dos veces (BR-INV-15);
   - hasta 5,000 filas, revisadas antes de escribir, y la respuesta lista hasta 100 errores;
   - la carga de productos no descarga imágenes ni nada de URLs del archivo, así que no hace solicitudes a direcciones que alguien escribió (SSRF).
 

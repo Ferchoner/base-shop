@@ -40,6 +40,7 @@ Cargas masivas en CSV (ADR-0126, ADR-0164):
 - **Piezas:** `readCsvFile` y `CsvFileUpload` de `src/platform/files/` leen y reciben el archivo, e `ImportRowErrors` del shared kernel junta los errores en `rows[<línea>].<columna>`, con una subclase por carga para su error.
 - **Escrituras:** con sentencias que reciben arreglos (`unnest`), no con `createMany`, que construye cada fila en el cliente y no cabe en los 5 s de una transacción con miles de filas. Una prueba de integración mide el caso más pesado.
 - **Plantillas:** cada carga tiene su ejemplo en `docs/templates/`, que su prueba end-to-end importa, así que siempre es válido.
+- **Cargas que suman:** una carga que no es idempotente, como la de existencias, guarda la huella del archivo y rechaza uno igual (BR-INV-15); las que crean o fijan valores, como la de productos o la de precios, se repiten sin efecto.
 
 Cache (ADR-0028, ADR-0104):
 
