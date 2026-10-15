@@ -181,6 +181,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0161 | Ventas asistidas en la tienda física | Aceptada |
 | ADR-0162 | Pago manual habilitado desde la API | Aceptada |
 | ADR-0163 | Datos para el ticket, nota del pago y GTIN | Aceptada |
+| ADR-0164 | Carga masiva de productos y de existencias | Aceptada |
 
 ---
 
@@ -5119,3 +5120,55 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `AdminOrder.fulfilledFrom`, solo en el detalle: el almacén de una orden `STORE` o el del envío de una `ONLINE`, con su código y nombre, por la consulta nueva `InventoryFacade.warehouse` y el puerto `OrderWarehouses`;
   - la migración `20261014130000_payments_notes` agrega `note` a `payment_attempts` y `refunds`, de 1 a 500 caracteres, y copia las anteriores desde la auditoría, la única vez que Payments lee `audit_logs`;
   - `AdminPayment` muestra la nota en `attempts[]` y `refunds[]`, y `AdminOrder.payment` en `note` y en sus reembolsos.
+
+## ADR-0164 — Carga masiva de productos y de existencias
+
+- **Fecha:** 2026-10-15
+- **Contexto:** Quinto incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.5, prevista por ADR-0163 (T-146). El usuario pidió analizar las plantillas para subir productos, y dejó el detalle para esta versión. Hoy, dar de alta un catálogo es de uno en uno:
+  - un producto y cada una de sus variantes son una solicitud, con la marca y las categorías por su ID;
+  - cada entrada de mercancía es una solicitud, con la variante y el almacén por su ID;
+  - solo los precios tienen carga masiva (ADR-0126): CSV, todo o nada, modo de prueba, errores por línea y columna, y hasta 5,000 filas en una transacción.
+- **Decisión** (del usuario, con las recomendaciones del plan):
+  - **Dos cargas nuevas con las reglas de la de precios (ADR-0126):**
+    - CSV (RFC 4180) en UTF-8, con o sin BOM y con encabezado; las columnas, en inglés, van en cualquier orden y sin distinguir mayúsculas;
+    - `multipart/form-data` con el archivo en `file`, y `?dryRun=true` hace las mismas revisiones sin guardar nada;
+    - todo o nada: con cualquier error no se guarda nada, y la respuesta es 400 `validation-error` con los primeros 100, en `rows[<línea>].<columna>`, y los del archivo completo en `file`;
+    - hasta 5,000 filas, en una sola transacción con escrituras en bloque.
+  - **Orden de alta de un catálogo:** marcas y categorías, desde el backoffice; productos con sus variantes; precios, con la carga que ya existe; existencias; e imágenes y publicación, desde el backoffice.
+  - **Carga de productos:** `POST /v1/admin/catalog/product-imports`, con `catalog.write`. Responde 200 `{ rows, products, variants, dryRun }`.
+    - **Solo crea:** cada `slug` del archivo es un producto nuevo. Un slug que ya existe, o un SKU que ya se usó alguna vez (BR-PRD-09), es un error de su fila. Editar sigue por las rutas de cada producto, porque uno publicado tiene fijos su slug, sus SKU y sus opciones (BR-PRD-12). Repetir el archivo no cambia nada.
+    - **Una fila por variante:** las filas con el mismo `slug` forman un producto. Sus columnas de producto (`title`, `description`, `brand` y `categories`) van en su primera fila; las siguientes las dejan vacías o las repiten iguales, y un valor distinto es un error.
+    - **Columnas:** `slug`, obligatorio; `title`; `description`; `brand` y `categories` por su slug, hasta 10 categorías separadas por `|`, que deben existir y estar activas; `sku`; `gtin`; una columna `option:<nombre>` por opción, hasta 3 por producto, las mismas en todas sus variantes y con combinaciones distintas; y `weightGrams`, `lengthCm`, `widthCm` y `heightCm`, opcionales.
+    - **Las mismas reglas que las rutas** (BR-PRD-02, BR-PRD-09, BR-PRD-19, ADR-0071), revisadas también entre las filas del archivo.
+    - **En borrador:** los productos nacen en DRAFT y se publican aparte, después de revisar sus precios e imágenes.
+    - **Sin imágenes:** se suben aparte, como hoy (ADR-0024). El archivo no trae URLs que la API descargaría.
+    - **Hasta 5 MB**, por las descripciones.
+    - **Auditoría:** una entrada `products.import`, con los conteos y los IDs de los productos creados.
+  - **Carga de existencias:** `POST /v1/admin/inventory/receipt-imports`, con `inventory.write`. Responde 200 `{ rows, units, dryRun }`.
+    - **Cada fila es una entrada de mercancía (UC-INV-02):** columnas `sku`, `warehouse` (su código), `quantity` (de 1 a 100,000) y `note` (hasta 500 caracteres). Suma al stock y deja su movimiento `RECEIPT`, con la nota y quién la registró.
+    - **Las mismas reglas que una entrada:** la variante, en cualquier estado; el almacén, activo (BR-INV-08).
+    - **El mismo archivo no se carga dos veces:** se guarda la huella SHA-256 de cada archivo cargado, y uno idéntico responde 409 con la fecha de la carga anterior. Una entrega igual de verdad cambia la nota, por ejemplo con el número de remisión.
+    - **Hasta 1 MB**, como los precios.
+    - **Bloqueos:** los almacenes en modo compartido, como una entrada (ADR-0160), y los stock items en orden ascendente de ID, como las reservas (BR-INV-14).
+    - **Auditoría:** una entrada `inventory.receipt-import`, con los conteos; cada movimiento guarda quién lo registró y su nota.
+  - **CSV, no Excel:** desde Excel se guarda como "CSV UTF-8". Las plantillas de ejemplo de las tres cargas viven en `docs/templates/`, y las pruebas end-to-end las importan, así que siempre son válidas.
+  - **Servicios:** su columna llega con la versión 1.6 (T-189), cuando exista la marca "solo en tienda".
+  - **Implementación:** T-146, en dos partes: la parte a, los productos; y la parte b, las existencias.
+- **Alternativas consideradas:**
+  - **Crear o actualizar desde el archivo:** choca con los campos fijos de un producto publicado, y un error de dedo cambiaría un producto existente.
+  - **Crear marcas y categorías desde el archivo:** un error de dedo crearía una categoría basura.
+  - **Publicar al cargar:** publicaría productos sin revisar sus precios ni sus imágenes.
+  - **Imágenes por URL:** la API haría solicitudes a direcciones que alguien escribió (SSRF) y dependería de servidores ajenos.
+  - **Leer Excel:** agrega una dependencia con historial de vulnerabilidades, y Excel ya guarda CSV.
+  - **Una columna `options` con `nombre=valor`:** más compacta, pero más fácil de escribir mal en una hoja de cálculo.
+  - **Existencias como conteo físico, que fija la cantidad:** sería un ajuste con motivo (ADR-0069); puede venir después.
+  - **Aceptar dos veces el mismo archivo de existencias:** duplicaría el stock sin aviso.
+  - **Una entrada de auditoría por producto o por movimiento:** la carga de precios ya eligió una por carga (ADR-0126), y los movimientos guardan quién y su nota.
+- **Consecuencias:**
+  - Un catálogo se da de alta con tres archivos, más sus imágenes y su publicación.
+  - Un error en un archivo hace que no se cargue nada; `dryRun` permite revisarlo antes.
+  - Si dos cargas toman el mismo slug o SKU a la vez, una falla completa con 409 y se repite.
+  - Más de 5,000 filas o archivos mayores tendrían que procesarse en segundo plano.
+  - Cambios compatibles en `/v1`: dos rutas nuevas. Por eso es una versión menor (ADR-0159).
+- **Revisar si:** hace falta actualizar productos desde un archivo, cargar conteos físicos o más de 5,000 filas.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-15, con las 16 recomendaciones del plan). Se implementa en T-146, en la versión 1.5.
