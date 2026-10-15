@@ -594,9 +594,11 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 | method | enum `payment_method` (CASH, CARD_TERMINAL, TRANSFER) | Cómo cobró la tienda un pago manual; nulo en los demás intentos, en los anteriores a ADR-0161 y cuando el staff no lo dijo. `payment_attempts_method_check`: solo en un intento CAPTURED |
 | failure_code | text | — |
 | registered_by | uuid | Staff que registró un pago manual (sin FK) |
+| note | text | La nota del staff en un pago manual (ADR-0163); `CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 500)` |
 | created_at | timestamptz(3) | Append-only |
 
 - **Implementado en T-187 parte a (ADR-0161):** la migración `20261006160000_payments_in_store_method` crea `payment_method` y agrega `method`, nulo en los intentos existentes, con su restricción.
+- **Implementado en T-197 (ADR-0163):** la migración `20261014130000_payments_notes` agrega `note` aquí y en `refunds`, y copia las notas anteriores desde el motivo de la auditoría (`payments.manual-capture` y `payments.manual-refund`); los registros ya archivados fuera de la base no se copian. La anonimización conserva las notas.
 
 ### 9.3 `refunds`
 
@@ -608,6 +610,7 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 | status | enum `refund_status` (PENDING, COMPLETED, FAILED) | No | ADR-0051 |
 | provider_refund_id | text | Sí | — |
 | registered_by | uuid | Sí | Staff en reembolsos manuales |
+| note | text | Sí | La nota del staff en un reembolso manual (ADR-0163); `CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 500)` |
 | created_at, updated_at | timestamptz(3) | No | — |
 | completed_at | timestamptz(3) | Sí | — |
 

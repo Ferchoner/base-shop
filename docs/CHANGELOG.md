@@ -8,6 +8,10 @@
   - Las variantes aceptan `gtin`, opcional: un EAN o un UPC de 8, 12, 13 o 14 dígitos, con su dígito verificador (400 `validation-error` con `matches` o `gtinCheckDigit` en `gtin`). `AdminProduct.variants[].gtin` lo muestra; la tienda pública no.
   - Dos variantes activas no comparten un GTIN, comparado completado a 14 dígitos: 409 `duplicate-value` con `field: gtin`. Se corrige también después de publicar.
   - `GET /v1/admin/catalog/variants/lookup?code=…` (`catalog.read`, UC-CAT-15) encuentra las variantes por SKU o GTIN, las activas primero, con `matchedBy`. El `q` de `GET /v1/admin/catalog/products` busca también por GTIN.
+- T-188 y T-197 (ADR-0163); con ellas, la parte 2 de la versión 1.4.
+  - `GET /v1/admin/store-profile` (`orders.read`, UC-ORD-15) publica los datos de la tienda para el ticket, de las variables nuevas `STORE_NAME` (obligatoria en producción), `STORE_ADDRESS`, `STORE_TAX_ID`, `STORE_PHONE` y `TICKET_FOOTER`, cuya leyenda por defecto dice que el ticket no es un comprobante fiscal.
+  - `AdminOrder.fulfilledFrom` dice de qué almacén salieron los productos: el de la venta en tienda o el del envío.
+  - La nota del pago y del reembolso manual se guarda: `AdminPayment.attempts[].note`, `AdminPayment.refunds[].note`, `AdminOrder.payment.note` y sus reembolsos. Las anteriores se copiaron de la auditoría, y la anonimización las conserva.
 
 ## 1.3.0 (2026-10-06)
 

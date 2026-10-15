@@ -1395,7 +1395,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Retención de datos personales en órdenes:** se conservan mientras sean necesarios y después se anonimizan con el mismo procedimiento. El plazo queda pendiente de validación legal (P-61); el mecanismo (job con plazo configurable) se prevé, pero no se implementa en el MVP.
 - **Alternativas consideradas:** Autoservicio de eliminación de cuenta; borrado físico de órdenes; conservar indefinidamente los datos personales en órdenes.
 - **Consecuencias:** Ajustes en el modelo de datos propuesto (ADR-0066): versión del aviso en `users` y `orders`; marca de anonimización en `orders` y `shipments`; email de contacto de `orders` vacío solo en órdenes anonimizadas.
-- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117. La anonimización se implementó en T-132 (ADR-0145), que también borra las respuestas guardadas por idempotencia. ADR-0149 fija los plazos de conservación como variables con valores por defecto.
+- **Estado:** Aceptada. La rectificación con `PATCH /v1/me` y la versión del aviso al registrarse se implementan en ADR-0117. La anonimización se implementó en T-132 (ADR-0145), que también borra las respuestas guardadas por idempotencia. ADR-0149 fija los plazos de conservación como variables con valores por defecto. ADR-0163: la anonimización conserva la nota del staff en los pagos y reembolsos manuales; el usuario acepta el riesgo, y la operación indica no escribir datos sensibles en ella.
 
 ---
 
@@ -3780,7 +3780,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La parte b: cancelar una orden pagada llama a Payments para iniciar el reembolso, y Ordering escucha `RefundCompleted`.
   - T-192 suma UC-PAY-07. La conciliación (UC-PAY-05) vivirá en Ordering, que es quien puede leer órdenes y pagos.
   - Pruebas contra PostgreSQL: dos registros del mismo pago a la vez, dos inicios a la vez, y un pago junto con una cancelación.
-- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135. ADR-0161 agrega `method` al registro del pago manual, que guarda el intento capturado. ADR-0162 reemplaza la variable `MANUAL_PAYMENTS_ENABLED` por la configuración de Payments: las comprobaciones de la fachada leen la base y son asíncronas.
+- **Estado:** Aceptada (plan de T-190 aprobado el 2026-10-01, con sus 3 recomendaciones). La respuesta del pago manual se decidió durante la implementación. La parte b está en ADR-0135. ADR-0161 agrega `method` al registro del pago manual, que guarda el intento capturado. ADR-0162 reemplaza la variable `MANUAL_PAYMENTS_ENABLED` por la configuración de Payments: las comprobaciones de la fachada leen la base y son asíncronas. ADR-0163 (T-197): el intento capturado guarda también la nota del staff, que antes solo era el motivo de la auditoría.
 
 ---
 
@@ -3820,7 +3820,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-161 cambia la respuesta de `restock` por el reintegro real, en la cancelación y en el registro del reembolso.
   - T-192 agrega los reembolsos con proveedor, que pueden fallar, y su reintento (UC-PAY-07). T-215 envía el correo "Reembolso completado".
   - Pruebas contra PostgreSQL: dos registros del mismo reembolso a la vez, y una cancelación junto con el registro del pago de una orden con su pago iniciado.
-- **Estado:** Aceptada (plan de T-190 parte b aprobado el 2026-10-01, con sus 3 recomendaciones). Desde T-161 (ADR-0142), `restock` al cancelar reintegra, y el registro del reembolso ya no lo acepta.
+- **Estado:** Aceptada (plan de T-190 parte b aprobado el 2026-10-01, con sus 3 recomendaciones). Desde T-161 (ADR-0142), `restock` al cancelar reintegra, y el registro del reembolso ya no lo acepta. ADR-0163 (T-197): el reembolso manual guarda también la nota del staff.
 
 ---
 
@@ -4248,7 +4248,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - la carrera con el checkout, en los dos órdenes;
     - un cambio del carrito en curso;
     - que no queda nada del comprador en sus tablas ni en las respuestas guardadas.
-- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones). ADR-0148: la anonimización del invitado borra también sus enlaces de acceso a los pedidos. ADR-0151 guarda en la orden cuándo concluyó (`concluded_at`), y su job anonimiza la orden y su envío juntos.
+- **Estado:** Aceptada (plan de T-132 aprobado el 2026-10-02, con sus 3 recomendaciones). ADR-0148: la anonimización del invitado borra también sus enlaces de acceso a los pedidos. ADR-0151 guarda en la orden cuándo concluyó (`concluded_at`), y su job anonimiza la orden y su envío juntos. ADR-0163: no toca la nota de los pagos y reembolsos manuales, que se conserva.
 
 ---
 
@@ -5113,3 +5113,9 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - el GTIN se cambia o se quita también después de publicar, y se audita con la variante;
   - `GET /v1/admin/catalog/variants/lookup?code=…` responde una lista, con las activas primero y `matchedBy`, porque un SKU de dígitos puede coincidir con el GTIN de otra variante y varias descontinuadas pueden compartir uno; sin coincidencias, la lista sale vacía;
   - el `q` del listado de productos busca también por parte del GTIN; la tienda pública no lo muestra.
+
+  Parte 2, T-188 y T-197 (plan aprobado el 2026-10-14, con sus 10 recomendaciones):
+  - `STORE_NAME` (obligatoria en producción, "base-shop" en desarrollo), `STORE_ADDRESS`, `STORE_TAX_ID` (con el formato del RFC, en mayúsculas), `STORE_PHONE` y `TICKET_FOOTER`, que vacía vuelve a su leyenda; `GET /v1/admin/store-profile`, con `orders.read`, los publica (UC-ORD-15);
+  - `AdminOrder.fulfilledFrom`, solo en el detalle: el almacén de una orden `STORE` o el del envío de una `ONLINE`, con su código y nombre, por la consulta nueva `InventoryFacade.warehouse` y el puerto `OrderWarehouses`;
+  - la migración `20261014130000_payments_notes` agrega `note` a `payment_attempts` y `refunds`, de 1 a 500 caracteres, y copia las anteriores desde la auditoría, la única vez que Payments lee `audit_logs`;
+  - `AdminPayment` muestra la nota en `attempts[]` y `refunds[]`, y `AdminOrder.payment` en `note` y en sus reembolsos.

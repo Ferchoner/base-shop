@@ -313,6 +313,7 @@ Criterios de aceptación:
 | UC-ORD-12 | Cotizar un pedido en la tienda física | Staff (`orders.place`) | BR-ORD-19, ADR-0161 |
 | UC-ORD-13 | Colocar un pedido en la tienda física a nombre de un cliente | Staff (`orders.place`) | BR-ORD-01 a BR-ORD-06, BR-ORD-19, BR-ORD-20, BR-USR-05, ADR-0161 |
 | UC-ORD-14 | Entregar en la tienda una venta de mostrador | Staff (`orders.place`) | BR-ORD-20, ADR-0161 |
+| UC-ORD-15 | Consultar los datos de la tienda para el ticket | Staff (`orders.read`) | BR-ORD-21, ADR-0163 |
 
 Criterios de aceptación:
 
@@ -341,6 +342,7 @@ Criterios de aceptación:
   - la orden queda en el canal `STORE`, con la cuenta de staff que la colocó y su almacén; se audita como `orders.place`, y la primera fila del historial lleva al staff;
   - una venta de mostrador (`IN_STORE`) no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos.
 - **UC-ORD-14 (ADR-0161):** solo una orden `IN_STORE` en Paid; pasa a Delivered sin envío, con el staff en el historial; se audita como `orders.hand-over`; exige `version`.
+- **UC-ORD-15 (ADR-0163):** responde el nombre, la dirección, el RFC, el teléfono y la leyenda de la tienda, de su configuración; los opcionales sin valor salen `null`, y la leyenda nunca falta. El detalle de la orden del staff dice de qué almacén salieron sus productos.
 - **UC-ORD-01 a 03 (implementación, ADR-0132):**
   - la cotización marca las líneas que no se pueden vender y suma solo las demás;
   - colocar la orden bloquea el carrito y revisa, en este orden, al comprador, el carrito, la dirección, que todo sea vendible, el total y el stock;
@@ -372,9 +374,9 @@ Criterios de aceptación:
 Criterios de aceptación:
 
 - **UC-PAY-01:** el monto se toma de la orden; exige `Idempotency-Key` con el mismo comportamiento que UC-ORD-02 (ADR-0063); devuelve una "acción requerida" genérica. Con el método manual, la acción requerida indica pago en tienda con el código público y el total (ADR-0055).
-- **UC-PAY-02:** disponible solo con el pago manual habilitado (UC-PAY-08); produce `PaymentCaptured` y sigue el mismo flujo que un pago de proveedor; se audita. Solo sobre órdenes en PendingPayment o Expired; en cualquier otro estado se rechaza (ADR-0055); guarda el comprobante, quién lo registró y, opcional, cómo se cobró: efectivo, terminal o transferencia (ADR-0161).
+- **UC-PAY-02:** disponible solo con el pago manual habilitado (UC-PAY-08); produce `PaymentCaptured` y sigue el mismo flujo que un pago de proveedor; se audita. Solo sobre órdenes en PendingPayment o Expired; en cualquier otro estado se rechaza (ADR-0055); guarda el comprobante, quién lo registró y, opcional, cómo se cobró: efectivo, terminal o transferencia (ADR-0161). La nota del staff se guarda con el pago y se muestra con él (ADR-0163).
 - **UC-PAY-04:** firma inválida se rechaza; un evento repetido no produce efectos; un evento tardío no revierte un estado posterior.
-- **UC-PAY-03 / 06 / 07:** el reembolso es por el total capturado; al confirmarse (webhook, conciliación o registro manual) la orden pasa a Refunded y el Payment a Refunded; si falla, la orden permanece en Cancelled y el staff puede reintentarlo; el registro manual solo está disponible con el pago manual habilitado y se audita; no existen reembolsos sin cancelación. El stock se reintegra aparte, con UC-INV-09 (ADR-0142).
+- **UC-PAY-03 / 06 / 07:** el reembolso es por el total capturado; al confirmarse (webhook, conciliación o registro manual) la orden pasa a Refunded y el Payment a Refunded; si falla, la orden permanece en Cancelled y el staff puede reintentarlo; el registro manual solo está disponible con el pago manual habilitado y se audita; no existen reembolsos sin cancelación. El stock se reintegra aparte, con UC-INV-09 (ADR-0142). La nota del reembolso manual se guarda con él y se muestra con el pago (ADR-0163).
 - **UC-PAY-05:** reejecuta la confirmación de pagos capturados cuya orden sigue en PendingPayment con más de 10 minutos.
 - **UC-PAY-08 (ADR-0162):**
   - el staff con `orders.read` consulta si el pago manual está habilitado, y solo el superadministrador lo cambia, con la versión leída; otra versión se rechaza;

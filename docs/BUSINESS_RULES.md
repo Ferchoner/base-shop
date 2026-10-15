@@ -133,6 +133,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-18. Un pago capturado de una orden cancelada no la reactiva: la orden sigue cancelada, con el pago registrado, a la espera de su reembolso (ADR-0051, ADR-0133).
 - BR-ORD-19. El staff con `orders.place` coloca órdenes a nombre de un cliente presente en la tienda física: de un cliente registrado con el email verificado, o de un invitado con su email y la versión del aviso de privacidad que el staff le presentó. La orden queda en el canal `STORE`, con la cuenta de staff que la colocó y el almacén que eligió, del único que sale su stock, también cuando se reserva otra vez (ADR-0161).
 - BR-ORD-20. Una venta de mostrador (`fulfillment` `IN_STORE`) se entrega en la tienda física: la coloca el staff, sin dirección, sin costo de envío y sin plazo de entrega, y no crea envío al pagarse. El staff con `orders.place` la entrega una vez pagada, y pasa de Paid a Delivered. Su comprador puede no dar datos: entonces no tiene email ni aviso de privacidad, no recibe correos ni la consulta como invitado (ADR-0161).
+- BR-ORD-21. El ticket de una orden lo imprime el cliente de la API, con los datos de la tienda, iguales para todas, y el almacén del que salieron los productos. No es un comprobante fiscal, y su leyenda lo dice siempre (ADR-0163).
 
 ## Pagos
 
@@ -144,7 +145,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PAY-06. Los webhooks se deduplican por ID de evento del proveedor.
 - BR-PAY-07. No se ofrecen métodos de pago asíncronos en el lanzamiento.
 - BR-PAY-08. Nunca se almacenan datos de tarjeta.
-- BR-PAY-09. El pago manual es el cobro de la tienda física: se hace en la tienda y lo registra el staff con `payments.manage`, con su comprobante y, opcional, cómo se cobró (efectivo, terminal o transferencia). Está desactivado por defecto, y un superadministrador lo habilita o lo deshabilita desde la API cuando la tienda cobra; vale desde la siguiente operación (ADR-0040, ADR-0161, ADR-0162). Hasta la versión 1.3 lo habilitaba la variable `MANUAL_PAYMENTS_ENABLED`.
+- BR-PAY-09. El pago manual es el cobro de la tienda física: se hace en la tienda y lo registra el staff con `payments.manage`, con su comprobante y, opcional, cómo se cobró (efectivo, terminal o transferencia). Está desactivado por defecto, y un superadministrador lo habilita o lo deshabilita desde la API cuando la tienda cobra; vale desde la siguiente operación (ADR-0040, ADR-0161, ADR-0162). Hasta la versión 1.3 lo habilitaba la variable `MANUAL_PAYMENTS_ENABLED`. La nota que el staff escribe al registrar un pago o un reembolso manual se guarda con él y la ve quien consulta el pago; la anonimización la conserva, así que no lleva datos sensibles (ADR-0163).
 - BR-PAY-10. Registrar un pago manual produce el mismo efecto que un pago capturado por un proveedor.
 - BR-PAY-11. En el MVP solo hay reembolsos totales al cancelar una orden pagada; no hay reembolsos independientes ni parciales. El reembolso de un pago manual se hace fuera del sistema y lo registra un administrador con `payments.manage` (ADR-0018, ADR-0051).
 - BR-PAY-12. El pago manual se hace físicamente en la tienda; la API indica pago en tienda con el código público y el total. Solo se registra sobre órdenes en PendingPayment o Expired (ADR-0055).
