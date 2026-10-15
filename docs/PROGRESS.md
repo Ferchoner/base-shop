@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). Las versiones 1.1.0, varios almacenes propios (ADR-0160, T-162), 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), 1.3.0, el pago en tienda configurable desde la API (ADR-0162, T-194), se cerraron el 2026-10-06, y la 1.4.0, datos para el ticket, nota del pago y GTIN (ADR-0163, T-142, T-188 y T-197), el 2026-10-15, todas con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. En curso: la versión 1.5, carga masiva de productos y de existencias (ADR-0164). No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
+MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). Las versiones 1.1.0, varios almacenes propios (ADR-0160, T-162), 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), 1.3.0, el pago en tienda configurable desde la API (ADR-0162, T-194), se cerraron el 2026-10-06, y la 1.4.0, datos para el ticket, nota del pago y GTIN (ADR-0163, T-142, T-188 y T-197), y la 1.5.0, carga masiva de productos y de existencias (ADR-0164, T-146), el 2026-10-15, todas con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. No hay sprint ni versión en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto, y cada versión nueva necesita un plan aprobado; ADR-0163 deja previstas la 1.6 y la 1.7.
 
 ## Completed
 
@@ -185,7 +185,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.3.0: el pago en tienda configurable desde la API (paso 0 y T-194), cerrada el 2026-10-06; review en `SPRINT.md`
 - [x] T-194: el pago manual en la base, con `GET` y `PUT /v1/admin/payment-settings`; `payments.configure`, reservado al superadministrador; los correos leen el valor al escribirse; sin `MANUAL_PAYMENTS_ENABLED` (ADR-0162)
 - [x] Versión 1.4.0: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197), cerrada el 2026-10-15; review en `SPRINT.md`
-- [ ] Versión 1.5: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes); plan en `SPRINT.md`
+- [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] T-146 parte a: `POST /v1/admin/catalog/product-imports`, productos nuevos en borrador con sus variantes desde un CSV, todo o nada, con la marca y las categorías por slug; piezas compartidas por las cargas y plantillas en `docs/templates/` (ADR-0164)
 - [x] T-146 parte b: `POST /v1/admin/inventory/receipt-imports`, entradas de mercancía desde un CSV por SKU y código de almacén, todo o nada; un archivo ya cargado se rechaza por su huella (BR-INV-15, ADR-0164)
 - [x] T-142: `gtin` en la variante, con su dígito verificador y sin repetirse entre variantes activas, editable después de publicar; `GET /v1/admin/catalog/variants/lookup` por SKU o GTIN; el `q` del listado busca por GTIN (ADR-0163)

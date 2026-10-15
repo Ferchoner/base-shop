@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## 1.5.0 (2026-10-15)
+
+Carga masiva de productos y de existencias (ADR-0164).
 
 - Plan de la versión 1.5 (nuevo ADR-0164): carga masiva de productos y de existencias, con las reglas de la de precios: CSV, modo de prueba, todo o nada y errores por línea y columna. Una carga crea productos nuevos con sus variantes, en borrador, y otra registra entradas de mercancía por SKU y código de almacén, sin cargar dos veces el mismo archivo. Las plantillas de las tres cargas quedan en el repositorio. Se implementa en T-146, en dos partes.
 - Paso 0 de la versión 1.5: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.4.
@@ -12,6 +14,7 @@
   - `POST /v1/admin/inventory/receipt-imports` (`inventory.write`, UC-INV-12) registra entradas de mercancía desde un CSV de hasta 5,000 filas y 1 MB, con el SKU de la variante, el código de un almacén activo, la cantidad y una nota opcional. Todo o nada, con los errores por línea y columna, y `?dryRun=true`. Se audita como `inventory.receipt-import`.
   - El mismo archivo no se carga dos veces: uno con los mismos bytes responde 409 `duplicate-value` con `field: "file"` e `importedAt` (BR-INV-15). La tabla nueva `stock_receipt_imports` guarda su huella.
   - La plantilla de existencias está en `docs/templates/stock.csv`.
+- Versión 1.5.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.5.0` y un GitHub Release.
 
 ## 1.4.0 (2026-10-15)
 

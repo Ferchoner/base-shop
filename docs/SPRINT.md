@@ -6,70 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.5 — Carga masiva de productos y de existencias. Inicio: 2026-10-15 (plan aprobado ese día).
-
-### Goal
-
-Que el backoffice dé de alta un catálogo completo con archivos: los productos con sus variantes, sus precios y sus existencias, con plantillas, modo de prueba y errores por línea (ADR-0164).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.4 en la guía de desarrollo |
-| 1 | T-146 parte a: `POST /v1/admin/catalog/product-imports`, productos nuevos con sus variantes, en borrador; plantillas de productos y de precios |
-| 2 | T-146 parte b: `POST /v1/admin/inventory/receipt-imports`, entradas de mercancía por SKU y código de almacén, sin cargar dos veces el mismo archivo; plantilla de existencias |
-
-- **Criterio de cierre:** los criterios de aceptación de T-146, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.5.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** actualizar productos desde un archivo; crear marcas y categorías desde él; publicar al cargar; imágenes por URL; leer Excel; cargar conteos físicos; más de 5,000 filas o procesar en segundo plano; la columna de servicios, que llega con la 1.6; y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.5.0.
-- **Siguientes versiones, sin plan aprobado (ADR-0163):** la 1.6, servicios y órdenes de trabajo (T-189); y la 1.7, promociones (T-200).
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 164 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
-- **Dependencias:**
-  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
-  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.23);
-  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.4:
-  - una variable que pasa a ser obligatoria en producción se agrega también a la prueba de humo de las imágenes, que corre en local antes del pull request;
-  - si Docker Desktop no arranca, se cierra y se abre otra vez; restablecerlo de fábrica borra sus volúmenes y necesita la autorización del usuario.
-
-### Resultado del paso 1
-
-T-146 parte a (ADR-0164).
-
-- **La carga de productos:** `POST /v1/admin/catalog/product-imports`. Revisa cada celda, las filas de cada producto entre sí, el archivo completo y el catálogo, con una consulta por tipo, y crea todo en una transacción.
-- **Piezas compartidas:** el lector, la subida y los errores por fila sirven a las tres cargas; la de precios ya las usa, con sus mismas reglas.
-- **Más rápido con arreglos:** `createMany` de Prisma tardó 8 s con 5,000 productos de 10 categorías cada uno, más que los 5 s de una transacción. Con sentencias que reciben arreglos cabe, como en la carga de precios, y la guía lo pide para las cargas que siguen.
-- **Una convención encontrada antes del commit:** las inserciones usaban `now()` de PostgreSQL, y la guía pide el reloj de la API (ADR-0124); una prueba con un reloj fijo lo comprueba.
-- **Errores de consultas directas:** una violación de una restricción en ellas llega como P2010, con solo el código de PostgreSQL. Los ayudantes de la plataforma lo reconocen, y el choque de dos cargas responde 409 sin guardar nada.
-- **Plantillas:** `docs/templates/` tiene las de productos y precios, con su README; la prueba end-to-end las importa como las guarda Excel.
-- **Pruebas de mutación:** 92 mutantes, todos atrapados. Antes de correrlas se quitaron tres condiciones que no cambiaban nada y se agregaron cuatro casos: categorías vacías y repetidas, 10 categorías y una lista de exactamente 5.
-
-### Resultado del paso 2
-
-T-146 parte b (ADR-0164); T-146 queda en DONE.
-
-- **La carga de existencias:** `POST /v1/admin/inventory/receipt-imports`. Cada fila es una entrada de mercancía por SKU y código de almacén, en el orden del archivo, y todo se escribe en una transacción con sentencias que reciben arreglos.
-- **Un archivo, una vez:** la tabla nueva `stock_receipt_imports` guarda la huella SHA-256 de cada archivo, única. Uno idéntico responde 409 con la fecha de la carga anterior, y dos iguales a la vez se guardan una sola vez (BR-INV-15).
-- **Bloqueos como las entradas y las reservas:** los almacenes en modo compartido, y uno desactivado mientras la carga espera es un error de sus filas; las existencias, en orden ascendente de ID. Una prueba con otra sesión comprueba que la carga suma sobre lo que dejó un cambio que terminó antes.
-- **Una sección citada antes de comprobarla, otra vez:** el código citó `DATABASE.md` §15 para la tabla nueva, que va en §6.6; la práctica de la guía lo encontró antes del commit.
-- **Pruebas de mutación:** 44 mutantes, todos atrapados después de reforzar tres pruebas. Dos comparaban el error del archivo repetido con `toEqual`, que en un `Error` solo compara el mensaje, y no veían `importedAt`. La otra hacía esperar a la carga antes de su `FOR UPDATE`: `INSERT … ON CONFLICT` espera a la fila que otra sesión modifica, así que la sesión ahora la bloquea sin modificarla y la cambia mientras la carga espera.
-- **El CI de la parte a:** el paso de las imágenes falló dos veces por la red (Docker Hub y el registro de npm) y pasó al tercer intento. No se agregaron reintentos, como se acordó, porque no volvió a fallar.
-
-### Risks
-
-- **Un error impide toda la carga:** es la protección contra las cargas a medias, y `dryRun` permite revisar el archivo antes.
-- **Tiempo de la transacción:** 5,000 filas tienen que caber en los 5 s de una transacción, con escrituras en bloque; una prueba de integración lo mide, como en los precios.
-- **Cargas simultáneas:** si dos toman el mismo slug o SKU a la vez, una falla completa con 409 y se repite.
-- **Existencias duplicadas:** un archivo idéntico a uno cargado se rechaza; uno con otra nota se suma.
-- **Cambios de contrato:** dos rutas nuevas, compatibles dentro de `/v1`; cada una queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.5, carga masiva de productos y de existencias, se cerró el 2026-10-15 y se publica como la 1.5.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -95,6 +32,109 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.5 — Carga masiva de productos y de existencias (2026-10-15)
+
+**Goal:** Que el backoffice dé de alta un catálogo completo con archivos: los productos con sus variantes, sus precios y sus existencias, con plantillas, modo de prueba y errores por línea (ADR-0164). **Tareas:** T-146, en dos partes, precedidas por un paso 0.
+
+**Fecha:** 2026-10-15. **Resultado:** objetivo cumplido. T-146 está en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.5.0, con su tag y su GitHub Release (ADR-0159).
+- El backoffice da de alta un catálogo con tres archivos: los productos con sus variantes, sus precios y sus existencias, más las imágenes y la publicación.
+- Cada carga revisa el archivo completo antes de guardar, con modo de prueba y los errores por línea y columna.
+- Las plantillas de las tres cargas viven en el repositorio, y sus pruebas las importan.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0164; revisión contra los ADR sin desajustes; 0 vulnerabilidades en las dependencias de producción; prácticas de la review de la versión 1.4 en la guía | DONE | Paso 0, pull request #120 |
+| `POST /v1/admin/catalog/product-imports`: productos nuevos en borrador con sus variantes, con la marca y las categorías por slug (UC-CAT-16); el lector, la subida y los errores por fila compartidos por las tres cargas; plantillas de productos y de precios | DONE | T-146 parte a, pull request #121 |
+| `POST /v1/admin/inventory/receipt-imports`: entradas de mercancía por SKU y código de almacén (UC-INV-12); un archivo ya cargado se rechaza por su huella (BR-INV-15); plantilla de existencias | DONE | T-146 parte b, pull request #122 |
+| Un import sin usar en los mappers de Ordering, que dejó T-188, quitado en una tarea aparte | DONE | Pull request #123 |
+| 137 rutas de `/v1`, 2 de ellas nuevas; todos los cambios de contrato son compatibles | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 2,745 tests (1,620 unitarios, 521 de integración y 604 end-to-end), 143 más que en la versión 1.4; cobertura de 98.88% de sentencias, 84.81% de ramas, 99.23% de funciones y 99.50% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; en las de desarrollo, el mismo aviso moderado de `sprintf-js`, sin versión corregida | — | `npm audit` |
+| 164 ADR: 160 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 1 nuevo en esta versión (ADR-0164) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 4 pull requests a `main` (del #120 al #123). El pipeline pasó a la primera en #120, #122 y #123. En #121 falló dos veces el paso de las imágenes, por la red (Docker Hub y el registro de npm), y pasó al tercer intento. En `main` pasó después de cada fusión.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión. La validación legal de los datos personales que captura el staff sigue en la lista de `PROJECT.md` §9 (ADR-0161). Los detalles de los servicios y de las promociones se deciden en el plan de su versión (ADR-0163).
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Dar de alta un catálogo de uno en uno:** un producto con sus tallas, sus precios y sus existencias eran decenas de solicitudes.
+  - **Sumar dos veces el mismo archivo de existencias:** se rechaza por su huella (BR-INV-15).
+  - **Cambios de contrato:** dos rutas nuevas y un dato nuevo en el 409 `duplicate-value`, compatibles dentro de `/v1`. Cada uno está en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints y de las versiones 1.1 a 1.4, entre ellos el aviso moderado de `sprintf-js` y la validación legal de los datos que captura el staff.
+- **Nuevos:**
+  - **Un error impide toda la carga:** es la protección contra cargas a medias, y `dryRun` permite revisar el archivo antes.
+  - **El mismo contenido con otros bytes:** un archivo de existencias guardado de nuevo con otro fin de línea no se reconoce como repetido.
+  - **Archivos más grandes:** más de 5,000 filas, o más de 1 MB de existencias o 5 MB de productos, tendrían que procesarse en segundo plano.
+  - **Fallos de red en el CI:** si el paso de las imágenes vuelve a fallar por la red, se agregan reintentos a la descarga, como se acordó.
+
+#### Qué funcionó
+
+- **Piezas compartidas desde la primera parte:** la parte a sacó el lector, la subida y los errores por fila de la carga de precios, y la parte b los usó sin cambiarlos.
+- **Medir el caso más pesado desde el principio:** la prueba de 5,000 productos de 10 categorías mostró que `createMany` no cabía en una transacción, antes del commit; con sentencias que reciben arreglos, las dos cargas caben.
+- **Las prácticas de las reviews anteriores:**
+  - confirmar el número de una sección antes de citarla encontró §15 en lugar de §6.6 en la parte b;
+  - la guía pedía el reloj de la API para las fechas, y la parte a lo corrigió antes del commit, con una prueba con un reloj fijo.
+- **Una tarea aparte para lo que no era de la versión:** el import sin usar de T-188 se quitó en su propio pull request (#123), sin mezclarlo con la carga.
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-146 parte a | 0 de 92 | — |
+  | T-146 parte b | 3 de 44 | Pruebas débiles, reforzadas: dos comparaban el error con `toEqual`, y la de bloqueo esperaba en otro lado |
+
+  En la parte a, las pruebas se reforzaron antes de correr la mutación; el plan (#120) solo cambió documentación.
+
+#### Qué mejorar
+
+- **Editar el código mientras corre `test:cov`:** en la parte b, cambiar dos archivos a la mitad mezcló dos versiones en la cobertura combinada, y el umbral de funciones falló sin que faltara una prueba; se repitió sin tocar nada. Mientras corren `test:cov` o la mutación, no se edita código.
+- **Comparar errores con `toEqual`:** en un `Error` solo compara el mensaje, y dos pruebas no veían `importedAt`. Un error con datos se compara con `toMatchObject` sobre su `code` y sus `details`.
+- **Pruebas de bloqueo que esperan en otro lado:** `INSERT … ON CONFLICT` espera a una fila que otra sesión modifica, así que la prueba del `FOR UPDATE` no lo ejercía. En una prueba de bloqueo, la otra sesión bloquea la fila sin modificarla hasta que la operación espera, y una mutación que quita el bloqueo confirma que la prueba falla.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 164 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.23);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.4:
+  - una variable que pasa a ser obligatoria en producción se agrega también a la prueba de humo de las imágenes, que corre en local antes del pull request;
+  - si Docker Desktop no arranca, se cierra y se abre otra vez; restablecerlo de fábrica borra sus volúmenes y necesita la autorización del usuario.
+
+#### Resultado del paso 1
+
+T-146 parte a (ADR-0164).
+
+- **La carga de productos:** `POST /v1/admin/catalog/product-imports`. Revisa cada celda, las filas de cada producto entre sí, el archivo completo y el catálogo, con una consulta por tipo, y crea todo en una transacción.
+- **Piezas compartidas:** el lector, la subida y los errores por fila sirven a las tres cargas; la de precios ya las usa, con sus mismas reglas.
+- **Más rápido con arreglos:** `createMany` de Prisma tardó 8 s con 5,000 productos de 10 categorías cada uno, más que los 5 s de una transacción. Con sentencias que reciben arreglos cabe, como en la carga de precios, y la guía lo pide para las cargas que siguen.
+- **Una convención encontrada antes del commit:** las inserciones usaban `now()` de PostgreSQL, y la guía pide el reloj de la API (ADR-0124); una prueba con un reloj fijo lo comprueba.
+- **Errores de consultas directas:** una violación de una restricción en ellas llega como P2010, con solo el código de PostgreSQL. Los ayudantes de la plataforma lo reconocen, y el choque de dos cargas responde 409 sin guardar nada.
+- **Plantillas:** `docs/templates/` tiene las de productos y precios, con su README; la prueba end-to-end las importa como las guarda Excel.
+- **Pruebas de mutación:** 92 mutantes, todos atrapados. Antes de correrlas se quitaron tres condiciones que no cambiaban nada y se agregaron cuatro casos: categorías vacías y repetidas, 10 categorías y una lista de exactamente 5.
+
+#### Resultado del paso 2
+
+T-146 parte b (ADR-0164); T-146 queda en DONE.
+
+- **La carga de existencias:** `POST /v1/admin/inventory/receipt-imports`. Cada fila es una entrada de mercancía por SKU y código de almacén, en el orden del archivo, y todo se escribe en una transacción con sentencias que reciben arreglos.
+- **Un archivo, una vez:** la tabla nueva `stock_receipt_imports` guarda la huella SHA-256 de cada archivo, única. Uno idéntico responde 409 con la fecha de la carga anterior, y dos iguales a la vez se guardan una sola vez (BR-INV-15).
+- **Bloqueos como las entradas y las reservas:** los almacenes en modo compartido, y uno desactivado mientras la carga espera es un error de sus filas; las existencias, en orden ascendente de ID. Una prueba con otra sesión comprueba que la carga suma sobre lo que dejó un cambio que terminó antes.
+- **Una sección citada antes de comprobarla, otra vez:** el código citó `DATABASE.md` §15 para la tabla nueva, que va en §6.6; la práctica de la guía lo encontró antes del commit.
+- **Pruebas de mutación:** 44 mutantes, todos atrapados después de reforzar tres pruebas. Dos comparaban el error del archivo repetido con `toEqual`, que en un `Error` solo compara el mensaje, y no veían `importedAt`. La otra hacía esperar a la carga antes de su `FOR UPDATE`: `INSERT … ON CONFLICT` espera a la fila que otra sesión modifica, así que la sesión ahora la bloquea sin modificarla y la cambia mientras la carga espera.
+- **El CI de la parte a:** el paso de las imágenes falló dos veces por la red (Docker Hub y el registro de npm) y pasó al tercer intento. No se agregaron reintentos, como se acordó, porque no volvió a fallar.
+
+#### Siguiente versión
+
+Ninguna en curso: la siguiente necesita un plan aprobado (ADR-0159). ADR-0163 dejó previstas la 1.6, servicios y órdenes de trabajo (T-189), y la 1.7, promociones (T-200), cada una con su plan. La 1.5 dejó fuera actualizar productos desde un archivo, crear marcas y categorías desde él, publicar al cargar, las imágenes por URL, leer Excel, los conteos físicos y las cargas en segundo plano (ADR-0164). Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las de la 1.4.
 
 ### Versión 1.4 — Datos para el ticket, nota del pago y GTIN (2026-10-15)
 
