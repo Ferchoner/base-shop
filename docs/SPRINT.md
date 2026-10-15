@@ -6,7 +6,47 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.4, datos para el ticket, nota del pago y GTIN, se cerró el 2026-10-15 y se publica como la 1.4.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+1.5 — Carga masiva de productos y de existencias. Inicio: 2026-10-15 (plan aprobado ese día).
+
+### Goal
+
+Que el backoffice dé de alta un catálogo completo con archivos: los productos con sus variantes, sus precios y sus existencias, con plantillas, modo de prueba y errores por línea (ADR-0164).
+
+### Tasks
+
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.4 en la guía de desarrollo |
+| 1 | T-146 parte a: `POST /v1/admin/catalog/product-imports`, productos nuevos con sus variantes, en borrador; plantillas de productos y de precios |
+| 2 | T-146 parte b: `POST /v1/admin/inventory/receipt-imports`, entradas de mercancía por SKU y código de almacén, sin cargar dos veces el mismo archivo; plantilla de existencias |
+
+- **Criterio de cierre:** los criterios de aceptación de T-146, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.5.0 publicada con su tag y su GitHub Release (ADR-0159).
+- **Fuera de esta versión:** actualizar productos desde un archivo; crear marcas y categorías desde él; publicar al cargar; imágenes por URL; leer Excel; cargar conteos físicos; más de 5,000 filas o procesar en segundo plano; la columna de servicios, que llega con la 1.6; y todo lo que ADR-0158 dejó fuera del MVP.
+- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.5.0.
+- **Siguientes versiones, sin plan aprobado (ADR-0163):** la 1.6, servicios y órdenes de trabajo (T-189); y la 1.7, promociones (T-200).
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 164 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
+  - Prisma 7.10.0 sigue siendo la última versión estable (la 8 sigue en versión candidata, 8.0.0-rc.23);
+  - Dependabot sigue en pausa, salvo las actualizaciones de seguridad (ADR-0158).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.4:
+  - una variable que pasa a ser obligatoria en producción se agrega también a la prueba de humo de las imágenes, que corre en local antes del pull request;
+  - si Docker Desktop no arranca, se cierra y se abre otra vez; restablecerlo de fábrica borra sus volúmenes y necesita la autorización del usuario.
+
+### Risks
+
+- **Un error impide toda la carga:** es la protección contra las cargas a medias, y `dryRun` permite revisar el archivo antes.
+- **Tiempo de la transacción:** 5,000 filas tienen que caber en los 5 s de una transacción, con escrituras en bloque; una prueba de integración lo mide, como en los precios.
+- **Cargas simultáneas:** si dos toman el mismo slug o SKU a la vez, una falla completa con 409 y se repite.
+- **Existencias duplicadas:** un archivo idéntico a uno cargado se rechaza; uno con otra nota se suma.
+- **Cambios de contrato:** dos rutas nuevas, compatibles dentro de `/v1`; cada una queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
+
+### Review
+
+PENDIENTE.
 
 ---
 

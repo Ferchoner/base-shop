@@ -36,9 +36,9 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Módulo | Responsabilidad en el MVP | Fuera del MVP |
 |---|---|---|
 | Identity & Access | Registro, autenticación, verificación de email, cuentas de staff, roles, permisos, direcciones | 2FA (preparado, ADR-0048) |
-| Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | Código de barras del fabricante (GTIN) en la versión 1.4 (ADR-0163) |
+| Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | Código de barras del fabricante (GTIN) en la versión 1.4 (ADR-0163); carga masiva de productos en la 1.5 (ADR-0164) |
 | Pricing | Una lista predeterminada, precios inmediatos y programados | Listas adicionales (modelo preparado, ADR-0039) |
-| Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160) |
+| Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160); carga masiva de entradas en la versión 1.5 (ADR-0164) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
 | Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077), pedidos colocados por el staff (versión 1.2, ADR-0161) |
 | Payments | Pago manual en tienda, con su método desde la versión 1.2 (ADR-0161); habilitado desde la API en la versión 1.3 (ADR-0162) | PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
@@ -205,6 +205,7 @@ Criterios de aceptación:
 | UC-CAT-13 | Gestionar marcas | Staff (`catalog.write`) | BR-PRD-10, BR-PRD-13 |
 | UC-CAT-14 | Listado administrativo del catálogo | Staff (`catalog.read`) | ADR-0016 |
 | UC-CAT-15 | Buscar una variante por su código (SKU o GTIN) | Staff (`catalog.read`) | BR-PRD-19, ADR-0163 |
+| UC-CAT-16 | Carga masiva de productos con sus variantes | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-09, BR-PRD-19, ADR-0164 |
 
 Criterios de aceptación:
 
@@ -220,6 +221,7 @@ Criterios de aceptación:
 - **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
 - **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente (`storeVisibility`, ADR-0129).
 - **UC-CAT-15 (ADR-0163):** encuentra la variante por su SKU exacto, sin distinguir mayúsculas, o por su GTIN, aunque se lea con otros ceros a la izquierda; responde todas las coincidencias, las activas primero, con su producto y si coincidieron por SKU o por GTIN; sin coincidencias, una lista vacía.
+- **UC-CAT-16 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, una por variante, crea productos nuevos en borrador con sus variantes, con la marca y las categorías por su slug; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un slug que ya existe o un SKU ya usado es un error de su fila, así que repetir el archivo no cambia nada.
 - **UC-CAT-01 / 02 (implementación, ADR-0129):** filtrar por una categoría o marca que no existe, o que está oculta o inactiva, responde 400 con el mismo código. Las imágenes de variantes que no se venden no se muestran.
 
 ### 5.3 Pricing
@@ -256,6 +258,7 @@ Criterios de aceptación:
 | UC-INV-09 | Reintegrar stock de una orden cancelada o con envío devuelto | Staff (`inventory.write`) | BR-INV-10, ADR-0052, ADR-0053 |
 | UC-INV-10 | Crear un almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0160 |
 | UC-INV-11 | Desactivar un almacén | Staff (`inventory.write`) | BR-INV-08, ADR-0076, ADR-0160 |
+| UC-INV-12 | Carga masiva de entradas de mercancía | Staff (`inventory.write`) | BR-INV-08, BR-INV-13, ADR-0164 |
 
 Criterios de aceptación:
 
@@ -268,6 +271,7 @@ Criterios de aceptación:
 - **UC-INV-09 (implementación, ADR-0142):** exige `Idempotency-Key`; lo vendido cuenta solo si el stock de la orden se confirmó; un reintegro que pasaría de lo vendido en alguna línea no reintegra nada; la orden se bloquea, así que dos reintegros de la misma orden se esperan.
 - **UC-INV-10:** el almacén nace activo, con un código único de 2 a 20 mayúsculas, dígitos y guiones, y una prioridad de 1 a 1000; desde entonces recibe mercancía y reserva pedidos por su prioridad (ADR-0160).
 - **UC-INV-11:** para siempre (ADR-0076); se rechaza si el almacén tiene unidades reservadas o es el último activo. Conserva su stock, que los ajustes pueden mover. Una reserva o una entrada en curso en el almacén termina antes de la desactivación, y dos desactivaciones a la vez nunca dejan ninguno activo (ADR-0160).
+- **UC-INV-12 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, cada una una entrada de mercancía (UC-INV-02) por SKU y código de almacén activo; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un archivo idéntico a uno ya cargado se rechaza, con la fecha de la carga anterior.
 
 ### 5.5 Shopping
 
