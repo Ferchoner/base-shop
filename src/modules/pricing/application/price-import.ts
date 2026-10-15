@@ -1,4 +1,10 @@
-import { DomainError, MAX_MONEY_AMOUNT } from '../../../shared-kernel/index.js';
+import {
+  FileImportError,
+  type ImportRowError,
+  ImportRowErrors,
+  MAX_IMPORT_ERRORS,
+  MAX_MONEY_AMOUNT,
+} from '../../../shared-kernel/index.js';
 
 /** Most rows a bulk import takes (ADR-0126). */
 export const MAX_PRICE_IMPORT_ROWS = 5_000;
@@ -7,7 +13,7 @@ export const MAX_PRICE_IMPORT_ROWS = 5_000;
 export const MAX_PRICE_FILE_BYTES = 1_048_576;
 
 /** Most row errors an answer lists, the first ones by line (ADR-0126). */
-export const MAX_PRICE_IMPORT_ERRORS = 100;
+export const MAX_PRICE_IMPORT_ERRORS = MAX_IMPORT_ERRORS;
 
 /** The columns of the file, in any order (ADR-0126). */
 export const PRICE_FILE_COLUMNS = [
@@ -44,46 +50,23 @@ export interface PriceImportSummary {
   readonly dryRun: boolean;
 }
 
-/** One error of a row, with its path as `rows[<line>].<column>` (API_SPEC.md §6.1). */
-export interface PriceRowError {
-  readonly field: string;
-  readonly code: string;
-  readonly message: string;
-}
-
 /**
- * The file has errors, so nothing was imported (ADR-0126). Answered 400 `validation-error` with the first
+ * The price file has errors, so nothing was imported (ADR-0126). Answered 400 `validation-error` with the first
  * errors by line.
  */
-export class PriceImportError extends DomainError {
-  readonly code = 'validation-error';
-  readonly category = 'invalid';
-
-  constructor(errors: readonly PriceRowError[]) {
-    super('The price file has errors', {
-      errors: errors.slice(0, MAX_PRICE_IMPORT_ERRORS),
-    });
+export class PriceImportError extends FileImportError {
+  constructor(errors: readonly ImportRowError[]) {
+    super(errors, 'The price file has errors');
   }
 }
 
-/** The errors of the rows of a file, kept in the order of their lines. */
-export class PriceRowErrors {
-  private readonly errors: { line: number; error: PriceRowError }[] = [];
-
-  /** An error of a cell, or of the whole row without `column`. */
-  add(line: number, column: string | null, code: string, message: string) {
-    const field = column === null ? `rows[${line}]` : `rows[${line}].${column}`;
-    this.errors.push({ line, error: { field, code, message } });
-  }
-
-  /** @throws PriceImportError when there is any error. */
-  throwIfAny(): void {
-    if (this.errors.length === 0) return;
-    throw new PriceImportError(
-      [...this.errors]
-        .sort((a, b) => a.line - b.line)
-        .map(({ error }) => error),
-    );
+/** The errors of the rows of a price file, kept in the order of their lines. */
+export class PriceRowErrors extends ImportRowErrors {
+  /** @returns PriceImportError. */
+  protected override errorFor(
+    errors: readonly ImportRowError[],
+  ): PriceImportError {
+    return new PriceImportError(errors);
   }
 }
 

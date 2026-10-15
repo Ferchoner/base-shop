@@ -8,9 +8,29 @@ function prismaCode(error: unknown): unknown {
     : undefined;
 }
 
-/** A `UNIQUE` constraint rejected the row (Prisma P2002), for example a repeated role name. */
+/**
+ * The PostgreSQL code the adapter reports, such as `23505`. A raw query fails with P2010 and only this code, such as
+ * the bulk inserts of an import (ADR-0164); the other queries have a code of their own as well.
+ */
+function postgresCode(error: unknown): unknown {
+  return (
+    error as
+      | {
+          meta?: {
+            driverAdapterError?: { cause?: { originalCode?: unknown } };
+          };
+        }
+      | null
+      | undefined
+  )?.meta?.driverAdapterError?.cause?.originalCode;
+}
+
+/**
+ * A `UNIQUE` constraint rejected the row (Prisma P2002, or PostgreSQL 23505 in a raw query), for example a
+ * repeated role name.
+ */
 export function isUniqueViolation(error: unknown): boolean {
-  return prismaCode(error) === 'P2002';
+  return prismaCode(error) === 'P2002' || postgresCode(error) === '23505';
 }
 
 /**
@@ -30,9 +50,12 @@ export function uniqueViolationIndex(error: unknown): string | undefined {
   return typeof index === 'string' ? index : undefined;
 }
 
-/** A foreign key rejected the change (Prisma P2003), for example deleting a role that has users. */
+/**
+ * A foreign key rejected the change (Prisma P2003, or PostgreSQL 23503 in a raw query), for example deleting a
+ * role that has users.
+ */
 export function isForeignKeyViolation(error: unknown): boolean {
-  return prismaCode(error) === 'P2003';
+  return prismaCode(error) === 'P2003' || postgresCode(error) === '23503';
 }
 
 /**

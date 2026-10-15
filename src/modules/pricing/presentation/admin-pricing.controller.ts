@@ -22,6 +22,7 @@ import type { AuthenticatedUser } from '../../../platform/auth/authenticated-use
 import { RequirePermissions } from '../../../platform/auth/authorization.decorators.js';
 import { CurrentUser } from '../../../platform/auth/current-user.decorator.js';
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
+import type { UploadedCsvFile } from '../../../platform/files/csv-file.js';
 import { pathId } from '../../../platform/http/path-id.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { ImportPrices } from '../application/import-prices.use-case.js';
@@ -30,11 +31,7 @@ import {
   PricingQueries,
 } from '../application/pricing.queries.js';
 import { VariantPrices } from '../application/variant-prices.use-case.js';
-import {
-  PriceFileUpload,
-  readPriceFile,
-  type UploadedPriceFile,
-} from './price-file.js';
+import { PriceFileUpload, readPriceFile } from './price-file.js';
 import {
   PriceImportQueryDto,
   PriceImportSummaryDto,
@@ -181,7 +178,7 @@ export class AdminPricingController {
   @Post(':priceListId/imports')
   import(
     @Param('priceListId') priceListId: string,
-    @UploadedFile() file: UploadedPriceFile | undefined,
+    @UploadedFile() file: UploadedCsvFile | undefined,
     @Query() query: PriceImportQueryDto,
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<PriceImportSummaryDto> {

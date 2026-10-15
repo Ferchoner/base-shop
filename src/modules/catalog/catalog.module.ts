@@ -7,6 +7,7 @@ import { CatalogQueries } from './application/catalog.queries.js';
 import { ChangeBrandStatus } from './application/change-brand-status.use-case.js';
 import { CreateBrand } from './application/create-brand.use-case.js';
 import { CreateCategory } from './application/create-category.use-case.js';
+import { ImportProducts } from './application/import-products.use-case.js';
 import { CreateProduct } from './application/create-product.use-case.js';
 import { DeactivateCategory } from './application/deactivate-category.use-case.js';
 import { DeleteBrand } from './application/delete-brand.use-case.js';
@@ -47,6 +48,7 @@ import { AdminBrandsController } from './presentation/admin-brands.controller.js
 import { AdminCategoriesController } from './presentation/admin-categories.controller.js';
 import { AdminProductImagesController } from './presentation/admin-product-images.controller.js';
 import { AdminProductsController } from './presentation/admin-products.controller.js';
+import { AdminProductImportsController } from './presentation/admin-product-imports.controller.js';
 import { AdminVariantsController } from './presentation/admin-variants.controller.js';
 import { CatalogController } from './presentation/catalog.controller.js';
 import { imageUploadOptions } from './presentation/image-upload.js';
@@ -92,6 +94,7 @@ export function imageUploads(): DynamicModule {
     AdminProductsController,
     AdminProductImagesController,
     AdminVariantsController,
+    AdminProductImportsController,
   ],
   providers: [
     CatalogFacade,
@@ -110,6 +113,7 @@ export function imageUploads(): DynamicModule {
     ProductLifecycle,
     ProductVariants,
     ProductImages,
+    ImportProducts,
     Storefront,
     { provide: CategoryRepository, useClass: PrismaCategoryRepository },
     { provide: BrandRepository, useClass: PrismaBrandRepository },

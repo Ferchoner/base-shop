@@ -1,11 +1,6 @@
-import { PayloadTooLargeException } from '@nestjs/common';
-import { lastValueFrom, throwError } from 'rxjs';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
-import {
-  MAX_PRICE_FILE_BYTES,
-  MAX_PRICE_IMPORT_ROWS,
-} from '../application/price-import.js';
-import { PriceFileLimit, readPriceFile } from './price-file.js';
+import { MAX_PRICE_IMPORT_ROWS } from '../application/price-import.js';
+import { readPriceFile } from './price-file.js';
 
 const file = (text: string | Uint8Array) => ({
   buffer: Buffer.from(typeof text === 'string' ? text : text),
@@ -123,35 +118,5 @@ describe('readPriceFile (UC-PRC-05, ADR-0126)', () => {
         }),
       ],
     });
-  });
-});
-
-describe('PriceFileLimit', () => {
-  const failing = (error: unknown) => ({
-    handle: () => throwError(() => error),
-  });
-
-  it('answers the 413 of multer with maxBytes', async () => {
-    const answered = lastValueFrom(
-      new PriceFileLimit().intercept(
-        {} as never,
-        failing(new PayloadTooLargeException()),
-      ),
-    );
-
-    await expect(answered).rejects.toMatchObject({
-      code: 'payload-too-large',
-      extensions: { maxBytes: MAX_PRICE_FILE_BYTES },
-    });
-  });
-
-  it('lets any other error through', async () => {
-    const other = new Error('The disk is full');
-
-    await expect(
-      lastValueFrom(
-        new PriceFileLimit().intercept({} as never, failing(other)),
-      ),
-    ).rejects.toBe(other);
   });
 });

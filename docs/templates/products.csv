@@ -1,0 +1,5 @@
+slug,title,description,brand,categories,sku,gtin,option:talla,option:color,weightGrams,lengthCm,widthCm,heightCm
+camisa-lino,Camisa de lino,"Camisa de lino fresca y ligera, ideal para el calor.",marca-ejemplo,camisas|hombre,CAM-LINO-M-BL,7501055363063,M,Blanco,250,30,20,3
+camisa-lino,,,,,CAM-LINO-G-BL,,G,Blanco,260,30,20,3
+camisa-lino,,,,,CAM-LINO-M-AZ,,M,Azul,250,30,20,3
+gorra-algodon,Gorra de algodón,Gorra ajustable de algodón.,marca-ejemplo,accesorios,GORRA-ALG,,,,120,,,

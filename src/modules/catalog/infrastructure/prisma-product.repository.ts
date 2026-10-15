@@ -68,6 +68,107 @@ export class PrismaProductRepository extends ProductRepository {
     }
   }
 
+  /**
+   * Three statements that take arrays (ADR-0164), like the bulk import of prices (ADR-0126): `createMany` builds
+   * every row in the client, and took 8 s for 5,000 products with 10 categories each.
+   */
+  async insertNew(products: readonly Product[], now: Date): Promise<void> {
+    if (products.length === 0) return;
+    const tx = this.txHost.tx;
+    const states = products.map((product) => product.snapshot());
+    const links = states.flatMap((state) =>
+      state.categoryIds.map((categoryId) => ({
+        productId: state.id,
+        categoryId,
+      })),
+    );
+    const variants = states.flatMap((state) =>
+      state.variants.map((variant) => ({ productId: state.id, variant })),
+    );
+    try {
+      try {
+        await tx.$executeRaw`
+          INSERT INTO products (id, title, slug, description, brand_id, status, version, created_at, updated_at)
+          SELECT row.id, row.title, row.slug, row.description, row.brand_id, row.status, row.version, ${now}, ${now}
+            FROM unnest(
+                   ${states.map(({ id }) => id)}::uuid[],
+                   ${states.map(({ title }) => title)}::text[],
+                   ${states.map(({ slug }) => slug)}::text[],
+                   ${states.map(({ description }) => description)}::text[],
+                   ${states.map(({ brandId }) => brandId)}::uuid[],
+                   ${states.map(({ status }) => status)}::product_status[],
+                   ${states.map(({ version }) => version)}::integer[]
+                 ) AS row(id, title, slug, description, brand_id, status, version)`;
+      } catch (error) {
+        // A brand was deleted after it was checked.
+        if (isForeignKeyViolation(error)) {
+          throw new UnusableBrandError('unknown');
+        }
+        throw error;
+      }
+      try {
+        await tx.$executeRaw`
+          INSERT INTO product_categories (product_id, category_id)
+          SELECT row.product_id, row.category_id
+            FROM unnest(
+                   ${links.map(({ productId }) => productId)}::uuid[],
+                   ${links.map(({ categoryId }) => categoryId)}::uuid[]
+                 ) AS row(product_id, category_id)`;
+      } catch (error) {
+        // A category was deleted after it was checked.
+        if (isForeignKeyViolation(error)) {
+          throw new UnusableCategoriesError('unknown');
+        }
+        throw error;
+      }
+      const measure = (value: number | null) =>
+        value === null ? null : String(value);
+      await tx.$executeRaw`
+        INSERT INTO product_variants (id, product_id, sku, gtin, gtin_key, options, status, weight_grams,
+                                      length_cm, width_cm, height_cm, created_at, updated_at)
+        SELECT row.id, row.product_id, row.sku, row.gtin, row.gtin_key, row.options::jsonb, row.status,
+               row.weight_grams, row.length_cm, row.width_cm, row.height_cm, ${now}, ${now}
+          FROM unnest(
+                 ${variants.map(({ variant }) => variant.id)}::uuid[],
+                 ${variants.map(({ productId }) => productId)}::uuid[],
+                 ${variants.map(({ variant }) => variant.sku)}::text[],
+                 ${variants.map(({ variant }) => variant.gtin)}::text[],
+                 ${variants.map(({ variant }) => (variant.gtin === null ? null : gtinKey(variant.gtin)))}::text[],
+                 ${variants.map(({ variant }) => JSON.stringify(variant.options))}::text[],
+                 ${variants.map(({ variant }) => variant.status)}::variant_status[],
+                 ${variants.map(({ variant }) => variant.weightGrams)}::integer[],
+                 ${variants.map(({ variant }) => measure(variant.lengthCm))}::numeric[],
+                 ${variants.map(({ variant }) => measure(variant.widthCm))}::numeric[],
+                 ${variants.map(({ variant }) => measure(variant.heightCm))}::numeric[]
+               ) AS row(id, product_id, sku, gtin, gtin_key, options, status, weight_grams, length_cm,
+                        width_cm, height_cm)`;
+    } catch (error) {
+      const field = DUPLICATE_FIELDS[uniqueViolationIndex(error) ?? ''];
+      if (field !== undefined) throw new DuplicateValueError(field);
+      throw error;
+    }
+  }
+
+  async takenSkus(skus: readonly string[]): Promise<ReadonlySet<string>> {
+    if (skus.length === 0) return new Set();
+    const rows = await this.txHost.tx.productVariant.findMany({
+      select: { sku: true },
+      where: { sku: { in: [...skus] } },
+    });
+    return new Set(rows.map((row) => row.sku));
+  }
+
+  async takenGtinKeys(keys: readonly string[]): Promise<ReadonlySet<string>> {
+    if (keys.length === 0) return new Set();
+    const rows = await this.txHost.tx.productVariant.findMany({
+      select: { gtinKey: true },
+      where: { gtinKey: { in: [...keys] }, status: 'ACTIVE' },
+    });
+    return new Set(
+      rows.flatMap(({ gtinKey }) => (gtinKey === null ? [] : [gtinKey])),
+    );
+  }
+
   async takenSlugs(slugs: readonly string[]): Promise<ReadonlySet<string>> {
     const rows = await this.txHost.tx.product.findMany({
       select: { slug: true },
@@ -149,17 +250,7 @@ export class PrismaProductRepository extends ProductRepository {
     );
     for (const variant of variants) {
       const before = stored.get(variant.id);
-      const data = {
-        sku: variant.sku,
-        gtin: variant.gtin,
-        gtinKey: variant.gtin === null ? null : gtinKey(variant.gtin),
-        options: variant.options,
-        status: variant.status,
-        weightGrams: variant.weightGrams,
-        lengthCm: variant.lengthCm,
-        widthCm: variant.widthCm,
-        heightCm: variant.heightCm,
-      };
+      const data = variantData(variant);
       if (before === undefined) {
         await tx.productVariant.create({
           data: { id: variant.id, productId, ...data },
@@ -169,6 +260,21 @@ export class PrismaProductRepository extends ProductRepository {
       }
     }
   }
+}
+
+/** The columns of a variant, but its ID and product. */
+function variantData(variant: VariantSnapshot) {
+  return {
+    sku: variant.sku,
+    gtin: variant.gtin,
+    gtinKey: variant.gtin === null ? null : gtinKey(variant.gtin),
+    options: variant.options,
+    status: variant.status,
+    weightGrams: variant.weightGrams,
+    lengthCm: variant.lengthCm,
+    widthCm: variant.widthCm,
+    heightCm: variant.heightCm,
+  };
 }
 
 function toProduct(row: ProductRow): Product {

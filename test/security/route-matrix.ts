@@ -123,6 +123,7 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
     access: ['catalog.write'],
   },
   'GET /v1/admin/catalog/variants/lookup': { access: ['catalog.read'] },
+  'POST /v1/admin/catalog/product-imports': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products': { access: ['catalog.read'] },
   'POST /v1/admin/catalog/products': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products/:productId': { access: ['catalog.read'] },
