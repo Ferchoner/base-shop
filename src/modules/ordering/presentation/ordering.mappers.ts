@@ -13,7 +13,6 @@ import {
 } from '../application/order-values.js';
 import type {
   AdminOrderSummaryView,
-  AdminOrderView,
   OrderLineView,
   OrderSummaryView,
   OrderView,
