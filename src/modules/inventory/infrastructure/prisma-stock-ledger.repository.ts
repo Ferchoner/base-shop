@@ -10,10 +10,12 @@ import type {
   StockMovementType,
 } from '../domain/stock.js';
 import {
+  type ComputedReceipt,
   type RestockEntry,
   type RestockOrigin,
   type StockChange,
   type StockEntry,
+  type StockKey,
   StockLedgerRepository,
 } from '../domain/stock-ledger.repository.js';
 
@@ -46,6 +48,64 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
     const stock = await this.change(entry, false);
     if (stock === null) throw new Error('A receipt always applies');
     return this.record(stock, entry, 'RECEIPT', null);
+  }
+
+  async lockItems(keys: readonly StockKey[], at: Date): Promise<StockLevel[]> {
+    const tx = this.txHost.tx;
+    const variantIds = keys.map(({ variantId }) => variantId);
+    const warehouseIds = keys.map(({ warehouseId }) => warehouseId);
+    // The first receipts of a variant in a warehouse create its stock item; two imports at the same time create it
+    // once, in the same order.
+    await tx.$executeRaw`
+      INSERT INTO stock_items (id, variant_id, warehouse_id, on_hand, reserved, created_at, updated_at)
+      SELECT row.id, row.variant_id, row.warehouse_id, 0, 0, ${at}, ${at}
+        FROM unnest(
+               ${keys.map(() => newId<'StockItem'>())}::uuid[],
+               ${variantIds}::uuid[],
+               ${warehouseIds}::uuid[]
+             ) AS row(id, variant_id, warehouse_id)
+       ORDER BY row.variant_id, row.warehouse_id
+      ON CONFLICT (variant_id, warehouse_id) DO NOTHING`;
+    // In ascending ID order, like reservations (BR-INV-14), so they never wait for each other in a circle.
+    const rows = await tx.$queryRaw<StockRow[]>`
+      SELECT item.id, item.variant_id, item.warehouse_id, item.on_hand, item.reserved, item.updated_at
+        FROM stock_items AS item
+        JOIN unnest(${variantIds}::uuid[], ${warehouseIds}::uuid[]) AS wanted(variant_id, warehouse_id)
+          ON item.variant_id = wanted.variant_id AND item.warehouse_id = wanted.warehouse_id
+       ORDER BY item.id
+         FOR UPDATE OF item`;
+    return rows.map(toLevel);
+  }
+
+  async writeReceipts(
+    receipts: readonly ComputedReceipt[],
+    at: Date,
+  ): Promise<void> {
+    const tx = this.txHost.tx;
+    // The last receipt of each stock item leaves its `onHand`.
+    const onHand = new Map(
+      receipts.map(({ stockItemId, onHandAfter }) => [
+        stockItemId,
+        onHandAfter,
+      ]),
+    );
+    await tx.$executeRaw`
+      UPDATE stock_items
+         SET on_hand = received.on_hand, updated_at = ${at}
+        FROM unnest(${[...onHand.keys()]}::uuid[], ${[...onHand.values()]}::int[])
+             AS received(id, on_hand)
+       WHERE stock_items.id = received.id`;
+    await tx.$executeRaw`
+      INSERT INTO stock_movements (id, stock_item_id, type, quantity, on_hand_after, note, actor_id, created_at)
+      SELECT row.id, row.stock_item_id, 'RECEIPT', row.quantity, row.on_hand_after, row.note, row.actor_id, ${at}
+        FROM unnest(
+               ${receipts.map(({ movementId }) => movementId)}::uuid[],
+               ${receipts.map(({ stockItemId }) => stockItemId)}::uuid[],
+               ${receipts.map(({ quantity }) => quantity)}::int[],
+               ${receipts.map(({ onHandAfter }) => onHandAfter)}::int[],
+               ${receipts.map(({ note }) => note)}::text[],
+               ${receipts.map(({ actorId }) => actorId)}::uuid[]
+             ) AS row(id, stock_item_id, quantity, on_hand_after, note, actor_id)`;
   }
 
   async adjust(
@@ -161,16 +221,7 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
            WHERE variant_id = ${entry.variantId}::uuid AND warehouse_id = ${entry.warehouseId}::uuid
        RETURNING id, variant_id, warehouse_id, on_hand, reserved, updated_at`;
     const [row] = rows;
-    return row === undefined
-      ? null
-      : {
-          id: toId<'StockItem'>(row.id),
-          variantId: toId<'Variant'>(row.variant_id),
-          warehouseId: toId<'Warehouse'>(row.warehouse_id),
-          onHand: row.on_hand,
-          reserved: row.reserved,
-          updatedAt: row.updated_at,
-        };
+    return row === undefined ? null : toLevel(row);
   }
 
   /** The movement of a change, in the same transaction (BR-INV-13); a restock names its order and line. */
@@ -213,4 +264,15 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
       },
     };
   }
+}
+
+function toLevel(row: StockRow): StockLevel {
+  return {
+    id: toId<'StockItem'>(row.id),
+    variantId: toId<'Variant'>(row.variant_id),
+    warehouseId: toId<'Warehouse'>(row.warehouse_id),
+    onHand: row.on_hand,
+    reserved: row.reserved,
+    updatedAt: row.updated_at,
+  };
 }

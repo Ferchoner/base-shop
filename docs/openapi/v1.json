@@ -5688,6 +5688,28 @@
         ],
         "type": "object"
       },
+      "ReceiptImportSummaryDto": {
+        "properties": {
+          "dryRun": {
+            "description": "`true` si solo se validó el archivo, sin guardar entradas.",
+            "type": "boolean"
+          },
+          "rows": {
+            "description": "Filas del archivo, sin el encabezado: una entrada de mercancía cada una.",
+            "type": "number"
+          },
+          "units": {
+            "description": "Unidades recibidas, la suma de las cantidades.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rows",
+          "units",
+          "dryRun"
+        ],
+        "type": "object"
+      },
       "RecordTrackingDto": {
         "properties": {
           "carrierName": {
@@ -13939,6 +13961,137 @@
           }
         ],
         "summary": "Ajustar el stock con un motivo",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.write"
+        ]
+      }
+    },
+    "/v1/admin/inventory/receipt-imports": {
+      "post": {
+        "description": "CSV en UTF-8 con las columnas sku, warehouse (el código del almacén, activo) y quantity (de 1 a 100,000), obligatorias, y note, opcional, en cualquier orden. Cada fila suma sus unidades a la existencia de la variante en el almacén y deja su movimiento. Todo o nada: con un error en cualquier fila no se carga ninguna. Un archivo idéntico a uno ya cargado responde 409, para no sumar dos veces. Hasta 5,000 filas y 1 MB.",
+        "operationId": "AdminReceiptImportsController_import_v1",
+        "parameters": [
+          {
+            "description": "Valida el archivo y responde el resumen sin guardar nada.",
+            "in": "query",
+            "name": "dryRun",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptImportSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`duplicate-value`: Valor duplicado"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`payload-too-large`: Contenido demasiado grande"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cargar entradas de mercancía desde un archivo CSV",
         "tags": [
           "Administración: inventario"
         ],

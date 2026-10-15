@@ -52,6 +52,10 @@ class FixedCatalog extends CatalogVariants {
     return Promise.reject(new Error('not used'));
   }
 
+  findBySkus(): Promise<Map<string, VariantId>> {
+    return Promise.reject(new Error('not used'));
+  }
+
   labels(ids: readonly VariantId[]): Promise<Map<VariantId, VariantLabel>> {
     this.asked.push('labels');
     return Promise.resolve(
