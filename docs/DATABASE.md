@@ -410,6 +410,22 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | stock_item_id | uuid | PK compuesta; FK → `stock_items.id` `RESTRICT` |
 | quantity | integer | `CHECK (quantity > 0)` |
 
+### 6.6 `stock_receipt_imports`
+
+Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`, para no cargarlo dos veces (T-146 parte b, ADR-0164, BR-INV-15).
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK |
+| file_sha256 | char(64) | No | Huella SHA-256 de los bytes del archivo, en hexadecimal en minúsculas; `UNIQUE`; `CHECK (file_sha256 ~ '^[0-9a-f]{64}$')` |
+| rows | integer | No | Filas del archivo; `CHECK (rows > 0)` |
+| units | integer | No | Unidades recibidas; `CHECK (units > 0)` |
+| created_by | uuid | No | Quién lo cargó; referencia lógica a `users` |
+| created_at | timestamptz(3) | No | Lo escribe el reloj de la API (ADR-0124) |
+
+- **Uso:** la carga inserta su fila antes que nada en su transacción. Si llega el mismo archivo a la vez, la segunda espera en el índice único y falla cuando la primera confirma; una carga con `dryRun` la deshace.
+- **Escrituras de la carga:** crea las existencias que faltan con `INSERT … ON CONFLICT DO NOTHING`, las bloquea en orden ascendente de ID (BR-INV-14), y escribe su `on_hand` y los movimientos con sentencias que reciben arreglos (`unnest`).
+
 ---
 
 ## 7. Shopping

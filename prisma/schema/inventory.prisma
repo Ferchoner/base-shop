@@ -117,3 +117,19 @@ model ReservationLine {
   @@id([reservationId, stockItemId])
   @@map("reservation_lines")
 }
+
+/// A file of receipts already imported, so the same file is not imported twice (ADR-0164).
+model StockReceiptImport {
+  id         String   @id @db.Uuid
+  /// SHA-256 of the bytes of the file, in lowercase hexadecimal. CHECK: 64 hexadecimal digits (manual SQL).
+  fileSha256 String   @unique @map("file_sha256") @db.Char(64)
+  /// CHECK: above 0 (manual SQL).
+  rows       Int
+  /// CHECK: above 0 (manual SQL).
+  units      Int
+  /// The staff member who imported it; a logical reference to Identity.
+  createdBy  String   @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("stock_receipt_imports")
+}

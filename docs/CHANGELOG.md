@@ -8,6 +8,10 @@
   - `POST /v1/admin/catalog/product-imports` (`catalog.write`, UC-CAT-16) crea productos nuevos en borrador con sus variantes desde un CSV de hasta 5,000 filas y 5 MB, una por variante, con la marca y las categorías por su slug y una columna `option:<nombre>` por opción. Todo o nada, con los errores por línea y columna, y `?dryRun=true`. Se audita como `products.import`.
   - La carga de precios usa las mismas piezas, con sus mismas reglas; el mensaje del error `columns` dice ahora qué columna falta, no reconoce o repite.
   - Las plantillas de las cargas de productos y de precios, con su guía, están en `docs/templates/`.
+- T-146 parte b (ADR-0164); con ella, T-146 queda en DONE. La carga masiva de existencias.
+  - `POST /v1/admin/inventory/receipt-imports` (`inventory.write`, UC-INV-12) registra entradas de mercancía desde un CSV de hasta 5,000 filas y 1 MB, con el SKU de la variante, el código de un almacén activo, la cantidad y una nota opcional. Todo o nada, con los errores por línea y columna, y `?dryRun=true`. Se audita como `inventory.receipt-import`.
+  - El mismo archivo no se carga dos veces: uno con los mismos bytes responde 409 `duplicate-value` con `field: "file"` e `importedAt` (BR-INV-15). La tabla nueva `stock_receipt_imports` guarda su huella.
+  - La plantilla de existencias está en `docs/templates/stock.csv`.
 
 ## 1.4.0 (2026-10-15)
 

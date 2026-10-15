@@ -26,6 +26,13 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
     );
   }
 
+  async findByCodes(codes: readonly string[]): Promise<Warehouse[]> {
+    const rows = await this.txHost.tx.warehouse.findMany({
+      where: { code: { in: [...codes] } },
+    });
+    return rows.map((row) => toWarehouse(row)!);
+  }
+
   async lockActive(): Promise<Warehouse[]> {
     const rows = await this.txHost.tx.$queryRaw<WarehouseRow[]>`
       SELECT id, code, name, address, status, priority FROM warehouses
@@ -41,6 +48,15 @@ export class PrismaWarehouseRepository extends WarehouseRepository {
        WHERE id = ${id}::uuid
          FOR SHARE`;
     return toWarehouse(row ?? null);
+  }
+
+  async lockManyForStock(ids: readonly WarehouseId[]): Promise<Warehouse[]> {
+    const rows = await this.txHost.tx.$queryRaw<WarehouseRow[]>`
+      SELECT id, code, name, address, status, priority FROM warehouses
+       WHERE id = ANY(${[...ids]}::uuid[])
+       ORDER BY id
+         FOR SHARE`;
+    return rows.map((row) => toWarehouse(row)!);
   }
 
   async reservedUnits(id: WarehouseId): Promise<number> {

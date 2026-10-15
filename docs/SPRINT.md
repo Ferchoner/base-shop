@@ -48,6 +48,17 @@ T-146 parte a (ADR-0164).
 - **Plantillas:** `docs/templates/` tiene las de productos y precios, con su README; la prueba end-to-end las importa como las guarda Excel.
 - **Pruebas de mutación:** 92 mutantes, todos atrapados. Antes de correrlas se quitaron tres condiciones que no cambiaban nada y se agregaron cuatro casos: categorías vacías y repetidas, 10 categorías y una lista de exactamente 5.
 
+### Resultado del paso 2
+
+T-146 parte b (ADR-0164); T-146 queda en DONE.
+
+- **La carga de existencias:** `POST /v1/admin/inventory/receipt-imports`. Cada fila es una entrada de mercancía por SKU y código de almacén, en el orden del archivo, y todo se escribe en una transacción con sentencias que reciben arreglos.
+- **Un archivo, una vez:** la tabla nueva `stock_receipt_imports` guarda la huella SHA-256 de cada archivo, única. Uno idéntico responde 409 con la fecha de la carga anterior, y dos iguales a la vez se guardan una sola vez (BR-INV-15).
+- **Bloqueos como las entradas y las reservas:** los almacenes en modo compartido, y uno desactivado mientras la carga espera es un error de sus filas; las existencias, en orden ascendente de ID. Una prueba con otra sesión comprueba que la carga suma sobre lo que dejó un cambio que terminó antes.
+- **Una sección citada antes de comprobarla, otra vez:** el código citó `DATABASE.md` §15 para la tabla nueva, que va en §6.6; la práctica de la guía lo encontró antes del commit.
+- **Pruebas de mutación:** 44 mutantes, todos atrapados después de reforzar tres pruebas. Dos comparaban el error del archivo repetido con `toEqual`, que en un `Error` solo compara el mensaje, y no veían `importedAt`. La otra hacía esperar a la carga antes de su `FOR UPDATE`: `INSERT … ON CONFLICT` espera a la fila que otra sesión modifica, así que la sesión ahora la bloquea sin modificarla y la cambia mientras la carga espera.
+- **El CI de la parte a:** el paso de las imágenes falló dos veces por la red (Docker Hub y el registro de npm) y pasó al tercer intento. No se agregaron reintentos, como se acordó, porque no volvió a fallar.
+
 ### Risks
 
 - **Un error impide toda la carga:** es la protección contra las cargas a medias, y `dryRun` permite revisar el archivo antes.

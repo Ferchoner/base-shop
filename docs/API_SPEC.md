@@ -283,7 +283,7 @@ Error de validación:
 | `insufficient-stock` | 409 | E-07 | No se puede reservar alguna línea | `lines` (`variantId`, `canFulfill`): las que le faltan al almacén más cercano (ADR-0160) |
 | `variant-not-sellable` | 409 | E-10 | Variante no publicada, descontinuada o sin precio | `variantIds` |
 | `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120, ADR-0123) |
-| `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado | `field` |
+| `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado, o un archivo de entradas ya cargado | `field`; `importedAt` en el archivo de entradas (ADR-0164) |
 | `resource-in-use` | 409 | E-14 | Borrado de entidad con referencias | — |
 | `price-period-conflict` | 409 | E-15 | Periodo superpuesto o ya iniciado | `reason`: `overlap` u `already-started` (ADR-0125) |
 | `idempotency-request-in-progress` | 409 | E-25 | Solicitud original aún en proceso | — |
@@ -1170,6 +1170,7 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | GET | `/v1/admin/inventory/stock-items/{stockItemId}/movements` | `inventory.read` | UC-INV-04 |
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
 | POST | `/v1/admin/inventory/adjustments` | `inventory.write` | UC-INV-03 |
+| POST | `/v1/admin/inventory/receipt-imports` | `inventory.write` | UC-INV-12 (ADR-0164) |
 
 El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
@@ -1218,6 +1219,31 @@ Implementado en T-160 parte a (ADR-0127), salvo los reintegros (T-161, sección 
 - **Auditoría:** `inventory.receipt`, `inventory.adjustment`, `warehouses.update`, y desde T-162 `warehouses.create` y `warehouses.deactivate`.
 
 UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
+
+**`POST …/receipt-imports`** — Carga masiva de entradas de mercancía (UC-INV-12, ADR-0164), con las reglas de la carga de precios (§12). Recibe `multipart/form-data` con el archivo en `file`. Con `?dryRun=true` revisa todo y responde sin guardar nada. La plantilla de ejemplo es `docs/templates/stock.csv`.
+
+- **Archivo:** CSV en UTF-8 (con o sin BOM), separado por comas y con encabezado; hasta 5,000 filas y 1 MB. Columnas `sku`, `warehouse` y `quantity`, obligatorias, y `note`, opcional, cada una una vez, en cualquier orden y sin distinguir mayúsculas.
+
+  ```
+  sku,warehouse,quantity,note
+  CAM-LINO-M,PRINCIPAL,25,Remisión 1234
+  GORRA-AZUL,TIENDA,40,
+  ```
+
+- **Cada fila es una entrada de mercancía** (`POST …/receipts`): suma sus unidades a la existencia de la variante en el almacén, que se crea si no existía, y deja su movimiento `RECEIPT` con la nota y quién lo registró. Un SKU puede repetirse, también en el mismo almacén, y cada fila deja su movimiento, en el orden del archivo.
+- **Valores:**
+  - `sku`: el de una variante en cualquier estado, sin distinguir mayúsculas;
+  - `warehouse`: el código de un almacén activo, sin distinguir mayúsculas;
+  - `quantity`: entero de 1 a 100,000;
+  - `note`: hasta 500 caracteres; vacía, sin nota.
+- **El mismo archivo no se carga dos veces:** un archivo con los mismos bytes que uno ya cargado responde 409 `duplicate-value` con `field: "file"` e `importedAt`, la fecha de la carga anterior, también con `dryRun`. Una entrega igual de verdad cambia la nota, por ejemplo con el número de remisión. Si el mismo archivo llega dos veces a la vez, solo una carga se guarda.
+- **Todo o nada:** con cualquier error no se importa nada. Responde 400 `validation-error` con los primeros 100 errores ordenados por línea, en `rows[<línea>].<columna>`; el encabezado es la línea 1, y `rows[<línea>]` sola indica que faltan o sobran valores.
+  - Códigos de fila: `isNotEmpty`, `quantity`, `maxLength`, `unknownSku`, `unknownWarehouse`, `inactiveWarehouse` (también si se desactiva mientras la carga espera), `onHandLimit` (la existencia pasaría de 2,147,483,647 unidades) y `columnCount`.
+  - Errores del archivo, en `file`: `isDefined`, `utf8`, `csv`, `columns`, `emptyFile` y `tooManyRows`.
+- **Response 200:** `{ "rows": 2, "units": 65, "dryRun": false }`.
+- **Errores:** 413 `payload-too-large` con `maxBytes` para un archivo de más de 1 MB.
+- **Bloqueos:** una sola transacción comparte el bloqueo de los almacenes del archivo, como una entrada, y bloquea sus existencias en orden ascendente de ID, como las reservas (BR-INV-14); un cambio de existencia en curso termina antes, y la carga suma sobre lo que dejó.
+- **Auditoría:** una entrada `inventory.receipt-import`, sobre el recurso `stock-receipt-import`, con los conteos y la huella del archivo. Una carga con `dryRun` no se audita.
 
 Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva todo o nada (`reserve`), confirma (`commit`) y libera (`release`) por orden, y responde por línea si una cantidad puede surtirse (`canFulfill`), sin revelar existencias. Desde T-162 parte a (ADR-0160), `reserve` usa un solo almacén por orden, el primero por prioridad que la tiene toda; `canFulfillTogether` responde si cada línea cabe junto con las demás, y `allocationOf` da los almacenes de la reserva confirmada. Una reserva dura `RESERVATION_TTL` (20 minutos por defecto). Se puede confirmar mientras esté activa, hasta que el job de T-230 la venza.
 
@@ -1762,6 +1788,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-INV-01 a 04 | Sección 13 |
 | UC-INV-09 | Sección 15.7 (ADR-0132) |
 | UC-INV-10 y 11 | Sección 13 (ADR-0160) |
+| UC-INV-12 | Sección 13 (ADR-0164) |
 | UC-INV-05 a 08 | Sin API: checkout, eventos y jobs |
 | UC-CRT-01 a 06, 09 | Sección 14 |
 | UC-CRT-07, 08 | Sin API: job y evento `OrderExpired` |

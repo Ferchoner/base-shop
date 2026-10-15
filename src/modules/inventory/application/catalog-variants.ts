@@ -27,4 +27,9 @@ export abstract class CatalogVariants {
 
   /** The variant with this SKU, whatever its case, or `null`. */
   abstract findBySku(sku: string): Promise<VariantId | null>;
+
+  /** The variants with these SKUs, in any status, by their SKU in uppercase; an unknown SKU is left out (ADR-0164). */
+  abstract findBySkus(
+    skus: readonly string[],
+  ): Promise<ReadonlyMap<string, VariantId>>;
 }

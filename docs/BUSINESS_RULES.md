@@ -78,6 +78,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-INV-12. El público solo ve si una variante está disponible o agotada, nunca cantidades: disponible si algún almacén activo tiene una unidad libre. El carrito indica por línea si algún almacén puede surtir la cantidad pedida; la cotización, si la línea cabe en el pedido junto con las demás, según el almacén más cercano (ADR-0061, ADR-0160).
 - BR-INV-13. Los movimientos de stock son append-only: nunca se modifican ni se borran. Todo cambio de `onHand` escribe su movimiento en la misma transacción, y la suma de movimientos de un stock item debe igualar su `onHand` (ADR-0011, ADR-0066).
 - BR-INV-14. Las reservas actualizan cada stock item en orden ascendente de identificador, para evitar bloqueos mutuos entre transacciones concurrentes (ADR-0066).
+- BR-INV-15. Un archivo de entradas de mercancía se carga una sola vez: otro con los mismos bytes se rechaza, porque sumaría dos veces sus unidades (ADR-0164).
 
 ## Datos personales
 

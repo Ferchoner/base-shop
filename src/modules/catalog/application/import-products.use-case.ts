@@ -590,8 +590,10 @@ function build(
 
 /** The Spanish message of an error of one field. */
 function messageOf(error: OptionNamesMismatchError): string {
-  const [field] = error.details?.errors as readonly { message: string }[];
-  return field.message;
+  const errors = (error.details?.errors ?? []) as readonly {
+    message: string;
+  }[];
+  return errors[0].message;
 }
 
 /** The first values of a list, and how many more there are. */
