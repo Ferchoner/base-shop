@@ -199,6 +199,9 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/identity/staff/:userId/suspend': { access: ['staff.manage'] },
 
   // Staff: inventory, with the permissions of the catalog in code (ADR-0111).
+  'POST /v1/admin/inventory/receipt-imports': {
+    access: ['inventory.write'],
+  },
   'POST /v1/admin/inventory/adjustments': { access: ['inventory.write'] },
   'POST /v1/admin/inventory/receipts': { access: ['inventory.write'] },
   'GET /v1/admin/inventory/stock-items': { access: ['inventory.read'] },

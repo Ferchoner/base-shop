@@ -1,6 +1,7 @@
 import type {
   AdjustmentReason,
   RestockReason,
+  StockItemId,
   StockLevel,
   StockMovement,
   StockMovementId,
@@ -38,6 +39,22 @@ export interface RestockOrigin {
   readonly units: number;
 }
 
+/** The stock of a variant in a warehouse. */
+export interface StockKey {
+  readonly variantId: VariantId;
+  readonly warehouseId: WarehouseId;
+}
+
+/** A receipt of a bulk import, with the `onHand` it leaves, computed on the locked stock item (ADR-0164). */
+export interface ComputedReceipt {
+  readonly movementId: StockMovementId;
+  readonly stockItemId: StockItemId;
+  readonly quantity: number;
+  readonly onHandAfter: number;
+  readonly note: string | null;
+  readonly actorId: string;
+}
+
 /** The stock after a change and the movement written with it. */
 export interface StockChange {
   readonly stock: StockLevel;
@@ -53,6 +70,25 @@ export interface StockChange {
 export abstract class StockLedgerRepository {
   /** Adds a receipt, creating the stock item of the variant in the warehouse on its first one (UC-INV-02). */
   abstract receive(entry: StockEntry): Promise<StockChange>;
+
+  /**
+   * The stock items of these variants in these warehouses, for a bulk import of receipts (ADR-0164): it creates
+   * those that do not exist, with no units, and locks them all until the transaction ends in ascending ID order,
+   * like reservations (BR-INV-14).
+   */
+  abstract lockItems(
+    keys: readonly StockKey[],
+    at: Date,
+  ): Promise<StockLevel[]>;
+
+  /**
+   * Writes the receipts of a bulk import on their locked stock items (ADR-0164): one RECEIPT movement each, in
+   * their order, and the `onHand` of the last one of each stock item, with a few statements that take arrays.
+   */
+  abstract writeReceipts(
+    receipts: readonly ComputedReceipt[],
+    at: Date,
+  ): Promise<void>;
 
   /**
    * Applies an adjustment (UC-INV-03), creating the stock item if needed; `null`, with nothing written, when

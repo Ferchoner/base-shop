@@ -7,7 +7,7 @@ Ejemplos de los archivos que reciben las cargas masivas de la API (ADR-0126, ADR
 1. **Marcas y categorías:** desde el backoffice, una por una. La carga de productos las busca por su slug y no las crea.
 2. **Productos con sus variantes:** [`products.csv`](products.csv), con `POST /v1/admin/catalog/product-imports` (`API_SPEC.md` §11.11).
 3. **Precios:** [`prices.csv`](prices.csv), con `POST /v1/admin/pricing/price-lists/{priceListId}/imports` (`API_SPEC.md` §12).
-4. **Existencias:** su carga llega en la parte b de T-146 (ADR-0164).
+4. **Existencias:** [`stock.csv`](stock.csv), con `POST /v1/admin/inventory/receipt-imports` (`API_SPEC.md` §13). Cada fila es una entrada de mercancía y suma a la existencia.
 5. **Imágenes y publicación:** desde el backoffice, producto por producto. Los productos cargados quedan en borrador.
 
 Cada carga acepta `?dryRun=true`, que revisa el archivo completo sin guardar nada. Es todo o nada: con un error en cualquier fila no se carga ninguna, y la respuesta trae los primeros 100 errores con su línea y su columna.
@@ -17,7 +17,7 @@ Cada carga acepta `?dryRun=true`, que revisa el archivo completo sin guardar nad
 - Un CSV en UTF-8, separado por comas y con encabezado. En Excel: "Guardar como" → "CSV UTF-8 (delimitado por comas)".
 - Los encabezados van en inglés, en cualquier orden y sin distinguir mayúsculas.
 - Un valor con comas, comillas o saltos de línea va entre comillas dobles, y una comilla dentro de él se escribe doble (`""`). Excel lo hace solo.
-- Hasta 5,000 filas por archivo: 5 MB el de productos y 1 MB el de precios.
+- Hasta 5,000 filas por archivo: 5 MB el de productos y 1 MB los de precios y de existencias.
 
 ## `products.csv`: una fila por variante
 
@@ -44,3 +44,14 @@ Las filas con el mismo `slug` forman un producto. Sus datos (`title`, `descripti
 | `amount` | Sí | Pesos con punto decimal y hasta 2 decimales, sin `$` ni separador de miles: `599.00`. |
 | `compareAtAmount` | No | El precio de comparación, mayor que `amount`. |
 | `effectiveFrom` | No | Vacía: desde ahora. Una fecha y hora de México, como `2026-11-14 00:00`, programa el precio. |
+
+## `stock.csv`: una entrada de mercancía por fila
+
+Cada fila suma sus unidades a la existencia de la variante en el almacén y deja su movimiento, con la nota y quién lo registró. Un SKU puede repetirse, por ejemplo con dos remisiones. El mismo archivo no se carga dos veces: responde 409 con la fecha de la carga anterior. Para registrar una entrega igual de verdad, se cambia la nota, por ejemplo con el número de remisión.
+
+| Columna | Obligatoria | Valor |
+|---|---|---|
+| `sku` | Sí | El de una variante existente, en cualquier estado. |
+| `warehouse` | Sí | El código de un almacén activo, como `PRINCIPAL`. |
+| `quantity` | Sí | Unidades recibidas: un entero de 1 a 100,000. |
+| `note` | No | Hasta 500 caracteres, como el número de remisión. |

@@ -51,12 +51,20 @@ class Warehouses extends WarehouseRepository {
     return Promise.resolve(this.known.find((known) => known.id === id) ?? null);
   }
 
+  findByCodes(): Promise<Warehouse[]> {
+    return Promise.reject(new Error('not used'));
+  }
+
   lockActive(): Promise<Warehouse[]> {
     return Promise.reject(new Error('not used'));
   }
 
   lockForStock(id: WarehouseId): Promise<Warehouse | null> {
     return this.find(id);
+  }
+
+  lockManyForStock(): Promise<Warehouse[]> {
+    return Promise.reject(new Error('not used'));
   }
 
   reservedUnits(): Promise<number> {
@@ -180,6 +188,14 @@ class FakeLedger extends StockLedgerRepository {
   }
 
   receive(): never {
+    throw new Error('not used');
+  }
+
+  lockItems(): never {
+    throw new Error('not used');
+  }
+
+  writeReceipts(): never {
     throw new Error('not used');
   }
 
