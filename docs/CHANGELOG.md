@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## 1.4.0 (2026-10-15)
+
+Datos para el ticket, nota del pago y GTIN (ADR-0163).
 
 - Plan de la versión 1.4 (nuevo ADR-0163): datos para el ticket, nota del pago y GTIN. Los datos de la tienda pasan a variables de configuración que publica una ruta, `AdminOrder` muestra el almacén del que salieron los productos, la nota del pago y del reembolso se guarda y se muestra, y la variante agrega el código de barras de su fabricante, con una búsqueda exacta. Se implementa en T-142, T-188 y T-197. Quedan previstas la carga masiva (T-146), los servicios con órdenes de trabajo (T-189) y las promociones (T-200); el precio preferente del vendedor se descarta.
 - Paso 0 de la versión 1.4: revisión contra los ADR sin desajustes, y Prisma 7.10.0 todavía la última estable. `handlebars` 4.7.10, una actualización de seguridad que corrige tres avisos críticos de la 4.7.9, que llega con `ts-jest` solo en desarrollo; en producción sigue sin vulnerabilidades. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.3.
@@ -12,6 +14,8 @@
   - `GET /v1/admin/store-profile` (`orders.read`, UC-ORD-15) publica los datos de la tienda para el ticket, de las variables nuevas `STORE_NAME` (obligatoria en producción), `STORE_ADDRESS`, `STORE_TAX_ID`, `STORE_PHONE` y `TICKET_FOOTER`, cuya leyenda por defecto dice que el ticket no es un comprobante fiscal.
   - `AdminOrder.fulfilledFrom` dice de qué almacén salieron los productos: el de la venta en tienda o el del envío.
   - La nota del pago y del reembolso manual se guarda: `AdminPayment.attempts[].note`, `AdminPayment.refunds[].note`, `AdminOrder.payment.note` y sus reembolsos. Las anteriores se copiaron de la auditoría, y la anonimización las conserva.
+  - **Cambio para el operador:** `STORE_NAME` es obligatoria en producción, y sin ella la API no arranca. Conviene completar también `STORE_ADDRESS`, `STORE_TAX_ID` y `STORE_PHONE`.
+- Versión 1.4.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.4.0` y un GitHub Release.
 
 ## 1.3.0 (2026-10-06)
 
