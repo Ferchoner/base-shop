@@ -42,7 +42,8 @@ const VISIBLE_CATEGORIES = Prisma.sql`visible (id) AS (
 )`;
 
 /**
- * Sellable variants (BR-PRD-11), with the price current at `at` in the default list and whether they are
+ * Variants sellable online (BR-PRD-11), not of a product sold only in the store (BR-PRD-20, ADR-0165), with the
+ * price current at `at` in the default list and whether they are
  * available: some active warehouse has a unit not reserved (ADR-0061, ADR-0160). One row per variant, whatever
  * the number of warehouses. `where` narrows the variants (`v`) or their products (`p`) before anything else is read.
  */
@@ -52,7 +53,7 @@ function sellable(at: Date, where: Prisma.Sql): Prisma.Sql {
            pp.amount, pp.compare_at_amount, pl.currency,
            coalesce(stock.available, false) AS available
       FROM product_variants v
-      JOIN products p ON p.id = v.product_id AND p.status = 'PUBLISHED'
+      JOIN products p ON p.id = v.product_id AND p.status = 'PUBLISHED' AND NOT p.store_only
       JOIN variant_prices vp ON vp.variant_id = v.id
       JOIN price_lists pl ON pl.id = vp.price_list_id AND pl.is_default
       JOIN price_periods pp ON pp.variant_price_id = vp.id
@@ -334,17 +335,20 @@ export class PrismaStorefrontQueries extends StorefrontQueries {
     at: Date,
   ): Promise<StoreVisibility[]> {
     const rows = await this.txHost.tx.$queryRaw<
-      { published: boolean; sellable: boolean }[]
+      { published: boolean; store_only: boolean; sellable: boolean }[]
     >`
       WITH sellable AS (${sellable(at, Prisma.sql`v.product_id = ANY(${[...ids]}::uuid[])`)})
       SELECT coalesce(p.status = 'PUBLISHED', FALSE) AS published,
+             coalesce(p.store_only, FALSE) AS store_only,
              EXISTS (SELECT 1 FROM sellable s WHERE s.product_id = asked.id) AS sellable
         FROM unnest(${[...ids]}::uuid[]) WITH ORDINALITY AS asked (id, n)
         LEFT JOIN products p ON p.id = asked.id
        ORDER BY asked.n`;
-    return rows.map(({ published, sellable }) =>
-      !published ? 'NOT_PUBLISHED' : sellable ? 'VISIBLE' : 'HIDDEN_NO_PRICE',
-    );
+    return rows.map(({ published, store_only, sellable }) => {
+      if (!published) return 'NOT_PUBLISHED';
+      if (store_only) return 'STORE_ONLY';
+      return sellable ? 'VISIBLE' : 'HIDDEN_NO_PRICE';
+    });
   }
 }
 

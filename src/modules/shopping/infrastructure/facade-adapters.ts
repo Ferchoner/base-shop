@@ -38,9 +38,11 @@ export class CatalogFacadeCartCatalog extends CartCatalog {
             title: variant.productTitle,
           },
           image: variant.image,
+          // A cart is always online: a product sold only in the store is not on sale there (ADR-0165).
           onSale:
             variant.productStatus === 'PUBLISHED' &&
-            variant.status === 'ACTIVE',
+            variant.status === 'ACTIVE' &&
+            !variant.storeOnly,
         },
       ]),
     );

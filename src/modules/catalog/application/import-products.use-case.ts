@@ -49,6 +49,8 @@ interface RowValues {
   /** In lowercase, as slugs are. */
   readonly brand: string;
   readonly categories: readonly string[] | undefined;
+  /** Sold only in the physical store (ADR-0165); `false` when the cell is empty. */
+  readonly storeOnly: boolean | undefined;
   /** In uppercase, as SKUs are stored (BR-PRD-09). */
   readonly sku: string | undefined;
   readonly gtin: string | null | undefined;
@@ -73,6 +75,7 @@ const PRODUCT_COLUMNS = [
   'description',
   'brand',
   'categories',
+  'storeOnly',
 ] as const;
 
 const REQUIRED = 'Es obligatorio.';
@@ -352,6 +355,7 @@ function parseRow(
     description,
     brand: row.brand.toLowerCase(),
     categories,
+    storeOnly: storeOnlyOf(row.storeOnly, fail),
     sku,
     gtin: gtinOf(row.gtin, fail),
     weightGrams: measureOf(row.weightGrams, gramsFrom, () =>
@@ -377,6 +381,17 @@ function parseRow(
 
 const CENTIMETERS =
   'Debe ser un número de centímetros mayor que 0, con punto decimal y hasta un decimal, como 30.5.';
+
+/** Whether the product is sold only in the store (ADR-0165): `true` or `false` whatever its case, and empty is `false`. */
+function storeOnlyOf(
+  text: string,
+  fail: (column: string, code: string, message: string) => undefined,
+): boolean | undefined {
+  const value = text.toLowerCase();
+  if (value === '' || value === 'false') return false;
+  if (value === 'true') return true;
+  return fail('storeOnly', 'isBoolean', 'Debe ser true o false.');
+}
 
 /** A GTIN with its check digit (ADR-0163), `null` when empty. */
 function gtinOf(
@@ -472,14 +487,25 @@ function productsOf(
   return [...products.values()];
 }
 
-/** Two cells of a product column say the same: slugs whatever their case, and categories in any order. */
+/**
+ * Two cells of a product column say the same: slugs and `storeOnly` whatever their case, an empty `storeOnly` as
+ * `false`, and categories in any order.
+ */
 function sameCell(
   column: (typeof PRODUCT_COLUMNS)[number],
   a: ProductImportRow,
   b: ProductImportRow,
 ): boolean {
-  if (column === 'brand')
+  if (column === 'brand') {
     return a.brand.toLowerCase() === b.brand.toLowerCase();
+  }
+  if (column === 'storeOnly') {
+    // Empty is false.
+    return (
+      (a.storeOnly.toLowerCase() || 'false') ===
+      (b.storeOnly.toLowerCase() || 'false')
+    );
+  }
   if (column === 'categories') {
     return (
       categorySlugsFrom(a.categories).sort().join('|') ===
@@ -539,7 +565,8 @@ function build(
     first.title === undefined ||
     first.title === '' ||
     first.description === undefined ||
-    first.categories === undefined
+    first.categories === undefined ||
+    first.storeOnly === undefined
   ) {
     return null;
   }
@@ -553,6 +580,7 @@ function build(
       const id = categories.get(category);
       return id === undefined ? [] : [id];
     }),
+    storeOnly: first.storeOnly,
   });
   for (const row of rows) {
     if (errors.hasAny(row.line)) continue;

@@ -62,7 +62,7 @@ describe('Bulk import of receipts (e2e, T-146 part b)', () => {
       },
     });
     await prisma.category.createMany({
-      data: ['camisas', 'hombre', 'accesorios'].map((slug) => ({
+      data: ['camisas', 'hombre', 'accesorios', 'servicios'].map((slug) => ({
         id: newId(),
         name: slug,
         slug,
@@ -150,7 +150,11 @@ describe('Bulk import of receipts (e2e, T-146 part b)', () => {
 
     const response = await upload(template('stock.csv')).expect(200);
 
-    expect(response.body).toEqual({ rows: 4, units: 100, dryRun: false });
+    expect(response.body).toEqual({
+      rows: 5,
+      units: 100_100,
+      dryRun: false,
+    });
     const [shirt] = await stockOf('CAM-LINO-M-BL');
     expect(shirt).toMatchObject({ onHand: 25, reserved: 0, available: 25 });
     const movements = await http()
@@ -191,7 +195,11 @@ describe('Bulk import of receipts (e2e, T-146 part b)', () => {
       query: '?dryRun=true',
     }).expect(200);
 
-    expect(response.body).toEqual({ rows: 4, units: 100, dryRun: true });
+    expect(response.body).toEqual({
+      rows: 5,
+      units: 100_100,
+      dryRun: true,
+    });
     expect(await stockOf('CAM-LINO-M-BL')).toEqual([]);
     await upload(template('stock.csv')).expect(200);
   });

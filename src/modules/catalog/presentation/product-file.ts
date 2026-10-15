@@ -61,6 +61,7 @@ export function readProductFile(
     lengthCm: cells.lengthCm,
     widthCm: cells.widthCm,
     heightCm: cells.heightCm,
+    storeOnly: cells.storeOnly,
     options: prefixed,
   }));
 }

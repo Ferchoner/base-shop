@@ -90,6 +90,7 @@ export function toAdminProductDto(
     categories: view.categories.map(({ id, name }) => ({ id, name })),
     status: view.status,
     storeVisibility,
+    storeOnly: view.storeOnly,
     variants: view.variants.map((variant) => ({
       ...variant,
       options: { ...variant.options },

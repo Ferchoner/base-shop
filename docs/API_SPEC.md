@@ -112,7 +112,7 @@ Algunos efectos de una operación ocurren en otro contexto, por medio de un even
 | Pedir un enlace de recuperación (`POST /v1/auth/password-reset/request`, ADR-0154) | `PasswordResetRequested` | Si el email es de una cuenta que puede iniciar sesión, se emite el enlace, que invalida los anteriores, y se envía el correo "Restablece tu contraseña"; si no, nada | Correo de la cuenta |
 | Pedir otro enlace de verificación (`POST /v1/auth/email-verification/resend`, ADR-0154) | `EmailVerificationRequested` | Si el email es de un cliente activo sin verificar, se emite el enlace, que invalida los anteriores, y se envía el correo "Confirma tu correo"; si no, nada | Correo del cliente |
 | Expirar una orden impaga (job cada minuto, ADR-0136) | `OrderExpired` | Las líneas vuelven al carrito (UC-CRT-08, ADR-0054, ADR-0137): el invitado, o el cliente sin carrito activo, recupera el carrito de la orden activo otra vez; el cliente con carrito activo recibe en él las líneas. Una orden `STORE` no salió de un carrito, y sus líneas no vuelven a ninguno (ADR-0161) | Carrito del cliente o del invitado |
-| Publicar o archivar un producto, o descontinuar una variante | `ProductPublished`, `ProductArchived`, `VariantDiscontinued` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
+| Publicar o archivar un producto, descontinuar una variante, o cambiar si un producto publicado se vende solo en la tienda física (ADR-0165) | `ProductPublished`, `ProductArchived`, `VariantDiscontinued`, `ProductStoreOnlyChanged` | Se invalida el cache del catálogo público (ADR-0028) | Catálogo público |
 
 - Ocurren dentro de la operación, y por eso ya están en la respuesta, los cambios del propio recurso (el pago capturado, el envío despachado) y lo que la operación hace en una sola transacción: en el checkout, la reserva, la orden y el carrito (ADR-0019); al cancelar, la liberación de la reserva, el inicio del reembolso y la cancelación del envío (ADR-0140).
 - Si el procesamiento de un evento falla, o la API se detiene después de confirmar, el efecto se reintenta hasta 8 veces en unas 22 horas, así que puede tardar más (ADR-0150). Un efecto puede ocurrir dos veces en un caso raro; los cambios de estado lo toleran, y un correo podría llegar duplicado. Lo que agota sus intentos lo consulta y lo reintenta el staff (sección 22).
@@ -281,7 +281,7 @@ Error de validación:
 | `version-conflict` | 409 | E-05 | `version` desactualizada | `currentVersion` |
 | `total-mismatch` | 409 | E-06 | Total recalculado distinto de `expectedTotal` | `currentTotal` (Money) |
 | `insufficient-stock` | 409 | E-07 | No se puede reservar alguna línea | `lines` (`variantId`, `canFulfill`): las que le faltan al almacén más cercano (ADR-0160) |
-| `variant-not-sellable` | 409 | E-10 | Variante no publicada, descontinuada o sin precio | `variantIds` |
+| `variant-not-sellable` | 409 | E-10 | Variante no publicada, descontinuada o sin precio, o de un producto solo de tienda en una venta en línea (ADR-0165) | `variantIds` |
 | `invalid-state-transition` | 409 | E-12 | Acción no permitida en el estado actual | `currentStatus`; `reason` cuando hace falta distinguir el caso (ADR-0120, ADR-0123) |
 | `duplicate-value` | 409 | E-13 | Email, SKU, slug, código o nombre ya usado, o un archivo de entradas ya cargado | `field`; `importedAt` en el archivo de entradas (ADR-0164) |
 | `resource-in-use` | 409 | E-14 | Borrado de entidad con referencias | — |
@@ -895,7 +895,7 @@ Las reactivaciones siguen ADR-0076. No emiten eventos: la tienda las refleja al 
 
 ### 11.3 `GET /v1/catalog/products/{slug}` — Detalle (UC-CAT-02)
 
-- **Response 200:** `ProductDetail`. 404 si no existe, no está publicado o no tiene variantes vendibles. Cache con TTL de 120 s.
+- **Response 200:** `ProductDetail`. 404 si no existe, no está publicado, se vende solo en la tienda física (ADR-0165) o no tiene variantes vendibles. Cache con TTL de 120 s.
 - **Implementado en T-140 parte c (ADR-0129):** un slug con formato inválido responde 404 sin consultarse. Los 404 no se cachean.
 
 ### 11.4 `GET /v1/catalog/categories` — Árbol de categorías (UC-CAT-03)
@@ -919,6 +919,7 @@ Representación `AdminProduct`:
   "categories": [ { "id": "…", "name": "…" } ],
   "status": "PUBLISHED",
   "storeVisibility": "VISIBLE",
+  "storeOnly": false,
   "variants": [ { "id": "…", "sku": "…", "gtin": "7501055363063", "options": {}, "status": "ACTIVE", "weightGrams": 350, "lengthCm": 30.0, "widthCm": 20.0, "heightCm": 3.0, "editableIdentity": false } ],
   "images": [],
   "publishedAt": "…", "firstPublishedAt": "…", "archivedAt": null,
@@ -926,15 +927,15 @@ Representación `AdminProduct`:
 }
 ```
 
-- `storeVisibility` (ADR-0016, UC-CAT-14): `VISIBLE`, `HIDDEN_NO_PRICE` (publicado sin variantes vendibles: ninguna activa con precio vigente), `NOT_PUBLISHED` (borrador o archivado). No se ofrece como filtro, porque filtrar por él requeriría extender la excepción de ADR-0060. Se calcula con el servicio de consultas de la tienda y la misma definición de variante vendible, no con la fachada de Pricing, que formaría un ciclo (ADR-0125, ADR-0129).
+- `storeVisibility` (ADR-0016, UC-CAT-14): `VISIBLE`, `HIDDEN_NO_PRICE` (publicado sin variantes vendibles: ninguna activa con precio vigente), `NOT_PUBLISHED` (borrador o archivado) y, desde T-189, `STORE_ONLY` (publicado, pero se vende solo en la tienda física, ADR-0165). No se ofrece como filtro, porque filtrar por él requeriría extender la excepción de ADR-0060. Se calcula con el servicio de consultas de la tienda y la misma definición de variante vendible, no con la fachada de Pricing, que formaría un ciclo (ADR-0125, ADR-0129).
 - `editableIdentity`: `true` mientras el producto no tiene `firstPublishedAt` (ADR-0068).
 
 | Endpoint | Detalle |
 |---|---|
-| `GET /v1/admin/catalog/products` | `catalog.read`. Paginado. Filtros: `q` (título, SKU o GTIN), `status`, `brandId`, `categoryId`. Orden: `updatedAt` (defecto `-updatedAt`), `title`, `createdAt`, `publishedAt`. Devuelve `AdminProduct` sin `description` |
-| `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [] }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
+| `GET /v1/admin/catalog/products` | `catalog.read`. Paginado. Filtros: `q` (título, SKU o GTIN), `status`, `brandId`, `categoryId`, `storeOnly` (`true` o `false`, ADR-0165). Orden: `updatedAt` (defecto `-updatedAt`), `title`, `createdAt`, `publishedAt`. Devuelve `AdminProduct` sin `description` |
+| `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [], "storeOnly" }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
 | `GET /v1/admin/catalog/products/{productId}` | `catalog.read`. 200 `AdminProduct` |
-| `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
+| `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `storeOnly`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
 | `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, archivado —se reactiva primero a DRAFT— o sin variante activa, con `detail` que lo explica) |
 | `POST …/{productId}/archive` | `catalog.write`. Request `{ "version" }`. Desde DRAFT o PUBLISHED. Invalida cache. 200. Errores: 409 `invalid-state-transition` |
 | `POST …/{productId}/reactivate` | `catalog.write`. Request `{ "version" }`. De ARCHIVED a DRAFT; conserva slug y `firstPublishedAt` (ADR-0076). 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |
@@ -950,6 +951,14 @@ Implementado en T-140 parte a (ADR-0123):
 - **Producto archivado:** no se edita ni cambia sus variantes: 409 `invalid-state-transition` con `currentStatus: ARCHIVED`.
 - **Campos fijos:** `field-locked` lleva `fields` (`slug`, `sku`, `options`).
 - **Listado:** no incluye `description`; `q` busca en el título y en los SKU, y desde T-142 en los GTIN (ADR-0163); con `sort=publishedAt`, los nunca publicados van al final.
+
+Desde T-189 parte a (ADR-0165), `storeOnly`: el producto se vende solo en la tienda física, como un servicio (UC-CAT-17, BR-PRD-20).
+
+- **Alta y edición:** opcional en el `POST`, `false` por defecto, y en el `PATCH` se cambia en cualquier momento, también publicado; un producto archivado no se edita. Se audita con los demás datos (`products.create` y `products.update`).
+- **En línea no se vende:** la tienda pública no lo muestra (§11.2 y §11.3, también en las marcas e imágenes); el carrito lo rechaza con 409 `variant-not-sellable` y deja fuera del subtotal la línea que ya lo tenía (§14); el checkout en línea lo rechaza (§15), y la recompra lo omite (§14.3).
+- **En la tienda física se vende:** la venta de mostrador y los pedidos del staff lo aceptan (`POST /v1/admin/orders`, ADR-0161).
+- **Cache:** cambiar la marca de un producto publicado publica `ProductStoreOnlyChanged`, que vacía la cache pública; un borrador no está en la tienda.
+- **Existencias:** se cargan como las de cualquier variante; para un servicio, un número alto.
 - **Alta:** responde 201 con `Location: /v1/admin/catalog/products/{id}`.
 - **Auditoría:** cada cambio se audita (`products.*`); uno sin efecto no se guarda ni se audita.
 
@@ -1063,7 +1072,7 @@ Implementado en T-150 (ADR-0120):
 
 - **Archivo:** CSV en UTF-8 (con o sin BOM), separado por comas y con encabezado; hasta 5,000 filas y 5 MB. Las columnas van en cualquier orden, sin distinguir mayúsculas, cada una una vez:
   - obligatorias: `slug`, `title` y `sku`;
-  - opcionales: `description`, `brand`, `categories`, `gtin`, `weightGrams`, `lengthCm`, `widthCm` y `heightCm`;
+  - opcionales: `description`, `brand`, `categories`, `gtin`, `weightGrams`, `lengthCm`, `widthCm`, `heightCm` y, desde T-189, `storeOnly`;
   - una `option:<nombre>` por opción, con un nombre de 1 a 30 caracteres, como `option:talla`; el nombre se guarda en minúsculas.
 
   ```
@@ -1073,7 +1082,7 @@ Implementado en T-150 (ADR-0120):
   gorra,Gorra azul,,accesorios,GORRA-AZUL,,120
   ```
 
-- **Una fila por variante:** las filas con el mismo `slug` forman un producto, que queda en `DRAFT`. Sus datos (`title`, `description`, `brand` y `categories`) van en su primera fila; las siguientes los dejan vacíos o los repiten iguales.
+- **Una fila por variante:** las filas con el mismo `slug` forman un producto, que queda en `DRAFT`. Sus datos (`title`, `description`, `brand`, `categories` y `storeOnly`) van en su primera fila; las siguientes los dejan vacíos o los repiten iguales.
 - **Valores:**
   - `slug`: minúsculas, dígitos y guiones, hasta 200 caracteres; no debe existir, aunque el producto esté archivado;
   - `title`, de 1 a 200 caracteres, obligatorio en la primera fila del producto; `description`, hasta 10,000;
@@ -1081,10 +1090,11 @@ Implementado en T-150 (ADR-0120):
   - `sku`: de 1 a 64 letras, dígitos, `-`, `_` y `.`; se guarda en mayúsculas y no debe haberse usado nunca, aunque su variante esté descontinuada (BR-PRD-09);
   - `gtin`: 8, 12, 13 o 14 dígitos con su dígito verificador; ninguna variante activa debe tenerlo (BR-PRD-19);
   - las opciones: hasta 3 por producto, con valores de 1 a 50 caracteres. Todas las variantes de un producto llenan las mismas columnas de opción, y cada una con otra combinación (BR-PRD-02); un producto sin opciones lleva una sola variante;
-  - `weightGrams`: gramos enteros mayores que 0; `lengthCm`, `widthCm` y `heightCm`: centímetros mayores que 0 con punto decimal y hasta un decimal (`30.5`).
+  - `weightGrams`: gramos enteros mayores que 0; `lengthCm`, `widthCm` y `heightCm`: centímetros mayores que 0 con punto decimal y hasta un decimal (`30.5`);
+  - `storeOnly`: `true` o `false`, sin distinguir mayúsculas; vacía es `false` (ADR-0165).
 - **Solo crea:** no edita productos existentes. Repetir un archivo ya cargado no cambia nada: sus slugs ya existen.
 - **Todo o nada:** se revisan todas las filas, entre sí y contra el catálogo, antes de guardar. Con cualquier error no se importa nada. Responde 400 `validation-error` con los primeros 100 errores ordenados por línea, en `rows[<línea>].<columna>`; el encabezado es la línea 1, `rows[<línea>]` sola indica que faltan o sobran valores, y `rows[<línea>].options` es un error de las opciones en conjunto.
-  - Códigos de fila: `isNotEmpty`, `slug`, `maxLength`, `arrayMaxSize`, `matches`, `gtinCheckDigit`, `grams`, `centimeters`, `options`, `optionNames`, `differsFromProduct`, `repeated` (otra fila del archivo ya lo tiene), `taken` (el catálogo ya lo tiene), `unknownBrand`, `inactiveBrand`, `unknownCategories`, `inactiveCategories` y `columnCount`.
+  - Códigos de fila: `isNotEmpty`, `slug`, `maxLength`, `arrayMaxSize`, `matches`, `gtinCheckDigit`, `grams`, `centimeters`, `isBoolean`, `options`, `optionNames`, `differsFromProduct`, `repeated` (otra fila del archivo ya lo tiene), `taken` (el catálogo ya lo tiene), `unknownBrand`, `inactiveBrand`, `unknownCategories`, `inactiveCategories` y `columnCount`.
   - Errores del archivo, en `file`: `isDefined`, `utf8`, `csv`, `columns` (una columna que falta, que no reconoce o que se repite, o el nombre de una opción de más de 30 caracteres), `emptyFile` y `tooManyRows`.
 - **Response 200:** `{ "rows": 3, "products": 2, "variants": 3, "dryRun": false }`.
 - **Errores:** 413 `payload-too-large` con `maxBytes` para un archivo de más de 5 MB; 409 `duplicate-value` con `field` si otro cambio toma un slug, SKU o GTIN del archivo entre la revisión y el guardado, y entonces no se guarda nada.
@@ -1285,7 +1295,7 @@ Una cuenta de staff en `/v1/me/cart` → 403 `staff-cannot-purchase` (E-09). Las
 Implementado en T-170 (ADR-0131):
 
 - **Staff:** un token de staff también responde 403 `staff-cannot-purchase` al crear un carrito de invitado o cambiar sus líneas; leerlo sí se puede.
-- **Variante no vendible:** 409 `variant-not-sellable` con `variantIds`, igual para una que no existe, una sin publicar o archivada, una descontinuada o una sin precio. Cambiar la cantidad de una línea que dejó de ser vendible también responde 409; quitarla siempre se puede.
+- **Variante no vendible:** 409 `variant-not-sellable` con `variantIds`, igual para una que no existe, una sin publicar o archivada, una descontinuada, una sin precio o una de un producto que se vende solo en la tienda física (ADR-0165). Cambiar la cantidad de una línea que dejó de ser vendible también responde 409; quitarla siempre se puede.
 - **Cantidades:** si una suma deja la línea con más de 30 unidades, responde 400 `validation-error` con `lineQuantity` en `quantity`. Un carrito tiene como máximo 100 variantes distintas; la siguiente responde 409 `cart-line-limit-reached` con `limit`.
 - **Quitar:** quitar una línea que no está no cambia nada y responde el carrito.
 - **Línea:** lleva la primera imagen de su variante o, si no tiene, la primera imagen general del producto. Las líneas van de la más antigua a la más nueva; `itemCount` cuenta las unidades de todas, y `subtotal`, solo las vendibles.
@@ -1385,7 +1395,7 @@ o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección
 - **Validaciones:** `expectedTotal` entero ≥ 0; `contactEmail` con formato válido; `shippingAddress` según 8.2; `addressId` del propio cliente; `privacyNoticeVersion` obligatorio para invitados (ADR-0067). El cliente registrado debe tener email verificado (BR-USR-05) y el contacto de su orden es su email de cuenta.
 - **Proceso:** recalcula todo sin cache; si el total difiere de `expectedTotal` → 409; reserva todo el stock o nada; crea la orden en PENDING_PAYMENT con snapshots; marca el carrito CHECKED_OUT (una sola transacción).
 - **Response 201:** `Order` (vista de cliente) con `publicCode` y `paymentDueAt`. `Location: /v1/me/orders/{publicCode}` solo en la ruta de cliente.
-- **Errores:** 400 `idempotency-key-missing`; 403 `email-not-verified`; 403 `staff-cannot-purchase`; 404 (carrito o dirección); 409 `total-mismatch` (con `currentTotal`); 409 `insufficient-stock` (con `lines`); 409 `variant-not-sellable`; 409 `cart-not-active`; 409 `empty-cart`; 409 `idempotency-request-in-progress`; 422 `idempotency-key-mismatch`.
+- **Errores:** 400 `idempotency-key-missing`; 403 `email-not-verified`; 403 `staff-cannot-purchase`; 404 (carrito o dirección); 409 `total-mismatch` (con `currentTotal`); 409 `insufficient-stock` (con `lines`); 409 `variant-not-sellable`, también por un producto que se vende solo en la tienda física (ADR-0165); 409 `cart-not-active`; 409 `empty-cart`; 409 `idempotency-request-in-progress`; 422 `idempotency-key-mismatch`.
 - **Rate limit:** 10 por usuario o carrito en 10 minutos; en `POST /v1/orders`, además, 5 por email de contacto por hora (ADR-0154).
 
 ### 15.4 Consultas del cliente (UC-ORD-03)
@@ -1489,7 +1499,7 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - El pago tardío y el reintento de surtido reservan otra vez solo en ese almacén; si ya está inactivo, cuenta como falta de stock.
 - Una orden `IN_STORE` pagada no crea envío: el staff la entrega con `POST …/hand-over`.
 - 201 `AdminOrder`, con `Location: /v1/admin/orders/{orderId}`. Se audita como `orders.place`, solo con el estado, el canal y el almacén. Se publica `OrderPlaced`.
-- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable`, `total-mismatch` con `currentTotal`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
+- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable` (un producto que se vende solo en la tienda física sí se vende aquí, ADR-0165), `total-mismatch` con `currentTotal`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
 
 **`POST /v1/admin/orders/{orderId}/hand-over`** — `orders.place`. Entrega en la tienda física una orden `IN_STORE` pagada (UC-ORD-14, ADR-0161).
 
@@ -1782,7 +1792,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-IAM-20, 21 | Sin API: scripts (ADR-0043, ADR-0057) |
 | UC-IAM-22 | Sección 10 |
 | UC-IAM-23 | Sección 23 |
-| UC-CAT-01 a 16 | Sección 11 |
+| UC-CAT-01 a 17 | Sección 11 |
 | UC-PRC-01 a 05 | Sección 12 |
 | UC-PRC-06 | Sin API pública: fachada interna del módulo |
 | UC-INV-01 a 04 | Sección 13 |

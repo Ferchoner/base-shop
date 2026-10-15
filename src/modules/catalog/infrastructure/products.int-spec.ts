@@ -218,6 +218,7 @@ describe('Products and variants (T-140 part a)', () => {
             slug: { from: null, to: 'camisa-de-lino' },
             categoryIds: { from: null, to: [] },
             status: { from: null, to: 'DRAFT' },
+            storeOnly: { from: null, to: false },
           },
         },
       ]);

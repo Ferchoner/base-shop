@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -230,9 +232,12 @@ export class AdminProductDto {
   @ApiProperty({
     enum: STORE_VISIBILITIES,
     description:
-      'Si la tienda lo muestra: `HIDDEN_NO_PRICE` es un producto publicado sin variantes vendibles (activas y con precio vigente).',
+      'Si la tienda lo muestra: `HIDDEN_NO_PRICE` es un producto publicado sin variantes vendibles (activas y con precio vigente), y `STORE_ONLY` uno publicado que solo se vende en la tienda física (ADR-0165).',
   })
   storeVisibility: string;
+
+  /** Si solo se vende en la tienda física, como un servicio: nunca en línea (ADR-0165). */
+  storeOnly: boolean;
 
   @ApiProperty({ type: () => [AdminVariantDto] })
   variants: AdminVariantDto[];
@@ -313,6 +318,15 @@ export class AdminProductListQueryDto extends PageQueryDto {
   @IsUUID('all')
   categoryId?: string;
 
+  /** `true`: solo los productos que se venden solo en la tienda física; `false`: solo los que se venden también en línea. */
+  @ApiPropertyOptional({ type: Boolean })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  storeOnly?: boolean;
+
   /**
    * `updatedAt`, `title`, `createdAt` o `publishedAt`, con `-` para orden descendente; `-updatedAt` por
    * defecto.
@@ -370,6 +384,11 @@ export class CreateProductDto {
   @ArrayMaxSize(MAX_CATEGORIES_PER_PRODUCT)
   @IsUUID('all', { each: true })
   categoryIds?: string[];
+
+  /** Si solo se vende en la tienda física, como un servicio (ADR-0165); `false` por defecto. */
+  @IsOptional()
+  @IsBoolean()
+  storeOnly?: boolean;
 }
 
 export class UpdateProductDto {
@@ -416,6 +435,11 @@ export class UpdateProductDto {
   @ArrayMaxSize(MAX_CATEGORIES_PER_PRODUCT)
   @IsUUID('all', { each: true })
   categoryIds?: string[];
+
+  /** Solo en la tienda física, o también en línea (ADR-0165); se cambia también publicado. */
+  @IsOptional()
+  @IsBoolean()
+  storeOnly?: boolean;
 
   /** Versión leída del producto (bloqueo optimista). */
   @IsInt()
