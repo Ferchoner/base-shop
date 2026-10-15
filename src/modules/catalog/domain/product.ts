@@ -16,9 +16,11 @@ import {
 import type { ProductId } from './product-id.js';
 import { MAX_PRODUCT_SLUG_LENGTH, validSlug } from './slug.js';
 import {
+  gtinKey,
   optionNamesOf,
   sameOptions,
   validDimensions,
+  validGtin,
   validOptions,
   validSku,
   type VariantDimensions,
@@ -69,12 +71,14 @@ export interface ProductDetails {
 export interface NewVariant extends VariantDimensions {
   readonly id: VariantId;
   readonly sku: string;
+  readonly gtin: string | null;
   readonly options: Readonly<Record<string, unknown>>;
 }
 
-/** Changes to a variant (UC-CAT-07). A missing field keeps its value. */
+/** Changes to a variant (UC-CAT-07). A missing field keeps its value; a `null` GTIN removes it. */
 export interface VariantChanges extends Partial<VariantDimensions> {
   readonly sku?: string;
+  readonly gtin?: string | null;
   readonly options?: Readonly<Record<string, unknown>>;
 }
 
@@ -176,12 +180,14 @@ export class Product {
   addVariant(variant: NewVariant): void {
     this.assertEditable();
     const sku = validSku(variant.sku);
+    const gtin = variant.gtin === null ? null : validGtin(variant.gtin);
     const options = validOptions(variant.options);
     if (this.state.variants.some((other) => other.sku === sku)) {
       throw new DuplicateValueError('sku');
     }
     this.assertOptionNames(options);
     this.assertUniqueCombination(options);
+    this.assertUniqueGtin(gtin);
     this.state = {
       ...this.state,
       variants: [
@@ -189,6 +195,7 @@ export class Product {
         {
           id: variant.id,
           sku,
+          gtin,
           options,
           status: 'ACTIVE',
           ...validDimensions(variant),
@@ -199,12 +206,18 @@ export class Product {
 
   /**
    * Edits a variant (UC-CAT-07). SKU and options change only before the first publication, and the previous
-   * SKU is then free again (ADR-0068); weight and sizes change always.
+   * SKU is then free again (ADR-0068); the GTIN, weight and sizes change always (ADR-0163).
    */
   updateVariant(variantId: VariantId, changes: VariantChanges): void {
     this.assertEditable();
     const current = this.variant(variantId);
     const sku = changes.sku === undefined ? current.sku : validSku(changes.sku);
+    const gtin =
+      changes.gtin === undefined
+        ? current.gtin
+        : changes.gtin === null
+          ? null
+          : validGtin(changes.gtin);
     const options =
       changes.options === undefined
         ? current.options
@@ -228,13 +241,14 @@ export class Product {
         this.assertUniqueCombination(options, variantId);
       }
     }
+    if (current.status === 'ACTIVE') this.assertUniqueGtin(gtin, variantId);
     const dimensions = validDimensions({
       weightGrams: pick(changes.weightGrams, current.weightGrams),
       lengthCm: pick(changes.lengthCm, current.lengthCm),
       widthCm: pick(changes.widthCm, current.widthCm),
       heightCm: pick(changes.heightCm, current.heightCm),
     });
-    this.replaceVariant({ ...current, sku, options, ...dimensions });
+    this.replaceVariant({ ...current, sku, gtin, options, ...dimensions });
   }
 
   /** Stops selling a variant; it is never deleted (UC-CAT-08, BR-PRD-07). */
@@ -263,6 +277,7 @@ export class Product {
       throw new InvalidStateTransitionError(variant.status, 'reactivate');
     }
     this.assertUniqueCombination(variant.options, variantId);
+    this.assertUniqueGtin(variant.gtin, variantId);
     this.replaceVariant({ ...variant, status: 'ACTIVE' });
   }
 
@@ -383,6 +398,22 @@ export class Product {
         sameOptions(other.options, options),
     );
     if (taken) throw new DuplicateValueError('options');
+  }
+
+  /**
+   * No other active variant of the product with the same GTIN (ADR-0163); discontinued ones do not count. The
+   * database checks the other products.
+   */
+  private assertUniqueGtin(gtin: string | null, except?: VariantId): void {
+    if (gtin === null) return;
+    const taken = this.state.variants.some(
+      (other) =>
+        other.id !== except &&
+        other.status === 'ACTIVE' &&
+        other.gtin !== null &&
+        gtinKey(other.gtin) === gtinKey(gtin),
+    );
+    if (taken) throw new DuplicateValueError('gtin');
   }
 }
 

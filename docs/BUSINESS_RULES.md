@@ -39,13 +39,14 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRD-09. Un SKU nunca se reutiliza, aunque su variante esté descontinuada. El slug de un producto archivado sigue reservado (ADR-0038).
 - BR-PRD-10. Una categoría o marca solo se borra si no tiene productos ni subcategorías; si no, se desactiva.
 - BR-PRD-11. Una variante es vendible si su producto está publicado, la variante está activa y tiene precio vigente en la lista predeterminada (deriva de BR-PRD-06 y ADR-0016). El carrito y el checkout rechazan variantes no vendibles.
-- BR-PRD-12. SKU y opciones de una variante solo se editan mientras su producto nunca se ha publicado; el SKU anterior se libera en ese caso. Después quedan fijos, y no se agregan dimensiones de opciones a un producto publicado. Peso, dimensiones y estado se editan siempre (ADR-0068).
+- BR-PRD-12. SKU y opciones de una variante solo se editan mientras su producto nunca se ha publicado; el SKU anterior se libera en ese caso. Después quedan fijos, y no se agregan dimensiones de opciones a un producto publicado. Peso, dimensiones y estado se editan siempre (ADR-0068). El GTIN no queda fijo: se corrige siempre (ADR-0163).
 - BR-PRD-13. Un producto archivado se reactiva a DRAFT y se publica con el flujo normal; una variante descontinuada se reactiva solo si ninguna variante activa del producto tiene su combinación de opciones; una categoría se reactiva solo si su padre está activa o es raíz, sin reactivar subcategorías; una marca se reactiva sin condiciones. Todas con `catalog.write` (ADR-0076).
 - BR-PRD-14. Peso (gramos) y dimensiones (centímetros) de una variante son opcionales (ADR-0058).
 - BR-PRD-15. En el catálogo público, el precio de un producto para filtrar y ordenar es el más bajo entre sus variantes vendibles, con IVA incluido (ADR-0060).
 - BR-PRD-16. El slug de una categoría o marca se puede cambiar; el anterior deja de funcionar y queda libre. Riesgo aceptado: los enlaces que usaban el slug anterior se rompen (ADR-0072).
 - BR-PRD-17. Una categoría es visible si está activa y todos sus ancestros también; desactivarla oculta sus subcategorías. Los productos de una categoría oculta o de una marca inactiva siguen visibles en la tienda, pero no como parte de esa categoría; no se puede filtrar por categorías ocultas ni por marcas inactivas (ADR-0080).
 - BR-PRD-18. La imagen en posición 1 de la galería es la principal del producto, y la primera imagen de una variante es la suya; el staff las elige reordenando la galería (ADR-0124, ADR-0131).
+- BR-PRD-19. El GTIN de una variante es el código de barras de su fabricante, un EAN o un UPC: opcional, de 8, 12, 13 o 14 dígitos y con su dígito verificador. Dos variantes activas, de cualquier producto, no tienen el mismo; se comparan completados con ceros a 14 dígitos, así que un UPC y el mismo código como EAN-13 con un 0 al frente son uno. Una variante descontinuada deja libre el suyo (ADR-0163).
 
 ## Precios
 

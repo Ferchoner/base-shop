@@ -224,6 +224,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       {
         id: expect.any(String),
         sku: 'CAM-M',
+        gtin: null,
         options: { talla: 'M' },
         status: 'ACTIVE',
         weightGrams: 350,
@@ -462,6 +463,131 @@ describe('Products and variants (e2e, T-140 part a)', () => {
     expect(response.body.data[0]).not.toHaveProperty('description');
   });
 
+  describe('the barcode of the manufacturer (T-142, ADR-0163)', () => {
+    const UPC = '036000291452';
+    const SAME_AS_EAN = '0036000291452';
+    const lookUp = (code: string, by = staffWith('catalog.read')) =>
+      http().get('/v1/admin/catalog/variants/lookup').query({ code }).set(by);
+
+    it('takes a GTIN with its check digit, unique among the active variants of every product', async () => {
+      const shirt = await createProduct();
+      const withGtin = await addVariant(shirt.id, 1, { gtin: UPC });
+      const pants = await createProduct({ title: 'Pantalón' });
+
+      const errors = async (gtin: unknown) =>
+        (
+          await http()
+            .post(`${PRODUCTS}/${pants.id}/variants`)
+            .set(editor())
+            .send({ sku: 'pan-m', options: {}, gtin, version: 1 })
+            .expect(400)
+        ).body.errors;
+
+      expect(withGtin.variants[0]).toMatchObject({ gtin: UPC });
+      expect(await errors('75010313113')).toEqual([
+        {
+          field: 'gtin',
+          code: 'matches',
+          message: 'Debe tener 8, 12, 13 o 14 dígitos.',
+        },
+      ]);
+      expect(await errors('7501031311308')).toEqual([
+        {
+          field: 'gtin',
+          code: 'gtinCheckDigit',
+          message: 'El dígito verificador no corresponde a este código.',
+        },
+      ]);
+      const taken = await http()
+        .post(`${PRODUCTS}/${pants.id}/variants`)
+        .set(editor())
+        .send({ sku: 'pan-m', options: {}, gtin: SAME_AS_EAN, version: 1 })
+        .expect(409);
+      expect(taken.body).toMatchObject({
+        type: '/problems/duplicate-value',
+        field: 'gtin',
+      });
+    });
+
+    it('changes and removes the GTIN after the first publication, unlike the SKU', async () => {
+      const shirt = await createProduct();
+      const withVariant = await addVariant(shirt.id, 1);
+      const variantPath = `${PRODUCTS}/${shirt.id}/variants/${withVariant.variants[0].id}`;
+      const published = await http()
+        .post(`${PRODUCTS}/${shirt.id}/publish`)
+        .set(editor())
+        .send({ version: withVariant.version })
+        .expect(200);
+
+      const changed = await http()
+        .patch(variantPath)
+        .set(editor())
+        .send({ gtin: UPC, version: published.body.version })
+        .expect(200);
+      const removed = await http()
+        .patch(variantPath)
+        .set(editor())
+        .send({ gtin: null, version: changed.body.version })
+        .expect(200);
+
+      expect(changed.body.variants[0]).toMatchObject({
+        gtin: UPC,
+        editableIdentity: false,
+      });
+      expect(removed.body.variants[0].gtin).toBeNull();
+    });
+
+    it('looks a variant up by SKU or GTIN with catalog.read, active first, and lists products by GTIN', async () => {
+      const shirt = await createProduct();
+      const withGtin = await addVariant(shirt.id, 1, { gtin: UPC });
+      await createProduct({ title: 'Pantalón' });
+
+      const byGtin = await lookUp(SAME_AS_EAN).expect(200);
+      const bySku = await lookUp('CAM-m').expect(200);
+      const none = await lookUp('9999-0').expect(200);
+      const listed = await http()
+        .get(PRODUCTS)
+        .query({ q: '0291452' })
+        .set(staffWith('catalog.read'))
+        .expect(200);
+
+      expect(byGtin.body).toEqual({
+        data: [
+          {
+            id: withGtin.variants[0].id,
+            sku: 'CAM-M',
+            gtin: UPC,
+            options: { talla: 'M' },
+            status: 'ACTIVE',
+            matchedBy: 'GTIN',
+            product: {
+              id: shirt.id,
+              title: 'Camisa de lino',
+              slug: shirt.slug,
+              status: 'DRAFT',
+            },
+          },
+        ],
+      });
+      expect(bySku.body.data).toEqual([
+        expect.objectContaining({ sku: 'CAM-M', matchedBy: 'SKU' }),
+      ]);
+      expect(none.body).toEqual({ data: [] });
+      expect(listed.body.data.map(({ id }: { id: string }) => id)).toEqual([
+        shirt.id,
+      ]);
+    });
+
+    it('asks for a code of SKU characters, and for catalog.read', async () => {
+      const blank = await lookUp('CAM M').expect(400);
+      await lookUp(UPC, staffWith('orders.read')).expect(403);
+
+      expect(blank.body.errors).toEqual([
+        expect.objectContaining({ field: 'code' }),
+      ]);
+    });
+  });
+
   it('documents the endpoints in OpenAPI', async () => {
     const response = await http().get('/docs/v1/openapi.json').expect(200);
     const paths = (response.body as { paths: Record<string, unknown> }).paths;
@@ -476,6 +602,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       `${PRODUCTS}/{productId}/variants/{variantId}`,
       `${PRODUCTS}/{productId}/variants/{variantId}/discontinue`,
       `${PRODUCTS}/{productId}/variants/{variantId}/reactivate`,
+      '/v1/admin/catalog/variants/lookup',
     ]) {
       expect(paths[path]).toBeDefined();
     }

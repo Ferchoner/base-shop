@@ -53,6 +53,7 @@ export type BrandSortField = 'name';
 export interface AdminVariantView {
   readonly id: VariantId;
   readonly sku: string;
+  readonly gtin: string | null;
   readonly options: VariantOptions;
   readonly status: VariantStatus;
   readonly weightGrams: number | null;
@@ -114,8 +115,27 @@ export interface VariantSnapshot {
   readonly heightCm: number | null;
 }
 
+/**
+ * A variant found by a code scanned or typed at the counter (UC-CAT-15, ADR-0163), with how it matched: its SKU,
+ * or its GTIN.
+ */
+export interface VariantLookupView {
+  readonly id: VariantId;
+  readonly sku: string;
+  readonly gtin: string | null;
+  readonly options: VariantOptions;
+  readonly status: VariantStatus;
+  readonly matchedBy: 'SKU' | 'GTIN';
+  readonly product: {
+    readonly id: ProductId;
+    readonly title: string;
+    readonly slug: string;
+    readonly status: ProductStatus;
+  };
+}
+
 export interface ProductFilter {
-  /** Part of the title, or of a SKU, whatever its case. */
+  /** Part of the title, of a SKU or of a GTIN, whatever its case. */
   readonly q?: string;
   readonly statuses?: readonly ProductStatus[];
   readonly brandId?: BrandId;
@@ -165,6 +185,12 @@ export abstract class CatalogQueries {
    * search as the product listing's `q`).
    */
   abstract searchVariants(text: string): Promise<VariantSnapshot[]>;
+
+  /**
+   * The variants whose SKU is `code`, whatever its case, or whose GTIN is the same code completed to 14 digits
+   * (ADR-0163): active first, then by SKU. Empty when none matches.
+   */
+  abstract lookUpVariants(code: string): Promise<VariantLookupView[]>;
 
   /** The images of these products, by position; the cart takes the main image of each variant from them. */
   abstract findImagesOfProducts(

@@ -152,11 +152,12 @@ describe('Products and variants (T-140 part a)', () => {
     productId: ProductId,
     sku: string,
     options: Record<string, string>,
-    sizes: { weightGrams?: number; lengthCm?: number } = {},
+    sizes: { weightGrams?: number; lengthCm?: number; gtin?: string } = {},
   ): Promise<VariantId> =>
     run(async () =>
       moduleRef.get(ProductVariants).add(productId, {
         sku,
+        gtin: sizes.gtin ?? null,
         options,
         weightGrams: sizes.weightGrams ?? null,
         lengthCm: sizes.lengthCm ?? null,
@@ -389,6 +390,7 @@ describe('Products and variants (T-140 part a)', () => {
         {
           id: m,
           sku: 'CAM-M',
+          gtin: null,
           options: { talla: 'M', color: 'Azul' },
           status: 'ACTIVE',
           weightGrams: 350,
@@ -474,6 +476,168 @@ describe('Products and variants (T-140 part a)', () => {
         },
       ]);
       expect(await audited('products.variant-reactivate', m)).toHaveLength(1);
+    });
+  });
+
+  describe('the GTIN of variants (ADR-0163)', () => {
+    const UPC = '036000291452';
+    const SAME_AS_EAN = '0036000291452';
+    const variants = () => moduleRef.get(ProductVariants);
+    const discontinue = (productId: ProductId, variantId: VariantId) =>
+      run(async () =>
+        variants().discontinue(productId, variantId, await version(productId)),
+      );
+
+    it('keeps the code as entered with its key, unique among active variants of every product', async () => {
+      const shirt = await createProduct('Camisa');
+      const pants = await createProduct('Pantalón');
+      const m = await addVariant(shirt, 'CAM-M', {}, { gtin: UPC });
+
+      await expect(
+        addVariant(pants, 'PAN-M', {}, { gtin: SAME_AS_EAN }),
+      ).rejects.toEqual(new DuplicateValueError('gtin'));
+      expect(
+        await prisma.productVariant.findUniqueOrThrow({
+          where: { id: m },
+          select: { gtin: true, gtinKey: true },
+        }),
+      ).toEqual({ gtin: UPC, gtinKey: '00036000291452' });
+
+      await discontinue(shirt, m);
+      const replacement = await addVariant(
+        pants,
+        'PAN-M',
+        {},
+        { gtin: SAME_AS_EAN },
+      );
+
+      await expect(
+        run(async () => variants().reactivate(shirt, m, await version(shirt))),
+      ).rejects.toEqual(new DuplicateValueError('gtin'));
+      expect(
+        (await queries.findProduct(pants))?.variants.map(({ id, gtin }) => ({
+          id,
+          gtin,
+        })),
+      ).toEqual([{ id: replacement, gtin: SAME_AS_EAN }]);
+    });
+
+    it('changes the GTIN of a published product, and audits it on the variant', async () => {
+      const shirt = await createProduct('Camisa');
+      const m = await addVariant(shirt, 'CAM-M', {});
+      await publish(shirt);
+
+      await run(async () =>
+        variants().update(shirt, m, {
+          gtin: UPC,
+          version: await version(shirt),
+        }),
+      );
+
+      // Another change keeps the stored GTIN.
+      await run(async () =>
+        variants().update(shirt, m, {
+          weightGrams: 250,
+          version: await version(shirt),
+        }),
+      );
+
+      expect((await queries.findProduct(shirt))?.variants[0]).toMatchObject({
+        gtin: UPC,
+        weightGrams: 250,
+      });
+      const updates = await audited('products.variant-update', m);
+      expect(updates).toHaveLength(2);
+      expect(updates).toEqual(
+        expect.arrayContaining([
+          {
+            resourceType: 'variant',
+            changes: { gtin: { from: null, to: UPC } },
+          },
+          {
+            resourceType: 'variant',
+            changes: { weightGrams: { from: null, to: 250 } },
+          },
+        ]),
+      );
+    });
+
+    it('keeps in the database only codes of a GTIN shape, together with their key', async () => {
+      const shirt = await createProduct('Camisa');
+      const m = await addVariant(shirt, 'CAM-M', {}, { gtin: UPC });
+
+      for (const [change, check] of [
+        [
+          prisma.$executeRaw`UPDATE product_variants SET gtin = '1234567', gtin_key = '00000001234567' WHERE id = ${m}::uuid`,
+          'product_variants_gtin_check',
+        ],
+        [
+          prisma.$executeRaw`UPDATE product_variants SET gtin_key = '00000096385074' WHERE id = ${m}::uuid`,
+          'product_variants_gtin_key_check',
+        ],
+        [
+          prisma.$executeRaw`UPDATE product_variants SET gtin_key = NULL WHERE id = ${m}::uuid`,
+          'product_variants_gtin_key_check',
+        ],
+      ] as const) {
+        await expect(change).rejects.toThrow(new RegExp(check));
+      }
+    });
+
+    it('looks variants up by SKU or GTIN, active first, saying how each one matched (UC-CAT-15)', async () => {
+      const old = await createProduct('Camisa vieja');
+      const first = await addVariant(old, 'CAM-0', {}, { gtin: UPC });
+      await discontinue(old, first);
+      const shirt = await createProduct('Camisa', { slug: 'camisa' });
+      await addVariant(shirt, 'CAM-1', {}, { gtin: SAME_AS_EAN });
+      // A SKU of digits can be the GTIN of another variant.
+      const cap = await createProduct('Gorra');
+      await addVariant(cap, UPC, {});
+
+      const lookUp = async (code: string) =>
+        (await queries.lookUpVariants(code)).map(
+          ({ sku, status, matchedBy }) => `${sku} ${status} ${matchedBy}`,
+        );
+
+      expect(await lookUp(UPC)).toEqual([
+        `${UPC} ACTIVE SKU`,
+        'CAM-1 ACTIVE GTIN',
+        'CAM-0 DISCONTINUED GTIN',
+      ]);
+      expect(await lookUp(SAME_AS_EAN)).toEqual([
+        'CAM-1 ACTIVE GTIN',
+        'CAM-0 DISCONTINUED GTIN',
+      ]);
+      expect(await lookUp('cam-1')).toEqual(['CAM-1 ACTIVE SKU']);
+      expect(await lookUp('CAM')).toEqual([]);
+      expect((await queries.lookUpVariants('cam-1'))[0]).toEqual({
+        id: expect.any(String),
+        sku: 'CAM-1',
+        gtin: SAME_AS_EAN,
+        options: {},
+        status: 'ACTIVE',
+        matchedBy: 'SKU',
+        product: {
+          id: shirt,
+          title: 'Camisa',
+          slug: 'camisa',
+          status: 'DRAFT',
+        },
+      });
+    });
+
+    it('finds a product in the listing by part of a GTIN', async () => {
+      const shirt = await createProduct('Camisa');
+      await addVariant(shirt, 'CAM-M', {}, { gtin: UPC });
+      await createProduct('Pantalón');
+
+      const { items } = await queries.listProducts(
+        { q: '0291452' },
+        [{ field: 'title', direction: 'asc' }],
+        { page: 1, pageSize: 10 },
+      );
+
+      expect(items.map(({ id }) => id)).toEqual([shirt]);
     });
   });
 

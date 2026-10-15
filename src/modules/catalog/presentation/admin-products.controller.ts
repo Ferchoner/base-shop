@@ -264,6 +264,7 @@ export class AdminProductsController {
     const id = product(productId);
     await this.variants.add(id, {
       sku: body.sku,
+      gtin: body.gtin ?? null,
       options: body.options ?? {},
       weightGrams: body.weightGrams ?? null,
       lengthCm: body.lengthCm ?? null,
@@ -277,7 +278,7 @@ export class AdminProductsController {
   @ApiOperation({
     summary: 'Editar una variante',
     description:
-      'SKU y opciones solo mientras el producto nunca se ha publicado (409 `field-locked`); peso y medidas siempre.',
+      'SKU y opciones solo mientras el producto nunca se ha publicado (409 `field-locked`); GTIN, peso y medidas siempre.',
   })
   @ApiOkResponse({ type: AdminProductDto })
   @ApiProblemResponses(
@@ -322,7 +323,7 @@ export class AdminProductsController {
   @ApiOperation({
     summary: 'Reactivar una variante descontinuada',
     description:
-      'Con el mismo SKU y opciones; 409 `duplicate-value` si otra variante activa tiene su combinación.',
+      'Con el mismo SKU, GTIN y opciones; 409 `duplicate-value` si otra variante activa tiene su combinación o su GTIN.',
   })
   @ApiOkResponse({ type: AdminProductDto })
   @ApiProblemResponses(...LIFECYCLE_PROBLEMS, 'duplicate-value')

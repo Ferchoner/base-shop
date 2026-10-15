@@ -39,9 +39,26 @@ export function auditedVariantFields(
   variant: VariantSnapshot | undefined,
 ): Record<string, unknown> {
   if (variant === undefined) return {};
-  const { sku, options, status, weightGrams, lengthCm, widthCm, heightCm } =
-    variant;
-  return { sku, options, status, weightGrams, lengthCm, widthCm, heightCm };
+  const {
+    sku,
+    gtin,
+    options,
+    status,
+    weightGrams,
+    lengthCm,
+    widthCm,
+    heightCm,
+  } = variant;
+  return {
+    sku,
+    gtin,
+    options,
+    status,
+    weightGrams,
+    lengthCm,
+    widthCm,
+    heightCm,
+  };
 }
 
 export function variantOf(

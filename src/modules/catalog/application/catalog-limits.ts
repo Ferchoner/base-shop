@@ -22,6 +22,7 @@ export {
   SLUG_PATTERN,
 } from '../domain/slug.js';
 export {
+  GTIN_PATTERN,
   MAX_DIMENSION_CM,
   MAX_WEIGHT_GRAMS,
   SKU_PATTERN,

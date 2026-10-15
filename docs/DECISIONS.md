@@ -5106,4 +5106,10 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambios compatibles en `/v1`: dos rutas nuevas y campos nuevos en `AdminOrder`, `AdminPayment` y las variantes. Por eso es una versión menor (ADR-0159).
   - Al implementarse, modifica ADR-0067 y ADR-0145 (la anonimización conserva la nota), ADR-0134 y ADR-0135 (la nota del pago y del reembolso), y la regla BR-PRD-12 (el GTIN no queda fijo).
 - **Revisar si:** los datos del ticket deben cambiar por tienda, o una variante necesita varios GTIN.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-14, con las recomendaciones del plan). Se implementa en T-142, T-188 y T-197, en la versión 1.4.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-14, con las recomendaciones del plan). Se implementa en T-142, T-188 y T-197, en la versión 1.4. Parte 1, T-142 (plan aprobado el 2026-10-14, con sus 10 recomendaciones):
+  - la migración `20261014120000_catalog_variant_gtin` agrega `gtin`, como se capturó, y `gtin_key`, el mismo completado a 14 dígitos. `product_variants_gtin_check` exige 8, 12, 13 o 14 dígitos, y `product_variants_gtin_key_check` que la llave sea la del código, con `IS NOT DISTINCT FROM`, para que un código sin llave no pase como `NULL`;
+  - el índice único parcial `product_variants_active_gtin_key` no repite un GTIN entre variantes activas de ningún producto: 409 `duplicate-value` con `field: gtin`. Una descontinuada deja libre el suyo, y reactivarla con uno tomado responde el mismo 409;
+  - el formato se valida en el DTO (`matches` en `gtin`) y el dígito verificador en el dominio (`gtinCheckDigit`);
+  - el GTIN se cambia o se quita también después de publicar, y se audita con la variante;
+  - `GET /v1/admin/catalog/variants/lookup?code=…` responde una lista, con las activas primero y `matchedBy`, porque un SKU de dígitos puede coincidir con el GTIN de otra variante y varias descontinuadas pueden compartir uno; sin coincidencias, la lista sale vacía;
+  - el `q` del listado de productos busca también por parte del GTIN; la tienda pública no lo muestra.

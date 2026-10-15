@@ -9,6 +9,7 @@ import type { CategoryId } from './category.js';
 import { type NewVariant, Product } from './product.js';
 import {
   FieldLockedError,
+  InvalidGtinError,
   NoActiveVariantError,
   OptionNamesMismatchError,
 } from './product-errors.js';
@@ -31,9 +32,11 @@ const draft = (overrides: Partial<Parameters<typeof Product.create>[0]> = {}) =>
 const variant = (
   sku: string,
   options: Record<string, unknown>,
+  gtin: string | null = null,
 ): NewVariant & { id: VariantId } => ({
   id: newId<'Variant'>(),
   sku,
+  gtin,
   options,
   weightGrams: null,
   lengthCm: null,
@@ -159,6 +162,7 @@ describe('Product (UC-CAT-04 to 10, ADR-0068, ADR-0076, ADR-0123)', () => {
       expect(product.snapshot().variants[0]).toEqual({
         id: m,
         sku: 'CAM-M',
+        gtin: null,
         options: { talla: 'M' },
         status: 'ACTIVE',
         weightGrams: null,
@@ -279,6 +283,95 @@ describe('Product (UC-CAT-04 to 10, ADR-0068, ADR-0076, ADR-0123)', () => {
       expect(() => product.updateVariant(newId(), { weightGrams: 1 })).toThrow(
         NotFoundError,
       );
+    });
+  });
+
+  describe('the GTIN of a variant (ADR-0163)', () => {
+    const UPC = '036000291452';
+    const SAME_AS_EAN = '0036000291452';
+    const OTHER = '7501031311309';
+
+    it('keeps the GTIN of a new variant as it was entered, and adds none without one', () => {
+      const product = draft();
+      const m = variant('cam-m', { talla: 'M' }, UPC);
+      const l = variant('cam-l', { talla: 'L' });
+
+      product.addVariant(m);
+      product.addVariant(l);
+
+      expect(product.snapshot().variants.map(({ gtin }) => gtin)).toEqual([
+        UPC,
+        null,
+      ]);
+    });
+
+    it('rejects a GTIN another active variant of the product has, also written as an EAN-13', () => {
+      const product = draft();
+      product.addVariant(variant('cam-m', { talla: 'M' }, UPC));
+
+      expect(() =>
+        product.addVariant(variant('cam-l', { talla: 'L' }, SAME_AS_EAN)),
+      ).toThrow(new DuplicateValueError('gtin'));
+      expect(() =>
+        product.addVariant(variant('cam-xl', { talla: 'XL' }, '7501031311308')),
+      ).toThrow(new InvalidGtinError('gtinCheckDigit'));
+      expect(product.snapshot().variants).toHaveLength(1);
+    });
+
+    it('frees the GTIN of a discontinued variant for the one that replaces it, and then does not reactivate it', () => {
+      const product = draft();
+      const old = variant('cam-m', { talla: 'M' }, UPC);
+      product.addVariant(old);
+      product.discontinueVariant(old.id, NOW);
+      const replacement = variant('cam-m2', { talla: 'M' }, UPC);
+
+      product.addVariant(replacement);
+
+      expect(() => product.reactivateVariant(old.id)).toThrow(
+        new DuplicateValueError('options'),
+      );
+      product.updateVariant(replacement.id, { options: { talla: 'Mediana' } });
+      expect(() => product.reactivateVariant(old.id)).toThrow(
+        new DuplicateValueError('gtin'),
+      );
+    });
+
+    it('changes, checks and removes the GTIN also after the first publication, unlike the SKU', () => {
+      const { product, m, l } = published();
+
+      product.updateVariant(m, { gtin: UPC });
+      expect(() => product.updateVariant(l, { gtin: SAME_AS_EAN })).toThrow(
+        new DuplicateValueError('gtin'),
+      );
+      expect(() => product.updateVariant(l, { gtin: '1234567' })).toThrow(
+        new InvalidGtinError('gtin'),
+      );
+      product.updateVariant(l, { gtin: OTHER });
+      product.updateVariant(m, { weightGrams: 200 });
+      product.updateVariant(m, { gtin: null });
+
+      expect(
+        product.snapshot().variants.map(({ gtin, weightGrams }) => ({
+          gtin,
+          weightGrams,
+        })),
+      ).toEqual([
+        { gtin: null, weightGrams: 200 },
+        { gtin: OTHER, weightGrams: null },
+      ]);
+    });
+
+    it('lets a discontinued variant take a GTIN an active one has, since only active ones compete', () => {
+      const { product, m, l } = withSizes();
+      product.updateVariant(m, { gtin: UPC });
+      product.discontinueVariant(l, NOW);
+
+      product.updateVariant(l, { gtin: SAME_AS_EAN });
+
+      expect(product.snapshot().variants[1]).toMatchObject({
+        status: 'DISCONTINUED',
+        gtin: SAME_AS_EAN,
+      });
     });
   });
 

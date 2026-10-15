@@ -47,6 +47,7 @@ import { AdminBrandsController } from './presentation/admin-brands.controller.js
 import { AdminCategoriesController } from './presentation/admin-categories.controller.js';
 import { AdminProductImagesController } from './presentation/admin-product-images.controller.js';
 import { AdminProductsController } from './presentation/admin-products.controller.js';
+import { AdminVariantsController } from './presentation/admin-variants.controller.js';
 import { CatalogController } from './presentation/catalog.controller.js';
 import { imageUploadOptions } from './presentation/image-upload.js';
 
@@ -90,6 +91,7 @@ export function imageUploads(): DynamicModule {
     AdminBrandsController,
     AdminProductsController,
     AdminProductImagesController,
+    AdminVariantsController,
   ],
   providers: [
     CatalogFacade,
