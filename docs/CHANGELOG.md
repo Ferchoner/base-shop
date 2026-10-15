@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.6 (nuevo ADR-0165): servicios solo en tienda y órdenes de trabajo. Un producto con `storeOnly` no se vende en línea y sí en la tienda física. Las órdenes de trabajo son la nota de servicio: folio, cliente, equipo, falla, diagnóstico, estados con su historial y las ventas de mostrador que la cobran, con los datos para imprimirla y la conservación de los datos del cliente. Se implementa en T-189, en tres partes.
+- Paso 0 de la versión 1.6: revisión contra los ADR sin desajustes y 0 vulnerabilidades en las dependencias de producción; Prisma sigue en 7.10.0, aunque salió el parche 7.10.1, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5.
+
 ## 1.5.0 (2026-10-15)
 
 Carga masiva de productos y de existencias (ADR-0164).

@@ -6,7 +6,47 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.5, carga masiva de productos y de existencias, se cerró el 2026-10-15 y se publica como la 1.5.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+1.6 — Servicios solo en tienda y órdenes de trabajo. Inicio: 2026-10-15 (plan aprobado ese día).
+
+### Goal
+
+Que los servicios se vendan solo en la tienda física, y que el mostrador reciba equipos con su nota de servicio: folio, cliente, equipo, diagnóstico, estados y las ventas que la cobran, lista para imprimir (ADR-0165).
+
+### Tasks
+
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.5 en la guía de desarrollo |
+| 1 | T-189 parte a: `storeOnly` en el producto; la tienda pública, el carrito, el checkout en línea y la recompra lo respetan, y la tienda física lo vende |
+| 2 | T-189 parte b: el módulo de órdenes de trabajo, con folio, cliente, equipo, falla, diagnóstico, estados con su historial, búsqueda y permisos |
+| 3 | T-189 parte c: las ventas de mostrador ligadas, los datos para imprimir la nota y la conservación de los datos del cliente |
+
+- **Criterio de cierre:** los criterios de aceptación de T-189, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.6.0 publicada con su tag y su GitHub Release (ADR-0159).
+- **Fuera de esta versión:** avisos al cliente cuando su equipo esté listo; citas y agenda; firma digital y fotos del equipo; refacciones aparte de la venta; productos sin control de existencias; el texto de las condiciones de la nota, que define el usuario; y todo lo que ADR-0158 dejó fuera del MVP.
+- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.6.0.
+- **Siguiente versión, sin plan aprobado (ADR-0163):** la 1.7, promociones (T-200).
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 165 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
+  - Prisma 7.10.1, un parche, salió el mismo 2026-10-15, sin aviso de seguridad; seguimos en 7.10.0, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad (ADR-0158). La 8 sigue en versión candidata (8.0.0-rc.23).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5:
+  - no se edita código mientras corren `test:cov` o las pruebas de mutación;
+  - en una prueba de bloqueo, la operación espera en el candado que se prueba, no antes;
+  - la regla de comparar los errores de dominio por `code` y `details` nombra también `toEqual`, que solo compara el mensaje. Ya estaba en la guía desde T-161, y la parte b de T-146 no la siguió.
+
+### Risks
+
+- **Datos personales de clientes sin cuenta:** las órdenes de trabajo guardan nombre y teléfono; siguen el ciclo de conservación de las órdenes, y la validación legal pendiente los incluye (`PROJECT.md` §9).
+- **Un servicio publicado antes de marcarlo:** se vende en línea hasta que se marca; la marca vacía la cache de la tienda pública al cambiar.
+- **Las condiciones de la nota:** sin su texto, la nota se imprime sin condiciones; el usuario lo define con su asesor.
+- **Cambios de contrato:** rutas, campos y permisos nuevos, compatibles dentro de `/v1`; cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
+
+### Review
+
+PENDIENTE.
 
 ---
 

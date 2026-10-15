@@ -36,13 +36,14 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Módulo | Responsabilidad en el MVP | Fuera del MVP |
 |---|---|---|
 | Identity & Access | Registro, autenticación, verificación de email, cuentas de staff, roles, permisos, direcciones | 2FA (preparado, ADR-0048) |
-| Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | Código de barras del fabricante (GTIN) en la versión 1.4 (ADR-0163); carga masiva de productos en la 1.5 (ADR-0164) |
+| Catalog | Productos, variantes, imágenes, categorías, marcas, publicación | Código de barras del fabricante (GTIN) en la versión 1.4 (ADR-0163); carga masiva de productos en la 1.5 (ADR-0164); productos solo en tienda, como los servicios, en la 1.6 (ADR-0165) |
 | Pricing | Una lista predeterminada, precios inmediatos y programados | Listas adicionales (modelo preparado, ADR-0039) |
 | Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160); carga masiva de entradas en la versión 1.5 (ADR-0164) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
 | Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077), pedidos colocados por el staff (versión 1.2, ADR-0161) |
 | Payments | Pago manual en tienda, con su método desde la versión 1.2 (ADR-0161); habilitado desde la API en la versión 1.3 (ADR-0162) | PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
 | Shipping | Envíos manuales (por paquetería o entrega propia), costo fijo con envío gratis por monto | Integración con paqueterías, envíos parciales, recoger en tienda (ADR-0078; entrega en tienda de las ventas de mostrador en la versión 1.2, ADR-0161) |
+| Work Orders | — | Órdenes de trabajo: la nota de servicio, con folio, equipo recibido, diagnóstico, estados y las ventas que la cobran (versión 1.6, ADR-0165) |
 | Transversales | Auditoría técnica, notificaciones, jobs | Facturación electrónica (CFDI) |
 
 ---
@@ -206,6 +207,7 @@ Criterios de aceptación:
 | UC-CAT-14 | Listado administrativo del catálogo | Staff (`catalog.read`) | ADR-0016 |
 | UC-CAT-15 | Buscar una variante por su código (SKU o GTIN) | Staff (`catalog.read`) | BR-PRD-19, ADR-0163 |
 | UC-CAT-16 | Carga masiva de productos con sus variantes | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-09, BR-PRD-19, ADR-0164 |
+| UC-CAT-17 | Vender un producto solo en la tienda física | Staff (`catalog.write`) | ADR-0165 |
 
 Criterios de aceptación:
 
@@ -221,6 +223,7 @@ Criterios de aceptación:
 - **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
 - **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente (`storeVisibility`, ADR-0129).
 - **UC-CAT-15 (ADR-0163):** encuentra la variante por su SKU exacto, sin distinguir mayúsculas, o por su GTIN, aunque se lea con otros ceros a la izquierda; responde todas las coincidencias, las activas primero, con su producto y si coincidieron por SKU o por GTIN; sin coincidencias, una lista vacía.
+- **UC-CAT-17 (ADR-0165, versión 1.6):** un producto con `storeOnly` no aparece en la tienda pública, el carrito y el checkout en línea lo rechazan y la recompra lo omite; la venta de mostrador y los pedidos del staff lo aceptan; la marca se cambia en cualquier momento.
 - **UC-CAT-16 (implementación, ADR-0164):** cada error lleva su código en su celda, también los de las filas de un producto entre sí (`differsFromProduct`, `optionNames`), los del archivo (`repeated`) y los del catálogo (`taken`); un slug, SKU o GTIN que otro cambio toma entre la revisión y el guardado responde 409 sin guardar nada; 5,000 productos de 10 categorías caben en una transacción; las plantillas de `docs/templates/` se importan sin errores.
 - **UC-CAT-16 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, una por variante, crea productos nuevos en borrador con sus variantes, con la marca y las categorías por su slug; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un slug que ya existe o un SKU ya usado es un error de su fila, así que repetir el archivo no cambia nada.
 - **UC-CAT-01 / 02 (implementación, ADR-0129):** filtrar por una categoría o marca que no existe, o que está oculta o inactiva, responde 400 con el mismo código. Las imágenes de variantes que no se venden no se muestran.
@@ -457,6 +460,28 @@ Criterios de aceptación:
 - **UC-SYS-01 (plazos, ADR-0151):** los 30 días de los refresh tokens, los carritos de invitado y los eventos de webhooks son configurables con `SPENT_REFRESH_TOKEN_RETENTION_DAYS`, `INACTIVE_GUEST_CART_RETENTION_DAYS` y `PROCESSED_WEBHOOK_EVENT_RETENTION_DAYS`.
 - **UC-SYS-02 (ADR-0151):** cada día bloquea los datos personales de las órdenes que concluyeron hace 12 meses o más, con sus envíos, y anonimiza los de las que concluyeron hace 72 meses o más (plazos configurables); hasta 1,000 de cada uno por corrida, de la orden más antigua a la más nueva; cada orden en su propia transacción, auditada como sistema y sin valores; una orden que falla no detiene a las demás. Una orden bloqueada desaparece de las vistas del comprador, y el staff la ve sin el email ni la dirección exacta.
 - **UC-SYS-03 (ADR-0152):** con `INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS` configurada, cada día anonimiza la cuenta de los clientes sin actividad (registrarse, iniciar sesión o renovar la sesión) durante ese plazo, como UC-IAM-19 pero sin sus órdenes, que siguen UC-SYS-02; hasta 1,000 por corrida; omite a quien tenga una orden sin concluir o haya vuelto a tener actividad; se audita como sistema y sin valores.
+
+### 5.10 Work Orders
+
+Desde la versión 1.6 (ADR-0165, T-189). Una orden de trabajo es la nota de servicio: el equipo que un cliente deja en la tienda, lo que se le hace y las ventas que lo cobran.
+
+| ID | Caso de uso | Acceso | Reglas |
+|---|---|---|---|
+| UC-WRK-01 | Recibir un equipo: crear la orden de trabajo | Staff (`work-orders.manage`) | ADR-0165 |
+| UC-WRK-02 | Consultar y buscar órdenes de trabajo | Staff (`work-orders.read`) | ADR-0165 |
+| UC-WRK-03 | Registrar el diagnóstico y el trabajo, y corregir los datos | Staff (`work-orders.manage`) | ADR-0165 |
+| UC-WRK-04 | Cambiar el estado de una orden de trabajo | Staff (`work-orders.manage`) | ADR-0165 |
+| UC-WRK-05 | Ligar ventas de mostrador a una orden de trabajo | Staff (`work-orders.manage`) | ADR-0161, ADR-0165 |
+| UC-WRK-06 | Consultar los datos para imprimir la nota de servicio | Staff (`work-orders.read`) | ADR-0163, ADR-0165 |
+
+Criterios de aceptación:
+
+- **UC-WRK-01:** recibe un folio consecutivo y único; exige el nombre y el teléfono del cliente, o un cliente registrado, el tipo de equipo y la falla reportada; nace Recibida, en la tienda donde se recibe y a nombre de quien la recibe.
+- **UC-WRK-02:** busca por folio, nombre o teléfono del cliente, número de serie y estado.
+- **UC-WRK-04:** sigue Recibida → Diagnosticada → En reparación → Lista → Entregada, y Cancelada desde cualquiera antes de Entregada; cada cambio guarda quién, cuándo y una nota, y se audita.
+- **UC-WRK-05:** liga una o varias ventas de mostrador y muestra si están pagadas; entregar no exige pago.
+- **UC-WRK-06:** da los datos de la orden de trabajo y de la tienda, con las condiciones de `WORK_ORDER_FOOTER`; el cliente imprime la nota con su línea de firma.
+- **Datos personales:** los del cliente se bloquean y se anonimizan con los plazos de las órdenes (ADR-0151), contados desde que se entregó o se canceló.
 
 ---
 

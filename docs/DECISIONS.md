@@ -182,6 +182,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0162 | Pago manual habilitado desde la API | Aceptada |
 | ADR-0163 | Datos para el ticket, nota del pago y GTIN | Aceptada |
 | ADR-0164 | Carga masiva de productos y de existencias | Aceptada |
+| ADR-0165 | Servicios solo en tienda y órdenes de trabajo | Aceptada |
 
 ---
 
@@ -5186,3 +5187,42 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Escrituras en bloque:** existencias, movimientos y la carga con sentencias que reciben arreglos, con las fechas del reloj de la API (ADR-0124);
   - **Auditoría:** `inventory.receipt-import`, sobre el recurso `stock-receipt-import`, con los conteos y la huella del archivo; cada movimiento guarda quién y su nota;
   - **Plantilla:** `docs/templates/stock.csv`; la prueba end-to-end importa las tres plantillas en orden.
+
+## ADR-0165 — Servicios solo en tienda y órdenes de trabajo
+
+- **Fecha:** 2026-10-15
+- **Contexto:** Sexto incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.6, prevista por ADR-0163 (T-189). El usuario decidió el 2026-10-14 que los servicios se venden solo en la tienda física, sin fecha, cita ni cupo, con su existencia en un número alto, y que la nota de servicio es una orden de trabajo, con folio, equipo recibido, diagnóstico y estados. Hoy:
+  - nada distingue un servicio de un producto: uno publicado se vende en línea y en la tienda física;
+  - lo que se vende en línea lo deciden la tienda pública (una consulta SQL), el carrito y el checkout en línea (la fachada de Catalog) y la recompra; la venta de mostrador y los pedidos del staff comparten la validación del checkout en línea;
+  - no hay órdenes de trabajo; sí, los datos de la tienda para imprimir (ADR-0163) y la venta de mostrador para cobrar (ADR-0161).
+- **Decisión** (del usuario, con las recomendaciones del plan):
+  - **Productos solo en tienda:**
+    - `storeOnly` en el producto, para todas sus variantes; por defecto `false`, y se cambia en cualquier momento, también publicado. Está en el alta, la edición, `AdminProduct` y la carga masiva (ADR-0164);
+    - en línea no se vende: la tienda pública no lo muestra (listado, búsqueda, detalle y marcas), el carrito lo rechaza con el 409 `variant-not-sellable` de siempre y lo deja fuera del subtotal, el checkout en línea lo rechaza, y la recompra lo omite. `storeVisibility` dice que es solo de tienda;
+    - en la tienda física se vende como hoy, en la venta de mostrador y en los pedidos del staff;
+    - cambiar la marca vacía la cache de la tienda pública;
+    - su existencia se carga con un número alto, como cualquier entrada; no hay productos sin control de existencias.
+  - **Órdenes de trabajo,** un módulo nuevo en `/v1/admin/work-orders`:
+    - **Permisos nuevos:** `work-orders.read` y `work-orders.manage`; los reciben el rol Vendedor, que atiende el mostrador, y el Administrador;
+    - **Datos:** un folio consecutivo y único, como `OT-000123`; el cliente, con nombre y teléfono obligatorios y email opcional, o un cliente registrado; el equipo, con tipo, marca, modelo, número de serie opcional, accesorios recibidos y estado al recibirlo; la falla reportada, obligatoria, el diagnóstico, el trabajo realizado y un costo estimado informativo; la tienda que lo recibió, quién lo recibió y un técnico asignado opcional. Sin fecha de entrega comprometida;
+    - **Estados:** Recibida → Diagnosticada → En reparación → Lista → Entregada, y Cancelada desde cualquiera antes de Entregada, cuando el cliente se lleva su equipo sin el servicio. Cada cambio guarda quién, cuándo y una nota, en su historial;
+    - **Cobro:** la orden de trabajo no cobra. Se le ligan ventas de mostrador (ADR-0161) con los servicios y las refacciones, una o varias, como un anticipo y la liquidación, y muestra si están pagadas. Entregarla no exige pago, por garantías o revisiones sin costo;
+    - **Impresión:** la API da los datos de la orden de trabajo y de la tienda, y el cliente imprime la nota de servicio con su línea de firma, que no se guarda. La variable nueva `WORK_ORDER_FOOTER` lleva las condiciones de la nota; queda vacía por defecto hasta que el usuario defina su texto con su asesor;
+    - **Búsqueda:** por folio, nombre o teléfono del cliente, número de serie y estado;
+    - **Datos personales:** los del cliente siguen el ciclo de conservación de las órdenes (ADR-0151), con las mismas variables: se bloquean a los `PERSONAL_DATA_OPERATIONAL_MONTHS` meses de entregada o cancelada, y se anonimizan a la suma de los dos plazos. La validación legal pendiente de `PROJECT.md` §9 los incluye;
+    - **Auditoría:** el alta, cada cambio de datos y de estado, y cada venta ligada.
+  - **Implementación:** T-189, en tres partes: a, productos solo en tienda; b, el núcleo de las órdenes de trabajo (datos, estados, búsqueda y permisos); c, las ventas ligadas, la impresión y la conservación de datos.
+- **Alternativas consideradas:**
+  - **Un tipo de producto "servicio" sin existencias:** el usuario prefirió manejar la existencia con un número alto, y lo que hace falta es que no se venda en línea.
+  - **La marca en la variante:** un producto es servicio o no lo es; en el producto se ve y se cambia una vez.
+  - **Cobrar en la orden de trabajo:** duplicaría el pago de la venta de mostrador, que ya tiene método, nota, reembolsos y ticket.
+  - **Exigir el pago para entregar:** impediría entregar un equipo en garantía o una revisión sin costo.
+  - **Un texto de condiciones fijo en la API:** las condiciones son de cada negocio y conviene revisarlas con un asesor.
+  - **Guardar la firma o fotos del equipo:** agrega archivos con datos personales; puede venir después.
+- **Consecuencias:**
+  - Un servicio no aparece ni se compra en línea, y se vende en el mostrador como cualquier producto.
+  - La nota de servicio tiene folio, historial y las ventas que la cobraron, y se imprime con los datos de la tienda.
+  - Las órdenes de trabajo guardan datos personales de clientes sin cuenta, con su ciclo de conservación.
+  - Cambios compatibles en `/v1`: rutas, campos y permisos nuevos. Por eso es una versión menor (ADR-0159).
+- **Revisar si:** hace falta avisar al cliente cuando su equipo esté listo, dar citas, guardar fotos o firmas, o llevar las refacciones aparte de la venta.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-15, con las 17 recomendaciones del plan). Se implementa en T-189, en la versión 1.6.
