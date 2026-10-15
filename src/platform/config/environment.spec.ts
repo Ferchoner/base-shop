@@ -269,6 +269,7 @@ describe('Email and frontend links (ADR-0110)', () => {
     FRONTEND_BASE_URL: 'https://shop.example.com',
     JWT_SECRET: 'x'.repeat(32),
     IMAGE_BASE_URL: 'https://shop.example.com/media',
+    STORE_NAME: 'Tienda Ejemplo',
   };
 
   it('defaults to Mailpit and a local frontend in development and test', () => {
@@ -314,8 +315,9 @@ describe('Email and frontend links (ADR-0110)', () => {
     'MAIL_FROM',
     'FRONTEND_BASE_URL',
     'IMAGE_BASE_URL',
+    'STORE_NAME',
   ])(
-    'requires %s in production, so emails never go to the defaults',
+    'requires %s in production, so emails and tickets never go out with the defaults',
     (name) => {
       const withoutIt: Record<string, unknown> = { ...PRODUCTION };
       delete withoutIt[name];
@@ -981,5 +983,94 @@ describe('RESERVATION_TTL (BR-INV-07, ADR-0128)', () => {
     ).toThrow(
       'RESERVATION_TTL must be a duration such as 15m or 7d (s, m, h or d), from 5m to 2h',
     );
+  });
+});
+
+describe('Store data for the ticket (ADR-0163)', () => {
+  it('defaults to the name of the project and the legend of a ticket with no tax value', () => {
+    const environment = validateEnvironment(REQUIRED);
+
+    expect(environment).toMatchObject({
+      STORE_NAME: 'base-shop',
+      TICKET_FOOTER: 'Este ticket no es un comprobante fiscal.',
+    });
+    for (const name of ['STORE_ADDRESS', 'STORE_TAX_ID', 'STORE_PHONE']) {
+      expect(environment).toHaveProperty(name, undefined);
+    }
+  });
+
+  it('reads the data trimmed, with the RFC in uppercase', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        STORE_NAME: '  Tienda Ejemplo ',
+        STORE_ADDRESS: ' Av. Madero Poniente 123, Centro, Morelia ',
+        STORE_TAX_ID: ' eje260101ab1 ',
+        STORE_PHONE: ' 443 123 4567 ',
+        TICKET_FOOTER: ' Gracias por su compra. ',
+      }),
+    ).toMatchObject({
+      STORE_NAME: 'Tienda Ejemplo',
+      STORE_ADDRESS: 'Av. Madero Poniente 123, Centro, Morelia',
+      STORE_TAX_ID: 'EJE260101AB1',
+      STORE_PHONE: '443 123 4567',
+      TICKET_FOOTER: 'Gracias por su compra.',
+    });
+  });
+
+  it('takes the RFC of a person, with 4 letters, and the letters Ñ and &', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, STORE_TAX_ID: 'ÑA&B800101XY9' })
+        .STORE_TAX_ID,
+    ).toBe('ÑA&B800101XY9');
+  });
+
+  it('leaves blank data unset, and a blank legend at its default, so the ticket always has it', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        STORE_NAME: ' ',
+        STORE_ADDRESS: '',
+        STORE_TAX_ID: ' ',
+        STORE_PHONE: '',
+        TICKET_FOOTER: '  ',
+      }),
+    ).toMatchObject({
+      STORE_NAME: 'base-shop',
+      STORE_ADDRESS: undefined,
+      STORE_TAX_ID: undefined,
+      STORE_PHONE: undefined,
+      TICKET_FOOTER: 'Este ticket no es un comprobante fiscal.',
+    });
+  });
+
+  it.each([
+    ['STORE_NAME', 'x'.repeat(101)],
+    ['STORE_ADDRESS', 'x'.repeat(301)],
+    ['STORE_TAX_ID', 'EJE2601AB1'],
+    ['STORE_TAX_ID', 'EJ260101AB1'],
+    ['STORE_TAX_ID', 'EJEAB0101AB1'],
+    ['STORE_TAX_ID', 'EJE260101A1'],
+    ['STORE_TAX_ID', 'EJE260101AB12'],
+    ['STORE_TAX_ID', '1EJE260101AB1'],
+    ['STORE_TAX_ID', 'EJE260101-B1'],
+    ['STORE_PHONE', '4'.repeat(31)],
+    ['TICKET_FOOTER', 'x'.repeat(501)],
+  ])('rejects %s = %p', (name, value) => {
+    expect(() => validateEnvironment({ ...REQUIRED, [name]: value })).toThrow(
+      name,
+    );
+  });
+
+  it('takes the longest values', () => {
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        STORE_NAME: 'x'.repeat(100),
+        STORE_ADDRESS: 'x'.repeat(300),
+        STORE_PHONE: '4'.repeat(30),
+        TICKET_FOOTER: 'x'.repeat(500),
+      }),
+    ).not.toThrow();
   });
 });

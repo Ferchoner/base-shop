@@ -827,6 +827,16 @@
             "nullable": true,
             "type": "string"
           },
+          "fulfilledFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FulfillmentWarehouseDto"
+              }
+            ],
+            "description": "El almacén del que salieron los productos, para el ticket (ADR-0163): el de una venta en la tienda, o el del envío de una orden en línea; `null` mientras esta no tenga envío.",
+            "nullable": true,
+            "type": "object"
+          },
           "fulfillment": {
             "description": "`SHIPPING`: se envía a su dirección. `IN_STORE`: el staff la entrega en la tienda física al pagarse, sin dirección, sin costo de envío y sin plazo de entrega (ADR-0161).",
             "enum": [
@@ -1026,6 +1036,7 @@
           "blockedAt",
           "shippingAddress",
           "lines",
+          "fulfilledFrom",
           "statusHistory",
           "orderNumber",
           "version",
@@ -1168,6 +1179,11 @@
             "nullable": true,
             "type": "string"
           },
+          "note": {
+            "description": "La nota que el staff escribió al registrar el pago manual (ADR-0163); `null` sin ella, o si no se ha cobrado así. La anonimización la conserva, así que no lleva datos sensibles.",
+            "nullable": true,
+            "type": "string"
+          },
           "provider": {
             "description": "`MANUAL` es el pago en la tienda (ADR-0055); PayPal aún no está habilitado (ADR-0040).",
             "enum": [
@@ -1215,6 +1231,7 @@
           "refundedAmount",
           "capturedAt",
           "method",
+          "note",
           "refunds"
         ],
         "type": "object"
@@ -3466,6 +3483,28 @@
         ],
         "type": "object"
       },
+      "FulfillmentWarehouseDto": {
+        "properties": {
+          "code": {
+            "example": "TIENDA-CENTRO",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "example": "Tienda Centro",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
       "GeoMunicipalityDto": {
         "properties": {
           "code": {
@@ -4222,6 +4261,11 @@
             "format": "uuid",
             "type": "string"
           },
+          "note": {
+            "description": "La nota que el staff escribió al registrar el reembolso manual (ADR-0163); `null` sin ella.",
+            "nullable": true,
+            "type": "string"
+          },
           "status": {
             "description": "`PENDING` hasta que el dinero se devuelve; `COMPLETED` o `FAILED` después.",
             "enum": [
@@ -4236,6 +4280,7 @@
           "id",
           "amount",
           "status",
+          "note",
           "createdAt",
           "completedAt"
         ],
@@ -4606,6 +4651,11 @@
             "nullable": true,
             "type": "string"
           },
+          "note": {
+            "description": "La nota que el staff escribió al registrar el pago manual (ADR-0163); `null` sin ella o en los demás intentos. La anonimización la conserva, así que no lleva datos sensibles.",
+            "nullable": true,
+            "type": "string"
+          },
           "providerReference": {
             "description": "Comprobante de la tienda en un pago manual.",
             "nullable": true,
@@ -4637,6 +4687,7 @@
           "method",
           "failureCode",
           "registeredBy",
+          "note",
           "createdAt"
         ],
         "type": "object"
@@ -5676,6 +5727,11 @@
             "format": "uuid",
             "type": "string"
           },
+          "note": {
+            "description": "La nota que el staff escribió al registrar el reembolso manual (ADR-0163); `null` sin ella o en los demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "providerRefundId": {
             "description": "Comprobante del reembolso: el del proveedor o, en uno manual, el que registró el staff; `null` mientras está\npendiente.",
             "nullable": true,
@@ -5703,6 +5759,7 @@
           "status",
           "providerRefundId",
           "registeredBy",
+          "note",
           "createdAt",
           "completedAt"
         ],
@@ -6903,6 +6960,46 @@
           "id",
           "name",
           "slug"
+        ],
+        "type": "object"
+      },
+      "StoreProfileDto": {
+        "properties": {
+          "address": {
+            "description": "Dirección de la tienda en una línea (`STORE_ADDRESS`); `null` si no se configuró.",
+            "example": "Av. Madero Poniente 123, Centro, 58000 Morelia, Mich.",
+            "nullable": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "Nombre de la tienda (`STORE_NAME`).",
+            "example": "Tienda Ejemplo",
+            "type": "string"
+          },
+          "phone": {
+            "description": "Teléfono de la tienda (`STORE_PHONE`); `null` si no se configuró.",
+            "example": "443 123 4567",
+            "nullable": true,
+            "type": "string"
+          },
+          "taxId": {
+            "description": "RFC de la tienda, en mayúsculas (`STORE_TAX_ID`); `null` si no se configuró.",
+            "example": "EJE260101AB1",
+            "nullable": true,
+            "type": "string"
+          },
+          "ticketFooter": {
+            "description": "Leyenda al pie del ticket (`TICKET_FOOTER`); por defecto, que no es un comprobante fiscal.",
+            "example": "Este ticket no es un comprobante fiscal.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "taxId",
+          "phone",
+          "name",
+          "ticketFooter"
         ],
         "type": "object"
       },
@@ -18251,6 +18348,87 @@
         ],
         "x-required-permissions": [
           "shipping.manage"
+        ]
+      }
+    },
+    "/v1/admin/store-profile": {
+      "get": {
+        "description": "Nombre, dirección, RFC, teléfono y leyenda de la tienda, iguales para todas las tiendas, de las variables de configuración: cambiarlos exige reiniciar la API (ADR-0163). El ticket no es un comprobante fiscal, y su leyenda por defecto lo dice.",
+        "operationId": "AdminStoreProfileController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreProfileDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar los datos de la tienda para el ticket",
+        "tags": [
+          "Administración: órdenes"
+        ],
+        "x-required-permissions": [
+          "orders.read"
         ]
       }
     },

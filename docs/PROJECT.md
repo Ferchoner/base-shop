@@ -113,4 +113,5 @@ base-shop no tiene una entidad vendedora definida: cada operador resuelve esta l
 - **Impuestos y envíos, con el contador y el administrador (P-69):** el IVA del costo de envío, el modo de redondeo del IVA y los valores del método de envío con costos reales (ADR-0079, ADR-0092, ADR-0094).
 - **Infraestructura:** hosting, despliegue, secretos en el servidor y proveedor real de correos (P-05, P-06, P-13, P-24).
 - **Pagos:** un superadministrador enciende el pago manual en tienda con `PUT /v1/admin/payment-settings` cuando la tienda cobra (ADR-0161, ADR-0162); PayPal debe verificarse en su sandbox antes de habilitarse (T-191).
+- **Ticket:** `STORE_NAME` es obligatoria en producción, y conviene completar la dirección, el RFC y el teléfono de la tienda (ADR-0163). El ticket no es un comprobante fiscal.
 - **Recomendado:** segundo factor de autenticación para el staff (ADR-0048).

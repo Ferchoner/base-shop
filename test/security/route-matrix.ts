@@ -241,6 +241,9 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   },
 
   // Staff: payments, with the permissions of the catalog in code (ADR-0111).
+  // Staff: the data of the store for the ticket of an order (ADR-0163).
+  'GET /v1/admin/store-profile': { access: ['orders.read'] },
+
   'GET /v1/admin/payments': { access: ['orders.read'] },
   'GET /v1/admin/payments/:paymentId': { access: ['orders.read'] },
   'POST /v1/admin/payments/:paymentId/refunds/manual': {

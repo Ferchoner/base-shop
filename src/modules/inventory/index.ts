@@ -6,4 +6,5 @@ export {
   type OrderId,
   type ReservationReceipt,
   type StockRequest,
+  type WarehouseLabel,
 } from './application/inventory.facade.js';

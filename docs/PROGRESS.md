@@ -186,6 +186,8 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] T-194: el pago manual en la base, con `GET` y `PUT /v1/admin/payment-settings`; `payments.configure`, reservado al superadministrador; los correos leen el valor al escribirse; sin `MANUAL_PAYMENTS_ENABLED` (ADR-0162)
 - [ ] Versión 1.4: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197); plan en `SPRINT.md`
 - [x] T-142: `gtin` en la variante, con su dígito verificador y sin repetirse entre variantes activas, editable después de publicar; `GET /v1/admin/catalog/variants/lookup` por SKU o GTIN; el `q` del listado busca por GTIN (ADR-0163)
+- [x] T-188: los datos de la tienda como variables de configuración, publicados en `GET /v1/admin/store-profile`; `AdminOrder.fulfilledFrom`, el almacén del que salieron los productos (ADR-0163)
+- [x] T-197: la nota del pago y del reembolso manual, guardada y mostrada en el pago y en la orden; las anteriores copiadas de la auditoría (ADR-0163)
 
 ## Fuera del MVP
 

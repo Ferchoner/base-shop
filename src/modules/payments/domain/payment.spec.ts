@@ -44,6 +44,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
       method: null,
       failureCode: null,
       registeredBy: null,
+      note: null,
       createdAt: STARTED,
     };
     expect(payment.snapshot.attempts).toEqual([attempt]);
@@ -59,6 +60,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
 
     payment.captureManually({
       reference: 'Ticket 00452',
+      note: 'Pagó con un billete de 500',
       method: 'CASH',
       registeredBy: staff,
       now: PAID,
@@ -75,6 +77,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
       method: 'CASH',
       failureCode: null,
       registeredBy: staff,
+      note: 'Pagó con un billete de 500',
       createdAt: PAID,
     });
   });
@@ -83,6 +86,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     const captured = start();
     captured.captureManually({
       reference: 'Ticket 1',
+      note: null,
       method: null,
       registeredBy: staff,
       now: PAID,
@@ -91,6 +95,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(() =>
       captured.captureManually({
         reference: 'Ticket 2',
+        note: null,
         method: null,
         registeredBy: staff,
         now: PAID,
@@ -104,6 +109,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(() =>
       start('PAYPAL').captureManually({
         reference: 'Ticket 3',
+        note: null,
         method: null,
         registeredBy: staff,
         now: PAID,
@@ -122,6 +128,7 @@ describe('Payment (BR-PAY-01 to 03, ADR-0040, ADR-0055)', () => {
     expect(saved.newAttempts).toEqual([]);
     saved.captureManually({
       reference: 'Ticket 00452',
+      note: null,
       method: null,
       registeredBy: staff,
       now: PAID,
@@ -141,6 +148,7 @@ describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
     if (provider === 'MANUAL') {
       payment.captureManually({
         reference: 'Ticket 00452',
+        note: null,
         method: null,
         registeredBy: staff,
         now: PAID,
@@ -179,6 +187,7 @@ describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
       status: 'PENDING',
       providerRefundId: null,
       registeredBy: null,
+      note: null,
       createdAt: REFUNDED,
       completedAt: null,
     };
@@ -204,6 +213,7 @@ describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
 
     const completed = saved.completeManualRefund({
       reference: 'Devolución 00087',
+      note: 'Devuelto en efectivo',
       registeredBy: staff,
       now: REFUNDED,
     });
@@ -214,6 +224,7 @@ describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
       status: 'COMPLETED',
       providerRefundId: 'Devolución 00087',
       registeredBy: staff,
+      note: 'Devuelto en efectivo',
       createdAt: PAID,
       completedAt: REFUNDED,
     });
@@ -235,11 +246,13 @@ describe('Refunds of a payment (UC-PAY-03 and 06, ADR-0051, ADR-0135)', () => {
     done.startRefund(newId<'Refund'>(), PAID);
     done.completeManualRefund({
       reference: 'Devolución 1',
+      note: null,
       registeredBy: staff,
       now: REFUNDED,
     });
     const input = {
       reference: 'Devolución 2',
+      note: null,
       registeredBy: staff,
       now: REFUNDED,
     };

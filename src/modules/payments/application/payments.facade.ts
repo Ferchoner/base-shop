@@ -194,6 +194,7 @@ export class PaymentsFacade {
       payment.captureManually({
         reference: input.reference,
         method: input.method,
+        note: input.note,
         registeredBy: input.registeredBy,
         now,
       });
@@ -280,6 +281,7 @@ export class PaymentsFacade {
       const now = this.clock.now();
       const refund = payment.completeManualRefund({
         reference: input.reference,
+        note: input.note,
         registeredBy: input.registeredBy,
         now,
       });

@@ -59,6 +59,13 @@ export interface RestockLine {
   readonly quantity: number;
 }
 
+/** A warehouse as other contexts show it, such as the ticket of an order (ADR-0163). */
+export interface WarehouseLabel {
+  readonly id: WarehouseId;
+  readonly code: string;
+  readonly name: string;
+}
+
 /** Seconds a reservation holds the stock (`RESERVATION_TTL`, BR-INV-07). */
 export const RESERVATION_TTL_SECONDS = Symbol('RESERVATION_TTL_SECONDS');
 
@@ -160,6 +167,14 @@ export class InventoryFacade {
         shortOf(await this.stockOf(merged), merged, warehouseId),
       );
     });
+  }
+
+  /** The code and name of a warehouse, active or not (ADR-0163); `null` when it does not exist. */
+  async warehouse(id: WarehouseId): Promise<WarehouseLabel | null> {
+    const warehouse = await this.queries.findWarehouse(id);
+    return warehouse === null
+      ? null
+      : { id: warehouse.id, code: warehouse.code, name: warehouse.name };
   }
 
   /**

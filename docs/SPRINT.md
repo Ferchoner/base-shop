@@ -47,6 +47,16 @@ T-142 (ADR-0163); T-142 queda en DONE.
 - **Validación:** el formato en el DTO y el dígito verificador en el dominio, con `gtinCheckDigit`. El GTIN se corrige también después de publicar.
 - **Búsqueda:** `GET /v1/admin/catalog/variants/lookup` responde una lista, las activas primero, con `matchedBy`; el `q` del listado busca también por GTIN.
 
+### Resultado del paso 2
+
+T-188 y T-197 (ADR-0163); las dos quedan en DONE.
+
+- **Datos de la tienda:** `STORE_NAME`, obligatoria en producción, `STORE_ADDRESS`, `STORE_TAX_ID`, con el formato del RFC, `STORE_PHONE` y `TICKET_FOOTER`, cuya leyenda no se puede dejar vacía. `GET /v1/admin/store-profile` los publica con `orders.read`.
+- **Almacén de la orden:** `AdminOrder.fulfilledFrom`, con código y nombre: el de la venta en tienda o el del envío, por una consulta nueva de la fachada de Inventory.
+- **Nota del pago:** el intento capturado y el reembolso manual la guardan, de 1 a 500 caracteres, y la muestran `AdminPayment` y `AdminOrder.payment`. Una migración copió las anteriores desde la auditoría, y la anonimización las conserva.
+- **Una sección citada antes de comprobarla, otra vez:** el código citó `API_SPEC.md` §15.10 para el perfil de la tienda, pero §15 terminaba en §15.7. La práctica nueva de la guía lo encontró antes del commit.
+- **Pruebas de mutación:** 66 mutantes, todos atrapados después de reforzar dos pruebas. La copia desde la auditoría tiene ahora un caso para cada condición que excluye un registro: otra acción, un resultado fallido, otro recurso y un reembolso fallido. El RFC se prueba también con un carácter de más, uno de menos y otro antes. La condición de un motivo nulo salió de la migración, porque no cambiaba nada.
+
 ### Risks
 
 - **Datos personales en la nota del pago:** la anonimización la conserva, y la nota es texto libre. Lo acepta el usuario, y la operación indicará no escribir datos sensibles (ADR-0163).

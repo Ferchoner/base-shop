@@ -49,6 +49,8 @@ export interface PaymentAttempt {
   readonly failureCode: string | null;
   /** The staff member who registered a manual payment. */
   readonly registeredBy: StaffId | null;
+  /** The note of the staff on a manual payment (ADR-0163); `null` without one. Anonymization keeps it. */
+  readonly note: string | null;
   readonly createdAt: Date;
 }
 
@@ -64,6 +66,8 @@ export interface Refund {
   readonly providerRefundId: string | null;
   /** The staff member who registered a manual refund. */
   readonly registeredBy: StaffId | null;
+  /** The note of the staff on a manual refund (ADR-0163); `null` without one. Anonymization keeps it. */
+  readonly note: string | null;
   readonly createdAt: Date;
   readonly completedAt: Date | null;
 }
@@ -137,6 +141,7 @@ export class Payment {
       method: null,
       failureCode: null,
       registeredBy: null,
+      note: null,
       createdAt: input.now,
     });
     return payment;
@@ -192,13 +197,15 @@ export class Payment {
 
   /**
    * The staff registers a payment made in the store (UC-PAY-02, ADR-0055): the whole amount is captured, with
-   * the receipt of the store, how it was collected (ADR-0161) and who registered it.
+   * the receipt of the store, how it was collected (ADR-0161), the note of the staff (ADR-0163) and who registered
+   * it.
    *
    * @throws InvalidStateTransitionError unless it is a pending manual payment.
    */
   captureManually(input: {
     reference: string;
     method: PaymentMethod | null;
+    note: string | null;
     registeredBy: StaffId;
     now: Date;
   }): void {
@@ -220,6 +227,7 @@ export class Payment {
       method: input.method,
       failureCode: null,
       registeredBy: input.registeredBy,
+      note: input.note,
       createdAt: input.now,
     });
   }
@@ -257,6 +265,7 @@ export class Payment {
       status: 'PENDING',
       providerRefundId: null,
       registeredBy: null,
+      note: null,
       createdAt: now,
       completedAt: null,
     });
@@ -272,6 +281,7 @@ export class Payment {
    */
   completeManualRefund(input: {
     reference: string;
+    note: string | null;
     registeredBy: StaffId;
     now: Date;
   }): Refund {
@@ -287,6 +297,7 @@ export class Payment {
       status: 'COMPLETED',
       providerRefundId: input.reference,
       registeredBy: input.registeredBy,
+      note: input.note,
       completedAt: input.now,
     };
     this.putRefund(completed);

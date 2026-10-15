@@ -110,6 +110,8 @@ RBAC (ADR-0017):
 - Los cambios que afectan pagos requieren revisión humana (`TEAM_GUIDE.md`).
 - El registro de pagos y reembolsos manuales requiere `payments.manage`, queda auditado y solo está disponible con el pago manual habilitado (ADR-0040, ADR-0051). Desde la versión 1.2 es el cobro real de la tienda física (ADR-0161), y cada cobro guarda quién lo registró, su comprobante y cómo se cobró.
 - Habilitar o deshabilitar el pago manual requiere `payments.configure`, que solo tiene el rol superadministrador: ningún otro rol puede tenerlo, así que ni un superadministrador lo delega (BR-USR-21, ADR-0162). Cada cambio se audita como `payment-settings.update`, con el valor anterior y el nuevo, y vale de inmediato en todas las instancias. Empieza deshabilitado. Hasta la versión 1.3 lo decidía la variable `MANUAL_PAYMENTS_ENABLED`.
+- La nota que el staff escribe al registrar un pago o un reembolso manual la ve quien consulta el pago (`orders.read`), y la anonimización la conserva: el usuario acepta el riesgo, y la operación indica no escribir datos sensibles en ella (ADR-0163).
+- Los datos de la tienda para el ticket (`GET /v1/admin/store-profile`, `orders.read`) son públicos por naturaleza y no son secretos; vienen de variables de configuración (ADR-0163).
 
 ## Subida de archivos
 

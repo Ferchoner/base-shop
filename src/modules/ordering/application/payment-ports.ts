@@ -20,6 +20,8 @@ export interface OrderRefund {
   readonly id: string;
   readonly amount: Money;
   readonly status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  /** The note of the staff on a manual refund (ADR-0163). */
+  readonly note: string | null;
   readonly createdAt: Date;
   readonly completedAt: Date | null;
 }
@@ -35,6 +37,8 @@ export interface OrderPayment {
   readonly capturedAt: Date | null;
   /** How the store collected a captured manual payment; `null` otherwise, or when the staff did not say (ADR-0161). */
   readonly method: PaymentMethod | null;
+  /** The note of the staff on a captured manual payment; `null` otherwise, or without one (ADR-0163). */
+  readonly note: string | null;
   readonly refunds: readonly OrderRefund[];
 }
 

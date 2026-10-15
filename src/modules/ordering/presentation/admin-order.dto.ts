@@ -251,10 +251,30 @@ export class AdminOrderLineDto extends OrderLineDto {
   id: string;
 }
 
+/** The warehouse the goods of an order left from, as the ticket shows it (ADR-0163). */
+export class FulfillmentWarehouseDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** @example 'TIENDA-CENTRO' */
+  code: string;
+
+  /** @example 'Tienda Centro' */
+  name: string;
+}
+
 /** `AdminOrder` of API_SPEC.md §8.9. */
 export class AdminOrderDto extends AdminOrderSummaryDto {
   @ApiProperty({ type: () => [AdminOrderLineDto] })
   lines: AdminOrderLineDto[];
+
+  @ApiProperty({
+    type: () => FulfillmentWarehouseDto,
+    nullable: true,
+    description:
+      'El almacén del que salieron los productos, para el ticket (ADR-0163): el de una venta en la tienda, o el del envío de una orden en línea; `null` mientras esta no tenga envío.',
+  })
+  fulfilledFrom: FulfillmentWarehouseDto | null;
 
   @ApiProperty({
     type: () => [StatusHistoryEntryDto],

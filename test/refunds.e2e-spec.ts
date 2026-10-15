@@ -465,6 +465,7 @@ describe('Refunds (e2e, T-190)', () => {
             status: 'COMPLETED',
             providerRefundId: 'Devolución 00087',
             registeredBy: cashier.id,
+            note: 'Devuelto en efectivo',
             createdAt: before.body.refunds[0].createdAt,
             completedAt: expect.any(String),
           },
@@ -475,7 +476,10 @@ describe('Refunds (e2e, T-190)', () => {
       expect(order.body).toMatchObject({
         status: 'REFUNDED',
         refundedAt: completedAt,
-        payment: { status: 'REFUNDED', refunds: [{ status: 'COMPLETED' }] },
+        payment: {
+          status: 'REFUNDED',
+          refunds: [{ status: 'COMPLETED', note: 'Devuelto en efectivo' }],
+        },
       });
       expect(order.body.statusHistory.at(-1)).toEqual({
         fromStatus: 'CANCELLED',
@@ -511,12 +515,15 @@ describe('Refunds (e2e, T-190)', () => {
       const { paymentId } = await refunding();
       const { body } = await paymentOf(paymentId).expect(200);
 
-      await refund(paymentId, body.version, { note: '  ' }).expect(200);
+      const refunded = await refund(paymentId, body.version, {
+        note: '  ',
+      }).expect(200);
 
       const audit = await prisma.auditLog.findFirstOrThrow({
         where: { action: 'payments.manual-refund' },
       });
       expect(audit.reason).toBeNull();
+      expect(refunded.body.refunds[0].note).toBeNull();
     });
 
     it('answers 409 for a payment read at another version or without a pending refund', async () => {

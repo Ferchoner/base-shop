@@ -3,7 +3,10 @@ import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import type { BlockedOrderDataView } from '../application/blocked-order-data.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
 import type { OrderAccess } from '../application/order-access-links.js';
-import type { WithPaymentAndShipment } from '../application/order-reader.js';
+import type {
+  AdminOrderRead,
+  WithPaymentAndShipment,
+} from '../application/order-reader.js';
 import {
   formatPublicCode,
   type PublicCode,
@@ -189,12 +192,12 @@ export function toBlockedOrderDataDto(
 }
 
 /** `AdminOrder` of API_SPEC.md §8.9. */
-export function toAdminOrderDto(
-  view: WithPaymentAndShipment<AdminOrderView>,
-): AdminOrderDto {
+export function toAdminOrderDto(view: AdminOrderRead): AdminOrderDto {
   return {
     ...toAdminOrderSummaryDto(view),
     lines: view.lines.map((line) => ({ id: line.id, ...toLineDto(line) })),
+    fulfilledFrom:
+      view.fulfilledFrom === null ? null : { ...view.fulfilledFrom },
     statusHistory: view.statusHistory.map((entry) => ({ ...entry })),
   };
 }
@@ -247,6 +250,7 @@ function toAdminOrderPaymentDto(payment: OrderPayment): AdminOrderPaymentDto {
     refundedAmount: toMoneyDto(payment.refundedAmount),
     capturedAt: payment.capturedAt,
     method: payment.method,
+    note: payment.note,
     refunds: payment.refunds.map((refund) => ({
       ...refund,
       amount: toMoneyDto(refund.amount),

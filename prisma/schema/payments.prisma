@@ -73,6 +73,8 @@ model PaymentAttempt {
   failureCode       String?        @map("failure_code")
   /// Staff who registered a manual payment; no foreign key.
   registeredBy      String?        @map("registered_by") @db.Uuid
+  /// The note of the staff on a manual payment (ADR-0163). CHECK: 1 to 500 characters (manual SQL).
+  note              String?
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -88,6 +90,8 @@ model Refund {
   providerRefundId String?      @map("provider_refund_id")
   /// Staff who registered a manual refund; no foreign key.
   registeredBy     String?      @map("registered_by") @db.Uuid
+  /// The note of the staff on a manual refund (ADR-0163). CHECK: 1 to 500 characters (manual SQL).
+  note             String?
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   completedAt      DateTime?    @map("completed_at") @db.Timestamptz(3)
