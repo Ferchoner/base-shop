@@ -55,6 +55,7 @@ docker run --detach --name "${NAME}-api" --network "$NAME" \
   --env MAIL_FROM='base-shop <no-reply@shop.example.com>' \
   --env FRONTEND_BASE_URL=https://shop.example.com \
   --env IMAGE_BASE_URL=https://shop.example.com/media \
+  --env STORE_NAME='Tienda Ejemplo' \
   "$API_IMAGE" >/dev/null
 
 # The status of a request made from inside the API container, which has Node.js and no curl.
