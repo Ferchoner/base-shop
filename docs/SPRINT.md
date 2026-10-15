@@ -36,6 +36,18 @@ Que el backoffice dé de alta un catálogo completo con archivos: los productos 
   - una variable que pasa a ser obligatoria en producción se agrega también a la prueba de humo de las imágenes, que corre en local antes del pull request;
   - si Docker Desktop no arranca, se cierra y se abre otra vez; restablecerlo de fábrica borra sus volúmenes y necesita la autorización del usuario.
 
+### Resultado del paso 1
+
+T-146 parte a (ADR-0164).
+
+- **La carga de productos:** `POST /v1/admin/catalog/product-imports`. Revisa cada celda, las filas de cada producto entre sí, el archivo completo y el catálogo, con una consulta por tipo, y crea todo en una transacción.
+- **Piezas compartidas:** el lector, la subida y los errores por fila sirven a las tres cargas; la de precios ya las usa, con sus mismas reglas.
+- **Más rápido con arreglos:** `createMany` de Prisma tardó 8 s con 5,000 productos de 10 categorías cada uno, más que los 5 s de una transacción. Con sentencias que reciben arreglos cabe, como en la carga de precios, y la guía lo pide para las cargas que siguen.
+- **Una convención encontrada antes del commit:** las inserciones usaban `now()` de PostgreSQL, y la guía pide el reloj de la API (ADR-0124); una prueba con un reloj fijo lo comprueba.
+- **Errores de consultas directas:** una violación de una restricción en ellas llega como P2010, con solo el código de PostgreSQL. Los ayudantes de la plataforma lo reconocen, y el choque de dos cargas responde 409 sin guardar nada.
+- **Plantillas:** `docs/templates/` tiene las de productos y precios, con su README; la prueba end-to-end las importa como las guarda Excel.
+- **Pruebas de mutación:** 92 mutantes, todos atrapados. Antes de correrlas se quitaron tres condiciones que no cambiaban nada y se agregaron cuatro casos: categorías vacías y repetidas, 10 categorías y una lista de exactamente 5.
+
 ### Risks
 
 - **Un error impide toda la carga:** es la protección contra las cargas a medias, y `dryRun` permite revisar el archivo antes.

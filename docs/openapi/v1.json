@@ -5451,6 +5451,33 @@
         ],
         "type": "object"
       },
+      "ProductImportSummaryDto": {
+        "properties": {
+          "dryRun": {
+            "description": "`true` si solo se validó el archivo, sin guardar productos.",
+            "type": "boolean"
+          },
+          "products": {
+            "description": "Productos creados, en borrador.",
+            "type": "number"
+          },
+          "rows": {
+            "description": "Filas del archivo, sin el encabezado: una por variante.",
+            "type": "number"
+          },
+          "variants": {
+            "description": "Variantes creadas, una por fila.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rows",
+          "products",
+          "variants",
+          "dryRun"
+        ],
+        "type": "object"
+      },
       "ProductSummaryDto": {
         "properties": {
           "available": {
@@ -9219,6 +9246,137 @@
           }
         ],
         "summary": "Reactivar una categoría",
+        "tags": [
+          "Administración: catálogo"
+        ],
+        "x-required-permissions": [
+          "catalog.write"
+        ]
+      }
+    },
+    "/v1/admin/catalog/product-imports": {
+      "post": {
+        "description": "CSV en UTF-8 con una fila por variante: las filas con el mismo slug forman un producto nuevo, que queda en borrador. Columnas slug, title y sku, obligatorias; description, brand y categories (por su slug, separadas por |), gtin, weightGrams, lengthCm, widthCm, heightCm y una columna option:<nombre> por opción, opcionales. Los datos del producto van en su primera fila; las siguientes los dejan vacíos o los repiten iguales. Todo o nada: con un error en cualquier fila no se carga ninguna. Hasta 5,000 filas y 5 MB.",
+        "operationId": "AdminProductImportsController_import_v1",
+        "parameters": [
+          {
+            "description": "Valida el archivo y responde el resumen sin guardar nada.",
+            "in": "query",
+            "name": "dryRun",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImportSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`duplicate-value`: Valor duplicado"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`payload-too-large`: Contenido demasiado grande"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cargar productos desde un archivo CSV",
         "tags": [
           "Administración: catálogo"
         ],

@@ -42,6 +42,14 @@ export class PrismaCategoryRepository extends CategoryRepository {
     return rows.map(toCategory);
   }
 
+  async findBySlugs(slugs: readonly string[]): Promise<Category[]> {
+    if (slugs.length === 0) return [];
+    const rows = await this.txHost.tx.category.findMany({
+      where: { slug: { in: [...slugs] } },
+    });
+    return rows.map(toCategory);
+  }
+
   async save(category: Category): Promise<void> {
     const { id, ...data } = category.snapshot();
     try {

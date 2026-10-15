@@ -12,6 +12,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import { Brand, type BrandId } from '../domain/brand.js';
 import { BrandRepository } from '../domain/brand.repository.js';
+import type { CatalogStatus } from '../domain/catalog-values.js';
 
 /** `brands` (DATABASE.md §4.1), always through the active transaction. */
 @Injectable()
@@ -24,14 +25,15 @@ export class PrismaBrandRepository extends BrandRepository {
 
   async findById(id: BrandId): Promise<Brand | null> {
     const row = await this.txHost.tx.brand.findUnique({ where: { id } });
-    return row === null
-      ? null
-      : Brand.restore({
-          id: toId<'Brand'>(row.id),
-          name: row.name,
-          slug: row.slug,
-          status: row.status,
-        });
+    return row === null ? null : toBrand(row);
+  }
+
+  async findBySlugs(slugs: readonly string[]): Promise<Brand[]> {
+    if (slugs.length === 0) return [];
+    const rows = await this.txHost.tx.brand.findMany({
+      where: { slug: { in: [...slugs] } },
+    });
+    return rows.map(toBrand);
   }
 
   async save(brand: Brand): Promise<void> {
@@ -70,4 +72,18 @@ export class PrismaBrandRepository extends BrandRepository {
     });
     return new Set(rows.map((row) => row.slug));
   }
+}
+
+function toBrand(row: {
+  id: string;
+  name: string;
+  slug: string;
+  status: CatalogStatus;
+}): Brand {
+  return Brand.restore({
+    id: toId<'Brand'>(row.id),
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+  });
 }

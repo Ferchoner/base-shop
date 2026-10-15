@@ -849,6 +849,7 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implem
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/discontinue` | `catalog.write` | UC-CAT-08 |
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/reactivate` | `catalog.write` | UC-CAT-08 |
 | GET | `/v1/admin/catalog/variants/lookup` | `catalog.read` | UC-CAT-15 (ADR-0163) |
+| POST | `/v1/admin/catalog/product-imports` | `catalog.write` | UC-CAT-16 (ADR-0164) |
 | POST | `/v1/admin/catalog/products/{productId}/images` | `catalog.write` | UC-CAT-11 |
 | PATCH, DELETE | `/v1/admin/catalog/products/{productId}/images/{imageId}` | `catalog.write` | UC-CAT-11 |
 | PUT | `/v1/admin/catalog/products/{productId}/images/order` | `catalog.write` | UC-CAT-11 |
@@ -1055,6 +1056,39 @@ Implementado en T-150 (ADR-0120):
   - es una lista porque un SKU de dígitos puede coincidir con el GTIN de otra variante, y varias descontinuadas pueden compartir un GTIN;
   - sin coincidencias, `data` va vacía; no responde 404.
 - Solo se vende una variante activa de un producto `PUBLISHED`; la lista también trae las demás, para que el staff sepa por qué no se vende.
+
+### 11.11 Carga masiva de productos (UC-CAT-16, ADR-0164)
+
+**`POST /v1/admin/catalog/product-imports`** — `catalog.write`. Crea productos nuevos con sus variantes desde un archivo, con las reglas de `POST …/products` y `POST …/variants` (§11.6 y §11.7). Recibe `multipart/form-data` con el archivo en `file`. Con `?dryRun=true` revisa todo y responde sin guardar nada. La plantilla de ejemplo es `docs/templates/products.csv`.
+
+- **Archivo:** CSV en UTF-8 (con o sin BOM), separado por comas y con encabezado; hasta 5,000 filas y 5 MB. Las columnas van en cualquier orden, sin distinguir mayúsculas, cada una una vez:
+  - obligatorias: `slug`, `title` y `sku`;
+  - opcionales: `description`, `brand`, `categories`, `gtin`, `weightGrams`, `lengthCm`, `widthCm` y `heightCm`;
+  - una `option:<nombre>` por opción, con un nombre de 1 a 30 caracteres, como `option:talla`; el nombre se guarda en minúsculas.
+
+  ```
+  slug,title,brand,categories,sku,option:talla,weightGrams
+  camisa-lino,Camisa de lino,marca-ejemplo,camisas|hombre,CAM-LINO-M,M,250
+  camisa-lino,,,,CAM-LINO-G,G,260
+  gorra,Gorra azul,,accesorios,GORRA-AZUL,,120
+  ```
+
+- **Una fila por variante:** las filas con el mismo `slug` forman un producto, que queda en `DRAFT`. Sus datos (`title`, `description`, `brand` y `categories`) van en su primera fila; las siguientes los dejan vacíos o los repiten iguales.
+- **Valores:**
+  - `slug`: minúsculas, dígitos y guiones, hasta 200 caracteres; no debe existir, aunque el producto esté archivado;
+  - `title`, de 1 a 200 caracteres, obligatorio en la primera fila del producto; `description`, hasta 10,000;
+  - `brand`: el slug de una marca activa; `categories`: slugs de categorías activas separados por `|`, hasta 10. Se comparan en minúsculas;
+  - `sku`: de 1 a 64 letras, dígitos, `-`, `_` y `.`; se guarda en mayúsculas y no debe haberse usado nunca, aunque su variante esté descontinuada (BR-PRD-09);
+  - `gtin`: 8, 12, 13 o 14 dígitos con su dígito verificador; ninguna variante activa debe tenerlo (BR-PRD-19);
+  - las opciones: hasta 3 por producto, con valores de 1 a 50 caracteres. Todas las variantes de un producto llenan las mismas columnas de opción, y cada una con otra combinación (BR-PRD-02); un producto sin opciones lleva una sola variante;
+  - `weightGrams`: gramos enteros mayores que 0; `lengthCm`, `widthCm` y `heightCm`: centímetros mayores que 0 con punto decimal y hasta un decimal (`30.5`).
+- **Solo crea:** no edita productos existentes. Repetir un archivo ya cargado no cambia nada: sus slugs ya existen.
+- **Todo o nada:** se revisan todas las filas, entre sí y contra el catálogo, antes de guardar. Con cualquier error no se importa nada. Responde 400 `validation-error` con los primeros 100 errores ordenados por línea, en `rows[<línea>].<columna>`; el encabezado es la línea 1, `rows[<línea>]` sola indica que faltan o sobran valores, y `rows[<línea>].options` es un error de las opciones en conjunto.
+  - Códigos de fila: `isNotEmpty`, `slug`, `maxLength`, `arrayMaxSize`, `matches`, `gtinCheckDigit`, `grams`, `centimeters`, `options`, `optionNames`, `differsFromProduct`, `repeated` (otra fila del archivo ya lo tiene), `taken` (el catálogo ya lo tiene), `unknownBrand`, `inactiveBrand`, `unknownCategories`, `inactiveCategories` y `columnCount`.
+  - Errores del archivo, en `file`: `isDefined`, `utf8`, `csv`, `columns` (una columna que falta, que no reconoce o que se repite, o el nombre de una opción de más de 30 caracteres), `emptyFile` y `tooManyRows`.
+- **Response 200:** `{ "rows": 3, "products": 2, "variants": 3, "dryRun": false }`.
+- **Errores:** 413 `payload-too-large` con `maxBytes` para un archivo de más de 5 MB; 409 `duplicate-value` con `field` si otro cambio toma un slug, SKU o GTIN del archivo entre la revisión y el guardado, y entonces no se guarda nada.
+- **Auditoría:** una entrada `products.import`, sobre el recurso `product-import`, con los conteos y los IDs de los productos creados. Una carga con `dryRun` no se audita.
 
 ---
 
@@ -1722,7 +1756,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-IAM-20, 21 | Sin API: scripts (ADR-0043, ADR-0057) |
 | UC-IAM-22 | Sección 10 |
 | UC-IAM-23 | Sección 23 |
-| UC-CAT-01 a 15 | Sección 11 |
+| UC-CAT-01 a 16 | Sección 11 |
 | UC-PRC-01 a 05 | Sección 12 |
 | UC-PRC-06 | Sin API pública: fachada interna del módulo |
 | UC-INV-01 a 04 | Sección 13 |

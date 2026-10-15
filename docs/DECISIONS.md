@@ -3332,7 +3332,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - La auditoría de una carga no dice qué precios cambió. El historial de cada variante (`price_periods`, con quién y cuándo) sí lo dice.
   - Si hacen falta más de 5,000 filas o de 1 MB, habrá que procesar la carga en segundo plano.
   - T-145 queda completa.
-- **Estado:** Aceptada (plan de T-145 parte b aprobado el 2026-09-30).
+- **Estado:** Aceptada (plan de T-145 parte b aprobado el 2026-09-30). ADR-0164 (T-146 parte a): el lector, la subida y los errores por fila pasan a piezas compartidas con las otras cargas, sin cambiar sus reglas; el mensaje de `columns` dice ahora qué columna falta, no reconoce o repite.
 
 ---
 
@@ -5171,4 +5171,10 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Más de 5,000 filas o archivos mayores tendrían que procesarse en segundo plano.
   - Cambios compatibles en `/v1`: dos rutas nuevas. Por eso es una versión menor (ADR-0159).
 - **Revisar si:** hace falta actualizar productos desde un archivo, cargar conteos físicos o más de 5,000 filas.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-15, con las 16 recomendaciones del plan). Se implementa en T-146, en la versión 1.5.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-15, con las 16 recomendaciones del plan). Se implementa en T-146, en la versión 1.5. Parte a, la carga de productos (plan aprobado el 2026-10-15, con sus 13 recomendaciones):
+  - **Piezas compartidas por las tres cargas:** `readCsvFile` lee un CSV con columnas obligatorias, opcionales y con prefijo (`src/platform/files/csv-file.ts`); `CsvFileUpload` recibe el archivo con su límite y responde 413 con `maxBytes` (`csv-upload.ts`); y `ImportRowErrors` junta los errores por fila (shared kernel). La carga de precios las usa con sus mismas reglas; el mensaje de `columns` dice ahora qué columna falta, no reconoce o repite;
+  - `POST /v1/admin/catalog/product-imports` (UC-CAT-16): las celdas, las filas de cada producto y el archivo completo se revisan antes que el catálogo, con una consulta por tipo; la marca y las categorías, por slug, con `findBySlugs`;
+  - **Inserciones en bloque:** tres sentencias que reciben arreglos (`unnest`), como la carga de precios. `createMany` de Prisma tardó 8 s con 5,000 productos de 10 categorías cada uno, más que el límite de 5 s de una transacción; con arreglos, cabe. Las fechas las pone el reloj de la API (ADR-0124);
+  - **Cambios entre la revisión y el guardado:** un error de una consulta directa (Prisma P2010) solo trae el código de PostgreSQL, así que `isUniqueViolation` e `isForeignKeyViolation` reconocen también 23505 y 23503. Un slug, SKU o GTIN tomado responde 409 `duplicate-value`, y una marca o categoría borrada, 400 `unknownBrand` o `unknownCategories`; en los dos casos no se guarda nada;
+  - **Auditoría:** `products.import`, sobre el recurso `product-import`, con los conteos y los IDs de los productos creados;
+  - **Plantillas:** `docs/templates/products.csv` y `prices.csv`, con un README del orden y las columnas; la prueba end-to-end las importa en ese orden, como las guarda una hoja de cálculo.

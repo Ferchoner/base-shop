@@ -7,6 +7,9 @@ import type { Brand, BrandId } from './brand.js';
 export abstract class BrandRepository {
   abstract findById(id: BrandId): Promise<Brand | null>;
 
+  /** The brands with these slugs, in any status; a slug no brand has is left out (ADR-0164). */
+  abstract findBySlugs(slugs: readonly string[]): Promise<Brand[]>;
+
   /**
    * Creates a new brand or saves the changes of a stored one. Rejects with `DuplicateValueError` on the `name`
    * when another brand has it, whatever its case, or on the `slug`.

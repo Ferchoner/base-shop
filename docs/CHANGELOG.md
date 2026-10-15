@@ -4,6 +4,10 @@
 
 - Plan de la versión 1.5 (nuevo ADR-0164): carga masiva de productos y de existencias, con las reglas de la de precios: CSV, modo de prueba, todo o nada y errores por línea y columna. Una carga crea productos nuevos con sus variantes, en borrador, y otra registra entradas de mercancía por SKU y código de almacén, sin cargar dos veces el mismo archivo. Las plantillas de las tres cargas quedan en el repositorio. Se implementa en T-146, en dos partes.
 - Paso 0 de la versión 1.5: revisión contra los ADR sin desajustes, 0 vulnerabilidades en las dependencias de producción y Prisma 7.10.0 todavía la última estable. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.4.
+- T-146 parte a (ADR-0164): la carga masiva de productos.
+  - `POST /v1/admin/catalog/product-imports` (`catalog.write`, UC-CAT-16) crea productos nuevos en borrador con sus variantes desde un CSV de hasta 5,000 filas y 5 MB, una por variante, con la marca y las categorías por su slug y una columna `option:<nombre>` por opción. Todo o nada, con los errores por línea y columna, y `?dryRun=true`. Se audita como `products.import`.
+  - La carga de precios usa las mismas piezas, con sus mismas reglas; el mensaje del error `columns` dice ahora qué columna falta, no reconoce o repite.
+  - Las plantillas de las cargas de productos y de precios, con su guía, están en `docs/templates/`.
 
 ## 1.4.0 (2026-10-15)
 

@@ -9,6 +9,9 @@ export abstract class CategoryRepository {
 
   abstract findByIds(ids: readonly CategoryId[]): Promise<Category[]>;
 
+  /** The categories with these slugs, in any status; a slug no category has is left out (ADR-0164). */
+  abstract findBySlugs(slugs: readonly string[]): Promise<Category[]>;
+
   /**
    * Creates a new category or saves the changes of a stored one. Rejects with `DuplicateValueError` on the
    * `name` when a sibling has it, whatever its case, or on the `slug` when any category has it.
