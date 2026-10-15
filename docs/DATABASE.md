@@ -228,6 +228,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 
 - **Índices:** GIN sobre `search_vector`; `(status, published_at DESC)`; `(brand_id)`.
 - **Integridad:** nunca se borra; se archiva (BR-PRD-07).
+- **Carga masiva (ADR-0164):** inserta los productos, sus categorías y sus variantes con tres sentencias que reciben arreglos (`unnest`), con las fechas del reloj de la API (ADR-0124).
 
 ### 4.4 `product_categories`
 

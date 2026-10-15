@@ -35,6 +35,12 @@ Shared kernel (ADR-0094), importado desde `src/shared-kernel/index.ts`:
 - **Hora actual:** se inyecta `Clock`; en tests unitarios, un objeto `{ now: () => fecha }`.
 - **Fechas en la base:** las escribe la aplicación, igual que el `@updatedAt` de Prisma; no se mezclan con `now()` de PostgreSQL. El reloj del contenedor puede ir atrasado respecto al de la API, y una fecha escrita con `now()` quedaría antes que otra escrita un instante antes por la aplicación (ADR-0124).
 
+Cargas masivas en CSV (ADR-0126, ADR-0164):
+
+- **Piezas:** `readCsvFile` y `CsvFileUpload` de `src/platform/files/` leen y reciben el archivo, e `ImportRowErrors` del shared kernel junta los errores en `rows[<línea>].<columna>`, con una subclase por carga para su error.
+- **Escrituras:** con sentencias que reciben arreglos (`unnest`), no con `createMany`, que construye cada fila en el cliente y no cabe en los 5 s de una transacción con miles de filas. Una prueba de integración mide el caso más pesado.
+- **Plantillas:** cada carga tiene su ejemplo en `docs/templates/`, que su prueba end-to-end importa, así que siempre es válido.
+
 Cache (ADR-0028, ADR-0104):
 
 - Solo en Infrastructure o Presentation, y solo para lecturas públicas del catálogo (y datos de referencia como el catálogo geográfico). Nunca para stock en el checkout, precios al colocar una orden, pagos, carrito, permisos ni tokens.
