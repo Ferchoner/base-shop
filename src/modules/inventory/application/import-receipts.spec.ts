@@ -273,7 +273,7 @@ async function fieldsOf(
   expect(error).toBeInstanceOf(ReceiptImportError);
   expect([context.ledger.written, context.audited]).toEqual([[], []]);
   return (
-    (error as ReceiptImportError).details?.errors as {
+    ((error as ReceiptImportError).details?.errors ?? []) as {
       field: string;
       code: string;
     }[]
@@ -476,7 +476,7 @@ describe('ImportReceipts (UC-INV-12, ADR-0164)', () => {
 
     expect(
       (
-        (error as ReceiptImportError).details?.errors as {
+        ((error as ReceiptImportError).details?.errors ?? []) as {
           field: string;
           code: string;
         }[]
