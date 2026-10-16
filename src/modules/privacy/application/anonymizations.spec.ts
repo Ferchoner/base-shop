@@ -8,6 +8,7 @@ import type {
   BuyerOrders,
   CustomerAccounts,
   CustomerCarts,
+  CustomerWorkOrders,
 } from './anonymization-ports.js';
 import { Anonymizations } from './anonymizations.js';
 
@@ -16,7 +17,14 @@ const actorId = newId();
 const userId = newId();
 
 /** The modules in memory: `calls` records, in order, what each one was asked, and `runs` the transactions. */
-function setUp(options: { orderCount?: number; failing?: Error } = {}) {
+function setUp(
+  options: {
+    orderCount?: number;
+    workOrderCount?: number;
+    failing?: Error;
+    failingWorkOrders?: Error;
+  } = {},
+) {
   const calls: [string, unknown][] = [];
   let runs = 0;
   const accounts = {
@@ -33,6 +41,14 @@ function setUp(options: { orderCount?: number; failing?: Error } = {}) {
         : Promise.reject(options.failing);
     },
   } as unknown as BuyerOrders;
+  const workOrders = {
+    anonymize: (input: { customerId: string; reason: string; at: Date }) => {
+      calls.push(['work orders', input]);
+      return options.failingWorkOrders === undefined
+        ? Promise.resolve(options.workOrderCount ?? 0)
+        : Promise.reject(options.failingWorkOrders);
+    },
+  } as unknown as CustomerWorkOrders;
   const carts = {
     deleteOf: (customerId: string) => {
       calls.push(['carts', customerId]);
@@ -48,6 +64,7 @@ function setUp(options: { orderCount?: number; failing?: Error } = {}) {
   const anonymizations = new Anonymizations(
     accounts,
     orders,
+    workOrders,
     carts,
     transactions,
     { now: () => NOW },
@@ -56,8 +73,11 @@ function setUp(options: { orderCount?: number; failing?: Error } = {}) {
 }
 
 describe('Anonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
-  it('anonymizes the account, then the orders, and deletes the carts of a customer, in one transaction and with one date', async () => {
-    const { anonymizations, calls, runs } = setUp({ orderCount: 3 });
+  it('anonymizes the account, then the orders and the work orders, and deletes the carts of a customer, in one transaction and with one date', async () => {
+    const { anonymizations, calls, runs } = setUp({
+      orderCount: 3,
+      workOrderCount: 1,
+    });
 
     const done = await anonymizations.customer({
       actorId,
@@ -70,6 +90,7 @@ describe('Anonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
       userId,
       anonymizedAt: NOW,
       anonymizedOrderCount: 3,
+      anonymizedWorkOrderCount: 1,
     });
     expect(calls).toEqual([
       [
@@ -85,6 +106,10 @@ describe('Anonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
       [
         'orders',
         { buyer: { customerId: userId }, reason: 'ARCO-2026-0042', at: NOW },
+      ],
+      [
+        'work orders',
+        { customerId: userId, reason: 'ARCO-2026-0042', at: NOW },
       ],
       ['carts', userId],
     ]);
@@ -104,6 +129,25 @@ describe('Anonymizations (UC-IAM-19, ADR-0067, ADR-0145)', () => {
       }),
     ).rejects.toBe(pending);
     expect(calls.map(([module]) => module)).toEqual(['accounts', 'orders']);
+  });
+
+  it('deletes no cart when a work order of the customer is open (ADR-0167)', async () => {
+    const open = new Error('open work orders');
+    const { anonymizations, calls } = setUp({ failingWorkOrders: open });
+
+    await expect(
+      anonymizations.customer({
+        actorId,
+        userId,
+        reason: 'ARCO-2026-0042',
+        version: 4,
+      }),
+    ).rejects.toBe(open);
+    expect(calls.map(([module]) => module)).toEqual([
+      'accounts',
+      'orders',
+      'work orders',
+    ]);
   });
 
   it('anonymizes the orders of a guest, with the email and the code they showed, in one transaction', async () => {

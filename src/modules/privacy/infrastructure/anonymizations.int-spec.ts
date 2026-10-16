@@ -500,6 +500,7 @@ describe('Privacy: anonymizations (T-132)', () => {
         userId: ana,
         anonymizedAt: at,
         anonymizedOrderCount: 3,
+        anonymizedWorkOrderCount: 0,
       });
       expect(
         await prisma.user.findUniqueOrThrow({ where: { id: ana } }),

@@ -1,4 +1,4 @@
-// Work Orders (DATABASE.md §17, ADR-0165, ADR-0166).
+// Work Orders (DATABASE.md §17, ADR-0165 to ADR-0167).
 
 /// Where a work order is (ADR-0166): forward only, skipping steps if needed, and cancelled before it is delivered.
 enum WorkOrderStatus {
@@ -20,9 +20,10 @@ model WorkOrder {
   status             WorkOrderStatus
   /// Logical reference to Identity: the registered customer it is linked to, if any.
   customerId         String?         @map("customer_id") @db.Uuid
-  customerName       String          @map("customer_name")
-  /// CHECK: 10 digits (manual SQL).
-  customerPhone      String          @map("customer_phone") @db.Char(10)
+  /// Null only once anonymized (CHECK in the migration, ADR-0167).
+  customerName       String?         @map("customer_name")
+  /// CHECK: 10 digits (manual SQL); null only once anonymized.
+  customerPhone      String?         @map("customer_phone") @db.Char(10)
   customerEmail      String?         @map("customer_email")
   equipmentType      String          @map("equipment_type")
   equipmentBrand     String?         @map("equipment_brand")
@@ -31,7 +32,8 @@ model WorkOrder {
   accessories        String?
   /// How the equipment was when it was received.
   equipmentCondition String?         @map("equipment_condition")
-  reportedFault      String          @map("reported_fault")
+  /// Null only once anonymized.
+  reportedFault      String?         @map("reported_fault")
   diagnosis          String?
   workPerformed      String?         @map("work_performed")
   /// Informative, in cents of MXN: the work order charges nothing (ADR-0165). CHECK: 0 or more (manual SQL).
@@ -42,8 +44,14 @@ model WorkOrder {
   receivedBy         String          @map("received_by") @db.Uuid
   technicianId       String?         @map("technician_id") @db.Uuid
   receivedAt         DateTime        @map("received_at") @db.Timestamptz(3)
-  /// When it was delivered or cancelled; the retention of its personal data will count from then (ADR-0165).
+  /// When it was delivered or cancelled; the retention of the personal data of its customer counts from then
+  /// (ADR-0165, ADR-0167).
   closedAt           DateTime?       @map("closed_at") @db.Timestamptz(3)
+  /// When the data of its customer was blocked: hidden from the usual responses until it is anonymized (ADR-0167).
+  /// CHECK: only once closed (manual SQL).
+  blockedAt          DateTime?       @map("blocked_at") @db.Timestamptz(3)
+  /// CHECK: only once closed (manual SQL).
+  anonymizedAt       DateTime?       @map("anonymized_at") @db.Timestamptz(3)
   version            Int             @default(1)
   createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -54,6 +62,7 @@ model WorkOrder {
   @@index([status, receivedAt(sort: Desc)])
   @@index([receivedAt(sort: Desc)])
   @@index([customerId])
+  @@index([closedAt], map: "work_orders_retention_idx", where: raw("anonymized_at IS NULL"))
   @@map("work_orders")
 }
 

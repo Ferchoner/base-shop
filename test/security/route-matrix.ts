@@ -317,4 +317,12 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'GET /v1/admin/work-orders/:workOrderId/service-note': {
     access: ['work-orders.read'],
   },
+  // The personal data of a work order: reading it once blocked, and anonymizing a work order of a customer without
+  // an account (ADR-0167).
+  'POST /v1/admin/work-orders/:workOrderId/blocked-data': {
+    access: ['work-orders.read-blocked'],
+  },
+  'POST /v1/admin/work-orders/:workOrderId/anonymize': {
+    access: ['customers.manage'],
+  },
 };

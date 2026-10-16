@@ -28,7 +28,7 @@ describe('Retention policy (ADR-0149)', () => {
 
   it('describes every period in force, in one line', () => {
     expect(describeRetentionPolicy(POLICY)).toBe(
-      'Retention policy (ADR-0149): personal data of orders blocked 12 months after the order concludes and anonymized 60 months later; ' +
+      'Retention policy (ADR-0149): personal data of orders and work orders blocked 12 months after they conclude and anonymized 60 months later; ' +
         'accounts of inactive customers never anonymized; audit trail 3 months in the database and 24 in files; spent refresh tokens 30 days; inactive guest carts 14 days; ' +
         'processed webhook events 45 days; delivered domain events 7 days',
     );
@@ -41,7 +41,7 @@ describe('Retention policy (ADR-0149)', () => {
         PERSONAL_DATA_RETENTION_ENABLED: false,
       }),
     ).toMatch(
-      /^Retention policy \(ADR-0149\): personal data of orders kept, since the retention cycle is disabled; accounts of inactive customers never anonymized; audit trail 3 months/,
+      /^Retention policy \(ADR-0149\): personal data of orders and work orders kept, since the retention cycle is disabled; accounts of inactive customers never anonymized; audit trail 3 months/,
     );
   });
 

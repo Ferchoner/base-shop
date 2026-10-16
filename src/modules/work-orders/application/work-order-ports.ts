@@ -47,3 +47,11 @@ export abstract class StoreSales {
   /** The sales of the store among these orders, oldest first; online orders and unknown IDs are left out. */
   abstract of(orderIds: readonly string[]): Promise<readonly StoreSale[]>;
 }
+
+/**
+ * The responses that `@Idempotent` kept of receiving equipment (ADR-0099), which hold the data of the customer for 24
+ * hours. An anonymization forgets them (ADR-0145, ADR-0167).
+ */
+export abstract class ReceptionResponses {
+  abstract forgetOf(workOrderIds: readonly string[]): Promise<void>;
+}

@@ -91,7 +91,30 @@ export type NewWorkOrderDetails = Omit<
 /** Corrections to a work order (UC-WRK-03). A missing field keeps its value; `null` clears an optional one. */
 export type WorkOrderChanges = Partial<WorkOrderDetails>;
 
-export interface WorkOrderSnapshot extends WorkOrderDetails {
+/**
+ * The data of the customer that the anonymization takes away (ADR-0167): what identifies them, and the texts that may
+ * quote them. The equipment type, brand and model, the estimate, the statuses and the sales stay.
+ */
+export const PERSONAL_WORK_ORDER_DATA = [
+  'customerName',
+  'customerPhone',
+  'customerEmail',
+  'serialNumber',
+  'accessories',
+  'equipmentCondition',
+  'reportedFault',
+  'diagnosis',
+  'workPerformed',
+] as const;
+
+export interface WorkOrderSnapshot extends Omit<
+  WorkOrderDetails,
+  'customerName' | 'customerPhone' | 'reportedFault'
+> {
+  /** `null` once anonymized, like the other data of the customer. */
+  readonly customerName: string | null;
+  readonly customerPhone: string | null;
+  readonly reportedFault: string | null;
   readonly id: WorkOrderId;
   readonly status: WorkOrderStatus;
   readonly warehouseId: WarehouseId;
@@ -102,6 +125,9 @@ export interface WorkOrderSnapshot extends WorkOrderDetails {
   readonly closedAt: Date | null;
   /** The counter sales that pay for it, in the order they were linked (ADR-0167). */
   readonly sales: readonly WorkOrderSale[];
+  /** When the data of its customer was blocked, hidden until it is anonymized (ADR-0167). */
+  readonly blockedAt: Date | null;
+  readonly anonymizedAt: Date | null;
   readonly version: number;
 }
 
@@ -158,6 +184,8 @@ export class WorkOrder {
       receivedAt: props.at,
       closedAt: null,
       sales: [],
+      blockedAt: null,
+      anonymizedAt: null,
       version: 1,
     });
     workOrder.changes.push({
@@ -188,6 +216,52 @@ export class WorkOrder {
 
   get snapshot(): WorkOrderSnapshot {
     return this.state;
+  }
+
+  get isBlocked(): boolean {
+    return this.state.blockedAt !== null;
+  }
+
+  get isAnonymized(): boolean {
+    return this.state.anonymizedAt !== null;
+  }
+
+  /** Whether it was delivered or cancelled at `cutoff` or before: the retention of its data counts from then. */
+  closedBy(cutoff: Date): boolean {
+    return this.state.closedAt !== null && this.state.closedAt <= cutoff;
+  }
+
+  /**
+   * Blocks the data of its customer once it closed at `cutoff` or before (ADR-0167): it stays, hidden from the usual
+   * responses, until it is anonymized.
+   *
+   * @returns whether it blocked it: false when it closed later, or was blocked or anonymized already.
+   */
+  blockIfDue(cutoff: Date, at: Date): boolean {
+    if (!this.closedBy(cutoff) || this.isBlocked || this.isAnonymized) {
+      return false;
+    }
+    this.state = { ...this.state, blockedAt: at };
+    return true;
+  }
+
+  /**
+   * Takes away the data of its customer for good (ADR-0067, ADR-0167): what identifies them and the texts that may
+   * quote them. Only a delivered or cancelled work order, once.
+   *
+   * @throws InvalidStateTransitionError when it is open, or was anonymized already.
+   */
+  anonymize(at: Date): void {
+    if (!CLOSED.includes(this.state.status) || this.isAnonymized) {
+      throw new InvalidStateTransitionError(this.state.status, 'anonymize');
+    }
+    this.state = {
+      ...this.state,
+      ...Object.fromEntries(
+        PERSONAL_WORK_ORDER_DATA.map((field) => [field, null]),
+      ),
+      anonymizedAt: at,
+    };
   }
 
   /** The status changes since it was received or read, oldest first. */
@@ -248,9 +322,10 @@ export class WorkOrder {
     const defined = Object.fromEntries(
       Object.entries(changes).filter(([, value]) => value !== undefined),
     ) as WorkOrderChanges;
+    // An open work order was never anonymized, so it has every required field.
     this.state = {
       ...this.state,
-      ...validDetails({ ...this.state, ...defined }),
+      ...validDetails({ ...this.state, ...defined } as WorkOrderDetails),
     };
   }
 

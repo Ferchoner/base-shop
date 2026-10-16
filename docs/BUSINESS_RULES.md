@@ -199,6 +199,7 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-WRK-05. La orden de trabajo no cobra: su costo estimado es informativo, y entregarla no exige pago, por garantías o revisiones sin costo (ADR-0165).
 - BR-WRK-06. A una orden de trabajo abierta se le ligan una o varias ventas de mostrador que la cobran, como un anticipo y la liquidación; una venta cobra una sola orden de trabajo. Solo se ligan ventas de la tienda física que no vencieron, ni se cancelaron, ni se reembolsaron (ADR-0167).
 - BR-WRK-07. Una venta ligada está pagada si la tienda tiene su dinero: pagada, por surtir, enviada o entregada. La orden de trabajo suma lo pagado y lo que espera su pago; lo vencido, cancelado o reembolsado no cuenta (ADR-0167).
+- BR-WRK-08. Los datos del cliente de una orden de trabajo siguen las fases de BR-PRIV-05, contadas desde que se entregó o se canceló. Anonimizarla borra el nombre, el teléfono, el email, el número de serie y los textos que pueden citar al cliente, y conserva el folio, los estados, el equipo, el costo estimado y las ventas. Anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, y no procede si tiene una sin entregar ni cancelar (ADR-0167).
 
 ## Notificaciones
 

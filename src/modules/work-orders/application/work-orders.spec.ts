@@ -71,6 +71,23 @@ class InMemoryWorkOrders extends WorkOrderRepository {
     );
   }
 
+  // The retention of the data of the customer, which these use cases never reach (work-order-privacy.spec.ts).
+  lock(): Promise<WorkOrder | null> {
+    throw new Error('Not used here');
+  }
+
+  lockOfCustomer(): Promise<WorkOrder[]> {
+    throw new Error('Not used here');
+  }
+
+  dueForBlocking(): Promise<WorkOrderId[]> {
+    throw new Error('Not used here');
+  }
+
+  dueForAnonymization(): Promise<WorkOrderId[]> {
+    throw new Error('Not used here');
+  }
+
   save(workOrder: WorkOrder): Promise<void> {
     const current = this.stored.get(workOrder.id)!;
     if (current.version !== workOrder.version) {

@@ -14,3 +14,18 @@ export class SaleNotLinkableError extends DomainError {
     });
   }
 }
+
+/**
+ * The customer has a work order that was neither delivered nor cancelled (E-31, ADR-0167), so their account is not
+ * anonymized, as with an order that has not concluded (ADR-0145).
+ */
+export class OpenWorkOrdersError extends DomainError {
+  readonly code = 'active-orders-exist';
+  readonly category = 'conflict';
+
+  constructor() {
+    super(
+      'The customer has work orders that are neither delivered nor cancelled',
+    );
+  }
+}

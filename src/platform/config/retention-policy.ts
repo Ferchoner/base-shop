@@ -64,14 +64,14 @@ export function retentionPolicyOf(env: RetentionVariables): RetentionPolicy {
 /** The retention policy in force, in one line for the log; it holds no data, only periods. */
 export function describeRetentionPolicy(env: RetentionVariables): string {
   const personalData = env.PERSONAL_DATA_RETENTION_ENABLED
-    ? `blocked ${env.PERSONAL_DATA_OPERATIONAL_MONTHS} months after the order concludes and anonymized ${env.PERSONAL_DATA_BLOCKED_MONTHS} months later`
+    ? `blocked ${env.PERSONAL_DATA_OPERATIONAL_MONTHS} months after they conclude and anonymized ${env.PERSONAL_DATA_BLOCKED_MONTHS} months later`
     : 'kept, since the retention cycle is disabled';
   const inactiveCustomers =
     env.INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS === undefined
       ? 'never anonymized'
       : `anonymized after ${env.INACTIVE_CUSTOMER_ANONYMIZATION_MONTHS} months without activity`;
   return [
-    `Retention policy (ADR-0149): personal data of orders ${personalData}`,
+    `Retention policy (ADR-0149): personal data of orders and work orders ${personalData}`,
     `accounts of inactive customers ${inactiveCustomers}`,
     `audit trail ${env.AUDIT_RETENTION_MONTHS} months in the database and ${env.AUDIT_ARCHIVE_RETENTION_MONTHS} in files`,
     `spent refresh tokens ${env.SPENT_REFRESH_TOKEN_RETENTION_DAYS} days`,

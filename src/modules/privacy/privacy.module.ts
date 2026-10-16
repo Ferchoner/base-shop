@@ -5,10 +5,12 @@ import { RetentionPolicyModule } from '../../platform/config/retention-policy.js
 import { IdentityAccessModule } from '../identity-access/index.js';
 import { OrderingModule } from '../ordering/index.js';
 import { ShoppingModule } from '../shopping/index.js';
+import { WorkOrdersModule } from '../work-orders/index.js';
 import {
   BuyerOrders,
   CustomerAccounts,
   CustomerCarts,
+  CustomerWorkOrders,
 } from './application/anonymization-ports.js';
 import { Anonymizations } from './application/anonymizations.js';
 import {
@@ -19,6 +21,7 @@ import {
   IdentityFacadeCustomerAccounts,
   OrderingFacadeBuyerOrders,
   ShoppingFacadeCustomerCarts,
+  WorkOrdersFacadeCustomerWorkOrders,
 } from './infrastructure/facade-adapters.js';
 import { InactiveCustomerAnonymizationJob } from './infrastructure/inactive-customer-anonymization.job.js';
 import { AnonymizationsController } from './presentation/anonymizations.controller.js';
@@ -26,7 +29,8 @@ import { RetentionPolicyController } from './presentation/retention-policy.contr
 
 /**
  * Privacy (ADR-0004, ADR-0145): a cross-cutting capability without a domain of its own, like Notifications. It runs
- * the anonymizations of ADR-0067 across Identity & Access, Ordering and Shopping through their facades, because
+ * the anonymizations of ADR-0067 across Identity & Access, Ordering, Work Orders (ADR-0167) and Shopping through their
+ * facades, because
  * Identity cannot use Ordering (ADR-0132), also those of inactive customers, and publishes the retention policy in
  * force (ADR-0152); no module uses it.
  */
@@ -34,6 +38,7 @@ import { RetentionPolicyController } from './presentation/retention-policy.contr
   imports: [
     IdentityAccessModule,
     OrderingModule,
+    WorkOrdersModule,
     ShoppingModule,
     RetentionPolicyModule,
   ],
@@ -51,6 +56,10 @@ import { RetentionPolicyController } from './presentation/retention-policy.contr
     InactiveCustomerAnonymizationJob,
     { provide: CustomerAccounts, useClass: IdentityFacadeCustomerAccounts },
     { provide: BuyerOrders, useClass: OrderingFacadeBuyerOrders },
+    {
+      provide: CustomerWorkOrders,
+      useClass: WorkOrdersFacadeCustomerWorkOrders,
+    },
     { provide: CustomerCarts, useClass: ShoppingFacadeCustomerCarts },
   ],
 })

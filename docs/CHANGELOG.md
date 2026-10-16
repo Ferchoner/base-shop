@@ -3,6 +3,11 @@
 ## Unreleased
 
 - Plan de la versión 1.6 (nuevo ADR-0165): servicios solo en tienda y órdenes de trabajo. Un producto con `storeOnly` no se vende en línea y sí en la tienda física. Las órdenes de trabajo son la nota de servicio: folio, cliente, equipo, falla, diagnóstico, estados con su historial y las ventas de mostrador que la cobran, con los datos para imprimirla y la conservación de los datos del cliente. Se implementa en T-189, en tres partes.
+- T-189 parte c2 (ADR-0167): la conservación de los datos del cliente de las órdenes de trabajo.
+  - El job diario `work-orders.retention` bloquea y anonimiza con el ciclo y las variables de las órdenes, desde que la orden de trabajo se entregó o se canceló (BR-WRK-08).
+  - `WorkOrder` suma `blockedAt` y `anonymizedAt`; bloqueada o anonimizada, muestra `null` en los datos del cliente, el número de serie y los textos, y la búsqueda solo la encuentra por su folio.
+  - `POST /v1/admin/work-orders/{workOrderId}/blocked-data`, con el permiso nuevo `work-orders.read-blocked` (Administrador), da los datos bloqueados con un motivo, auditado.
+  - `POST /v1/admin/work-orders/{workOrderId}/anonymize` (`customers.manage`) anonimiza una orden de trabajo cerrada de un cliente sin cuenta; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, responde `anonymizedWorkOrderCount`, y no procede con una abierta (409 `active-orders-exist`).
 - T-189 parte c1 (nuevo ADR-0167): las ventas que cobran una orden de trabajo y su nota de servicio.
   - `POST /v1/admin/work-orders/{workOrderId}/sales` liga una venta de mostrador, y `DELETE …/sales/{orderId}` la desliga, con la versión de la orden de trabajo y mientras está abierta (UC-WRK-05). Una venta cobra una sola orden de trabajo.
   - `WorkOrder` suma `sales`, con el estado de cada venta y si está pagada, y los totales `paidTotal` y `unpaidTotal` (BR-WRK-06 y 07).

@@ -34,6 +34,7 @@ const SUMMARY_FIELDS = {
   technicianId: true,
   receivedAt: true,
   closedAt: true,
+  blockedAt: true,
 } satisfies Prisma.WorkOrderSelect;
 
 type SummaryRow = Prisma.WorkOrderGetPayload<{ select: typeof SUMMARY_FIELDS }>;
@@ -117,7 +118,7 @@ export class PrismaWorkOrderQueries extends WorkOrderQueries {
 /**
  * What `q` matches (UC-WRK-02): the folio exactly, as `OT-000123`, `ot-123` or `123`; part of the phone, written
  * with spaces, dashes or parentheses or without them; and part of the name of the customer or of the serial
- * number, in any case.
+ * number, in any case. Never by the data of a blocked work order: it is hidden (ADR-0167).
  */
 function searchOf(q: string): Prisma.WorkOrderWhereInput[] {
   const text = q.trim();
@@ -126,24 +127,34 @@ function searchOf(q: string): Prisma.WorkOrderWhereInput[] {
   return [
     ...(number === null ? [] : [{ number: BigInt(number) }]),
     ...(/^[0-9]{1,10}$/.test(digits)
-      ? [{ customerPhone: { contains: digits } }]
+      ? [{ customerPhone: { contains: digits }, blockedAt: null }]
       : []),
-    { customerName: { contains: text, mode: 'insensitive' as const } },
-    { serialNumber: { contains: text, mode: 'insensitive' as const } },
+    {
+      customerName: { contains: text, mode: 'insensitive' as const },
+      blockedAt: null,
+    },
+    {
+      serialNumber: { contains: text, mode: 'insensitive' as const },
+      blockedAt: null,
+    },
   ];
 }
+
+/** Blocked, a work order shows only what an anonymized one keeps (ADR-0167). */
+const shown = <Value>(row: { blockedAt: Date | null }, value: Value) =>
+  row.blockedAt === null ? value : null;
 
 function toSummaryView(row: SummaryRow): WorkOrderSummaryView {
   return {
     id: toId<'WorkOrder'>(row.id),
     folio: formatFolio(Number(row.number)),
     status: row.status,
-    customerName: row.customerName,
-    customerPhone: row.customerPhone,
+    customerName: shown(row, row.customerName),
+    customerPhone: shown(row, row.customerPhone),
     equipmentType: row.equipmentType,
     equipmentBrand: row.equipmentBrand,
     equipmentModel: row.equipmentModel,
-    serialNumber: row.serialNumber,
+    serialNumber: shown(row, row.serialNumber),
     warehouseId: toId<'Warehouse'>(row.warehouseId),
     technicianId:
       row.technicianId === null ? null : toId<'User'>(row.technicianId),
@@ -156,15 +167,17 @@ function toView(row: WorkOrderRow): WorkOrderView {
   return {
     ...toSummaryView(row),
     customerId: row.customerId === null ? null : toId<'User'>(row.customerId),
-    customerEmail: row.customerEmail,
-    accessories: row.accessories,
-    equipmentCondition: row.equipmentCondition,
-    reportedFault: row.reportedFault,
-    diagnosis: row.diagnosis,
-    workPerformed: row.workPerformed,
+    customerEmail: shown(row, row.customerEmail),
+    accessories: shown(row, row.accessories),
+    equipmentCondition: shown(row, row.equipmentCondition),
+    reportedFault: shown(row, row.reportedFault),
+    diagnosis: shown(row, row.diagnosis),
+    workPerformed: shown(row, row.workPerformed),
     estimatedCost:
       row.estimatedCost === null ? null : Money.of(row.estimatedCost, 'MXN'),
     receivedBy: toId<'User'>(row.receivedBy),
+    blockedAt: row.blockedAt,
+    anonymizedAt: row.anonymizedAt,
     version: row.version,
     statusHistory: row.statusHistory.map((entry) => ({
       fromStatus: entry.fromStatus,

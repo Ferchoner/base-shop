@@ -50,6 +50,9 @@ export class CustomerAnonymizationDto {
 
   /** Órdenes del cliente anonimizadas, con sus envíos. @example 3 */
   anonymizedOrderCount: number;
+
+  /** Órdenes de trabajo ligadas al cliente que se anonimizaron (ADR-0167). @example 1 */
+  anonymizedWorkOrderCount: number;
 }
 
 /**

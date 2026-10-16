@@ -26,7 +26,7 @@ export class AnonymizationsController {
   @ApiOperation({
     summary: 'Anonimizar a un cliente',
     description:
-      'Irreversible. Vacía el email, los nombres y la contraseña (estado ANONYMIZED, email libre); borra sus sesiones, enlaces, direcciones y carritos; y quita el email de contacto y los datos de quien recibe de sus órdenes y envíos, que conservan estado, municipio y código postal. Si tiene órdenes sin concluir, espera a que terminen (ADR-0067, ADR-0145). El cliente queda consultable en `GET /v1/admin/identity/customers/{userId}`.',
+      'Irreversible. Vacía el email, los nombres y la contraseña (estado ANONYMIZED, email libre); borra sus sesiones, enlaces, direcciones y carritos; quita el email de contacto y los datos de quien recibe de sus órdenes y envíos, que conservan estado, municipio y código postal; y anonimiza las órdenes de trabajo ligadas a él (ADR-0167). Si tiene órdenes sin concluir, u órdenes de trabajo sin entregar ni cancelar, espera a que terminen: 409 `active-orders-exist` (ADR-0067, ADR-0145). El cliente queda consultable en `GET /v1/admin/identity/customers/{userId}`.',
   })
   @ApiOkResponse({ type: CustomerAnonymizationDto })
   @ApiProblemResponses(

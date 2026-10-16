@@ -115,7 +115,7 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .expect(200)
         .expect('Cache-Control', 'no-store');
 
-      expect(response.body.data).toHaveLength(21);
+      expect(response.body.data).toHaveLength(22);
       expect(response.body.data[0]).toEqual({
         code: 'catalog.read',
         description:
@@ -123,7 +123,7 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         superadminOnly: false,
       });
       // The last one, of the platform (ADR-0150).
-      expect(response.body.data[20]).toEqual({
+      expect(response.body.data[21]).toEqual({
         code: 'events.manage',
         description: 'Ver y reintentar las entregas de eventos de dominio',
         superadminOnly: false,

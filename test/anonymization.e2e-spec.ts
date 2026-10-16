@@ -350,6 +350,7 @@ describe('Anonymization (e2e, T-132)', () => {
         userId: ana.id,
         anonymizedAt: expect.any(String),
         anonymizedOrderCount: 1,
+        anonymizedWorkOrderCount: 0,
       });
       expect(await adminCustomer(ana.id)).toMatchObject({
         id: ana.id,

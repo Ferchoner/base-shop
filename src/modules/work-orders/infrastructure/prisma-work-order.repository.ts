@@ -11,6 +11,7 @@ import {
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
 import {
+  type UserId,
   WorkOrder,
   type WorkOrderId,
   type WorkOrderSnapshot,
@@ -20,10 +21,18 @@ import { WorkOrderRepository } from '../domain/work-order.repository.js';
 
 type WorkOrderRow = Prisma.WorkOrderGetPayload<{ include: { sales: true } }>;
 
+/** The sales of a work order, in the order they were linked. */
+const WITH_SALES = {
+  sales: {
+    orderBy: [{ linkedAt: 'asc' as const }, { orderId: 'asc' as const }],
+  },
+};
+
 /**
  * Work orders in PostgreSQL (DATABASE.md §17). The number of the folio comes from the sequence of `number`, so it
  * is consecutive, with a gap only when a transaction that took one fails (ADR-0166). A change saves only over the
- * version it read (optimistic locking). A sale pays for one work order at most: the unique index on
+ * version it read (optimistic locking); blocking and anonymizing, which carry no version, lock the row first
+ * (ADR-0167). A sale pays for one work order at most: the unique index on
  * `work_order_sales.order_id` answers a second link as a duplicate (ADR-0167). Dates come from the application, never
  * from the database clock.
  */
@@ -59,11 +68,53 @@ export class PrismaWorkOrderRepository extends WorkOrderRepository {
   async find(id: WorkOrderId): Promise<WorkOrder | null> {
     const row = await this.txHost.tx.workOrder.findUnique({
       where: { id },
-      include: {
-        sales: { orderBy: [{ linkedAt: 'asc' }, { orderId: 'asc' }] },
-      },
+      include: WITH_SALES,
     });
     return row === null ? null : WorkOrder.restore(toSnapshot(row));
+  }
+
+  async lock(id: WorkOrderId): Promise<WorkOrder | null> {
+    const locked = await this.txHost.tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM work_orders WHERE id = ${id}::uuid FOR UPDATE`;
+    return locked.length === 0 ? null : this.find(id);
+  }
+
+  async lockOfCustomer(customerId: UserId): Promise<WorkOrder[]> {
+    const tx = this.txHost.tx;
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM work_orders
+       WHERE customer_id = ${customerId}::uuid AND anonymized_at IS NULL
+       ORDER BY id
+         FOR UPDATE`;
+    const rows = await tx.workOrder.findMany({
+      where: { id: { in: locked.map(({ id }) => id) } },
+      include: WITH_SALES,
+      orderBy: { id: 'asc' },
+    });
+    return rows.map((row) => WorkOrder.restore(toSnapshot(row)));
+  }
+
+  async dueForBlocking(cutoff: Date, limit: number): Promise<WorkOrderId[]> {
+    const rows = await this.txHost.tx.workOrder.findMany({
+      select: { id: true },
+      where: { closedAt: { lte: cutoff }, blockedAt: null, anonymizedAt: null },
+      orderBy: [{ closedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map(({ id }) => toId<'WorkOrder'>(id));
+  }
+
+  async dueForAnonymization(
+    cutoff: Date,
+    limit: number,
+  ): Promise<WorkOrderId[]> {
+    const rows = await this.txHost.tx.workOrder.findMany({
+      select: { id: true },
+      where: { closedAt: { lte: cutoff }, anonymizedAt: null },
+      orderBy: [{ closedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map(({ id }) => toId<'WorkOrder'>(id));
   }
 
   async save(workOrder: WorkOrder, now: Date): Promise<void> {
@@ -75,6 +126,8 @@ export class PrismaWorkOrderRepository extends WorkOrderRepository {
         status: w.status,
         ...detailsOf(w),
         closedAt: w.closedAt,
+        blockedAt: w.blockedAt,
+        anonymizedAt: w.anonymizedAt,
         version: { increment: 1 },
         updatedAt: now,
       },
@@ -170,6 +223,8 @@ function toSnapshot(row: WorkOrderRow): WorkOrderSnapshot {
     receivedBy: toId<'User'>(row.receivedBy),
     receivedAt: row.receivedAt,
     closedAt: row.closedAt,
+    blockedAt: row.blockedAt,
+    anonymizedAt: row.anonymizedAt,
     sales: row.sales.map((sale) => ({
       orderId: toId<'Order'>(sale.orderId),
       linkedBy: toId<'User'>(sale.linkedBy),

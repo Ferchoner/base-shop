@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, y `work-orders.read` y `work-orders.manage` de ADR-0165). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, y `work-orders.read-blocked` de ADR-0167). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -294,7 +294,7 @@ Error de validación:
 | `image-limit-reached` | 409 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | `limit` |
 | `last-superadmin` | 409 | E-29 | Dejar el sistema sin superadministrador (BR-USR-03) | — |
 | `restock-not-allowed` | 409 | E-30 | Reintegro que supera lo vendido o con reintegro previo (ADR-0052) | `lines` |
-| `active-orders-exist` | 409 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067) | — |
+| `active-orders-exist` | 409 | E-31 | Anonimizar con órdenes sin concluir (ADR-0067), u órdenes de trabajo sin entregar ni cancelar (ADR-0167) | — |
 | `field-locked` | 409 | E-32 | Editar SKU, opciones o slug después de la primera publicación (ADR-0068) | `fields` |
 | `empty-cart` | 409 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | — |
 | `source-cart-unavailable` | 409 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe (ADR-0082) | — |
@@ -795,7 +795,7 @@ Representación `AdminCustomer`: `{ "id", "email", "firstNames", "lastNames", "s
 | `GET /v1/admin/identity/customers/{userId}` | `customers.read`. 200 `AdminCustomer` |
 | `POST /v1/admin/identity/customers/{userId}/suspend` | `customers.manage`. Request `{ "reason", "version" }`. Revoca sesiones. 200. Errores: 409 `invalid-state-transition` |
 | `POST /v1/admin/identity/customers/{userId}/reactivate` | `customers.manage`. Request `{ "reason", "version" }`. Desde SUSPENDED; conserva contraseña y verificación de email (ADR-0076). 200 `AdminCustomer`. Errores: 409 `invalid-state-transition` (no está SUSPENDED, incluido un cliente anonimizado) |
-| `POST /v1/admin/identity/customers/{userId}/anonymize` | `customers.manage`. Request `{ "reason", "version" }` (`reason`: referencia de la solicitud ARCO, 1–250 caracteres). 200 `{ "userId", "anonymizedAt", "anonymizedOrderCount": 3 }` (ADR-0145). Irreversible. Errores, en este orden: 404 `not-found` si no es un cliente; 409 `version-conflict`; 409 `invalid-state-transition` si ya está anonimizado; 409 `active-orders-exist` |
+| `POST /v1/admin/identity/customers/{userId}/anonymize` | `customers.manage`. Request `{ "reason", "version" }` (`reason`: referencia de la solicitud ARCO, 1–250 caracteres). 200 `{ "userId", "anonymizedAt", "anonymizedOrderCount": 3, "anonymizedWorkOrderCount": 1 }` (ADR-0145): también anonimiza las órdenes de trabajo ligadas al cliente (ADR-0167). Irreversible. Errores, en este orden: 404 `not-found` si no es un cliente; 409 `version-conflict`; 409 `invalid-state-transition` si ya está anonimizado; 409 `active-orders-exist` si tiene órdenes sin concluir u órdenes de trabajo sin entregar ni cancelar |
 | `POST /v1/admin/identity/guest-anonymizations` | `customers.manage`. Request `{ "contactEmail", "publicCode", "reason" }`. Anonimiza todas las órdenes de invitado con ese email (ADR-0067); las de una cuenta con el mismo email no cambian. 200 `{ "anonymizedOrderCount": 3 }`. Errores: 404 `not-found` si el par email–código no coincide, igual que la consulta de invitado, también una vez anonimizadas; 409 `active-orders-exist` |
 
 Implementado en T-132 (ADR-0145):
@@ -1893,7 +1893,7 @@ Pública, para que el frontend muestre los plazos reales en el aviso de privacid
   }
   ```
 
-- `personalData`: el ciclo de los datos personales de órdenes y envíos (ADR-0151); con `enabled` en `false`, se conservan.
+- `personalData`: el ciclo de los datos personales de órdenes, envíos y órdenes de trabajo (ADR-0151, ADR-0167); con `enabled` en `false`, se conservan.
 - `inactiveCustomerMonths`: meses sin actividad tras los que se anonimiza la cuenta de un cliente; `null` si nunca (el valor por defecto).
 - Los eventos de dominio no aparecen: no llevan datos personales (ADR-0150).
 
@@ -1924,6 +1924,8 @@ Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Present
 | POST | `/v1/admin/work-orders/{workOrderId}/sales` | `work-orders.manage` | UC-WRK-05 |
 | DELETE | `/v1/admin/work-orders/{workOrderId}/sales/{orderId}` | `work-orders.manage` | UC-WRK-05 |
 | GET | `/v1/admin/work-orders/{workOrderId}/service-note` | `work-orders.read` | UC-WRK-06 |
+| POST | `/v1/admin/work-orders/{workOrderId}/blocked-data` | `work-orders.read-blocked` | UC-WRK-02 (ADR-0167) |
+| POST | `/v1/admin/work-orders/{workOrderId}/anonymize` | `customers.manage` | UC-IAM-19 (ADR-0167) |
 
 Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que un cliente deja en la tienda física: quién lo dejó, qué equipo, la falla, el diagnóstico, el trabajo y su estado. No cobra: desde T-189 parte c se le ligan las ventas de mostrador que la cobran, y la API da los datos para imprimir su nota (UC-WRK-05 y 06, ADR-0167). La reciben el rol Vendedor, que atiende el mostrador, y el Administrador. Las fechas y los IDs siguen las convenciones de la sección 2; quién recibió, quién hizo cada cambio y el técnico van como IDs de cuentas de staff, como en el historial de las órdenes.
 
@@ -1982,7 +1984,8 @@ Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que 
 - `customerId`: el cliente registrado al que se ligó, o `null`. El nombre y el teléfono son siempre los de la orden de trabajo, porque la cuenta no guarda teléfono (ADR-0166).
 - `estimatedCost`: `Money` o `null`. Es informativo: la orden de trabajo no cobra (ADR-0165).
 - `warehouseId`: el almacén de la tienda que recibió el equipo, como en la venta de mostrador (ADR-0161). `receivedBy`: quién lo recibió. `technicianId`: el técnico asignado, o `null`.
-- `closedAt`: cuándo se entregó o se canceló; desde entonces no cambia nada.
+- `closedAt`: cuándo se entregó o se canceló; desde entonces no cambia nada, salvo la conservación de los datos del cliente (§25.10).
+- `blockedAt` y `anonymizedAt` (desde T-189 parte c2): cuándo se bloquearon y cuándo se anonimizaron los datos del cliente. Bloqueada o anonimizada, la orden de trabajo muestra `null` en `customerName`, `customerPhone`, `customerEmail`, `serialNumber`, `accessories`, `equipmentCondition`, `reportedFault`, `diagnosis` y `workPerformed`; los datos bloqueados se consultan con §25.11.
 - `statusHistory`: del más antiguo al más reciente.
 - `sales` (desde T-189 parte c): las ventas de mostrador que la cobran, en el orden en que se ligaron, con su estado al momento de la consulta. `paid` es `true` si la tienda ya tiene su dinero: la venta está pagada, por surtir, enviada o entregada; una pendiente de pago, vencida, cancelada o reembolsada no lo está. `orderNumber` es el número interno, solo para el staff (ADR-0049).
 - `paidTotal`: la suma de las ventas pagadas; `unpaidTotal`, la de las que esperan su pago. Las vencidas, canceladas o reembolsadas no cuentan en ninguno. Entregar no exige pago (ADR-0165).
@@ -2021,7 +2024,7 @@ Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que 
 ### 25.3 `GET /v1/admin/work-orders` — Listar y buscar (UC-WRK-02)
 
 - Paginado (sección 5). Cada elemento es un resumen: `id`, `folio`, `status`, `customerName`, `customerPhone`, `equipmentType`, `equipmentBrand`, `equipmentModel`, `serialNumber`, `warehouseId`, `technicianId`, `receivedAt` y `closedAt`; sin el historial ni los textos largos.
-- **Búsqueda `q`:** el folio exacto, como `OT-000123`, `ot-123` o `123`; parte del teléfono, con o sin espacios, guiones o paréntesis; o parte del nombre del cliente o del número de serie, sin distinguir mayúsculas. Los acentos cuentan: `Maria` no encuentra `María`, como en los demás listados administrativos.
+- **Búsqueda `q`:** el folio exacto, como `OT-000123`, `ot-123` o `123`; parte del teléfono, con o sin espacios, guiones o paréntesis; o parte del nombre del cliente o del número de serie, sin distinguir mayúsculas. Los acentos cuentan: `Maria` no encuentra `María`, como en los demás listados administrativos. Una orden de trabajo bloqueada o anonimizada solo se encuentra por su folio (ADR-0167).
 - **Filtros:** `status` (uno o más, separados por comas), `warehouseId`, `technicianId`, `customerId`, `receivedFrom` y `receivedTo` (ISO 8601, incluidos; una fecha sola incluye todo el día).
 - **Orden:** `sort` con `receivedAt` o `folio`, y `-` para descendente; por defecto `-receivedAt`.
 
@@ -2087,3 +2090,27 @@ Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que 
 - `terms`: las condiciones del servicio, de `WORK_ORDER_FOOTER`; vacías hasta que el negocio las defina con su asesor (ADR-0165), y pueden traer saltos de línea.
 - El frontend imprime la nota con la línea de firma del cliente; la firma no se guarda (ADR-0165).
 - **Errores:** 404 si la orden de trabajo no existe.
+
+### 25.10 Conservación de los datos del cliente (ADR-0167)
+
+Desde T-189 parte c2, los datos del cliente de una orden de trabajo siguen el ciclo de las órdenes (ADR-0151), con las mismas variables (`PERSONAL_DATA_RETENTION_ENABLED`, `PERSONAL_DATA_OPERATIONAL_MONTHS` y `PERSONAL_DATA_BLOCKED_MONTHS`), contados desde `closedAt`:
+
+- **Bloqueo:** a los meses de la fase operativa, el job diario `work-orders.retention` pone `blockedAt`. Los datos siguen guardados, pero las respuestas los muestran como anonimizados y la búsqueda ya no los encuentra; quien tiene `work-orders.read-blocked` los consulta con un motivo (§25.11).
+- **Anonimización:** a la suma de los dos plazos, borra el nombre, el teléfono, el email, el número de serie y los textos que pueden citar al cliente: accesorios, estado del equipo, falla, diagnóstico y trabajo. Conserva el folio, los estados con su historial, el tipo, la marca y el modelo del equipo, el costo estimado y las ventas.
+- Cada paso se audita como el sistema (`work-orders.block` y `work-orders.anonymize`), sin los valores.
+- **Derechos ARCO:** anonimizar la cuenta de un cliente (§9.18) anonimiza también sus órdenes de trabajo; una orden de trabajo de un cliente sin cuenta se anonimiza sola (§25.12).
+
+### 25.11 `POST /v1/admin/work-orders/{workOrderId}/blocked-data` — Consultar los datos bloqueados (ADR-0167)
+
+- Permiso `work-orders.read-blocked`, que tiene el rol Administrador y no el Vendedor. Request `{ "reason": "Reclamación 2026-07" }`, de 1 a 500 caracteres: la referencia de la reclamación o del requerimiento, sin datos personales.
+- **Response 200:** `{ "customerName", "customerPhone", "customerEmail", "serialNumber", "accessories", "equipmentCondition", "reportedFault", "diagnosis", "workPerformed" }`, como se guardaron.
+- Solo en una orden de trabajo bloqueada. En una que no lo está, cuyos datos ya se ven, o en una anonimizada, que ya no los tiene: 409 `invalid-state-transition`. 404 si no existe.
+- Se audita como `work-orders.read-blocked-data`, con el motivo y sin los datos; si la auditoría falla, no se devuelve nada.
+
+### 25.12 `POST /v1/admin/work-orders/{workOrderId}/anonymize` — Anonimizar una orden de trabajo (ADR-0167)
+
+- Para la solicitud de un cliente sin cuenta, recibida fuera del sistema (BR-PRIV-02); las órdenes de trabajo de un cliente con cuenta se anonimizan con su cuenta (§9.18). Permiso `customers.manage`. Request `{ "reason": "ARCO-2026-0050" }`, de 1 a 500 caracteres.
+- Borra lo mismo que la conservación (§25.10), y la respuesta guardada al recibir el equipo (sección 4).
+- **Response 200:** `WorkOrder`, anonimizado.
+- **Errores:** 404 si no existe; 409 `invalid-state-transition` si está abierta o ya se anonimizó.
+- Se audita como `work-orders.anonymize`, con el motivo y sin los valores.
