@@ -185,6 +185,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0165 | Servicios solo en tienda y órdenes de trabajo | Aceptada |
 | ADR-0166 | Órdenes de trabajo: folio, cliente, estados y edición | Aceptada |
 | ADR-0167 | Órdenes de trabajo: ventas ligadas, nota de servicio y conservación de datos | Aceptada |
+| ADR-0168 | Promociones | Aceptada |
 
 ---
 
@@ -5310,3 +5311,59 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **el bloqueo de fila que ADR-0166 dejó pendiente:** bloquear y anonimizar no llevan versión, así que bloquean la fila (`SELECT … FOR UPDATE`); una prueba comprueba que el job espera a otro cambio y salta la orden de trabajo que ese cambio anonimizó;
   - una orden de trabajo de un cliente con una abierta detiene la anonimización de su cuenta con el mismo 409 `active-orders-exist` de las órdenes; la respuesta de la anonimización suma `anonymizedWorkOrderCount`;
   - la anonimización de un cliente inactivo (ADR-0152) no toca sus órdenes de trabajo, que siguen su propio ciclo, como las órdenes.
+
+---
+
+## ADR-0168 — Promociones
+
+- **Fecha:** 2026-10-16
+- **Contexto:** Séptimo incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.7, prevista por ADR-0163 (T-200), que trabaja con promociones en lugar del precio preferente del vendedor, descartado. El usuario dejó los tipos de promoción para el plan de esta versión. Hoy:
+  - **Ofertas por fechas:** Pricing programa un precio rebajado por variante, con su precio anterior (`compareAtAmount`), igual para todos los canales y compradores; la orden guarda solo el precio cobrado, sin lo que se ahorró;
+  - **Descuento en la orden:** `discountTotal` existe desde el inicio (ADR-0018), siempre en 0. La base exige que el total sea el subtotal más el envío menos el descuento, y el envío gratis compara el subtotal menos el descuento (ADR-0079);
+  - **IVA:** se calcula por línea, sobre su importe (ADR-0094). La línea no guarda descuento, y su `CHECK` exige que su importe sea el precio por la cantidad;
+  - **Reembolsos y pagos:** los reembolsos son totales (ADR-0051), y un pago no puede ser de $0;
+  - **Marca y categorías:** solo Catalog las conoce; su fachada no las da.
+- **Decisión** (del usuario, con las recomendaciones del plan y sus ajustes):
+  - **Módulo nuevo `promotions`,** en `/v1/admin/promotions`: crear, listar, consultar, editar y terminar promociones. Permisos nuevos `promotions.read` y `promotions.manage`: el Administrador recibe los dos, y el Vendedor solo `promotions.read`, para saber qué ofrecer en el mostrador.
+  - **Tipos:** un porcentaje de descuento, de 1% a 100%, o un monto fijo. Aplica a toda la compra, o solo a ciertos productos, categorías, con sus subcategorías, o marcas.
+  - **Condiciones:**
+    - vigencia con inicio y un fin opcional;
+    - canales: en línea, tienda física o ambos; por defecto, ambos;
+    - compra mínima opcional, sobre el subtotal con IVA;
+    - automática, que se aplica sola, o con cupón.
+  - **Edición:** antes de su inicio se cambia todo; ya iniciada, solo el nombre y el fin, o se termina, como un precio que ya empezó (BR-PRC-04). Las órdenes guardan su propia copia. Se audita el alta, cada cambio y el fin.
+  - **Dónde se aplica:** en las tres cotizaciones (invitado, cliente y staff) y al colocar la orden, en línea y en la tienda física. El carrito sigue mostrando su subtotal sin descuento.
+  - **Sin combinar:** una sola promoción por orden: la del cupón, si se da; si no, la automática que más descuente.
+  - **Cálculo:**
+    - el descuento se reparte en centavos entre las líneas a las que aplica, y cada línea guarda el suyo;
+    - con porcentaje, se calcula por línea y se redondea como el IVA (ADR-0094);
+    - con monto fijo, se reparte en proporción al importe de cada línea, sin pasar de lo que aplica, y los centavos del redondeo van a las líneas de mayor importe;
+    - aplica sobre el precio vigente, aunque esté en oferta por fechas;
+    - **la orden paga al menos $1:** si el descuento la dejaría por debajo, se reduce, también con el 100%.
+  - **IVA:** el de cada línea se calcula sobre su importe con descuento, porque el descuento reduce la base. Se suma a la validación pendiente con el contador (P-69).
+  - **La orden guarda** el descuento de cada línea, `discountTotal` y la promoción aplicada, con su nombre y su código; los muestran la cotización, `Order` y `AdminOrder`, y con ella el ticket. El correo ya muestra el descuento cuando no es 0. El subtotal sigue siendo antes del descuento, y el total, el subtotal más el envío menos el descuento.
+  - **Envío gratis:** sigue comparando el subtotal menos el descuento (ADR-0079), así que un descuento puede hacer que una compra pierda el envío gratis.
+  - **`expectedTotal`:** incluye el descuento; si la promoción cambia entre la cotización y la orden, se responde 409 `total-mismatch`, como hoy (ADR-0019).
+  - **Cupones:**
+    - un código único, sin distinguir mayúsculas, de 4 a 30 letras, números o guiones, que llega como `couponCode`, opcional, en la cotización y en la orden;
+    - límites opcionales: usos totales y "una vez por cliente", contado por su cuenta o por el email del invitado. Una venta de mostrador sin datos del comprador no puede usar un cupón de una vez por cliente. Los usos por cliente se cuentan en sus órdenes, sin guardar datos personales nuevos;
+    - un uso cuenta al colocar la orden y se devuelve si la orden vence o se cancela;
+    - un tipo de error nuevo, `coupon-not-applicable`, con el motivo; un código que no existe y uno que no está vigente responden igual, para no confirmar códigos. Las cotizaciones limitan los intentos, y el contador de usos se bloquea al colocar la orden, para que dos órdenes a la vez no pasen el límite.
+  - **Implementación:** T-200, en tres partes: a, las promociones y su administración; b, aplicarlas en las cotizaciones y las órdenes; c, los cupones y sus límites.
+- **Alternativas consideradas:**
+  - **Combinar promociones,** como una automática por producto más un cupón: el usuario la aceptaba si su costo y su riesgo eran asumibles. Costo: un orden de aplicación, varias promociones por línea y por orden en el modelo y en el contrato, y buscar la mejor combinación. Riesgo: descuentos que se acumulan sin control, cuando la API no conoce el costo de los productos y no puede impedir vender por debajo de él. No se combinan en esta versión; como cada línea guarda su descuento, combinar después no cambia lo que ya se guardó.
+  - **El descuento solo en el total de la orden:** el IVA de las líneas quedaría sobre el precio sin descuento, y una devolución parcial futura no sabría qué descuento le toca a cada línea.
+  - **Usar las ofertas por fechas:** cambian el precio para todos los canales y compradores, no registran el ahorro, y no tienen cupones, compra mínima, categorías ni marcas.
+  - **Órdenes en $0:** necesitarían un flujo sin pago; el usuario prefirió que la orden pague al menos $1.
+  - **Mostrar el descuento en el carrito:** el carrito no calcula IVA ni envío, y la cotización ya da el total.
+  - **El precio preferente del vendedor:** descartado por su complejidad y su riesgo (ADR-0163).
+- **Consecuencias:**
+  - La tienda ofrece promociones automáticas y cupones en línea y en la tienda física, y la orden registra lo que se descontó en cada línea y por qué promoción.
+  - `discountTotal` deja de ser siempre 0: los clientes de la API deben mostrarlo.
+  - El IVA de una orden con descuento baja con él; la validación con el contador lo incluye (P-69).
+  - Las restricciones de la base cambian: la línea guarda su descuento, y el IVA de la orden no pasa de su total.
+  - La fachada de Catalog da la marca y las categorías de cada variante.
+  - Cambios compatibles en `/v1`: rutas, campos, permisos y un tipo de error nuevos. Por eso es una versión menor (ADR-0159).
+  - Al implementarse, modifica ADR-0018 (las promociones dejan de estar fuera) y la regla BR-ORD-13 (el descuento deja de ser 0).
+- **Revisar si:** hace falta combinar promociones, ofrecer 2x1, 3x2, regalos o envío gratis como promoción, promociones para ciertos clientes, mostrarlas en la tienda pública, o devoluciones parciales.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-16, con las 21 recomendaciones del plan y sus ajustes: el porcentaje llega al 100%, y no se combinan). Se implementa en T-200, en la versión 1.7.

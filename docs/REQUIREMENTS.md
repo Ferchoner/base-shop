@@ -40,10 +40,11 @@ Reglas transversales: las cuentas son de tipo cliente o staff (BR-USR-08); el st
 | Pricing | Una lista predeterminada, precios inmediatos y programados | Listas adicionales (modelo preparado, ADR-0039) |
 | Inventory | Un almacén, stock, reservas, movimientos | Varios almacenes operando (modelo preparado; versión 1.1, ADR-0160); carga masiva de entradas en la versión 1.5 (ADR-0164) |
 | Shopping | Carrito de invitado y de cliente registrado | — |
-| Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones, devoluciones, enlace de acceso al pedido por correo (ADR-0077), pedidos colocados por el staff (versión 1.2, ADR-0161) |
+| Ordering | Checkout, órdenes, consulta de invitado, cancelación | Promociones (versión 1.7, ADR-0168), devoluciones, enlace de acceso al pedido por correo (ADR-0077), pedidos colocados por el staff (versión 1.2, ADR-0161) |
 | Payments | Pago manual en tienda, con su método desde la versión 1.2 (ADR-0161); habilitado desde la API en la versión 1.3 (ADR-0162) | PayPal (ADR-0158), Mercado Pago, Stripe, métodos asíncronos |
 | Shipping | Envíos manuales (por paquetería o entrega propia), costo fijo con envío gratis por monto | Integración con paqueterías, envíos parciales, recoger en tienda (ADR-0078; entrega en tienda de las ventas de mostrador en la versión 1.2, ADR-0161) |
 | Work Orders | — | Órdenes de trabajo: la nota de servicio, con folio, equipo recibido, diagnóstico, estados y las ventas que la cobran (versión 1.6, ADR-0165) |
+| Promotions | — | Promociones automáticas y cupones, con porcentaje o monto fijo, para toda la compra o para ciertos productos, categorías o marcas (versión 1.7, ADR-0168) |
 | Transversales | Auditoría técnica, notificaciones, jobs | Facturación electrónica (CFDI) |
 
 ---
@@ -490,6 +491,25 @@ Criterios de aceptación:
 - **UC-WRK-05 y 06 (implementación, ADR-0167):** ligar y desligar llevan la versión de la orden de trabajo y solo se permiten mientras está abierta; una venta que no es de la tienda física, o que no existe, responde 404; una vencida, cancelada o reembolsada, 409 `sale-not-linkable`; una ya ligada, a esta o a otra, 409 `duplicate-value`. La orden de trabajo muestra cada venta con su estado al momento, si está pagada, y los totales de lo pagado y de lo que espera su pago. La nota trae la orden de trabajo con sus ventas, los datos del ticket y las condiciones, vacías hasta que el negocio las defina.
 - **Datos personales:** los del cliente se bloquean y se anonimizan con los plazos de las órdenes (ADR-0151), contados desde que se entregó o se canceló.
 - **Datos personales (implementación, ADR-0167, BR-WRK-08):** un job diario bloquea y anonimiza; bloqueada, la orden de trabajo muestra los datos como anonimizados, la búsqueda solo la encuentra por su folio, y los datos se consultan con `work-orders.read-blocked`, con motivo y auditados; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, o responde 409 `active-orders-exist` si tiene una abierta; una orden de trabajo de un cliente sin cuenta se anonimiza sola, con `customers.manage`, una vez cerrada.
+
+### 5.11 Promotions
+
+Desde la versión 1.7 (ADR-0168, T-200). Una promoción descuenta un porcentaje o un monto de toda la compra, o de ciertos productos, categorías o marcas, sola o con un cupón.
+
+| ID | Caso de uso | Acceso | Reglas |
+|---|---|---|---|
+| UC-PRM-01 | Crear una promoción | Staff (`promotions.manage`) | ADR-0168 |
+| UC-PRM-02 | Consultar y listar las promociones | Staff (`promotions.read`) | ADR-0168 |
+| UC-PRM-03 | Editar o terminar una promoción | Staff (`promotions.manage`) | BR-PRC-04, ADR-0168 |
+| UC-PRM-04 | Aplicar una promoción a una cotización y a una orden | Invitado, cliente o staff (`orders.place`) | BR-ORD-06, BR-ORD-16, ADR-0168 |
+| UC-PRM-05 | Usar un cupón | Invitado, cliente o staff (`orders.place`) | ADR-0168 |
+
+Criterios de aceptación:
+
+- **UC-PRM-01:** un porcentaje de 1% a 100% o un monto fijo; para toda la compra, o para ciertos productos, categorías, con sus subcategorías, o marcas; con inicio y un fin opcional; en línea, en la tienda física o en ambos, por defecto ambos; con una compra mínima opcional; automática o con cupón. Se audita.
+- **UC-PRM-03:** antes de su inicio se edita todo; ya iniciada, solo el nombre y el fin, o se termina. Se audita.
+- **UC-PRM-04:** una sola promoción por orden: la del cupón, si se da, o la automática que más descuente. El descuento se reparte en centavos entre las líneas a las que aplica; el IVA de cada línea se calcula sobre su importe con descuento; la orden paga al menos $1. La orden guarda el descuento de cada línea, `discountTotal` y la promoción, y `expectedTotal` incluye el descuento.
+- **UC-PRM-05:** el código es único y no distingue mayúsculas; los límites de usos totales y de una vez por cliente son opcionales; un uso cuenta al colocar la orden y se devuelve si la orden vence o se cancela; un código que no existe y uno que no está vigente responden igual.
 
 ---
 

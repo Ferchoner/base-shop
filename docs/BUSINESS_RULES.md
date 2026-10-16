@@ -163,7 +163,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI√
 
 ## Promociones
 
-Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio.
+Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio. Se construyen en la versi√≥n 1.7 (ADR-0168, T-200), y sus reglas se agregan con cada parte.
 
 ## Impuestos
 
