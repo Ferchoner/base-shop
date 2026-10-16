@@ -98,6 +98,7 @@ Estados (ADR-0050, ADR-0053): Pending → Dispatched → Delivered | DeliveryFai
 | Cart | Active, CheckedOut, Merged | DOMAIN_MODEL |
 | PriceList | Activa (la predeterminada no se desactiva) | ADR-0039 |
 | Warehouse | Activo o Inactivo; puede haber varios activos, con prioridad (ADR-0160) | ADR-0038, ADR-0160 |
+| WorkOrder | Recibida → Diagnosticada → En reparación → Lista → Entregada, hacia adelante y saltando pasos; Cancelada, con nota, antes de Entregada | ADR-0165, ADR-0166 |
 
 Reactivación (ADR-0076): User SUSPENDED → ACTIVE; Product ARCHIVED → DRAFT; ProductVariant Descontinuada → Activa; Category y Brand Desactivada → Activa. La anonimización es irreversible.
 
@@ -127,8 +128,9 @@ Catálogo y roles de ADR-0043.
 | `staff.manage` | ✓ | — | — | — |
 | `audit.read` | ✓ | ✓ | — | — |
 | `events.manage` (ADR-0150) | ✓ | ✓ | — | — |
+| `work-orders.read`, `work-orders.manage` (ADR-0165) | ✓ | ✓ | — | ✓ |
 
-`shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis. `payments.configure` lo tiene solo el Superadministrador, y ningún otro rol puede tenerlo (BR-USR-21, ADR-0162). El Vendedor coloca pedidos en la tienda física, pero no registra su pago (`payments.manage`): quien coloca el pedido no confirma que se pagó (ADR-0161).
+`shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis. `payments.configure` lo tiene solo el Superadministrador, y ningún otro rol puede tenerlo (BR-USR-21, ADR-0162). El Vendedor coloca pedidos en la tienda física, pero no registra su pago (`payments.manage`): quien coloca el pedido no confirma que se pagó (ADR-0161). El Vendedor, que atiende el mostrador, también recibe equipos y lleva sus órdenes de trabajo (ADR-0165).
 
 ---
 
@@ -468,18 +470,20 @@ Desde la versión 1.6 (ADR-0165, T-189). Una orden de trabajo es la nota de serv
 
 | ID | Caso de uso | Acceso | Reglas |
 |---|---|---|---|
-| UC-WRK-01 | Recibir un equipo: crear la orden de trabajo | Staff (`work-orders.manage`) | ADR-0165 |
-| UC-WRK-02 | Consultar y buscar órdenes de trabajo | Staff (`work-orders.read`) | ADR-0165 |
-| UC-WRK-03 | Registrar el diagnóstico y el trabajo, y corregir los datos | Staff (`work-orders.manage`) | ADR-0165 |
-| UC-WRK-04 | Cambiar el estado de una orden de trabajo | Staff (`work-orders.manage`) | ADR-0165 |
+| UC-WRK-01 | Recibir un equipo: crear la orden de trabajo | Staff (`work-orders.manage`) | BR-WRK-01, 02, ADR-0165, ADR-0166 |
+| UC-WRK-02 | Consultar y buscar órdenes de trabajo | Staff (`work-orders.read`) | ADR-0165, ADR-0166 |
+| UC-WRK-03 | Registrar el diagnóstico y el trabajo, y corregir los datos | Staff (`work-orders.manage`) | BR-WRK-02, 04, ADR-0165, ADR-0166 |
+| UC-WRK-04 | Cambiar el estado de una orden de trabajo | Staff (`work-orders.manage`) | BR-WRK-03, 05, ADR-0165, ADR-0166 |
 | UC-WRK-05 | Ligar ventas de mostrador a una orden de trabajo | Staff (`work-orders.manage`) | ADR-0161, ADR-0165 |
 | UC-WRK-06 | Consultar los datos para imprimir la nota de servicio | Staff (`work-orders.read`) | ADR-0163, ADR-0165 |
 
 Criterios de aceptación:
 
-- **UC-WRK-01:** recibe un folio consecutivo y único; exige el nombre y el teléfono del cliente, o un cliente registrado, el tipo de equipo y la falla reportada; nace Recibida, en la tienda donde se recibe y a nombre de quien la recibe.
+- **UC-WRK-01:** recibe un folio consecutivo y único; exige el nombre y el teléfono del cliente, aunque se ligue un cliente registrado (ADR-0166), el tipo de equipo y la falla reportada; nace Recibida, en la tienda donde se recibe y a nombre de quien la recibe.
 - **UC-WRK-02:** busca por folio, nombre o teléfono del cliente, número de serie y estado.
-- **UC-WRK-04:** sigue Recibida → Diagnosticada → En reparación → Lista → Entregada, y Cancelada desde cualquiera antes de Entregada; cada cambio guarda quién, cuándo y una nota, y se audita.
+- **UC-WRK-03:** corrige los datos y registra el diagnóstico y el trabajo, con `version`, hasta que la orden se entrega o se cancela (ADR-0166).
+- **UC-WRK-04:** sigue Recibida → Diagnosticada → En reparación → Lista → Entregada, hacia adelante y saltando pasos si hace falta, nunca hacia atrás, y Cancelada desde cualquiera antes de Entregada; cada cambio guarda quién, cuándo y una nota, obligatoria al cancelar, y se audita.
+- **UC-WRK-01 a 04 (implementación, ADR-0166):** el alta exige `Idempotency-Key`, y un doble envío devuelve la misma orden; un almacén inactivo, un cliente que no está activo o un técnico que no es staff activo responden 404; la búsqueda acepta el folio como `OT-000123`, `ot-123` o `123`, y el teléfono con espacios o guiones; una versión vieja responde 409 `version-conflict`, y un estado que no está adelante o una orden cerrada, 409 `invalid-state-transition`.
 - **UC-WRK-05:** liga una o varias ventas de mostrador y muestra si están pagadas; entregar no exige pago.
 - **UC-WRK-06:** da los datos de la orden de trabajo y de la tienda, con las condiciones de `WORK_ORDER_FOOTER`; el cliente imprime la nota con su línea de firma.
 - **Datos personales:** los del cliente se bloquean y se anonimizan con los plazos de las órdenes (ADR-0151), contados desde que se entregó o se canceló.

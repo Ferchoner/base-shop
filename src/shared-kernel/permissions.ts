@@ -22,6 +22,10 @@ export const PERMISSIONS = {
   'orders.read-blocked':
     'Consultar los datos personales bloqueados de un pedido, con motivo y auditado',
   'orders.place': 'Colocar pedidos a nombre de un cliente en la tienda física',
+  // Work Orders
+  'work-orders.read': 'Ver órdenes de trabajo',
+  'work-orders.manage':
+    'Recibir equipos en la tienda física y llevar sus órdenes de trabajo',
   // Payments
   'payments.manage': 'Registrar pagos manuales y emitir reembolsos',
   'payments.configure': 'Habilitar o deshabilitar el pago manual en tienda',

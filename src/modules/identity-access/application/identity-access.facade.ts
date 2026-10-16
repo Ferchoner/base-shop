@@ -57,6 +57,15 @@ export class IdentityAccessFacade {
   }
 
   /**
+   * Whether the ID is of an ACTIVE staff member, such as the technician of a work order (ADR-0166); false for
+   * customers, suspended accounts and unknown ids.
+   */
+  async isActiveStaff(userId: UserId): Promise<boolean> {
+    const staff = await this.queries.findStaff(userId);
+    return staff?.status === 'ACTIVE';
+  }
+
+  /**
    * Anonymizes the account of a customer (UC-IAM-19, ADR-0067), in the transaction of the caller: Privacy
    * anonymizes their orders and deletes their carts in the same one (ADR-0145).
    *

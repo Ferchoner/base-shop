@@ -188,6 +188,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [ ] Versión 1.6: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes); plan en `SPRINT.md`
 - [x] T-189 parte a: `storeOnly` en el producto, que no se vende en línea y sí en la tienda física; la tienda pública, el carrito, el checkout en línea y la recompra lo respetan, y la carga masiva lo acepta (BR-PRD-20, ADR-0165)
+- [x] T-189 parte b: el módulo de órdenes de trabajo en `/v1/admin/work-orders`, con folio consecutivo, cliente, equipo, diagnóstico, estados con su historial, búsqueda y los permisos `work-orders.read` y `work-orders.manage` (BR-WRK-01 a 05, ADR-0166)
 - [x] T-146 parte a: `POST /v1/admin/catalog/product-imports`, productos nuevos en borrador con sus variantes desde un CSV, todo o nada, con la marca y las categorías por slug; piezas compartidas por las cargas y plantillas en `docs/templates/` (ADR-0164)
 - [x] T-146 parte b: `POST /v1/admin/inventory/receipt-imports`, entradas de mercancía desde un CSV por SKU y código de almacén, todo o nada; un archivo ya cargado se rechaza por su huella (BR-INV-15, ADR-0164)
 - [x] T-142: `gtin` en la variante, con su dígito verificador y sin repetirse entre variantes activas, editable después de publicar; `GET /v1/admin/catalog/variants/lookup` por SKU o GTIN; el `q` del listado busca por GTIN (ADR-0163)

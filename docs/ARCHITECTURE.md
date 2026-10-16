@@ -52,7 +52,7 @@ src/
     ├── notifications/         módulo transversal: los correos de la vida de la orden, por eventos y con la fachada de Ordering (T-215, ADR-0143); aplicación e infraestructura
     ├── privacy/               módulo transversal: la anonimización de clientes y compradores invitados, con las fachadas de Identity & Access, Ordering y Shopping (T-132, ADR-0145), la de clientes inactivos y la política de conservación pública (ADR-0152); aplicación, infraestructura y presentación
     ├── geo/                   módulo transversal: catálogo de estados y municipios del INEGI, su importación, la consulta pública y una fachada de solo lectura (T-124, ADR-0109)
-    └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping
+    └── <contexto>/            identity-access, catalog, pricing, inventory, shopping, ordering, payments, shipping, work-orders
         ├── domain/
         ├── application/
         ├── infrastructure/

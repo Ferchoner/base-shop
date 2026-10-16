@@ -359,5 +359,30 @@ describe('Customer addresses (T-130, UC-IAM-11)', () => {
       expect(await facade().customerContact(staff)).toBeNull();
       expect(await facade().customerContact(newId())).toBeNull();
     });
+
+    it('tells an active staff member, as the technician of a work order, from anyone else (ADR-0166)', async () => {
+      const staff = async (status: 'ACTIVE' | 'SUSPENDED') => {
+        const id = newId<'User'>();
+        await prisma.user.create({
+          data: {
+            id,
+            type: 'STAFF',
+            status,
+            email: `${id}@example.com`,
+            firstNames: 'Luis',
+            lastNames: 'Ramírez',
+            passwordHash: 'not-a-real-hash',
+          },
+        });
+        return id;
+      };
+
+      expect(await facade().isActiveStaff(await staff('ACTIVE'))).toBe(true);
+      expect(await facade().isActiveStaff(await staff('SUSPENDED'))).toBe(
+        false,
+      );
+      expect(await facade().isActiveStaff(await insertCustomer())).toBe(false);
+      expect(await facade().isActiveStaff(newId())).toBe(false);
+    });
   });
 });

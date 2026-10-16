@@ -292,4 +292,19 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/shipping/shipments/:shipmentId/return': {
     access: ['shipping.manage'],
   },
+
+  // Staff: work orders, the service notes of the physical store (ADR-0165, ADR-0166). Receiving equipment asks for
+  // an idempotency key, so a repeated request never prints two folios.
+  'GET /v1/admin/work-orders': { access: ['work-orders.read'] },
+  'POST /v1/admin/work-orders': {
+    access: ['work-orders.manage'],
+    idempotent: 'user',
+  },
+  'GET /v1/admin/work-orders/:workOrderId': { access: ['work-orders.read'] },
+  'PATCH /v1/admin/work-orders/:workOrderId': {
+    access: ['work-orders.manage'],
+  },
+  'POST /v1/admin/work-orders/:workOrderId/status': {
+    access: ['work-orders.manage'],
+  },
 };

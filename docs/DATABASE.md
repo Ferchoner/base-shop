@@ -44,11 +44,12 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Identity & Access | `users`, `roles`, `user_roles`, `role_permissions`, `customer_addresses`, `refresh_tokens`, `email_verification_tokens`, `password_reset_tokens` |
 | Catalog | `brands`, `categories`, `products`, `product_categories`, `product_variants`, `product_images` |
 | Pricing | `price_lists`, `variant_prices`, `price_periods` |
-| Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines` |
+| Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports` |
 | Shopping | `carts`, `cart_lines` |
 | Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
+| Work Orders | `work_orders`, `work_order_status_history` |
 | Transversal | `audit_logs`, `idempotency_keys`, `domain_events`, `event_deliveries`, `geo_states`, `geo_municipalities` |
 
 **Correspondencia con los nombres solicitados:**
@@ -839,6 +840,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
     - Migrar a mano con un túnel SSH: aceptable solo al inicio, porque no es reproducible.
   - **Reversión de un despliegue:** no se revierte la migración. Gracias a los cambios en dos pasos, la versión anterior de la API sigue funcionando con el esquema nuevo.
 - **Motivo en la auditoría:** la migración `20260928140000_audit_reason` (T-130, ADR-0112) agrega `audit_logs.reason`.
+- **Permisos de las órdenes de trabajo:** la migración `20261015150000_identity_work_orders_permissions` (T-189 parte b, ADR-0165) da `work-orders.read` y `work-orders.manage` a los roles Administrador y Vendedor, por su ID.
 - **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043. La migración `20261006150000_identity_orders_place_permission` (T-187, ADR-0161) da `orders.place` al Administrador y crea el rol Vendedor, sin tocar un rol con ese nombre que ya exista.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).
@@ -923,4 +925,59 @@ erDiagram
 
     orders ||..o| shipments : "envío de"
     shipments ||--o{ shipment_items : incluye
+
+    work_orders ||--o{ work_order_status_history : registra
+    warehouses ||..o{ work_orders : "recibe"
+    users ||..o{ work_orders : "cliente de"
 ```
+
+---
+
+## 17. Work Orders
+
+Desde T-189 parte b (ADR-0165, ADR-0166), migración `20261015140000_work_orders`. Las referencias a Identity e Inventory son lógicas, sin FK.
+
+### 17.1 `work_orders`
+
+La nota de servicio del equipo que un cliente deja en la tienda física.
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK |
+| number | bigserial | No | `UNIQUE`; de una secuencia, se muestra como el folio `OT-000123` (BR-WRK-01) |
+| status | enum `work_order_status` | No | `RECEIVED`, `DIAGNOSED`, `IN_REPAIR`, `READY`, `DELIVERED`, `CANCELLED` (BR-WRK-03) |
+| customer_id | uuid | Sí | El cliente registrado ligado; referencia lógica a `users` |
+| customer_name | text | No | Hasta 120 caracteres (la aplicación lo valida) |
+| customer_phone | char(10) | No | `CHECK (customer_phone ~ '^[0-9]{10}$')` |
+| customer_email | text | Sí | Sin espacios y en minúsculas |
+| equipment_type | text | No | Hasta 60 caracteres |
+| equipment_brand, equipment_model, serial_number | text | Sí | Hasta 60 caracteres cada uno |
+| accessories | text | Sí | Hasta 500 caracteres |
+| equipment_condition | text | Sí | Cómo se recibió; hasta 1,000 caracteres |
+| reported_fault | text | No | Hasta 2,000 caracteres |
+| diagnosis, work_performed | text | Sí | Hasta 4,000 caracteres cada uno |
+| estimated_cost | integer | Sí | Centavos de MXN, informativo (BR-WRK-05); `CHECK (estimated_cost >= 0)` |
+| warehouse_id | uuid | No | El almacén de la tienda que lo recibió; referencia lógica a `warehouses` |
+| received_by | uuid | No | Quién lo recibió; referencia lógica a `users` |
+| technician_id | uuid | Sí | El técnico asignado; referencia lógica a `users` |
+| received_at | timestamptz(3) | No | Lo escribe el reloj de la API (ADR-0124) |
+| closed_at | timestamptz(3) | Sí | Al entregarla o cancelarla; los plazos de conservación contarán desde aquí (T-189 parte c) |
+| version | integer | No | Default 1; bloqueo optimista |
+| created_at, updated_at | timestamptz(3) | No | Los escribe el reloj de la API |
+
+- **Índices:** `(status, received_at DESC)`, `(received_at DESC)` y `(customer_id)`. La búsqueda por nombre, teléfono o número de serie usa `ILIKE` sin índice, como los demás listados administrativos.
+- **Escrituras:** un cambio guarda solo sobre la versión que leyó (`UPDATE … WHERE version = …`); todo cambio lleva su versión, así que no bloquea la fila (ADR-0166).
+
+### 17.2 `work_order_status_history`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | uuid | PK |
+| work_order_id | uuid | FK → `work_orders.id` `RESTRICT` |
+| from_status | enum `work_order_status` | `NULL` al recibir el equipo |
+| to_status | enum `work_order_status` | — |
+| actor_id | uuid | La cuenta de staff que hizo el cambio |
+| note | text | Nota del cambio; obligatoria al cancelar, hasta 500 caracteres |
+| occurred_at | timestamptz(3) | — |
+
+- **Índices:** `(work_order_id, occurred_at)`. Append-only.

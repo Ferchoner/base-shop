@@ -48,6 +48,18 @@ T-189 parte a (ADR-0165).
 - **Dos comparaciones completas, encontradas al correr las pruebas:** la prueba end-to-end del alta compara `AdminProduct` completo, y la de integración compara su auditoría; las dos fallaron con `storeOnly`. La búsqueda previa cubrió las respuestas, como pide la guía, pero no la auditoría: la guía suma que un dato auditado también cambia lo que registra la auditoría.
 - **Mutación:** 53 mutantes, todos muertos. Cuatro sobrevivieron a la primera corrida y cada uno dejó una prueba: la venta de mostrador coloca, y no solo cotiza, un producto de tienda; un `storeOnly` inválido en la primera fila deja sin revisar las variantes de su producto, y el alta y la edición responden 400 a un `storeOnly` que no es booleano.
 
+### Resultado del paso 2
+
+T-189 parte b (ADR-0166).
+
+- **Módulo nuevo `work-orders`:** cinco rutas en `/v1/admin/work-orders`, dos tablas y dos permisos, para el Vendedor y el Administrador. Usa a Identity y a Inventory solo por sus fachadas, y la de Identity suma `isActiveStaff` para el técnico.
+- **Tres precisiones de ADR-0165, decididas en el plan:** el nombre y el teléfono se piden siempre; los estados avanzan saltando pasos y nunca regresan; una orden entregada o cancelada ya no se edita.
+- **Sin bloqueo de fila:** un `SELECT … FOR UPDATE` no cambiaba nada observable, porque todo cambio lleva su versión y el guardado la comprueba; se quitó, y la parte c lo agrega si liga ventas sin versión.
+- **La cobertura de funciones bajó del umbral,** a 98.73%: el plugin de Swagger genera una función de tipo por campo, y un `type` explícito la deja sin llamar; la cobertura la cuenta cuando el campo anterior usa una constante, como `@MaxLength(LIMITS.equipmentBrand)`. Los campos de texto o de número que pueden ser `null` declaran solo `nullable: true`; el documento OpenAPI quedó idéntico byte por byte y la cobertura, en 99.26%. La guía y ADR-0166 lo registran (ajusta ADR-0112).
+- **Una cuenta fija:** la prueba del esquema cuenta las tablas, 43 → 45, y falló en la primera corrida completa. El mapa de tablas de `DATABASE.md` tampoco tenía `stock_receipt_imports` desde la versión 1.5.
+- **Huecos encontrados al escribir los mutantes:** por HTTP no se probaban los filtros del listado, su orden por defecto ni que un `PATCH` conserve lo que no envía; se agregaron antes de correrlos.
+- **Mutación:** 75 mutantes, todos muertos en la primera corrida.
+
 ### Risks
 
 - **Datos personales de clientes sin cuenta:** las órdenes de trabajo guardan nombre y teléfono; siguen el ciclo de conservación de las órdenes, y la validación legal pendiente los incluye (`PROJECT.md` §9).

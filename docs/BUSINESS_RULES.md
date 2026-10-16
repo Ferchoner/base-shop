@@ -190,6 +190,14 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-SHP-12. El costo de envío configurado incluye IVA. El IVA contenido se calcula con la tasa configurada, se redondea como una línea y queda como snapshot en la orden; con envío gratis es 0. El costo de envío no cuenta para alcanzar el umbral (ADR-0079).
 - BR-SHP-13. Solo Superadministrador y Administrador configuran el costo de envío y el umbral de envío gratis, con el permiso `shipping.configure`; el Operador no lo tiene (ADR-0075).
 
+## Órdenes de trabajo
+
+- BR-WRK-01. Cada orden de trabajo tiene un folio consecutivo y único, `OT-` y al menos seis dígitos, de una secuencia de la base de datos; puede saltarse un número si falla la transacción que lo tomó (ADR-0166).
+- BR-WRK-02. Una orden de trabajo exige el nombre y el teléfono del cliente, de 10 dígitos, el tipo de equipo y la falla reportada, aunque se ligue a un cliente registrado. Un cliente ligado debe estar activo, y el técnico, ser una cuenta de staff activa; la tienda es un almacén activo (ADR-0166).
+- BR-WRK-03. Estados: Recibida → Diagnosticada → En reparación → Lista → Entregada, hacia adelante y saltando pasos si hace falta, nunca hacia atrás; Cancelada, con nota, desde cualquiera antes de Entregada. Entregada y Cancelada son finales (ADR-0166).
+- BR-WRK-04. Una orden de trabajo entregada o cancelada ya no se edita: la nota se imprimió y se firmó (ADR-0166).
+- BR-WRK-05. La orden de trabajo no cobra: su costo estimado es informativo, y entregarla no exige pago, por garantías o revisiones sin costo (ADR-0165).
+
 ## Notificaciones
 
 - BR-NTF-01. El cliente recibe un correo por orden recibida, pago confirmado, orden enviada, orden cancelada y reembolso completado (ADR-0074).

@@ -1,0 +1,74 @@
+// Work Orders (DATABASE.md §17, ADR-0165, ADR-0166).
+
+/// Where a work order is (ADR-0166): forward only, skipping steps if needed, and cancelled before it is delivered.
+enum WorkOrderStatus {
+  RECEIVED
+  DIAGNOSED
+  IN_REPAIR
+  READY
+  DELIVERED
+  CANCELLED
+
+  @@map("work_order_status")
+}
+
+/// The service note of the equipment a customer leaves in the store (UC-WRK-01 to 04).
+model WorkOrder {
+  id                 String          @id @db.Uuid
+  /// Consecutive number from a database sequence, shown as the folio `OT-000123` (ADR-0166).
+  number             BigInt          @unique @default(autoincrement())
+  status             WorkOrderStatus
+  /// Logical reference to Identity: the registered customer it is linked to, if any.
+  customerId         String?         @map("customer_id") @db.Uuid
+  customerName       String          @map("customer_name")
+  /// CHECK: 10 digits (manual SQL).
+  customerPhone      String          @map("customer_phone") @db.Char(10)
+  customerEmail      String?         @map("customer_email")
+  equipmentType      String          @map("equipment_type")
+  equipmentBrand     String?         @map("equipment_brand")
+  equipmentModel     String?         @map("equipment_model")
+  serialNumber       String?         @map("serial_number")
+  accessories        String?
+  /// How the equipment was when it was received.
+  equipmentCondition String?         @map("equipment_condition")
+  reportedFault      String          @map("reported_fault")
+  diagnosis          String?
+  workPerformed      String?         @map("work_performed")
+  /// Informative, in cents of MXN: the work order charges nothing (ADR-0165). CHECK: 0 or more (manual SQL).
+  estimatedCost      Int?            @map("estimated_cost")
+  /// Logical references to Inventory and Identity: the warehouse of the store that received it, the staff member
+  /// who received it and the technician assigned to it.
+  warehouseId        String          @map("warehouse_id") @db.Uuid
+  receivedBy         String          @map("received_by") @db.Uuid
+  technicianId       String?         @map("technician_id") @db.Uuid
+  receivedAt         DateTime        @map("received_at") @db.Timestamptz(3)
+  /// When it was delivered or cancelled; the retention of its personal data will count from then (ADR-0165).
+  closedAt           DateTime?       @map("closed_at") @db.Timestamptz(3)
+  version            Int             @default(1)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  statusHistory WorkOrderStatusHistory[]
+
+  @@index([status, receivedAt(sort: Desc)])
+  @@index([receivedAt(sort: Desc)])
+  @@index([customerId])
+  @@map("work_orders")
+}
+
+model WorkOrderStatusHistory {
+  id          String           @id @db.Uuid
+  workOrderId String           @map("work_order_id") @db.Uuid
+  /// Null on reception.
+  fromStatus  WorkOrderStatus? @map("from_status")
+  toStatus    WorkOrderStatus  @map("to_status")
+  /// The staff member; a logical reference to Identity.
+  actorId     String           @map("actor_id") @db.Uuid
+  note        String?
+  occurredAt  DateTime         @map("occurred_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([workOrderId, occurredAt])
+  @@map("work_order_status_history")
+}
