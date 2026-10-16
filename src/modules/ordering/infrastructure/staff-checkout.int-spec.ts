@@ -23,6 +23,7 @@ import { AuditModule } from '../../audit/index.js';
 import { OrderAnonymizations } from '../application/order-anonymizations.use-case.js';
 import { OrderExpiry } from '../application/order-expiry.use-case.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
+import { OrderingFacade } from '../application/ordering.facade.js';
 import { OrderingQueries } from '../application/ordering.queries.js';
 import {
   StaffCheckout,
@@ -609,6 +610,61 @@ describe('Ordering: orders of the staff in the store (T-187)', () => {
       await expect(
         prisma.$executeRaw`UPDATE orders SET contact_email = 'x@example.com' WHERE id = ${atCounter}::uuid`,
       ).rejects.toThrow(/orders_guest_privacy_notice_check/);
+    });
+
+    it('gives a work order the sales of the store among some orders, oldest first, with whether they were paid (ADR-0167)', async () => {
+      const store = await storeWarehouse();
+      const shirt = await variant([[store, 10]]);
+      const facade = moduleRef.get(OrderingFacade);
+      const paid = await run(() => checkout.place(counter(shirt, 1, store)));
+      await pay(paid, 10_000);
+      const pending = await run(() => checkout.place(counter(shirt, 2, store)));
+      const cancelled = await run(() =>
+        checkout.place(counter(shirt, 1, store)),
+      );
+      await run(() =>
+        moduleRef.get(OrderLifecycle).cancel({
+          orderId: cancelled,
+          actorId: staffId,
+          reason: 'El cliente ya no lo quiso',
+          restock: false,
+          version: 1,
+        }),
+      );
+      const online = await run(() => checkout.place(order(shirt, 1, store)));
+      await prisma.$executeRaw`
+        UPDATE orders SET channel = 'ONLINE', source_cart_id = ${newId()}::uuid, placed_by = NULL, warehouse_id = NULL
+         WHERE id = ${online}::uuid`;
+
+      const sales = await run(() =>
+        facade.storeSales([pending, online, newId(), cancelled, paid]),
+      );
+
+      expect(
+        sales.map(({ orderId, status, payment }) => [orderId, status, payment]),
+      ).toEqual([
+        [paid, 'PAID', 'PAID'],
+        [pending, 'PENDING_PAYMENT', 'PENDING'],
+        [cancelled, 'CANCELLED', 'NONE'],
+      ]);
+      const { publicCode, orderNumber } = await prisma.order.findUniqueOrThrow({
+        where: { id: paid },
+      });
+      expect(sales[0]).toEqual({
+        orderId: paid,
+        publicCode: `${publicCode.slice(0, 4)}-${publicCode.slice(4)}`,
+        orderNumber: Number(orderNumber),
+        status: 'PAID',
+        grandTotal: Money.of(10_000, 'MXN'),
+        placedAt: expect.any(Date),
+        paidAt: expect.any(Date),
+        payment: 'PAID',
+      });
+      expect(sales[1]).toMatchObject({
+        grandTotal: Money.of(20_000, 'MXN'),
+        paidAt: null,
+      });
+      expect(await run(() => facade.storeSales([]))).toEqual([]);
     });
   });
 });

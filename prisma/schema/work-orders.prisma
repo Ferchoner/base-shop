@@ -49,6 +49,7 @@ model WorkOrder {
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   statusHistory WorkOrderStatusHistory[]
+  sales         WorkOrderSale[]
 
   @@index([status, receivedAt(sort: Desc)])
   @@index([receivedAt(sort: Desc)])
@@ -71,4 +72,19 @@ model WorkOrderStatusHistory {
 
   @@index([workOrderId, occurredAt])
   @@map("work_order_status_history")
+}
+
+/// A counter sale that pays for a work order (UC-WRK-05, ADR-0167): one sale pays for one work order at most.
+model WorkOrderSale {
+  workOrderId String   @map("work_order_id") @db.Uuid
+  /// Logical reference to Ordering: an order placed in the physical store.
+  orderId     String   @unique @map("order_id") @db.Uuid
+  /// The staff member who linked it; a logical reference to Identity.
+  linkedBy    String   @map("linked_by") @db.Uuid
+  linkedAt    DateTime @map("linked_at") @db.Timestamptz(3)
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([workOrderId, orderId])
+  @@map("work_order_sales")
 }

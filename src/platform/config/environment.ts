@@ -169,6 +169,18 @@ export class EnvironmentVariables {
   TICKET_FOOTER: string = DEFAULT_TICKET_FOOTER;
 
   /**
+   * Terms of the service note of a work order (ADR-0165, ADR-0167): up to 2,000 characters, trimmed. Empty by default,
+   * until the business defines them with its adviser; a line break is written `\n` inside a double-quoted value.
+   */
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : '',
+  )
+  @IsString()
+  @MaxLength(2000, { message: '$property must have at most 2000 characters' })
+  WORK_ORDER_FOOTER: string = '';
+
+  /**
    * How long a reservation of stock holds it while the order waits for its payment, from 5 minutes to 2 hours
    * (BR-INV-07, ADR-0011, ADR-0128). The expiration job of T-230 frees it within the next minute.
    */

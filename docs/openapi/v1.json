@@ -3776,6 +3776,86 @@
         ],
         "type": "object"
       },
+      "LinkSaleDto": {
+        "properties": {
+          "orderId": {
+            "description": "Una orden colocada en la tienda física (`channel` `STORE`) que no venció, ni se canceló, ni se reembolsó.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "description": "Versión leída de la orden de trabajo (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "orderId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "LinkedSaleDto": {
+        "properties": {
+          "grandTotal": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "linkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "linkedBy": {
+            "description": "La cuenta de staff que la ligó.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "orderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "orderNumber": {
+            "description": "Número interno de la venta, para el staff (ADR-0049).",
+            "type": "number"
+          },
+          "paid": {
+            "description": "`true` si la tienda ya tiene su dinero: pagada, por surtir, enviada o entregada. Una pendiente de pago, vencida,\ncancelada o reembolsada no lo está.",
+            "type": "boolean"
+          },
+          "paidAt": {
+            "description": "Cuándo se pagó; `null` si no ha ocurrido.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "placedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publicCode": {
+            "description": "Código público de la venta, con guion.",
+            "example": "K7M4-Q9XA",
+            "type": "string"
+          },
+          "status": {
+            "description": "Estado de la venta en Ordering, como en `AdminOrder`.",
+            "example": "PAID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "orderId",
+          "grandTotal",
+          "placedAt",
+          "paidAt",
+          "linkedBy",
+          "linkedAt",
+          "publicCode",
+          "orderNumber",
+          "status",
+          "paid"
+        ],
+        "type": "object"
+      },
       "LoginDto": {
         "properties": {
           "email": {
@@ -5363,6 +5443,7 @@
               "/problems/field-locked",
               "/problems/empty-cart",
               "/problems/source-cart-unavailable",
+              "/problems/sale-not-linkable",
               "/problems/idempotency-key-mismatch",
               "/problems/payload-too-large",
               "/problems/unsupported-media-type",
@@ -6415,6 +6496,56 @@
         "required": [
           "data",
           "meta"
+        ],
+        "type": "object"
+      },
+      "ServiceNoteDto": {
+        "properties": {
+          "store": {
+            "$ref": "#/components/schemas/ServiceNoteStoreDto"
+          },
+          "terms": {
+            "description": "Las condiciones del servicio (`WORK_ORDER_FOOTER`); vacías hasta que el negocio las defina con su asesor\n(ADR-0165). Pueden traer saltos de línea.",
+            "type": "string"
+          },
+          "workOrder": {
+            "$ref": "#/components/schemas/WorkOrderDto"
+          }
+        },
+        "required": [
+          "workOrder",
+          "store",
+          "terms"
+        ],
+        "type": "object"
+      },
+      "ServiceNoteStoreDto": {
+        "properties": {
+          "address": {
+            "description": "Dirección (`STORE_ADDRESS`).",
+            "nullable": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "Nombre de la tienda (`STORE_NAME`).",
+            "type": "string"
+          },
+          "phone": {
+            "description": "Teléfono (`STORE_PHONE`).",
+            "nullable": true,
+            "type": "string"
+          },
+          "taxId": {
+            "description": "RFC (`STORE_TAX_ID`).",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "taxId",
+          "phone",
+          "name"
         ],
         "type": "object"
       },
@@ -8048,6 +8179,14 @@
             "format": "uuid",
             "type": "string"
           },
+          "paidTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de las ventas ligadas que están pagadas."
+          },
           "receivedAt": {
             "format": "date-time",
             "type": "string"
@@ -8059,6 +8198,13 @@
           },
           "reportedFault": {
             "type": "string"
+          },
+          "sales": {
+            "description": "Las ventas de mostrador que la cobran, en el orden en que se ligaron, con su estado al momento (ADR-0167).",
+            "items": {
+              "$ref": "#/components/schemas/LinkedSaleDto"
+            },
+            "type": "array"
           },
           "serialNumber": {
             "nullable": true,
@@ -8087,6 +8233,14 @@
             "format": "uuid",
             "nullable": true,
             "type": "string"
+          },
+          "unpaidTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de las ventas ligadas que esperan su pago; las vencidas, canceladas o reembolsadas no cuentan."
           },
           "version": {
             "description": "Para el bloqueo optimista.",
@@ -8121,6 +8275,9 @@
           "estimatedCost",
           "receivedBy",
           "statusHistory",
+          "sales",
+          "paidTotal",
+          "unpaidTotal",
           "reportedFault",
           "version",
           "folio",
@@ -19868,6 +20025,363 @@
         ],
         "x-required-permissions": [
           "work-orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}/sales": {
+      "post": {
+        "description": "UC-WRK-05 (ADR-0167). Solo una orden colocada en la tienda física (`channel` `STORE`); otra, o una que no existe, 404. Una venta vencida, cancelada o reembolsada no se liga: 409 `sale-not-linkable` con `saleStatus`. Una venta cobra una sola orden de trabajo: si ya está ligada, a esta o a otra, 409 `duplicate-value`. Una orden de trabajo entregada o cancelada ya no liga ventas: 409 `invalid-state-transition`. La orden de trabajo no cobra: la venta tiene su propio pago, y entregar no lo exige. Se audita como `work-orders.sale-link`.",
+        "operationId": "AdminWorkOrdersController_linkSale_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkSaleDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual; `sale-not-linkable`: Venta que no se puede ligar; `duplicate-value`: Valor duplicado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ligar una venta de mostrador que cobra la orden de trabajo",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}/sales/{orderId}": {
+      "delete": {
+        "description": "UC-WRK-05 (ADR-0167). Con la versión leída de la orden de trabajo en `version`. Una venta que la orden de trabajo no tiene, 404; una orden de trabajo entregada o cancelada, 409 `invalid-state-transition`. Se audita como `work-orders.sale-unlink`.",
+        "operationId": "AdminWorkOrdersController_unlinkSale_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "ID interno del pedido; quien compra usa el código público.",
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Versión leída de la orden de trabajo (bloqueo optimista).",
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "example": 3,
+              "minimum": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desligar una venta ligada por error",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}/service-note": {
+      "get": {
+        "description": "UC-WRK-06 (ADR-0167). La orden de trabajo con sus ventas, los datos de la tienda, los mismos del ticket (ADR-0163), y las condiciones del servicio de `WORK_ORDER_FOOTER`, vacías hasta que el negocio las defina. La línea de firma la dibuja el frontend; la firma no se guarda.",
+        "operationId": "AdminWorkOrdersController_serviceNote_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceNoteDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar los datos para imprimir la nota de servicio",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.read"
         ]
       }
     },

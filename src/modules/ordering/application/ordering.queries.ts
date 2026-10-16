@@ -170,6 +170,14 @@ export abstract class OrderingQueries {
    */
   abstract hasOpenOrders(customerId: CustomerId): Promise<boolean>;
 
+  /**
+   * The orders placed in the physical store among these IDs (ADR-0161), oldest first; online orders and unknown IDs
+   * are left out. For the sales that pay for a work order (ADR-0167).
+   */
+  abstract storeOrders(
+    ids: readonly OrderId[],
+  ): Promise<readonly AdminOrderSummaryView[]>;
+
   /** The newest `limit` guest orders of the email, newest first; ties are broken by ID (UC-ORD-05, ADR-0148). */
   abstract listGuestOrders(
     contactEmail: string,

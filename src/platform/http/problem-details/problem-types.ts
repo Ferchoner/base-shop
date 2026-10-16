@@ -184,6 +184,12 @@ export const PROBLEM_TYPES = {
     detail:
       'El carrito original de la orden ya no existe, así que no se puede recomprar.',
   },
+  'sale-not-linkable': {
+    status: 409,
+    title: 'Venta que no se puede ligar',
+    detail:
+      'La venta venció, se canceló o se reembolsó, así que no paga la orden de trabajo.',
+  },
   'idempotency-key-mismatch': {
     status: 422,
     title: 'Llave de idempotencia reutilizada',

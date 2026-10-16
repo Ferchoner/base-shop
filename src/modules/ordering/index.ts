@@ -7,4 +7,6 @@ export {
   type OrderNotice,
   type OrderNoticeLine,
   OrderingFacade,
+  type StoreSale,
+  type StoreSalePayment,
 } from './application/ordering.facade.js';

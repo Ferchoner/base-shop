@@ -1074,3 +1074,30 @@ describe('Store data for the ticket (ADR-0163)', () => {
     ).not.toThrow();
   });
 });
+
+describe('Terms of the service note of a work order (ADR-0165, ADR-0167)', () => {
+  it('is empty until the business sets it', () => {
+    expect(validateEnvironment(REQUIRED).WORK_ORDER_FOOTER).toBe('');
+    expect(
+      validateEnvironment({ ...REQUIRED, WORK_ORDER_FOOTER: '   ' })
+        .WORK_ORDER_FOOTER,
+    ).toBe('');
+  });
+
+  it('reads it trimmed, with its line breaks, up to 2,000 characters', () => {
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        WORK_ORDER_FOOTER:
+          ' Garantía de 30 días.\nEquipos no recogidos en 90 días… ',
+      }).WORK_ORDER_FOOTER,
+    ).toBe('Garantía de 30 días.\nEquipos no recogidos en 90 días…');
+    expect(
+      validateEnvironment({ ...REQUIRED, WORK_ORDER_FOOTER: 'x'.repeat(2000) })
+        .WORK_ORDER_FOOTER,
+    ).toHaveLength(2000);
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, WORK_ORDER_FOOTER: 'x'.repeat(2001) }),
+    ).toThrow('WORK_ORDER_FOOTER');
+  });
+});

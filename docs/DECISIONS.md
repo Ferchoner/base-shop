@@ -184,6 +184,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0164 | Carga masiva de productos y de existencias | Aceptada |
 | ADR-0165 | Servicios solo en tienda y órdenes de trabajo | Aceptada |
 | ADR-0166 | Órdenes de trabajo: folio, cliente, estados y edición | Aceptada |
+| ADR-0167 | Órdenes de trabajo: ventas ligadas, nota de servicio y conservación de datos | Aceptada |
 
 ---
 
@@ -5237,6 +5238,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 
   Parte b, el núcleo de las órdenes de trabajo, en ADR-0166, que precisa tres puntos de esta decisión: el nombre y el teléfono del cliente se piden siempre, los estados avanzan saltando pasos y una orden cerrada ya no se edita.
 
+  Parte c, en ADR-0167 y en dos pull requests: c1, las ventas ligadas y la nota de servicio; c2, la conservación de los datos del cliente.
+
 ---
 
 ## ADR-0166 — Órdenes de trabajo: folio, cliente, estados y edición
@@ -5271,3 +5274,34 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las órdenes de trabajo guardan el nombre, el teléfono y el email de clientes sin cuenta; su conservación llega en la parte c. La respuesta guardada por idempotencia del alta los lleva 24 horas, como la de una venta de mostrador.
 - **Revisar si:** hace falta regresar de estado, por ejemplo cuando una reparación falla en la prueba, o buscar sin distinguir acentos.
 - **Estado:** Aceptada (plan de T-189 parte b aprobado el 2026-10-15, con sus 16 recomendaciones). Implementada en T-189 parte b, con las migraciones `20261015140000_work_orders` y `20261015150000_identity_work_orders_permissions`.
+
+---
+
+## ADR-0167 — Órdenes de trabajo: ventas ligadas, nota de servicio y conservación de datos
+
+- **Fecha:** 2026-10-16
+- **Contexto:** T-189 parte c, lo que queda de ADR-0165: las ventas de mostrador que cobran una orden de trabajo (UC-WRK-05), los datos para imprimir su nota (UC-WRK-06) y la conservación de los datos del cliente. Hoy:
+  - Ordering no da a otros módulos el estado de una venta; su fachada sirve a Notifications y a Privacy;
+  - los datos de la tienda para el ticket viven en Ordering (ADR-0163) y salen de la configuración;
+  - las órdenes de trabajo guardan nombre, teléfono, email y número de serie de clientes que pueden no tener cuenta, sin ciclo de conservación.
+- **Decisión** (del usuario, con las 17 recomendaciones del plan):
+  - **Dos pull requests:** c1, ventas ligadas y nota de servicio; c2, conservación de datos y anonimización.
+  - **Ventas ligadas (c1):**
+    - la tabla `work_order_sales` guarda la venta, quién la ligó y cuándo; una venta cobra una sola orden de trabajo (`UNIQUE`), y una orden de trabajo, una o varias;
+    - solo se ligan ventas de la tienda física (`channel` `STORE`), con cualquier forma de entrega; una vencida, cancelada o reembolsada responde 409 `sale-not-linkable` (E-37), con el estado de la venta en `saleStatus`;
+    - se ligan con `POST …/sales` y se desligan con `DELETE …/sales/{orderId}`, las dos con la versión de la orden de trabajo, así que ADR-0166 sigue sin bloqueo de fila; solo mientras la orden de trabajo está abierta (BR-WRK-04);
+    - **pagada:** la venta está pagada, por surtir, enviada o entregada. Ordering la resume como `PAID`, `PENDING` o `NONE` en el método nuevo `OrderingFacade.storeSales`, así que Work Orders no conoce sus estados;
+    - la orden de trabajo muestra sus ventas con su estado al momento, y los totales de lo pagado y de lo que espera su pago;
+    - se auditan como `work-orders.sale-link` y `work-orders.sale-unlink`.
+  - **Nota de servicio (c1):** `GET …/service-note` da la orden de trabajo con sus ventas, los datos de la tienda (las mismas variables del ticket, leídas de la configuración sin pasar por Ordering) y las condiciones de `WORK_ORDER_FOOTER`: opcional, vacía por defecto, hasta 2,000 caracteres, con saltos de línea escritos `\n` entre comillas dobles. La línea de firma la dibuja el frontend.
+  - **Conservación (c2):** se bloquean a los `PERSONAL_DATA_OPERATIONAL_MONTHS` meses de `closedAt` y se anonimizan a la suma de los dos plazos, con un job diario; la anonimización borra el nombre, el teléfono, el email, el número de serie y los textos que pueden citar al cliente, y conserva el resto; los datos bloqueados se consultan con `work-orders.read-blocked`, con motivo; Privacidad anonimiza las órdenes de trabajo cerradas de un cliente al anonimizar su cuenta, y una orden de trabajo de un cliente sin cuenta se anonimiza sola, con `customers.manage`.
+- **Alternativas consideradas:**
+  - **Ligar la venta desde el checkout del staff:** Ordering dependería de Work Orders, y Work Orders ya lee a Ordering.
+  - **Ligar ventas en línea o después de entregar:** una venta en línea no es de mostrador, y una orden de trabajo cerrada ya no cambia.
+  - **Que Work Orders decida qué estados son "pagada":** acoplaría Work Orders a los estados internos de Ordering.
+  - **Leer los datos de la tienda desde Ordering:** agregaría a su fachada algo que no es suyo; los dos leen la misma configuración.
+- **Consecuencias:**
+  - El mostrador ve qué ventas cobran cada orden de trabajo y si están pagadas, sin cobrar dos veces.
+  - Work Orders depende ahora de Ordering, por su fachada; Ordering nunca usa Work Orders.
+  - Un tipo de error nuevo, `sale-not-linkable`, y una variable nueva, `WORK_ORDER_FOOTER`; cambios compatibles en `/v1`.
+- **Estado:** Aceptada (plan de T-189 parte c aprobado el 2026-10-16, con sus 17 recomendaciones). Parte c1 implementada, con la migración `20261015160000_work_order_sales`; la parte c2 sigue.

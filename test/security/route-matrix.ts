@@ -307,4 +307,14 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/work-orders/:workOrderId/status': {
     access: ['work-orders.manage'],
   },
+  // The counter sales that pay for a work order, and the data of its service note (ADR-0167).
+  'POST /v1/admin/work-orders/:workOrderId/sales': {
+    access: ['work-orders.manage'],
+  },
+  'DELETE /v1/admin/work-orders/:workOrderId/sales/:orderId': {
+    access: ['work-orders.manage'],
+  },
+  'GET /v1/admin/work-orders/:workOrderId/service-note': {
+    access: ['work-orders.read'],
+  },
 };

@@ -1,8 +1,10 @@
 import {
+  DuplicateValueError,
   type Id,
   InvalidStateTransitionError,
   InvalidValueError,
   type Money,
+  NotFoundError,
 } from '../../../shared-kernel/index.js';
 
 export type WorkOrderId = Id<'WorkOrder'>;
@@ -12,6 +14,9 @@ export type WarehouseId = Id<'Warehouse'>;
 
 /** A staff member or a customer of Identity, known here only by its ID (ADR-0005). */
 export type UserId = Id<'User'>;
+
+/** An order of Ordering, known here only by its ID (ADR-0005): a counter sale that pays for a work order. */
+export type OrderId = Id<'Order'>;
 
 export type WorkOrderStatus =
   'RECEIVED' | 'DIAGNOSED' | 'IN_REPAIR' | 'READY' | 'DELIVERED' | 'CANCELLED';
@@ -95,7 +100,17 @@ export interface WorkOrderSnapshot extends WorkOrderDetails {
   readonly receivedAt: Date;
   /** When it was delivered or cancelled. */
   readonly closedAt: Date | null;
+  /** The counter sales that pay for it, in the order they were linked (ADR-0167). */
+  readonly sales: readonly WorkOrderSale[];
   readonly version: number;
+}
+
+/** A counter sale linked to a work order (UC-WRK-05, ADR-0167). */
+export interface WorkOrderSale {
+  readonly orderId: OrderId;
+  /** The staff member who linked it. */
+  readonly linkedBy: UserId;
+  readonly linkedAt: Date;
 }
 
 /** An entry of the status history (`work_order_status_history`): who moved the work order, when and why. */
@@ -112,11 +127,13 @@ export interface WorkOrderStatusChange {
  * The service note of the equipment a customer leaves in the store (ADR-0165, ADR-0166). It is received in
  * RECEIVED and moves forward through DIAGNOSED, IN_REPAIR and READY to DELIVERED, skipping steps if needed but
  * never going back; it is CANCELLED, with a note, from any status before DELIVERED. Delivered or cancelled, it
- * takes no more changes. Its folio comes from the database when it is saved. Changes carry the `version`
- * (optimistic locking).
+ * takes no more changes. Its folio comes from the database when it is saved. Counter sales that pay for it are linked
+ * and unlinked while it is open (ADR-0167). Changes carry the `version` (optimistic locking).
  */
 export class WorkOrder {
   private readonly changes: WorkOrderStatusChange[] = [];
+  private readonly linked: WorkOrderSale[] = [];
+  private readonly unlinked: OrderId[] = [];
 
   private constructor(private state: WorkOrderSnapshot) {}
 
@@ -140,6 +157,7 @@ export class WorkOrder {
       receivedBy: props.receivedBy,
       receivedAt: props.at,
       closedAt: null,
+      sales: [],
       version: 1,
     });
     workOrder.changes.push({
@@ -175,6 +193,49 @@ export class WorkOrder {
   /** The status changes since it was received or read, oldest first. */
   get statusChanges(): readonly WorkOrderStatusChange[] {
     return this.changes;
+  }
+
+  /** The sales linked and unlinked since it was read. */
+  get saleChanges(): {
+    readonly linked: readonly WorkOrderSale[];
+    readonly unlinked: readonly OrderId[];
+  } {
+    return { linked: this.linked, unlinked: this.unlinked };
+  }
+
+  /**
+   * Links a counter sale that pays for it (UC-WRK-05, ADR-0167). The caller checks that it is a sale of the store
+   * that can still be paid.
+   *
+   * @throws InvalidStateTransitionError when it was delivered or cancelled; DuplicateValueError when it already has
+   *   the sale.
+   */
+  linkSale(orderId: OrderId, staffId: UserId, at: Date): void {
+    this.assertOpen('link a sale');
+    if (this.state.sales.some((sale) => sale.orderId === orderId)) {
+      throw new DuplicateValueError('orderId');
+    }
+    const sale = { orderId, linkedBy: staffId, linkedAt: at };
+    this.state = { ...this.state, sales: [...this.state.sales, sale] };
+    this.linked.push(sale);
+  }
+
+  /**
+   * Unlinks a sale linked by mistake (UC-WRK-05, ADR-0167).
+   *
+   * @throws InvalidStateTransitionError when it was delivered or cancelled; NotFoundError when it does not have the
+   *   sale.
+   */
+  unlinkSale(orderId: OrderId): void {
+    this.assertOpen('unlink a sale');
+    if (!this.state.sales.some((sale) => sale.orderId === orderId)) {
+      throw new NotFoundError('Sale', orderId);
+    }
+    this.state = {
+      ...this.state,
+      sales: this.state.sales.filter((sale) => sale.orderId !== orderId),
+    };
+    this.unlinked.push(orderId);
   }
 
   /**

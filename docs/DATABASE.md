@@ -49,7 +49,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
-| Work Orders | `work_orders`, `work_order_status_history` |
+| Work Orders | `work_orders`, `work_order_status_history`, `work_order_sales` |
 | Transversal | `audit_logs`, `idempotency_keys`, `domain_events`, `event_deliveries`, `geo_states`, `geo_municipalities` |
 
 **Correspondencia con los nombres solicitados:**
@@ -929,6 +929,8 @@ erDiagram
     work_orders ||--o{ work_order_status_history : registra
     warehouses ||..o{ work_orders : "recibe"
     users ||..o{ work_orders : "cliente de"
+    work_orders ||--o{ work_order_sales : "la cobran"
+    orders ||..o| work_order_sales : "cobra"
 ```
 
 ---
@@ -981,3 +983,17 @@ La nota de servicio del equipo que un cliente deja en la tienda física.
 | occurred_at | timestamptz(3) | — |
 
 - **Índices:** `(work_order_id, occurred_at)`. Append-only.
+
+### 17.3 `work_order_sales`
+
+Las ventas de mostrador que cobran una orden de trabajo (T-189 parte c, ADR-0167, BR-WRK-06), migración `20261015160000_work_order_sales`.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| work_order_id | uuid | FK → `work_orders.id` `RESTRICT` |
+| order_id | uuid | La venta; referencia lógica a `orders`. `UNIQUE`: una venta cobra una sola orden de trabajo |
+| linked_by | uuid | Quién la ligó; referencia lógica a `users` |
+| linked_at | timestamptz(3) | Lo escribe el reloj de la API |
+
+- **PK:** `(work_order_id, order_id)`. Desligar borra la fila; la venta queda libre para otra orden de trabajo.
+- **Escrituras:** al guardar la orden de trabajo sobre su versión (§17.1); si otra la ligó a la vez, el índice único responde con `duplicate-value`.
