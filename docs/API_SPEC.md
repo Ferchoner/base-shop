@@ -298,13 +298,14 @@ Error de validación:
 | `field-locked` | 409 | E-32 | Editar SKU, opciones o slug después de la primera publicación (ADR-0068) | `fields` |
 | `empty-cart` | 409 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | — |
 | `source-cart-unavailable` | 409 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe (ADR-0082) | — |
+| `sale-not-linkable` | 409 | E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | `saleStatus`: el estado de la venta |
 | `idempotency-key-mismatch` | 422 | E-25 | Llave reutilizada con otro contenido | — |
 | `payload-too-large` | 413 | E-22 | Imagen de más de 5 MB | `maxBytes` |
 | `unsupported-media-type` | 415 | E-22 | Formato de imagen o `Content-Type` no admitido | — |
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-36 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-37 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -1812,7 +1813,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-SHI-01, 03 | Dentro de la cotización; dentro del pago de la orden (ADR-0140) |
 | UC-AUD-02 | Sección 18 |
 | UC-WRK-01 a 04 | Sección 25 (ADR-0166) |
-| UC-WRK-05, 06 | Pendientes: T-189 parte c |
+| UC-WRK-05, 06 | Sección 25 (ADR-0167) |
 | UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 a 03 | Sin API: transversales y jobs |
 
 Las entregas de eventos (sección 22) son una herramienta de operación, sin caso de uso propio.
@@ -1920,8 +1921,11 @@ Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Present
 | GET | `/v1/admin/work-orders/{workOrderId}` | `work-orders.read` | UC-WRK-02 |
 | PATCH | `/v1/admin/work-orders/{workOrderId}` | `work-orders.manage` | UC-WRK-03 |
 | POST | `/v1/admin/work-orders/{workOrderId}/status` | `work-orders.manage` | UC-WRK-04 |
+| POST | `/v1/admin/work-orders/{workOrderId}/sales` | `work-orders.manage` | UC-WRK-05 |
+| DELETE | `/v1/admin/work-orders/{workOrderId}/sales/{orderId}` | `work-orders.manage` | UC-WRK-05 |
+| GET | `/v1/admin/work-orders/{workOrderId}/service-note` | `work-orders.read` | UC-WRK-06 |
 
-Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que un cliente deja en la tienda física: quién lo dejó, qué equipo, la falla, el diagnóstico, el trabajo y su estado. No cobra; las ventas de mostrador que la cobran y los datos para imprimirla llegan en la parte c (UC-WRK-05 y 06). La reciben el rol Vendedor, que atiende el mostrador, y el Administrador. Las fechas y los IDs siguen las convenciones de la sección 2; quién recibió, quién hizo cada cambio y el técnico van como IDs de cuentas de staff, como en el historial de las órdenes.
+Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que un cliente deja en la tienda física: quién lo dejó, qué equipo, la falla, el diagnóstico, el trabajo y su estado. No cobra: desde T-189 parte c se le ligan las ventas de mostrador que la cobran, y la API da los datos para imprimir su nota (UC-WRK-05 y 06, ADR-0167). La reciben el rol Vendedor, que atiende el mostrador, y el Administrador. Las fechas y los IDs siguen las convenciones de la sección 2; quién recibió, quién hizo cada cambio y el técnico van como IDs de cuentas de staff, como en el historial de las órdenes.
 
 ### 25.1 `WorkOrder`
 
@@ -1953,7 +1957,23 @@ Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que 
   "statusHistory": [
     { "fromStatus": null, "toStatus": "RECEIVED", "actorId": "0199a1b2-…", "note": null, "occurredAt": "2026-10-15T16:00:00.000Z" },
     { "fromStatus": "RECEIVED", "toStatus": "DIAGNOSED", "actorId": "0199a1b3-…", "note": "Disco dañado", "occurredAt": "2026-10-16T18:30:00.000Z" }
-  ]
+  ],
+  "sales": [
+    {
+      "orderId": "0199a3d0-…",
+      "publicCode": "K7M4-Q9XA",
+      "orderNumber": 1042,
+      "status": "PAID",
+      "paid": true,
+      "grandTotal": { "amount": 35000, "currency": "MXN" },
+      "placedAt": "2026-10-15T16:05:00.000Z",
+      "paidAt": "2026-10-15T16:06:00.000Z",
+      "linkedBy": "0199a1b2-…",
+      "linkedAt": "2026-10-15T16:07:00.000Z"
+    }
+  ],
+  "paidTotal": { "amount": 35000, "currency": "MXN" },
+  "unpaidTotal": { "amount": 0, "currency": "MXN" }
 }
 ```
 
@@ -1964,6 +1984,8 @@ Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que 
 - `warehouseId`: el almacén de la tienda que recibió el equipo, como en la venta de mostrador (ADR-0161). `receivedBy`: quién lo recibió. `technicianId`: el técnico asignado, o `null`.
 - `closedAt`: cuándo se entregó o se canceló; desde entonces no cambia nada.
 - `statusHistory`: del más antiguo al más reciente.
+- `sales` (desde T-189 parte c): las ventas de mostrador que la cobran, en el orden en que se ligaron, con su estado al momento de la consulta. `paid` es `true` si la tienda ya tiene su dinero: la venta está pagada, por surtir, enviada o entregada; una pendiente de pago, vencida, cancelada o reembolsada no lo está. `orderNumber` es el número interno, solo para el staff (ADR-0049).
+- `paidTotal`: la suma de las ventas pagadas; `unpaidTotal`, la de las que esperan su pago. Las vencidas, canceladas o reembolsadas no cuentan en ninguno. Entregar no exige pago (ADR-0165).
 
 ### 25.2 `POST /v1/admin/work-orders` — Recibir un equipo (UC-WRK-01)
 
@@ -2026,3 +2048,42 @@ Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que 
 - **Response 200:** `WorkOrder`, con el cambio en su historial: quién, cuándo y la nota.
 - **Errores:** 400 `validation-error`, también sin `note` al cancelar; 404; 409 `version-conflict` con `currentVersion`; 409 `invalid-state-transition` con `currentStatus` si el estado no está adelante o la orden se entregó o se canceló.
 - Se audita como `work-orders.status`, con la nota como motivo.
+
+### 25.7 `POST /v1/admin/work-orders/{workOrderId}/sales` — Ligar una venta de mostrador (UC-WRK-05)
+
+- Request `{ "orderId": "0199a3d0-…", "version": 2 }`: una orden colocada en la tienda física (`channel` `STORE`, ADR-0161), con cualquier forma de entrega, y la versión leída de la orden de trabajo.
+- Una venta cobra una sola orden de trabajo; una orden de trabajo, una o varias ventas, como un anticipo y la liquidación.
+- Solo mientras la orden de trabajo está abierta: entregada o cancelada, ya no liga ventas (BR-WRK-04). Lo normal es colocar la venta, ligarla y después entregar; el pago puede llegar después, y la orden de trabajo lo ve.
+- **Response 200:** `WorkOrder`, con la venta en `sales` y una versión más.
+- **Errores:** 400 `validation-error`; 404 si la orden de trabajo no existe, o si la venta no existe o no es de la tienda física; 409 `version-conflict` con `currentVersion`; 409 `sale-not-linkable` con `saleStatus` si la venta venció, se canceló o se reembolsó; 409 `duplicate-value` (`orderId`) si ya está ligada, a esta orden de trabajo o a otra; 409 `invalid-state-transition` si la orden de trabajo se entregó o se canceló.
+- Se audita como `work-orders.sale-link`, con el ID de la venta.
+
+### 25.8 `DELETE /v1/admin/work-orders/{workOrderId}/sales/{orderId}` — Desligar una venta (UC-WRK-05)
+
+- Para corregir una venta ligada por error, con la versión leída en `?version=`, obligatoria.
+- **Response 200:** `WorkOrder`, sin la venta y con una versión más. La venta queda libre para ligarse a otra orden de trabajo.
+- **Errores:** 400 `validation-error` sin `version`; 404 si la orden de trabajo no existe o no tiene esa venta; 409 `version-conflict` con `currentVersion`; 409 `invalid-state-transition` si la orden de trabajo se entregó o se canceló.
+- Se audita como `work-orders.sale-unlink`.
+
+### 25.9 `GET /v1/admin/work-orders/{workOrderId}/service-note` — Datos para imprimir la nota de servicio (UC-WRK-06)
+
+- **Response 200:**
+
+  ```json
+  {
+    "workOrder": { "id": "0199a3c4-…", "folio": "OT-000123", "…": "…" },
+    "store": {
+      "name": "Tienda Ejemplo",
+      "address": "Av. Madero Poniente 123, Centro, 58000 Morelia, Mich.",
+      "taxId": "EJE260101AB1",
+      "phone": "443 123 4567"
+    },
+    "terms": "Garantía de 30 días en la mano de obra."
+  }
+  ```
+
+- `workOrder`: el `WorkOrder` completo, con sus ventas (§25.1).
+- `store`: los mismos datos del ticket (§15.8, ADR-0163), de `STORE_NAME`, `STORE_ADDRESS`, `STORE_TAX_ID` y `STORE_PHONE`.
+- `terms`: las condiciones del servicio, de `WORK_ORDER_FOOTER`; vacías hasta que el negocio las defina con su asesor (ADR-0165), y pueden traer saltos de línea.
+- El frontend imprime la nota con la línea de firma del cliente; la firma no se guarda (ADR-0165).
+- **Errores:** 404 si la orden de trabajo no existe.

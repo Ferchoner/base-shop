@@ -27,14 +27,14 @@ describe('Database schema (T-110)', () => {
     await client.query('ROLLBACK');
   });
 
-  it('creates the 45 tables of the data model, with order_access_tokens of ADR-0148, the outbox of ADR-0150, payment_settings of ADR-0162, stock_receipt_imports of ADR-0164 and the work orders of ADR-0166', async () => {
+  it('creates the 46 tables of the data model, with order_access_tokens of ADR-0148, the outbox of ADR-0150, payment_settings of ADR-0162, stock_receipt_imports of ADR-0164 and the work orders of ADR-0166 and ADR-0167', async () => {
     const { rows } = await client.query<{ tables: string }>(
       `SELECT count(*) AS tables
          FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name <> '_prisma_migrations'`,
     );
 
-    expect(Number(rows[0].tables)).toBe(45);
+    expect(Number(rows[0].tables)).toBe(46);
   });
 
   it('matches the Prisma schema, so Prisma will not try to drop the manual SQL objects (DATABASE.md §13)', () => {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { type Money, toId } from '../../../shared-kernel/index.js';
+import type { OrderStatus } from '../domain/order.js';
 import { formatPublicCode } from '../domain/public-code.js';
 import {
   type AnonymizedBuyer,
@@ -64,9 +65,36 @@ export interface AnonymizedOrderNotice {
 }
 
 /**
+ * Whether the store has the money of a sale: `PAID` once it was paid and while it is fulfilled, shipped or delivered;
+ * `PENDING` while it waits for its payment; `NONE` when it expired, was cancelled or was refunded.
+ */
+export type StoreSalePayment = 'PAID' | 'PENDING' | 'NONE';
+
+/** A sale of the physical store (ADR-0161), as a work order shows the ones that pay for it (ADR-0167). */
+export interface StoreSale {
+  readonly orderId: string;
+  /** With dash, as people see it. */
+  readonly publicCode: string;
+  /** The internal number, for the staff (ADR-0049). */
+  readonly orderNumber: number;
+  readonly status: OrderStatus;
+  readonly grandTotal: Money;
+  readonly placedAt: Date;
+  readonly paidAt: Date | null;
+  readonly payment: StoreSalePayment;
+}
+
+const PAID_STATUSES: readonly OrderStatus[] = [
+  'PAID',
+  'AWAITING_MANUAL_FULFILLMENT',
+  'SHIPPED',
+  'DELIVERED',
+];
+
+/**
  * Public API of Ordering (ADR-0005): for the emails of Notifications, which reacts to the events of the order, its
- * payment and its shipment and reads the order here (ADR-0143), and for the anonymizations of Privacy (ADR-0145).
- * Ordering never uses either.
+ * payment and its shipment and reads the order here (ADR-0143), for the anonymizations of Privacy (ADR-0145) and for
+ * the sales that pay for a work order (ADR-0167). Ordering never uses any of them.
  */
 @Injectable()
 export class OrderingFacade {
@@ -97,6 +125,31 @@ export class OrderingFacade {
    */
   hasOpenOrders(customerId: string): Promise<boolean> {
     return this.queries.hasOpenOrders(toId<'User'>(customerId));
+  }
+
+  /**
+   * The sales of the physical store among these orders (ADR-0167), oldest first; online orders and unknown IDs are
+   * left out.
+   */
+  async storeSales(orderIds: readonly string[]): Promise<StoreSale[]> {
+    if (orderIds.length === 0) return [];
+    const views = await this.queries.storeOrders(
+      orderIds.map((id) => toId<'Order'>(id)),
+    );
+    return views.map((view) => ({
+      orderId: view.id,
+      publicCode: formatPublicCode(view.publicCode),
+      orderNumber: view.orderNumber,
+      status: view.status,
+      grandTotal: view.totals.grandTotal,
+      placedAt: view.placedAt,
+      paidAt: view.paidAt,
+      payment: PAID_STATUSES.includes(view.status)
+        ? 'PAID'
+        : view.status === 'PENDING_PAYMENT'
+          ? 'PENDING'
+          : 'NONE',
+    }));
   }
 
   /** The order for its emails; `null` when it does not exist. */

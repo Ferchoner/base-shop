@@ -28,8 +28,10 @@ import {
 } from '../application/work-orders.queries.js';
 import type {
   NewWorkOrderDetails,
+  OrderId,
   UserId,
   WarehouseId,
+  WorkOrder,
   WorkOrderId,
 } from '../domain/work-order.js';
 import { WorkOrderRepository } from '../domain/work-order.repository.js';
@@ -101,6 +103,7 @@ describe('Work orders (T-189 part b)', () => {
 
   afterEach(async () => {
     now = new Date('2026-10-15T16:00:00.000Z');
+    await prisma.workOrderSale.deleteMany();
     await prisma.workOrderStatusHistory.deleteMany();
     await prisma.workOrder.deleteMany();
     await prisma.auditLog.deleteMany({
@@ -351,6 +354,63 @@ describe('Work orders (T-189 part b)', () => {
         status: 'DIAGNOSED',
         statusHistory: [{ toStatus: 'RECEIVED' }, { toStatus: 'DIAGNOSED' }],
       });
+    });
+  });
+
+  describe('the sales that pay for them (UC-WRK-05, ADR-0167)', () => {
+    it('keeps the sales of a work order in the order they were linked, removes an unlinked one, and links a sale to one work order only', async () => {
+      const workOrders = moduleRef.get(WorkOrderRepository);
+      const transactions = moduleRef.get(TransactionManager);
+      const change = (id: WorkOrderId, work: (workOrder: WorkOrder) => void) =>
+        run(() =>
+          transactions.run(async () => {
+            const workOrder = (await workOrders.find(id))!;
+            work(workOrder);
+            await workOrders.save(workOrder, now);
+          }),
+        );
+      const first = await receive();
+      const other = await receive();
+      const [deposit, settlement] = [
+        newId<'Order'>() as OrderId,
+        newId<'Order'>() as OrderId,
+      ];
+      const later = new Date(now.getTime() + DAY);
+
+      await change(first, (workOrder) => {
+        workOrder.linkSale(settlement, clerk, later);
+        workOrder.linkSale(deposit, clerk, now);
+      });
+
+      expect((await queries.findWorkOrder(first))?.sales).toEqual([
+        { orderId: deposit, linkedBy: clerk, linkedAt: now },
+        { orderId: settlement, linkedBy: clerk, linkedAt: later },
+      ]);
+      expect((await run(() => workOrders.find(first)))?.snapshot).toMatchObject(
+        {
+          sales: [{ orderId: deposit }, { orderId: settlement }],
+          version: 2,
+        },
+      );
+      await expect(
+        change(other, (workOrder) => workOrder.linkSale(deposit, clerk, now)),
+      ).rejects.toMatchObject({
+        code: 'duplicate-value',
+        details: { field: 'orderId' },
+      });
+      expect((await queries.findWorkOrder(other))?.version).toBe(1);
+
+      await change(first, (workOrder) => workOrder.unlinkSale(deposit));
+      await change(other, (workOrder) =>
+        workOrder.linkSale(deposit, clerk, now),
+      );
+
+      expect((await queries.findWorkOrder(first))?.sales).toEqual([
+        { orderId: settlement, linkedBy: clerk, linkedAt: later },
+      ]);
+      expect((await queries.findWorkOrder(other))?.sales).toEqual([
+        { orderId: deposit, linkedBy: clerk, linkedAt: now },
+      ]);
     });
   });
 

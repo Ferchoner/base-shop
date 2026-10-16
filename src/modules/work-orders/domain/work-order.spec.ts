@@ -1,6 +1,7 @@
 import { Money, newId } from '../../../shared-kernel/index.js';
 import {
   type NewWorkOrderDetails,
+  type OrderId,
   type UserId,
   WORK_ORDER_TEXT_LIMITS,
   WorkOrder,
@@ -341,6 +342,87 @@ describe('WorkOrder (ADR-0165, ADR-0166)', () => {
       expect(() =>
         workOrderIn(from).moveTo(to, clerk, 'Otra vez', LATER),
       ).toThrow(expect.objectContaining(transition(from)));
+    });
+  });
+
+  describe('the sales that pay for it (UC-WRK-05, ADR-0167)', () => {
+    const deposit = newId<'Order'>() as OrderId;
+    const settlement = newId<'Order'>() as OrderId;
+
+    it('links sales in order, with who and when, and records them to save', () => {
+      const workOrder = workOrderIn('READY');
+
+      workOrder.linkSale(deposit, clerk, AT);
+      workOrder.linkSale(settlement, technician, LATER);
+
+      const sales = [
+        { orderId: deposit, linkedBy: clerk, linkedAt: AT },
+        { orderId: settlement, linkedBy: technician, linkedAt: LATER },
+      ];
+      expect(workOrder.snapshot.sales).toEqual(sales);
+      expect(workOrder.saleChanges).toEqual({ linked: sales, unlinked: [] });
+      expect(workOrder.statusChanges).toEqual([]);
+    });
+
+    it('does not link the same sale twice', () => {
+      const workOrder = workOrderIn('RECEIVED');
+      workOrder.linkSale(deposit, clerk, AT);
+
+      expect(() => workOrder.linkSale(deposit, clerk, LATER)).toThrow(
+        expect.objectContaining({
+          code: 'duplicate-value',
+          details: { field: 'orderId' },
+        }),
+      );
+      expect(workOrder.snapshot.sales).toHaveLength(1);
+    });
+
+    it('unlinks a sale it has, and answers one it does not have as not found', () => {
+      const workOrder = WorkOrder.restore({
+        ...workOrderIn('DIAGNOSED').snapshot,
+        sales: [
+          { orderId: deposit, linkedBy: clerk, linkedAt: AT },
+          { orderId: settlement, linkedBy: clerk, linkedAt: AT },
+        ],
+      });
+
+      workOrder.unlinkSale(deposit);
+
+      expect(workOrder.snapshot.sales).toEqual([
+        { orderId: settlement, linkedBy: clerk, linkedAt: AT },
+      ]);
+      expect(workOrder.saleChanges).toEqual({
+        linked: [],
+        unlinked: [deposit],
+      });
+      expect(() => workOrder.unlinkSale(deposit)).toThrow(
+        expect.objectContaining({
+          code: 'not-found',
+          message: `Sale ${deposit} does not exist`,
+        }),
+      );
+    });
+
+    it.each(['DELIVERED', 'CANCELLED'] as const)(
+      'neither links nor unlinks a sale once %s',
+      (status) => {
+        const workOrder = WorkOrder.restore({
+          ...workOrderIn(status).snapshot,
+          sales: [{ orderId: deposit, linkedBy: clerk, linkedAt: AT }],
+        });
+
+        expect(() => workOrder.linkSale(settlement, clerk, LATER)).toThrow(
+          expect.objectContaining(transition(status)),
+        );
+        expect(() => workOrder.unlinkSale(deposit)).toThrow(
+          expect.objectContaining(transition(status)),
+        );
+        expect(workOrder.saleChanges).toEqual({ linked: [], unlinked: [] });
+      },
+    );
+
+    it('is received without sales', () => {
+      expect(receive().snapshot.sales).toEqual([]);
     });
   });
 });

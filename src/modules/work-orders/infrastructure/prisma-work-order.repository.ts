@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
+import { isUniqueViolation } from '../../../platform/persistence/prisma-errors.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import {
+  DuplicateValueError,
   Money,
   newId,
   toId,
@@ -16,12 +18,14 @@ import {
 } from '../domain/work-order.js';
 import { WorkOrderRepository } from '../domain/work-order.repository.js';
 
-type WorkOrderRow = Prisma.WorkOrderGetPayload<object>;
+type WorkOrderRow = Prisma.WorkOrderGetPayload<{ include: { sales: true } }>;
 
 /**
  * Work orders in PostgreSQL (DATABASE.md §17). The number of the folio comes from the sequence of `number`, so it
  * is consecutive, with a gap only when a transaction that took one fails (ADR-0166). A change saves only over the
- * version it read (optimistic locking). Dates come from the application, never from the database clock.
+ * version it read (optimistic locking). A sale pays for one work order at most: the unique index on
+ * `work_order_sales.order_id` answers a second link as a duplicate (ADR-0167). Dates come from the application, never
+ * from the database clock.
  */
 @Injectable()
 export class PrismaWorkOrderRepository extends WorkOrderRepository {
@@ -53,7 +57,12 @@ export class PrismaWorkOrderRepository extends WorkOrderRepository {
   }
 
   async find(id: WorkOrderId): Promise<WorkOrder | null> {
-    const row = await this.txHost.tx.workOrder.findUnique({ where: { id } });
+    const row = await this.txHost.tx.workOrder.findUnique({
+      where: { id },
+      include: {
+        sales: { orderBy: [{ linkedAt: 'asc' }, { orderId: 'asc' }] },
+      },
+    });
     return row === null ? null : WorkOrder.restore(toSnapshot(row));
   }
 
@@ -84,6 +93,22 @@ export class PrismaWorkOrderRepository extends WorkOrderRepository {
           workOrderId: w.id,
         })),
       });
+    }
+    const { linked, unlinked } = workOrder.saleChanges;
+    if (unlinked.length > 0) {
+      await tx.workOrderSale.deleteMany({
+        where: { workOrderId: w.id, orderId: { in: [...unlinked] } },
+      });
+    }
+    if (linked.length > 0) {
+      try {
+        await tx.workOrderSale.createMany({
+          data: linked.map((sale) => ({ ...sale, workOrderId: w.id })),
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new DuplicateValueError('orderId');
+        throw error;
+      }
     }
   }
 }
@@ -145,6 +170,11 @@ function toSnapshot(row: WorkOrderRow): WorkOrderSnapshot {
     receivedBy: toId<'User'>(row.receivedBy),
     receivedAt: row.receivedAt,
     closedAt: row.closedAt,
+    sales: row.sales.map((sale) => ({
+      orderId: toId<'Order'>(sale.orderId),
+      linkedBy: toId<'User'>(sale.linkedBy),
+      linkedAt: sale.linkedAt,
+    })),
     version: row.version,
   };
 }

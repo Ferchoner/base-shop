@@ -49,6 +49,7 @@ describe('Work orders (e2e, T-189 part b)', () => {
   const accounts: string[] = [];
 
   afterEach(async () => {
+    await prisma.workOrderSale.deleteMany();
     await prisma.workOrderStatusHistory.deleteMany();
     await prisma.workOrder.deleteMany();
     await prisma.idempotencyKey.deleteMany();
@@ -163,6 +164,9 @@ describe('Work orders (e2e, T-189 part b)', () => {
             occurredAt: response.body.receivedAt,
           },
         ],
+        sales: [],
+        paidTotal: { amount: 0, currency: 'MXN' },
+        unpaidTotal: { amount: 0, currency: 'MXN' },
       });
       expect(repeated.body.id).toBe(response.body.id);
       expect(await prisma.workOrder.count()).toBe(1);

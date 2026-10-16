@@ -224,4 +224,53 @@ describe('OrderingFacade, for Privacy (UC-IAM-19, ADR-0145)', () => {
     ).toBe(2);
     expect(asked).toEqual([input]);
   });
+
+  it('gives a work order the sales of the store, with whether the store has their money (ADR-0167)', async () => {
+    const statuses = [
+      ['PENDING_PAYMENT', 'PENDING'],
+      ['PAID', 'PAID'],
+      ['AWAITING_MANUAL_FULFILLMENT', 'PAID'],
+      ['SHIPPED', 'PAID'],
+      ['DELIVERED', 'PAID'],
+      ['CANCELLED', 'NONE'],
+      ['EXPIRED', 'NONE'],
+      ['REFUNDED', 'NONE'],
+    ] as const;
+    const views = statuses.map(([status], index) => ({
+      ...view(newId()),
+      status,
+      orderNumber: index + 1,
+      paidAt: status === 'PENDING_PAYMENT' ? null : DUE,
+    }));
+    const asked: unknown[] = [];
+    const ordering = new OrderingFacade(
+      {
+        storeOrders: (ids: readonly string[]) => {
+          asked.push(ids);
+          return Promise.resolve(views);
+        },
+      } as unknown as OrderingQueries,
+      {} as OrderAnonymizations,
+    );
+    const id = newId();
+
+    const sales = await ordering.storeSales([id.toUpperCase()]);
+
+    expect(asked).toEqual([[id]]);
+    expect(sales.map(({ status, payment }) => [status, payment])).toEqual(
+      statuses,
+    );
+    expect(sales[1]).toEqual({
+      orderId: views[1].id,
+      publicCode: 'K7M4-Q9XA',
+      orderNumber: 2,
+      status: 'PAID',
+      grandTotal: mxn(39_900),
+      placedAt: DUE,
+      paidAt: DUE,
+      payment: 'PAID',
+    });
+    expect(await ordering.storeSales([])).toEqual([]);
+    expect(asked).toHaveLength(1);
+  });
 });

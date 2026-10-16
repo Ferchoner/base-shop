@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
   IsIn,
@@ -518,6 +518,26 @@ export class WorkOrderDto extends WorkOrderSummaryDto {
     description: 'Del más antiguo al más reciente.',
   })
   statusHistory: WorkOrderStatusEntryDto[];
+
+  @ApiProperty({
+    type: () => [LinkedSaleDto],
+    description:
+      'Las ventas de mostrador que la cobran, en el orden en que se ligaron, con su estado al momento (ADR-0167).',
+  })
+  sales: LinkedSaleDto[];
+
+  @ApiProperty({
+    type: () => MoneyDto,
+    description: 'El total de las ventas ligadas que están pagadas.',
+  })
+  paidTotal: MoneyDto;
+
+  @ApiProperty({
+    type: () => MoneyDto,
+    description:
+      'El total de las ventas ligadas que esperan su pago; las vencidas, canceladas o reembolsadas no cuentan.',
+  })
+  unpaidTotal: MoneyDto;
 }
 
 export class WorkOrderListDto {
@@ -526,4 +546,97 @@ export class WorkOrderListDto {
 
   @ApiProperty({ type: () => PageMetaDto })
   meta: PageMetaDto;
+}
+
+/** A counter sale linked to a work order (UC-WRK-05, ADR-0167). */
+export class LinkedSaleDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  orderId: string;
+
+  /** Código público de la venta, con guion. @example 'K7M4-Q9XA' */
+  publicCode: string;
+
+  /** Número interno de la venta, para el staff (ADR-0049). */
+  orderNumber: number;
+
+  /** Estado de la venta en Ordering, como en `AdminOrder`. @example 'PAID' */
+  status: string;
+
+  /**
+   * `true` si la tienda ya tiene su dinero: pagada, por surtir, enviada o entregada. Una pendiente de pago, vencida,
+   * cancelada o reembolsada no lo está.
+   */
+  paid: boolean;
+
+  @ApiProperty({ type: () => MoneyDto })
+  grandTotal: MoneyDto;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  placedAt: Date;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Cuándo se pagó; `null` si no ha ocurrido.',
+  })
+  paidAt: Date | null;
+
+  /** La cuenta de staff que la ligó. */
+  @ApiProperty({ type: String, format: 'uuid' })
+  linkedBy: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  linkedAt: Date;
+}
+
+/** A counter sale to link to a work order (UC-WRK-05, API_SPEC.md §25.7). */
+export class LinkSaleDto {
+  /** Una orden colocada en la tienda física (`channel` `STORE`) que no venció, ni se canceló, ni se reembolsó. */
+  @IsUUID('all')
+  orderId: string;
+
+  /** Versión leída de la orden de trabajo (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+/** Query of `DELETE /v1/admin/work-orders/{workOrderId}/sales/{orderId}` (API_SPEC.md §25.8). */
+export class UnlinkSaleQueryDto {
+  /** Versión leída de la orden de trabajo (bloqueo optimista). @example 3 */
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+/** The data of the store on the service note, the same as on the ticket (ADR-0163). */
+export class ServiceNoteStoreDto {
+  /** Nombre de la tienda (`STORE_NAME`). */
+  name: string;
+
+  @ApiProperty({ nullable: true, description: 'Dirección (`STORE_ADDRESS`).' })
+  address: string | null;
+
+  @ApiProperty({ nullable: true, description: 'RFC (`STORE_TAX_ID`).' })
+  taxId: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Teléfono (`STORE_PHONE`).' })
+  phone: string | null;
+}
+
+/** `ServiceNote` (UC-WRK-06, API_SPEC.md §25.9). */
+export class ServiceNoteDto {
+  @ApiProperty({ type: () => WorkOrderDto })
+  workOrder: WorkOrderDto;
+
+  @ApiProperty({ type: () => ServiceNoteStoreDto })
+  store: ServiceNoteStoreDto;
+
+  /**
+   * Las condiciones del servicio (`WORK_ORDER_FOOTER`); vacías hasta que el negocio las defina con su asesor
+   * (ADR-0165). Pueden traer saltos de línea.
+   */
+  terms: string;
 }

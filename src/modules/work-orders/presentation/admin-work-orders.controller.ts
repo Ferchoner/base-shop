@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -36,21 +37,32 @@ import {
 import { ReceiveWorkOrder } from '../application/receive-work-order.use-case.js';
 import { UpdateWorkOrder } from '../application/update-work-order.use-case.js';
 import { WorkOrderLifecycle } from '../application/work-order-lifecycle.use-case.js';
+import { WorkOrderReader } from '../application/work-order-reader.js';
+import { WorkOrderSales } from '../application/work-order-sales.use-case.js';
 import {
   WorkOrderQueries,
   type WorkOrderSortField,
 } from '../application/work-orders.queries.js';
 import {
   ChangeWorkOrderStatusDto,
+  LinkSaleDto,
   ReceiveWorkOrderDto,
+  ServiceNoteDto,
+  UnlinkSaleQueryDto,
   UpdateWorkOrderDto,
   WorkOrderDto,
   WorkOrderListDto,
   WorkOrderListQueryDto,
 } from './work-order.dto.js';
-import { toWorkOrderDto, toWorkOrderSummaryDto } from './work-order.mappers.js';
+import {
+  toServiceNoteDto,
+  toWorkOrderDto,
+  toWorkOrderSummaryDto,
+} from './work-order.mappers.js';
 
 const workOrderIdOf = (id: string) => pathId<'WorkOrder'>(id, 'WorkOrder');
+
+const saleIdOf = (id: string) => pathId<'Order'>(id, 'Sale');
 
 const userIdOf = (id: string | null | undefined): Id<'User'> | null =>
   id === undefined || id === null ? null : toId<'User'>(id);
@@ -65,8 +77,9 @@ const changed = <Value, Result>(
 ): Result | undefined => (value === undefined ? undefined : map(value));
 
 /**
- * Work orders, the service notes of the equipment a customer leaves in the physical store (UC-WRK-01 to 04,
- * API_SPEC.md §25, ADR-0165, ADR-0166). Changes send the `version` read (optimistic locking).
+ * Work orders, the service notes of the equipment a customer leaves in the physical store (UC-WRK-01 to 06,
+ * API_SPEC.md §25, ADR-0165 to ADR-0167): with the counter sales that pay for them and the data to print their note.
+ * Changes send the `version` read (optimistic locking).
  */
 @ApiTags('Administración: órdenes de trabajo')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -74,9 +87,11 @@ const changed = <Value, Result>(
 export class AdminWorkOrdersController {
   constructor(
     private readonly queries: WorkOrderQueries,
+    private readonly reader: WorkOrderReader,
     private readonly receiveWorkOrder: ReceiveWorkOrder,
     private readonly updateWorkOrder: UpdateWorkOrder,
     private readonly lifecycle: WorkOrderLifecycle,
+    private readonly sales: WorkOrderSales,
   ) {}
 
   @ApiOperation({
@@ -233,8 +248,84 @@ export class AdminWorkOrdersController {
     return this.read(id);
   }
 
+  @ApiOperation({
+    summary: 'Ligar una venta de mostrador que cobra la orden de trabajo',
+    description:
+      'UC-WRK-05 (ADR-0167). Solo una orden colocada en la tienda física (`channel` `STORE`); otra, o una que no existe, 404. Una venta vencida, cancelada o reembolsada no se liga: 409 `sale-not-linkable` con `saleStatus`. Una venta cobra una sola orden de trabajo: si ya está ligada, a esta o a otra, 409 `duplicate-value`. Una orden de trabajo entregada o cancelada ya no liga ventas: 409 `invalid-state-transition`. La orden de trabajo no cobra: la venta tiene su propio pago, y entregar no lo exige. Se audita como `work-orders.sale-link`.',
+  })
+  @ApiOkResponse({ type: WorkOrderDto })
+  @ApiProblemResponses(
+    'not-found',
+    'version-conflict',
+    'invalid-state-transition',
+    'sale-not-linkable',
+    'duplicate-value',
+  )
+  @RequirePermissions('work-orders.manage')
+  @HttpCode(200)
+  @Post(':workOrderId/sales')
+  async linkSale(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('workOrderId') workOrderId: string,
+    @Body() body: LinkSaleDto,
+  ): Promise<WorkOrderDto> {
+    const id = workOrderIdOf(workOrderId);
+    await this.sales.link({
+      id,
+      orderId: toId<'Order'>(body.orderId),
+      staffId: toId<'User'>(actor.id),
+      version: body.version,
+    });
+    return this.read(id);
+  }
+
+  @ApiOperation({
+    summary: 'Desligar una venta ligada por error',
+    description:
+      'UC-WRK-05 (ADR-0167). Con la versión leída de la orden de trabajo en `version`. Una venta que la orden de trabajo no tiene, 404; una orden de trabajo entregada o cancelada, 409 `invalid-state-transition`. Se audita como `work-orders.sale-unlink`.',
+  })
+  @ApiOkResponse({ type: WorkOrderDto })
+  @ApiProblemResponses(
+    'not-found',
+    'version-conflict',
+    'invalid-state-transition',
+  )
+  @RequirePermissions('work-orders.manage')
+  @Delete(':workOrderId/sales/:orderId')
+  async unlinkSale(
+    @Param('workOrderId') workOrderId: string,
+    @Param('orderId') orderId: string,
+    @Query() query: UnlinkSaleQueryDto,
+  ): Promise<WorkOrderDto> {
+    const id = workOrderIdOf(workOrderId);
+    await this.sales.unlink({
+      id,
+      orderId: saleIdOf(orderId),
+      version: query.version,
+    });
+    return this.read(id);
+  }
+
+  @ApiOperation({
+    summary: 'Consultar los datos para imprimir la nota de servicio',
+    description:
+      'UC-WRK-06 (ADR-0167). La orden de trabajo con sus ventas, los datos de la tienda, los mismos del ticket (ADR-0163), y las condiciones del servicio de `WORK_ORDER_FOOTER`, vacías hasta que el negocio las defina. La línea de firma la dibuja el frontend; la firma no se guarda.',
+  })
+  @ApiOkResponse({ type: ServiceNoteDto })
+  @ApiProblemResponses('not-found')
+  @RequirePermissions('work-orders.read')
+  @Get(':workOrderId/service-note')
+  async serviceNote(
+    @Param('workOrderId') workOrderId: string,
+  ): Promise<ServiceNoteDto> {
+    const id = workOrderIdOf(workOrderId);
+    const note = await this.reader.serviceNote(id);
+    if (note === null) throw new NotFoundError('WorkOrder', id);
+    return toServiceNoteDto(note);
+  }
+
   private async read(id: Id<'WorkOrder'>): Promise<WorkOrderDto> {
-    const view = await this.queries.findWorkOrder(id);
+    const view = await this.reader.workOrder(id);
     if (view === null) throw new NotFoundError('WorkOrder', id);
     return toWorkOrderDto(view);
   }

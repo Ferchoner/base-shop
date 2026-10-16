@@ -39,7 +39,7 @@ const SUMMARY_FIELDS = {
 type SummaryRow = Prisma.WorkOrderGetPayload<{ select: typeof SUMMARY_FIELDS }>;
 
 type WorkOrderRow = Prisma.WorkOrderGetPayload<{
-  include: { statusHistory: true };
+  include: { statusHistory: true; sales: true };
 }>;
 
 /** The column of each sort field: the folio sorts by its number. */
@@ -62,6 +62,7 @@ export class PrismaWorkOrderQueries extends WorkOrderQueries {
       where: { id },
       include: {
         statusHistory: { orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }] },
+        sales: { orderBy: [{ linkedAt: 'asc' }, { orderId: 'asc' }] },
       },
     });
     return row === null ? null : toView(row);
@@ -171,6 +172,11 @@ function toView(row: WorkOrderRow): WorkOrderView {
       actorId: toId<'User'>(entry.actorId),
       note: entry.note,
       occurredAt: entry.occurredAt,
+    })),
+    sales: row.sales.map((sale) => ({
+      orderId: toId<'Order'>(sale.orderId),
+      linkedBy: toId<'User'>(sale.linkedBy),
+      linkedAt: sale.linkedAt,
     })),
   };
 }

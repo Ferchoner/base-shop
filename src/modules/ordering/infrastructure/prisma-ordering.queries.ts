@@ -150,6 +150,17 @@ export class PrismaOrderingQueries extends OrderingQueries {
     return row !== null;
   }
 
+  async storeOrders(
+    ids: readonly OrderId[],
+  ): Promise<readonly AdminOrderSummaryView[]> {
+    const rows = await this.txHost.tx.order.findMany({
+      select: ADMIN_SUMMARY_FIELDS,
+      where: { id: { in: [...ids] }, channel: 'STORE' },
+      orderBy: [{ placedAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map(toAdminSummaryView);
+  }
+
   async listGuestOrders(
     contactEmail: string,
     limit: number,

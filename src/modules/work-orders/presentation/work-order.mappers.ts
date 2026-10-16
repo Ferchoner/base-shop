@@ -1,9 +1,14 @@
 import { toMoneyDto } from '../../../platform/http/money.dto.js';
 import type {
-  WorkOrderSummaryView,
-  WorkOrderView,
-} from '../application/work-orders.queries.js';
-import type { WorkOrderDto, WorkOrderSummaryDto } from './work-order.dto.js';
+  ServiceNote,
+  WorkOrderDetail,
+} from '../application/work-order-reader.js';
+import type { WorkOrderSummaryView } from '../application/work-orders.queries.js';
+import type {
+  ServiceNoteDto,
+  WorkOrderDto,
+  WorkOrderSummaryDto,
+} from './work-order.dto.js';
 
 export function toWorkOrderSummaryDto(
   view: WorkOrderSummaryView,
@@ -25,7 +30,7 @@ export function toWorkOrderSummaryDto(
   };
 }
 
-export function toWorkOrderDto(view: WorkOrderView): WorkOrderDto {
+export function toWorkOrderDto(view: WorkOrderDetail): WorkOrderDto {
   return {
     ...toWorkOrderSummaryDto(view),
     customerId: view.customerId,
@@ -46,5 +51,27 @@ export function toWorkOrderDto(view: WorkOrderView): WorkOrderDto {
       note: entry.note,
       occurredAt: entry.occurredAt,
     })),
+    sales: view.sales.map((sale) => ({
+      orderId: sale.orderId,
+      publicCode: sale.publicCode,
+      orderNumber: sale.orderNumber,
+      status: sale.status,
+      paid: sale.payment === 'PAID',
+      grandTotal: toMoneyDto(sale.grandTotal),
+      placedAt: sale.placedAt,
+      paidAt: sale.paidAt,
+      linkedBy: sale.linkedBy,
+      linkedAt: sale.linkedAt,
+    })),
+    paidTotal: toMoneyDto(view.paidTotal),
+    unpaidTotal: toMoneyDto(view.unpaidTotal),
+  };
+}
+
+export function toServiceNoteDto(note: ServiceNote): ServiceNoteDto {
+  return {
+    workOrder: toWorkOrderDto(note.workOrder),
+    store: { ...note.store },
+    terms: note.terms,
   };
 }

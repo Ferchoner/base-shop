@@ -5,6 +5,7 @@ import type {
   SortOrder,
 } from '../../../shared-kernel/index.js';
 import type {
+  OrderId,
   UserId,
   WarehouseId,
   WorkOrderId,
@@ -48,6 +49,15 @@ export interface WorkOrderView {
   readonly version: number;
   /** Oldest first. */
   readonly statusHistory: readonly WorkOrderStatusEntryView[];
+  /** The counter sales linked to it, in the order they were linked (ADR-0167). */
+  readonly sales: readonly WorkOrderSaleLinkView[];
+}
+
+/** A counter sale linked to a work order, as its own table keeps it. */
+export interface WorkOrderSaleLinkView {
+  readonly orderId: OrderId;
+  readonly linkedBy: UserId;
+  readonly linkedAt: Date;
 }
 
 /** A work order in a list: who left what, and where it is. */
