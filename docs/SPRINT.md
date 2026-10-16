@@ -6,91 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.6 — Servicios solo en tienda y órdenes de trabajo. Inicio: 2026-10-15 (plan aprobado ese día).
-
-### Goal
-
-Que los servicios se vendan solo en la tienda física, y que el mostrador reciba equipos con su nota de servicio: folio, cliente, equipo, diagnóstico, estados y las ventas que la cobran, lista para imprimir (ADR-0165).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.5 en la guía de desarrollo |
-| 1 | T-189 parte a: `storeOnly` en el producto; la tienda pública, el carrito, el checkout en línea y la recompra lo respetan, y la tienda física lo vende |
-| 2 | T-189 parte b: el módulo de órdenes de trabajo, con folio, cliente, equipo, falla, diagnóstico, estados con su historial, búsqueda y permisos |
-| 3 | T-189 parte c: las ventas de mostrador ligadas, los datos para imprimir la nota y la conservación de los datos del cliente |
-
-- **Criterio de cierre:** los criterios de aceptación de T-189, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.6.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** avisos al cliente cuando su equipo esté listo; citas y agenda; firma digital y fotos del equipo; refacciones aparte de la venta; productos sin control de existencias; el texto de las condiciones de la nota, que define el usuario; y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.6.0.
-- **Siguiente versión, sin plan aprobado (ADR-0163):** la 1.7, promociones (T-200).
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 165 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
-- **Dependencias:**
-  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
-  - Prisma 7.10.1, un parche, salió el mismo 2026-10-15, sin aviso de seguridad; seguimos en 7.10.0, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad (ADR-0158). La 8 sigue en versión candidata (8.0.0-rc.23).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5:
-  - no se edita código mientras corren `test:cov` o las pruebas de mutación;
-  - en una prueba de bloqueo, la operación espera en el candado que se prueba, no antes;
-  - la regla de comparar los errores de dominio por `code` y `details` nombra también `toEqual`, que solo compara el mensaje. Ya estaba en la guía desde T-161, y la parte b de T-146 no la siguió.
-
-### Resultado del paso 1
-
-T-189 parte a (ADR-0165).
-
-- **La marca:** `storeOnly` en el producto, en el alta, la edición, la vista, el filtro del listado y la carga masiva, que suma la columna; la plantilla de productos trae un servicio de ejemplo.
-- **Una regla, pocos lugares:** la consulta de la tienda pública, el adaptador del carrito, que siempre es en línea, y la validación compartida de los checkouts, que ahora recibe el canal. Con eso, la recompra lo omite sin tocarla, y la venta de mostrador lo vende.
-- **Cache:** `ProductStoreOnlyChanged` la vacía cuando cambia la marca de un producto publicado; una prueba end-to-end lo saca de la tienda y lo regresa al instante.
-- **`STORE_ONLY` en `storeVisibility`:** sin el valor nuevo, un servicio publicado aparecería sin precio.
-- **Dos comparaciones completas, encontradas al correr las pruebas:** la prueba end-to-end del alta compara `AdminProduct` completo, y la de integración compara su auditoría; las dos fallaron con `storeOnly`. La búsqueda previa cubrió las respuestas, como pide la guía, pero no la auditoría: la guía suma que un dato auditado también cambia lo que registra la auditoría.
-- **Mutación:** 53 mutantes, todos muertos. Cuatro sobrevivieron a la primera corrida y cada uno dejó una prueba: la venta de mostrador coloca, y no solo cotiza, un producto de tienda; un `storeOnly` inválido en la primera fila deja sin revisar las variantes de su producto, y el alta y la edición responden 400 a un `storeOnly` que no es booleano.
-
-### Resultado del paso 2
-
-T-189 parte b (ADR-0166).
-
-- **Módulo nuevo `work-orders`:** cinco rutas en `/v1/admin/work-orders`, dos tablas y dos permisos, para el Vendedor y el Administrador. Usa a Identity y a Inventory solo por sus fachadas, y la de Identity suma `isActiveStaff` para el técnico.
-- **Tres precisiones de ADR-0165, decididas en el plan:** el nombre y el teléfono se piden siempre; los estados avanzan saltando pasos y nunca regresan; una orden entregada o cancelada ya no se edita.
-- **Sin bloqueo de fila:** un `SELECT … FOR UPDATE` no cambiaba nada observable, porque todo cambio lleva su versión y el guardado la comprueba; se quitó, y la parte c lo agrega si liga ventas sin versión.
-- **La cobertura de funciones bajó del umbral,** a 98.73%: el plugin de Swagger genera una función de tipo por campo, y un `type` explícito la deja sin llamar; la cobertura la cuenta cuando el campo anterior usa una constante, como `@MaxLength(LIMITS.equipmentBrand)`. Los campos de texto o de número que pueden ser `null` declaran solo `nullable: true`; el documento OpenAPI quedó idéntico byte por byte y la cobertura, en 99.26%. La guía y ADR-0166 lo registran (ajusta ADR-0112).
-- **Una cuenta fija:** la prueba del esquema cuenta las tablas, 43 → 45, y falló en la primera corrida completa. El mapa de tablas de `DATABASE.md` tampoco tenía `stock_receipt_imports` desde la versión 1.5.
-- **Huecos encontrados al escribir los mutantes:** por HTTP no se probaban los filtros del listado, su orden por defecto ni que un `PATCH` conserve lo que no envía; se agregaron antes de correrlos.
-- **Mutación:** 75 mutantes, todos muertos en la primera corrida.
-
-### Resultado del paso 3, primera mitad
-
-T-189 parte c1 (ADR-0167). La parte c va en dos pull requests: c1, las ventas ligadas y la nota de servicio; c2, la conservación de los datos.
-
-- **Ventas ligadas:** `work_order_sales`, con una venta para una sola orden de trabajo; se ligan y desligan con la versión de la orden de trabajo, mientras está abierta. Solo ventas de la tienda física que no vencieron, ni se cancelaron, ni se reembolsaron; el tipo de error nuevo `sale-not-linkable` (E-37) dice el estado de la venta.
-- **Pagada, según Ordering:** su fachada suma `storeSales`, que resume cada venta como `PAID`, `PENDING` o `NONE`, así que Work Orders no conoce sus estados. La orden de trabajo muestra sus ventas con su estado al momento y los totales de lo pagado y de lo que espera su pago.
-- **Nota de servicio:** la orden de trabajo, los datos del ticket, leídos de la misma configuración sin pasar por Ordering, y las condiciones de `WORK_ORDER_FOOTER`, vacía por defecto.
-- **La cuenta de tablas otra vez:** la prueba del esquema cuenta las tablas, 45 → 46, y volvió a fallar en la primera corrida completa, como en la parte b. Una tabla nueva cambia esa cuenta; queda para revisarla antes de correr las pruebas.
-- **Mutación:** 37 mutantes, todos muertos en la primera corrida.
-
-### Resultado del paso 3, segunda mitad
-
-T-189 parte c2 (ADR-0167). Con ella, T-189 queda en DONE.
-
-- **Conservación:** el job diario `work-orders.retention` bloquea y anonimiza con el ciclo y las variables de las órdenes, desde que la orden de trabajo se entregó o se canceló. La anonimización borra lo que identifica al cliente y los textos que pueden citarlo, y conserva el folio, los estados, el equipo, el costo y las ventas.
-- **El bloqueo de fila que ADR-0166 dejó pendiente:** bloquear y anonimizar no llevan versión, así que bloquean la fila. Una prueba de integración comprueba que el job espera a otro cambio y salta la orden de trabajo que ese cambio anonimizó; sin el bloqueo, la contaría como fallida.
-- **Datos bloqueados y derechos ARCO:** se consultan con el permiso nuevo `work-orders.read-blocked`; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, y una de un cliente sin cuenta se anonimiza sola. Las dos borran la respuesta guardada del alta.
-- **Docker apagado a la mitad:** las pruebas unitarias y sus 24 mutantes corrieron sin él; las de integración y end-to-end esperaron a que se iniciara.
-- **Comparaciones completas, otra vez:** la respuesta de la anonimización de un cliente se comparaba completa también en la prueba de integración de Privacidad, y la del alta de una orden de trabajo en su e2e; la búsqueda previa cubrió las e2e de Privacidad, pero no su integración. Fallaron en su primera corrida.
-- **Mutación:** 44 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida y dejaron una prueba cada uno: el tamaño del lote, que la prueba comparaba con la misma constante, y la consulta del listado, que sin `blockedAt` ocultaba los datos de todas las órdenes de trabajo.
-
-### Risks
-
-- **Datos personales de clientes sin cuenta:** las órdenes de trabajo guardan nombre y teléfono; siguen el ciclo de conservación de las órdenes, y la validación legal pendiente los incluye (`PROJECT.md` §9).
-- **Un servicio publicado antes de marcarlo:** se vende en línea hasta que se marca; la marca vacía la cache de la tienda pública al cambiar.
-- **Las condiciones de la nota:** sin su texto, la nota se imprime sin condiciones; el usuario lo define con su asesor.
-- **Cambios de contrato:** rutas, campos y permisos nuevos, compatibles dentro de `/v1`; cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.6, servicios solo en tienda y órdenes de trabajo, se cerró el 2026-10-16 y se publica como la 1.6.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -116,6 +32,141 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.6 — Servicios solo en tienda y órdenes de trabajo (2026-10-15 a 2026-10-16)
+
+**Goal:** Que los servicios se vendan solo en la tienda física, y que el mostrador reciba equipos con su nota de servicio: folio, cliente, equipo, diagnóstico, estados y las ventas que la cobran, lista para imprimir (ADR-0165). **Tareas:** T-189, en tres partes, la última en dos pull requests, precedidas por un paso 0.
+
+**Fecha:** 2026-10-16. **Resultado:** objetivo cumplido. T-189 está en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.6.0, con su tag y su GitHub Release (ADR-0159).
+- Un servicio se vende solo en la tienda física: la tienda en línea no lo muestra, el carrito y el checkout en línea lo rechazan, y la recompra lo omite.
+- El mostrador recibe equipos con folio, cliente, equipo y falla, los sigue por estados con su historial, y los encuentra por folio, nombre, teléfono o número de serie.
+- Las ventas de mostrador cobran la orden de trabajo, y la nota de servicio sale con los datos de la tienda y sus condiciones.
+- Los datos del cliente de una orden de trabajo se bloquean y se anonimizan con el ciclo de las órdenes, y anonimizar una cuenta incluye sus órdenes de trabajo.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0165; revisión contra los ADR sin desajustes; 0 vulnerabilidades en las dependencias de producción; prácticas de la review de la versión 1.5 en la guía | DONE | Paso 0, pull request #125 |
+| `storeOnly` en el producto, que no se vende en línea y sí en la tienda física; la carga masiva lo acepta (BR-PRD-20) | DONE | T-189 parte a, pull request #126 |
+| El módulo de órdenes de trabajo en `/v1/admin/work-orders`: folio consecutivo, cliente, equipo, diagnóstico, estados con su historial y búsqueda (UC-WRK-01 a 04, BR-WRK-01 a 05, ADR-0166); permisos `work-orders.read` y `work-orders.manage` | DONE | T-189 parte b, pull request #127 |
+| Dos lecturas con encadenamiento opcional inseguro en las pruebas de la carga de existencias, que marcaba oxlint, corregidas en una tarea aparte | DONE | Pull request #128 |
+| Las ventas de mostrador ligadas a una orden de trabajo, con si están pagadas y los totales, y la nota de servicio con `WORK_ORDER_FOOTER` (UC-WRK-05 y 06, BR-WRK-06 y 07, ADR-0167) | DONE | T-189 parte c1, pull request #129 |
+| La conservación de los datos del cliente: bloqueo y anonimización con el ciclo de las órdenes, su consulta con `work-orders.read-blocked` y los derechos ARCO (BR-WRK-08, ADR-0167) | DONE | T-189 parte c2, pull request #130 |
+| Dos arreglos de las cargas masivas, de una sesión del 2026-10-15 que no se había subido: la carga de productos lee el mensaje de un error de campo sin conversiones de tipos, y los errores de las cargas declaran el tipo de sus detalles | DONE | T-146, pull request #131 |
+| 147 rutas de `/v1`, 10 de ellas nuevas; 3 tablas nuevas, 46 en total; todos los cambios de contrato son compatibles: los campos que la parte c2 volvió `null` nacieron en esta misma versión | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 2,936 tests (1,748 unitarios, 538 de integración y 650 end-to-end), 191 más que en la versión 1.5; cobertura de 98.91% de sentencias, 84.83% de ramas, 99.28% de funciones y 99.49% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; en las de desarrollo, el mismo aviso moderado de `sprintf-js`, sin versión corregida | — | `npm audit` |
+| 167 ADR: 163 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 3 nuevos en esta versión (ADR-0165 a ADR-0167) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 6 pull requests a `main` (del #125 al #130), y los dos arreglos de las cargas entran con el cierre de la versión, en #131. El pipeline pasó a la primera en los seis; en #128, la primera corrida se canceló porque llegó la actualización con `main`, y la siguiente pasó. En `main` pasó después de cada fusión.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión. La validación legal de los datos personales que captura el staff, ahora también en las órdenes de trabajo, sigue en la lista de `PROJECT.md` §9 (ADR-0161, ADR-0165), igual que el texto de las condiciones de la nota de servicio, que el usuario define con su asesor. Los detalles de las promociones se deciden en el plan de su versión (ADR-0163).
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Vender un servicio en línea:** un producto con `storeOnly` solo se vende en la tienda física.
+  - **Equipos recibidos sin registro:** cada uno tiene su folio, su historial y las ventas que lo cobran.
+  - **Los datos de los clientes sin cuenta, para siempre:** siguen el ciclo de conservación de las órdenes, con su bloqueo, su anonimización y su consulta auditada.
+  - **Cambios de contrato:** rutas, campos y permisos nuevos, compatibles dentro de `/v1`. Cada uno está en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints y de las versiones 1.1 a 1.5, entre ellos el aviso moderado de `sprintf-js` y la validación legal de los datos que captura el staff, que ahora incluye las órdenes de trabajo.
+- **Nuevos:**
+  - **Un servicio publicado antes de marcarlo:** se vende en línea hasta que se marca; la marca vacía la cache de la tienda pública al cambiar.
+  - **Las condiciones de la nota:** sin el texto de `WORK_ORDER_FOOTER`, la nota se imprime sin condiciones.
+  - **Una orden de trabajo abierta detiene la anonimización de la cuenta de su cliente:** responde 409 `active-orders-exist`, como un pedido abierto; el staff la entrega o la cancela antes.
+  - **Datos que pueden faltar:** el nombre, el teléfono y la falla de una orden de trabajo bloqueada o anonimizada llegan como `null`, y quien la muestre lo tiene que considerar.
+
+#### Qué funcionó
+
+- **Partes pequeñas:** la parte c se dividió en dos pull requests, c1 con las ventas y la nota y c2 con la conservación, y cada uno pasó el pipeline a la primera.
+- **Una regla, pocos lugares:** `storeOnly` se revisa en la consulta de la tienda pública, el adaptador del carrito y la validación compartida de los checkouts; la recompra y la venta de mostrador lo siguieron sin cambiar.
+- **Módulos por sus fachadas:** Work Orders usa a Identity, Inventory y Ordering solo por sus fachadas, y Privacy la usa a ella por la nueva `WorkOrdersFacade`; las reglas de capas no marcaron nada.
+- **Un candado solo cuando se puede observar:** la parte b quitó un `SELECT … FOR UPDATE` que no cambiaba nada, porque todo cambio llevaba versión; la parte c2 lo agregó para los cambios sin versión, con una prueba que falla sin él.
+- **Las prácticas de la review de la versión 1.5:**
+  - no se editó código mientras corrían `test:cov` o la mutación, y la cobertura combinada no volvió a mezclar versiones;
+  - la prueba del bloqueo de la parte c2 bloquea la fila sin modificarla hasta que el job espera, y la mutación que quita el candado la hace fallar.
+- **Una tarea aparte para lo que no era de la versión:** los avisos de oxlint en las pruebas de la carga de existencias se corrigieron en su propio pull request (#128).
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-189 parte a | 4 de 53 | Casos sin probar, agregados: la venta de mostrador coloca un producto de tienda, un `storeOnly` inválido en la primera fila, y un `storeOnly` que no es booleano en el alta y la edición |
+  | T-189 parte b | 0 de 75 | — |
+  | T-189 parte c1 | 0 de 37 | — |
+  | T-189 parte c2 | 2 de 44 | Pruebas débiles, reforzadas: una comparaba el tamaño del lote con la misma constante, y ninguna mostraba una orden de trabajo visible junto a una bloqueada |
+  | Arreglos de las cargas | 0 de 2 | — |
+
+#### Qué mejorar
+
+- **Comparaciones completas de objetos:** un campo nuevo rompió comparaciones completas en cuatro pruebas: en la parte a, el alta del producto en su e2e y su auditoría en la de integración; en la c2, la respuesta de la anonimización en la de integración de Privacidad y el alta de una orden de trabajo en su e2e. Las dos veces, la búsqueda previa revisó solo una parte de las pruebas. Al sumar un campo a una respuesta o a lo que se audita, se buscan sus comparaciones completas en las pruebas unitarias, de integración y end-to-end de todos los módulos que la usan.
+- **La cuenta fija de tablas:** la prueba del esquema cuenta las tablas y falló en la primera corrida completa de las partes b y c1. Una migración que crea una tabla actualiza esa cuenta en el mismo cambio.
+- **La expectativa con la constante que se prueba:** la prueba del lote comparaba con `RETENTION_BATCH_SIZE`, así que mutarla no la hacía fallar. El valor esperado se escribe como literal.
+- **Ocultar sin un caso que no se oculta:** la prueba de los datos bloqueados solo tenía órdenes de trabajo bloqueadas, y no veía que el listado ocultara también las demás. Una prueba que oculta datos incluye uno que debe seguir visible.
+- **Docker apagado a la mitad:** en la parte c2, las pruebas de integración y end-to-end esperaron a que se iniciara. Antes de lanzar `test:cov`, se comprueba que Docker responde.
+- **Trabajo sin subir en otra sesión:** dos commits del 2026-10-15 quedaron en una rama local, sin pull request, y #128 corrigió después dos de sus líneas de otra forma; se encontraron al revisar las sesiones al cerrar la versión. Al cerrar cada versión se revisan las sesiones y las ramas locales que no están en `main`.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 165 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
+  - Prisma 7.10.1, un parche, salió el mismo 2026-10-15, sin aviso de seguridad; seguimos en 7.10.0, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad (ADR-0158). La 8 sigue en versión candidata (8.0.0-rc.23).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5:
+  - no se edita código mientras corren `test:cov` o las pruebas de mutación;
+  - en una prueba de bloqueo, la operación espera en el candado que se prueba, no antes;
+  - la regla de comparar los errores de dominio por `code` y `details` nombra también `toEqual`, que solo compara el mensaje. Ya estaba en la guía desde T-161, y la parte b de T-146 no la siguió.
+
+#### Resultado del paso 1
+
+T-189 parte a (ADR-0165).
+
+- **La marca:** `storeOnly` en el producto, en el alta, la edición, la vista, el filtro del listado y la carga masiva, que suma la columna; la plantilla de productos trae un servicio de ejemplo.
+- **Una regla, pocos lugares:** la consulta de la tienda pública, el adaptador del carrito, que siempre es en línea, y la validación compartida de los checkouts, que ahora recibe el canal. Con eso, la recompra lo omite sin tocarla, y la venta de mostrador lo vende.
+- **Cache:** `ProductStoreOnlyChanged` la vacía cuando cambia la marca de un producto publicado; una prueba end-to-end lo saca de la tienda y lo regresa al instante.
+- **`STORE_ONLY` en `storeVisibility`:** sin el valor nuevo, un servicio publicado aparecería sin precio.
+- **Dos comparaciones completas, encontradas al correr las pruebas:** la prueba end-to-end del alta compara `AdminProduct` completo, y la de integración compara su auditoría; las dos fallaron con `storeOnly`. La búsqueda previa cubrió las respuestas, como pide la guía, pero no la auditoría: la guía suma que un dato auditado también cambia lo que registra la auditoría.
+- **Mutación:** 53 mutantes, todos muertos. Cuatro sobrevivieron a la primera corrida y cada uno dejó una prueba: la venta de mostrador coloca, y no solo cotiza, un producto de tienda; un `storeOnly` inválido en la primera fila deja sin revisar las variantes de su producto, y el alta y la edición responden 400 a un `storeOnly` que no es booleano.
+
+#### Resultado del paso 2
+
+T-189 parte b (ADR-0166).
+
+- **Módulo nuevo `work-orders`:** cinco rutas en `/v1/admin/work-orders`, dos tablas y dos permisos, para el Vendedor y el Administrador. Usa a Identity y a Inventory solo por sus fachadas, y la de Identity suma `isActiveStaff` para el técnico.
+- **Tres precisiones de ADR-0165, decididas en el plan:** el nombre y el teléfono se piden siempre; los estados avanzan saltando pasos y nunca regresan; una orden entregada o cancelada ya no se edita.
+- **Sin bloqueo de fila:** un `SELECT … FOR UPDATE` no cambiaba nada observable, porque todo cambio lleva su versión y el guardado la comprueba; se quitó, y la parte c lo agrega si liga ventas sin versión.
+- **La cobertura de funciones bajó del umbral,** a 98.73%: el plugin de Swagger genera una función de tipo por campo, y un `type` explícito la deja sin llamar; la cobertura la cuenta cuando el campo anterior usa una constante, como `@MaxLength(LIMITS.equipmentBrand)`. Los campos de texto o de número que pueden ser `null` declaran solo `nullable: true`; el documento OpenAPI quedó idéntico byte por byte y la cobertura, en 99.26%. La guía y ADR-0166 lo registran (ajusta ADR-0112).
+- **Una cuenta fija:** la prueba del esquema cuenta las tablas, 43 → 45, y falló en la primera corrida completa. El mapa de tablas de `DATABASE.md` tampoco tenía `stock_receipt_imports` desde la versión 1.5.
+- **Huecos encontrados al escribir los mutantes:** por HTTP no se probaban los filtros del listado, su orden por defecto ni que un `PATCH` conserve lo que no envía; se agregaron antes de correrlos.
+- **Mutación:** 75 mutantes, todos muertos en la primera corrida.
+
+#### Resultado del paso 3, primera mitad
+
+T-189 parte c1 (ADR-0167). La parte c va en dos pull requests: c1, las ventas ligadas y la nota de servicio; c2, la conservación de los datos.
+
+- **Ventas ligadas:** `work_order_sales`, con una venta para una sola orden de trabajo; se ligan y desligan con la versión de la orden de trabajo, mientras está abierta. Solo ventas de la tienda física que no vencieron, ni se cancelaron, ni se reembolsaron; el tipo de error nuevo `sale-not-linkable` (E-37) dice el estado de la venta.
+- **Pagada, según Ordering:** su fachada suma `storeSales`, que resume cada venta como `PAID`, `PENDING` o `NONE`, así que Work Orders no conoce sus estados. La orden de trabajo muestra sus ventas con su estado al momento y los totales de lo pagado y de lo que espera su pago.
+- **Nota de servicio:** la orden de trabajo, los datos del ticket, leídos de la misma configuración sin pasar por Ordering, y las condiciones de `WORK_ORDER_FOOTER`, vacía por defecto.
+- **La cuenta de tablas otra vez:** la prueba del esquema cuenta las tablas, 45 → 46, y volvió a fallar en la primera corrida completa, como en la parte b. Una tabla nueva cambia esa cuenta; queda para revisarla antes de correr las pruebas.
+- **Mutación:** 37 mutantes, todos muertos en la primera corrida.
+
+#### Resultado del paso 3, segunda mitad
+
+T-189 parte c2 (ADR-0167). Con ella, T-189 queda en DONE.
+
+- **Conservación:** el job diario `work-orders.retention` bloquea y anonimiza con el ciclo y las variables de las órdenes, desde que la orden de trabajo se entregó o se canceló. La anonimización borra lo que identifica al cliente y los textos que pueden citarlo, y conserva el folio, los estados, el equipo, el costo y las ventas.
+- **El bloqueo de fila que ADR-0166 dejó pendiente:** bloquear y anonimizar no llevan versión, así que bloquean la fila. Una prueba de integración comprueba que el job espera a otro cambio y salta la orden de trabajo que ese cambio anonimizó; sin el bloqueo, la contaría como fallida.
+- **Datos bloqueados y derechos ARCO:** se consultan con el permiso nuevo `work-orders.read-blocked`; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, y una de un cliente sin cuenta se anonimiza sola. Las dos borran la respuesta guardada del alta.
+- **Docker apagado a la mitad:** las pruebas unitarias y sus 24 mutantes corrieron sin él; las de integración y end-to-end esperaron a que se iniciara.
+- **Comparaciones completas, otra vez:** la respuesta de la anonimización de un cliente se comparaba completa también en la prueba de integración de Privacidad, y la del alta de una orden de trabajo en su e2e; la búsqueda previa cubrió las e2e de Privacidad, pero no su integración. Fallaron en su primera corrida.
+- **Mutación:** 44 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida y dejaron una prueba cada uno: el tamaño del lote, que la prueba comparaba con la misma constante, y la consulta del listado, que sin `blockedAt` ocultaba los datos de todas las órdenes de trabajo.
+
+#### Siguiente versión
+
+Ninguna en curso: la siguiente necesita un plan aprobado (ADR-0159). ADR-0163 dejó prevista la 1.7, promociones (T-200), con su plan. La 1.6 dejó fuera los avisos al cliente cuando su equipo esté listo, las citas y la agenda, la firma digital y las fotos del equipo, las refacciones aparte de la venta, los productos sin control de existencias y el texto de las condiciones de la nota, que define el usuario (ADR-0165). Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las de la 1.5.
 
 ### Versión 1.5 — Carga masiva de productos y de existencias (2026-10-15)
 
