@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Plan de la versión 1.6 (nuevo ADR-0165): servicios solo en tienda y órdenes de trabajo. Un producto con `storeOnly` no se vende en línea y sí en la tienda física. Las órdenes de trabajo son la nota de servicio: folio, cliente, equipo, falla, diagnóstico, estados con su historial y las ventas de mostrador que la cobran, con los datos para imprimirla y la conservación de los datos del cliente. Se implementa en T-189, en tres partes.
+- T-189 parte b (nuevo ADR-0166): órdenes de trabajo.
+  - Módulo nuevo en `/v1/admin/work-orders`: recibir un equipo (con `Idempotency-Key`), listar y buscar, consultar con su historial, corregir los datos y registrar el diagnóstico, y cambiar el estado (UC-WRK-01 a 04).
+  - Folio consecutivo como `OT-000123`; el nombre y el teléfono del cliente siempre, y un cliente registrado opcional; los estados avanzan saltando pasos y nunca regresan, y una orden entregada o cancelada ya no se edita (BR-WRK-01 a 05).
+  - Permisos nuevos `work-orders.read` y `work-orders.manage`, para los roles Vendedor y Administrador.
 - T-189 parte a (ADR-0165): productos solo en tienda.
   - `storeOnly` en el producto (`POST` y `PATCH /v1/admin/catalog/products`, `AdminProduct` y el filtro `?storeOnly=` del listado): el producto se vende solo en la tienda física, como un servicio (UC-CAT-17, BR-PRD-20).
   - En línea no se vende: la tienda pública no lo muestra, el carrito y el checkout en línea responden 409 `variant-not-sellable`, y la recompra lo omite. La venta de mostrador y los pedidos del staff lo venden.

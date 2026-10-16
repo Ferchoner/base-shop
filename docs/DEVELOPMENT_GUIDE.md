@@ -163,7 +163,7 @@ Versionado y documentación OpenAPI (ADR-0096):
 - Se declara de forma explícita lo que el plugin solo deduce con el análisis de tipos de `nest build` (ADR-0109):
   - la respuesta de éxito de cada endpoint, con `@ApiOkResponse({ type })` o `@ApiCreatedResponse({ type })`;
   - los campos de un DTO que contienen otros DTO, con `@ApiProperty({ type: () => [OtroDto] })`;
-  - las listas, las fechas y los campos que pueden ser `null` (ADR-0112), por ejemplo `@ApiProperty({ type: String, format: 'date-time', nullable: true })`.
+  - las listas, las fechas y los campos que pueden ser `null` (ADR-0112), por ejemplo `@ApiProperty({ type: String, format: 'date-time', nullable: true })`. Un campo de texto o de número que puede ser `null` declara solo `nullable: true`, sin `type` (ADR-0166): el plugin deduce su tipo también en las pruebas, y un `type` explícito deja sin llamar la función de tipo que el plugin genera. La cobertura de funciones la cuenta cuando el campo anterior usa una constante, como `@MaxLength(LIMITS.equipmentBrand)`: en T-189 parte b, 17 así la bajaron del umbral;
   - los campos cuya regla usa una constante negativa, como `@Min(-MAX_STOCK_QUANTITY)`: el plugin los omite del esquema, así que declaran el suyo con `@ApiProperty`;
   - los campos opcionales con valor por defecto, como `limit: number = 50`, con `@ApiPropertyOptional()`: el plugin los marcaría como obligatorios.
 - Cada endpoint declara sus errores con `@ApiProblemResponses('not-found', 'version-conflict', …)`; los comunes (`validation-error`, `rate-limit-exceeded`, `internal-error`) se agregan solos. Los de un controlador se suman a los de cada manejador, y `@Idempotent` agrega los de idempotencia (ADR-0155).
