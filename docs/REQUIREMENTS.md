@@ -118,6 +118,7 @@ Catálogo y roles de ADR-0043.
 | `orders.read` | ✓ | ✓ | ✓ | ✓ |
 | `orders.manage` | ✓ | ✓ | — | — |
 | `orders.read-blocked` (ADR-0152) | ✓ | ✓ | — | — |
+| `work-orders.read-blocked` (ADR-0167) | ✓ | ✓ | — | — |
 | `orders.place` (ADR-0161) | ✓ | ✓ | — | ✓ |
 | `payments.manage` | ✓ | ✓ | — | — |
 | `payments.configure` (ADR-0162) | ✓ | — | — | — |
@@ -488,6 +489,7 @@ Criterios de aceptación:
 - **UC-WRK-06:** da los datos de la orden de trabajo y de la tienda, con las condiciones de `WORK_ORDER_FOOTER`; el cliente imprime la nota con su línea de firma.
 - **UC-WRK-05 y 06 (implementación, ADR-0167):** ligar y desligar llevan la versión de la orden de trabajo y solo se permiten mientras está abierta; una venta que no es de la tienda física, o que no existe, responde 404; una vencida, cancelada o reembolsada, 409 `sale-not-linkable`; una ya ligada, a esta o a otra, 409 `duplicate-value`. La orden de trabajo muestra cada venta con su estado al momento, si está pagada, y los totales de lo pagado y de lo que espera su pago. La nota trae la orden de trabajo con sus ventas, los datos del ticket y las condiciones, vacías hasta que el negocio las defina.
 - **Datos personales:** los del cliente se bloquean y se anonimizan con los plazos de las órdenes (ADR-0151), contados desde que se entregó o se canceló.
+- **Datos personales (implementación, ADR-0167, BR-WRK-08):** un job diario bloquea y anonimiza; bloqueada, la orden de trabajo muestra los datos como anonimizados, la búsqueda solo la encuentra por su folio, y los datos se consultan con `work-orders.read-blocked`, con motivo y auditados; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, o responde 409 `active-orders-exist` si tiene una abierta; una orden de trabajo de un cliente sin cuenta se anonimiza sola, con `customers.manage`, una vez cerrada.
 
 ---
 

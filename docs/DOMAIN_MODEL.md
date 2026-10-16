@@ -135,9 +135,10 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Reglas | Avanza saltando pasos y nunca regresa; se cancela con nota antes de entregarse; entregada o cancelada, ya no cambia ni liga ventas (BR-WRK-03, BR-WRK-04, BR-WRK-06) |
 | Repositories | `WorkOrderRepository` |
 | Puertos | `WorkOrderWarehouses` (Inventory), `WorkOrderAccounts` (Identity) y `StoreSales` (Ordering), por sus fachadas |
-| Casos de uso | ReceiveWorkOrder (UC-WRK-01), UpdateWorkOrder (UC-WRK-03), WorkOrderLifecycle (UC-WRK-04), WorkOrderSales (UC-WRK-05) y WorkOrderReader, con las ventas y la nota de servicio (UC-WRK-02 y 06) |
+| Casos de uso | ReceiveWorkOrder (UC-WRK-01), UpdateWorkOrder (UC-WRK-03), WorkOrderLifecycle (UC-WRK-04), WorkOrderSales (UC-WRK-05), WorkOrderReader, con las ventas y la nota de servicio (UC-WRK-02 y 06), WorkOrderRetention y WorkOrderAnonymizations (ADR-0167) |
 | Eventos | Ninguno por ahora |
-| Implementado | T-189 parte b (ADR-0166) y parte c1, las ventas ligadas y la nota de servicio (ADR-0167); la conservación de datos llega en la parte c2 |
+| Exporta | `WorkOrdersFacade.anonymizeCustomerWorkOrders`, para Privacidad (ADR-0167) |
+| Implementado | T-189 parte b (ADR-0166) y parte c (ADR-0167): las ventas ligadas, la nota de servicio y la conservación de los datos del cliente |
 
 ---
 
@@ -157,7 +158,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Ordering → Shipping | Orden pagada o cancelada; envíos de las órdenes | Fachada síncrona `ShippingFacade`, dentro de la transacción de la orden (ADR-0140) |
 | Shipping → Ordering | Progreso del envío | Eventos `ShipmentDispatched`, `ShipmentDelivered` y `ShipmentReturned`; Ordering declara sus propios tipos (ADR-0141, ADR-0151) |
 | Ordering, Payments, Shipping → Notificaciones | Datos para los correos al cliente | Eventos `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `RefundCompleted`, `ShipmentDispatched`; email de contacto y datos de la orden por la fachada de Ordering (ADR-0074). Implementado en T-215 (ADR-0143). Desde T-194, si la tienda cobra en persona, por la fachada de Payments (ADR-0162) |
-| Identity, Ordering, Shopping → Privacidad | Anonimizar la cuenta, las órdenes con sus envíos y los carritos | Fachadas síncronas, en una transacción; Privacidad no tiene dominio propio. Implementado en T-132 (ADR-0145) |
+| Identity, Ordering, Work Orders, Shopping → Privacidad | Anonimizar la cuenta, las órdenes con sus envíos, las órdenes de trabajo (ADR-0167) y los carritos | Fachadas síncronas, en una transacción; Privacidad no tiene dominio propio. Implementado en T-132 (ADR-0145) |
 
 ## Flujo de checkout y pago (ADR-0019)
 

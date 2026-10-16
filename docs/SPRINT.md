@@ -70,6 +70,17 @@ T-189 parte c1 (ADR-0167). La parte c va en dos pull requests: c1, las ventas li
 - **La cuenta de tablas otra vez:** la prueba del esquema cuenta las tablas, 45 → 46, y volvió a fallar en la primera corrida completa, como en la parte b. Una tabla nueva cambia esa cuenta; queda para revisarla antes de correr las pruebas.
 - **Mutación:** 37 mutantes, todos muertos en la primera corrida.
 
+### Resultado del paso 3, segunda mitad
+
+T-189 parte c2 (ADR-0167). Con ella, T-189 queda en DONE.
+
+- **Conservación:** el job diario `work-orders.retention` bloquea y anonimiza con el ciclo y las variables de las órdenes, desde que la orden de trabajo se entregó o se canceló. La anonimización borra lo que identifica al cliente y los textos que pueden citarlo, y conserva el folio, los estados, el equipo, el costo y las ventas.
+- **El bloqueo de fila que ADR-0166 dejó pendiente:** bloquear y anonimizar no llevan versión, así que bloquean la fila. Una prueba de integración comprueba que el job espera a otro cambio y salta la orden de trabajo que ese cambio anonimizó; sin el bloqueo, la contaría como fallida.
+- **Datos bloqueados y derechos ARCO:** se consultan con el permiso nuevo `work-orders.read-blocked`; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, y una de un cliente sin cuenta se anonimiza sola. Las dos borran la respuesta guardada del alta.
+- **Docker apagado a la mitad:** las pruebas unitarias y sus 24 mutantes corrieron sin él; las de integración y end-to-end esperaron a que se iniciara.
+- **Comparaciones completas, otra vez:** la respuesta de la anonimización de un cliente se comparaba completa también en la prueba de integración de Privacidad, y la del alta de una orden de trabajo en su e2e; la búsqueda previa cubrió las e2e de Privacidad, pero no su integración. Fallaron en su primera corrida.
+- **Mutación:** 44 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida y dejaron una prueba cada uno: el tamaño del lote, que la prueba comparaba con la misma constante, y la consulta del listado, que sin `blockedAt` ocultaba los datos de todas las órdenes de trabajo.
+
 ### Risks
 
 - **Datos personales de clientes sin cuenta:** las órdenes de trabajo guardan nombre y teléfono; siguen el ciclo de conservación de las órdenes, y la validación legal pendiente los incluye (`PROJECT.md` §9).

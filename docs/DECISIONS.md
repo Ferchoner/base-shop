@@ -5304,4 +5304,9 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El mostrador ve qué ventas cobran cada orden de trabajo y si están pagadas, sin cobrar dos veces.
   - Work Orders depende ahora de Ordering, por su fachada; Ordering nunca usa Work Orders.
   - Un tipo de error nuevo, `sale-not-linkable`, y una variable nueva, `WORK_ORDER_FOOTER`; cambios compatibles en `/v1`.
-- **Estado:** Aceptada (plan de T-189 parte c aprobado el 2026-10-16, con sus 17 recomendaciones). Parte c1 implementada, con la migración `20261015160000_work_order_sales`; la parte c2 sigue.
+- **Estado:** Aceptada (plan de T-189 parte c aprobado el 2026-10-16, con sus 17 recomendaciones). Parte c1 implementada, con la migración `20261015160000_work_order_sales`. Parte c2 implementada:
+  - las migraciones `20261016120000_work_orders_retention`, con `blocked_at`, `anonymized_at`, el índice `work_orders_retention_idx` y un `CHECK` que solo deja sin nombre, teléfono ni falla una orden de trabajo anonimizada, y `20261016130000_identity_work_orders_read_blocked_permission`, que da `work-orders.read-blocked` al Administrador;
+  - el job diario `work-orders.retention`, en lotes de 1,000 y una transacción por orden de trabajo, como el de las órdenes;
+  - **el bloqueo de fila que ADR-0166 dejó pendiente:** bloquear y anonimizar no llevan versión, así que bloquean la fila (`SELECT … FOR UPDATE`); una prueba comprueba que el job espera a otro cambio y salta la orden de trabajo que ese cambio anonimizó;
+  - una orden de trabajo de un cliente con una abierta detiene la anonimización de su cuenta con el mismo 409 `active-orders-exist` de las órdenes; la respuesta de la anonimización suma `anonymizedWorkOrderCount`;
+  - la anonimización de un cliente inactivo (ADR-0152) no toca sus órdenes de trabajo, que siguen su propio ciclo, como las órdenes.
