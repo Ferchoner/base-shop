@@ -1,28 +1,32 @@
 # CHANGELOG
 
-## Unreleased
+## 1.6.0 (2026-10-16)
+
+Servicios solo en tienda y órdenes de trabajo (ADR-0165).
 
 - Plan de la versión 1.6 (nuevo ADR-0165): servicios solo en tienda y órdenes de trabajo. Un producto con `storeOnly` no se vende en línea y sí en la tienda física. Las órdenes de trabajo son la nota de servicio: folio, cliente, equipo, falla, diagnóstico, estados con su historial y las ventas de mostrador que la cobran, con los datos para imprimirla y la conservación de los datos del cliente. Se implementa en T-189, en tres partes.
-- T-189 parte c2 (ADR-0167): la conservación de los datos del cliente de las órdenes de trabajo.
-  - El job diario `work-orders.retention` bloquea y anonimiza con el ciclo y las variables de las órdenes, desde que la orden de trabajo se entregó o se canceló (BR-WRK-08).
-  - `WorkOrder` suma `blockedAt` y `anonymizedAt`; bloqueada o anonimizada, muestra `null` en los datos del cliente, el número de serie y los textos, y la búsqueda solo la encuentra por su folio.
-  - `POST /v1/admin/work-orders/{workOrderId}/blocked-data`, con el permiso nuevo `work-orders.read-blocked` (Administrador), da los datos bloqueados con un motivo, auditado.
-  - `POST /v1/admin/work-orders/{workOrderId}/anonymize` (`customers.manage`) anonimiza una orden de trabajo cerrada de un cliente sin cuenta; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, responde `anonymizedWorkOrderCount`, y no procede con una abierta (409 `active-orders-exist`).
-- T-189 parte c1 (nuevo ADR-0167): las ventas que cobran una orden de trabajo y su nota de servicio.
-  - `POST /v1/admin/work-orders/{workOrderId}/sales` liga una venta de mostrador, y `DELETE …/sales/{orderId}` la desliga, con la versión de la orden de trabajo y mientras está abierta (UC-WRK-05). Una venta cobra una sola orden de trabajo.
-  - `WorkOrder` suma `sales`, con el estado de cada venta y si está pagada, y los totales `paidTotal` y `unpaidTotal` (BR-WRK-06 y 07).
-  - `GET …/service-note` da la orden de trabajo, los datos de la tienda y las condiciones de la variable nueva `WORK_ORDER_FOOTER`, vacía por defecto (UC-WRK-06).
-  - Tipo de error nuevo `sale-not-linkable` (409, E-37) para una venta vencida, cancelada o reembolsada.
-- T-189 parte b (nuevo ADR-0166): órdenes de trabajo.
-  - Módulo nuevo en `/v1/admin/work-orders`: recibir un equipo (con `Idempotency-Key`), listar y buscar, consultar con su historial, corregir los datos y registrar el diagnóstico, y cambiar el estado (UC-WRK-01 a 04).
-  - Folio consecutivo como `OT-000123`; el nombre y el teléfono del cliente siempre, y un cliente registrado opcional; los estados avanzan saltando pasos y nunca regresan, y una orden entregada o cancelada ya no se edita (BR-WRK-01 a 05).
-  - Permisos nuevos `work-orders.read` y `work-orders.manage`, para los roles Vendedor y Administrador.
+- Paso 0 de la versión 1.6: revisión contra los ADR sin desajustes y 0 vulnerabilidades en las dependencias de producción; Prisma sigue en 7.10.0, aunque salió el parche 7.10.1, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5.
 - T-189 parte a (ADR-0165): productos solo en tienda.
   - `storeOnly` en el producto (`POST` y `PATCH /v1/admin/catalog/products`, `AdminProduct` y el filtro `?storeOnly=` del listado): el producto se vende solo en la tienda física, como un servicio (UC-CAT-17, BR-PRD-20).
   - En línea no se vende: la tienda pública no lo muestra, el carrito y el checkout en línea responden 409 `variant-not-sellable`, y la recompra lo omite. La venta de mostrador y los pedidos del staff lo venden.
   - `storeVisibility` suma `STORE_ONLY`, y cambiar la marca de un producto publicado vacía la cache de la tienda (`ProductStoreOnlyChanged`).
   - La carga masiva de productos acepta la columna `storeOnly`, y su plantilla incluye un servicio de ejemplo.
-- Paso 0 de la versión 1.6: revisión contra los ADR sin desajustes y 0 vulnerabilidades en las dependencias de producción; Prisma sigue en 7.10.0, aunque salió el parche 7.10.1, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5.
+- T-189 parte b (nuevo ADR-0166): órdenes de trabajo.
+  - Módulo nuevo en `/v1/admin/work-orders`: recibir un equipo (con `Idempotency-Key`), listar y buscar, consultar con su historial, corregir los datos y registrar el diagnóstico, y cambiar el estado (UC-WRK-01 a 04).
+  - Folio consecutivo como `OT-000123`; el nombre y el teléfono del cliente siempre, y un cliente registrado opcional; los estados avanzan saltando pasos y nunca regresan, y una orden entregada o cancelada ya no se edita (BR-WRK-01 a 05).
+  - Permisos nuevos `work-orders.read` y `work-orders.manage`, para los roles Vendedor y Administrador.
+- T-189 parte c1 (nuevo ADR-0167): las ventas que cobran una orden de trabajo y su nota de servicio.
+  - `POST /v1/admin/work-orders/{workOrderId}/sales` liga una venta de mostrador, y `DELETE …/sales/{orderId}` la desliga, con la versión de la orden de trabajo y mientras está abierta (UC-WRK-05). Una venta cobra una sola orden de trabajo.
+  - `WorkOrder` suma `sales`, con el estado de cada venta y si está pagada, y los totales `paidTotal` y `unpaidTotal` (BR-WRK-06 y 07).
+  - `GET …/service-note` da la orden de trabajo, los datos de la tienda y las condiciones de la variable nueva `WORK_ORDER_FOOTER`, vacía por defecto (UC-WRK-06).
+  - Tipo de error nuevo `sale-not-linkable` (409, E-37) para una venta vencida, cancelada o reembolsada.
+- T-189 parte c2 (ADR-0167): la conservación de los datos del cliente de las órdenes de trabajo.
+  - El job diario `work-orders.retention` bloquea y anonimiza con el ciclo y las variables de las órdenes, desde que la orden de trabajo se entregó o se canceló (BR-WRK-08).
+  - `WorkOrder` suma `blockedAt` y `anonymizedAt`; bloqueada o anonimizada, muestra `null` en los datos del cliente, el número de serie y los textos, y la búsqueda solo la encuentra por su folio.
+  - `POST /v1/admin/work-orders/{workOrderId}/blocked-data`, con el permiso nuevo `work-orders.read-blocked` (Administrador), da los datos bloqueados con un motivo, auditado.
+  - `POST /v1/admin/work-orders/{workOrderId}/anonymize` (`customers.manage`) anonimiza una orden de trabajo cerrada de un cliente sin cuenta; anonimizar la cuenta de un cliente anonimiza sus órdenes de trabajo, responde `anonymizedWorkOrderCount`, y no procede con una abierta (409 `active-orders-exist`).
+- Dos arreglos de las cargas masivas (T-146, ADR-0164), sin cambios en el contrato de la API: la carga de productos lee el mensaje de un error de campo sin conversiones de tipos, que ocultaban al verificador de tipos que un error sin detalles provocaría un `TypeError`, y los errores de las cargas declaran el tipo de sus detalles, así que sus pruebas los leen directamente.
+- Versión 1.6.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.6.0` y un GitHub Release.
 
 ## 1.5.0 (2026-10-15)
 
