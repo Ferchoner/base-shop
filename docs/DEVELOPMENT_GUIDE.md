@@ -9,7 +9,7 @@
 5. Crear/actualizar tests.
 6. Ejecutar verificaciones.
 7. Actualizar documentación. Una ruta nueva, o un cambio en cómo se protege una, se revisa y se escribe en `test/security/route-matrix.ts`: la prueba de la matriz falla hasta entonces (ADR-0153). Una ruta nueva va también en la tabla de resumen de su sección de `API_SPEC.md`, y todo cambio del contrato (rutas, DTOs, descripciones o errores) se guarda con `npm run openapi:update` en `docs/openapi/v1.json`: la prueba de contrato falla hasta entonces (ADR-0155). Por eso la tabla y el documento van en el mismo commit que la ruta, que se verifica solo: en T-162 parte b, el commit `feat` no llevaba las tablas. Una sección nueva va al final de su documento: las secciones que cita el código (`DATABASE.md` §11.3) no se renumeran, y antes de citar una en el código se confirma su número: en T-194, el código citó `API_SPEC.md` §16.5, que es la de reembolsos. Un caso de uso nuevo va también en la tabla de cobertura de `API_SPEC.md` (§21): en T-232 parte a faltó UC-SYS-02.
-8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye.
+8. Actualizar `TASKS.md` y `PROGRESS.md`; al cerrar un sprint, también el estado de `PROJECT.md` y `README.md`, que la revisión del paso 0 incluye. Al cerrar una versión, se revisan las sesiones de trabajo y las ramas locales que no están en `main`: dos commits de T-146 quedaron un día sin subir, y se encontraron al cerrar la versión 1.6.
 9. Crear checkpoint Git, después de revisar lo preparado y correr `npm run secrets:scan` (ver "Ramas y commits").
 
 ## Convenciones
@@ -214,6 +214,7 @@ Tests (Jest):
   - Una línea sin cubrir se prueba si es lógica. Un `throw error` que relanza lo que no se esperaba, una invariante que solo existe para el compilador y la función de un decorador de DTO que solo corre cuando llega su campo pueden quedar sin cubrir.
   - Si la cobertura sube de forma estable, se suben los umbrales; nunca se bajan para que pase la CI.
   - Mientras corren `npm run test:cov` o las pruebas de mutación no se edita código: cada suite mide los archivos como estaban al cargarlos, y la unión de dos versiones de un archivo falla el umbral de funciones sin que falte una prueba (T-146 parte b).
+  - Antes de lanzarlo se comprueba que Docker responde (`docker info`): sin él, las suites de integración y end-to-end no arrancan, y la corrida se repite (T-189 parte c2).
 
 - Integración y end-to-end contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución, le aplica todas las migraciones y expone su URL en `DATABASE_URL` (ADR-0090, ADR-0091). La infraestructura común está en `test/integration/`. Los tests corren en serie.
 - Cada test deja la base como la encontró, por ejemplo trabajando dentro de una transacción que se revierte al terminar.
@@ -224,8 +225,10 @@ Tests (Jest):
 - Una prueba de respuestas de error idénticas compara los Problem Details sin `correlationId` ni `instance`, que cambian en cada solicitud (T-185, T-181).
 - Los ayudantes de las e2e reciben el código esperado cuando una ruta responde distinto según el estado: agregar al carrito responde 201 al crearlo y 200 si ya existe.
 - Un error de dominio con `details` se compara con `rejects.toMatchObject({ code, details })`. `toThrow(new Error(…))` y `toEqual(new …Error(…))` solo comparan el mensaje: la prueba del tope del reintegro pasaba con otras líneas en el error (T-161), y dos pruebas del archivo de existencias repetido no veían `importedAt` (T-146 parte b).
-- Al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa, también en las suites de otros flujos: en T-187 parte b, `fulfillment` rompió la comparación de la orden en `test/checkout.e2e-spec.ts`, y la encontró recién la primera corrida completa. Un dato que se audita también cambia los `changes` de la auditoría: en T-189 parte a, `storeOnly` rompió la comparación de la auditoría del alta en `products.int-spec.ts`.
+- Al agregar un campo a una respuesta, se buscan antes las pruebas que la comparan completa, también en las suites de otros flujos: en T-187 parte b, `fulfillment` rompió la comparación de la orden en `test/checkout.e2e-spec.ts`, y la encontró recién la primera corrida completa. Un dato que se audita también cambia los `changes` de la auditoría: en T-189 parte a, `storeOnly` rompió la comparación de la auditoría del alta en `products.int-spec.ts`. La búsqueda cubre las pruebas unitarias, de integración y end-to-end de todos los módulos que usan la respuesta: en T-189 parte c2, `anonymizedWorkOrderCount` rompió la de Privacidad en su prueba de integración, que la búsqueda no revisó.
 - Al agregar un permiso al catálogo, se buscan antes las pruebas que derivan de él los permisos de un rol: en T-194, dos pruebas de integración calculaban los del Administrador como todos menos `staff.manage`, y fallaron en la primera corrida completa.
+- El valor esperado de una prueba se escribe como literal, no con la constante que se prueba: la del tamaño del lote de la conservación de las órdenes de trabajo comparaba con `RETENTION_BATCH_SIZE`, y mutarla no la hacía fallar (T-189 parte c2).
+- Una prueba que oculta datos incluye uno que debe seguir visible: la de los datos bloqueados de las órdenes de trabajo solo tenía órdenes bloqueadas, y no veía que el listado ocultara también los de las demás (T-189 parte c2).
 - Los datos de prueba usan valores distintos donde el código elige entre ellos (T-215). Un reembolso igual al total de la orden, una dirección sin número interior o un solo tipo de despacho dejaron pasar mutaciones.
 - Una prueba de un orden usa datos que darían otro resultado con cualquier otro orden: los orígenes de un reintegro, ordenados por prioridad, salían igual ordenados por código (T-162).
 - Cada filtro de un listado se prueba por separado, con datos que solo ese filtro distingue: `resourceType` y `resourceId` probados juntos dejaron pasar dos mutaciones (T-220).
@@ -391,6 +394,7 @@ Prisma Migrate (ADR-0033, ADR-0091). El esquema está dividido por contexto en `
   1. `MigrationDatabase.create()` crea una base propia en el PostgreSQL de las pruebas, y `migrateUpTo(<migración>)` le aplica las anteriores, en orden.
   2. La prueba inserta filas como eran antes de la migración, con SQL: las columnas de entonces, y los tipos de PostgreSQL con su nombre en la base (`$1::order_status`, no `OrderStatus`).
   3. `apply(<migración>)` la aplica, la prueba revisa las filas y `drop()` borra la base.
+- Una migración que crea o borra una tabla actualiza en el mismo cambio la cuenta de tablas de `test/integration/database-schema.int-spec.ts`: falló en la primera corrida completa de T-189 partes b y c1.
 - Una migración aplicada no se edita; un error se corrige con una migración nueva (`DATABASE.md`, sección 13).
 - Toda migración se revisa antes de aplicarse; las destructivas requieren aprobación humana.
 - Si `npm run db:migrate:dev` propone reiniciar la base (borra todos sus datos), revisar la causa antes de aceptar.
