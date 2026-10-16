@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161 y `payments.configure` de ADR-0162, que solo tiene el rol superadministrador). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, y `work-orders.read` y `work-orders.manage` de ADR-0165). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -166,6 +166,7 @@ Obligatoria en:
 - `POST /v1/orders/{publicCode}/payments` y `POST /v1/me/orders/{publicCode}/payments` (iniciar pago).
 - `POST /v1/admin/orders/{orderId}/restocks` (reintegrar stock, ADR-0142).
 - `POST /v1/admin/orders` (colocar una orden en la tienda física, ADR-0161).
+- `POST /v1/admin/work-orders` (recibir un equipo, para no imprimir dos folios, ADR-0166).
 
 | Situación | Respuesta |
 |---|---|
@@ -1810,6 +1811,8 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-SHI-02, 04 a 09 | Sección 17 |
 | UC-SHI-01, 03 | Dentro de la cotización; dentro del pago de la orden (ADR-0140) |
 | UC-AUD-02 | Sección 18 |
+| UC-WRK-01 a 04 | Sección 25 (ADR-0166) |
+| UC-WRK-05, 06 | Pendientes: T-189 parte c |
 | UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 a 03 | Sin API: transversales y jobs |
 
 Las entregas de eventos (sección 22) son una herramienta de operación, sin caso de uso propio.
@@ -1905,3 +1908,121 @@ Swagger/OpenAPI generado desde NestJS (ADR-0002) a partir de los DTOs de Present
 - **Documento versionado (ADR-0155):** `docs/openapi/v1.json` guarda el documento de `v1`, con las claves ordenadas. Una prueba lo compara con el generado, así que todo cambio del contrato se ve en el diff; `npm run openapi:update` lo regenera.
 - **Lista de rutas:** las tablas de resumen de cada sección (`| Método | Ruta | Acceso | UC |`) son la lista de rutas de este documento. La prueba de contrato comprueba que coincidan con las de la aplicación, con el mismo acceso y la misma exigencia de `Idempotency-Key`; una fila marcada "pendiente" es una ruta por construir.
 - **Descripciones:** toda operación, todo parámetro y cada campo de los cuerpos que envía el cliente tienen descripción en español; en las respuestas, los campos cuyo significado no se deduce del nombre. Los IDs que son UUID declaran `format: uuid`, y los formatos que no se deducen del esquema, como el código público o los tokens de los enlaces, tienen ejemplo.
+
+---
+
+## 25. Endpoints — Órdenes de trabajo (ADR-0165, ADR-0166)
+
+| Método | Ruta | Permiso | UC |
+|---|---|---|---|
+| GET | `/v1/admin/work-orders` | `work-orders.read` | UC-WRK-02 |
+| POST | `/v1/admin/work-orders` | `work-orders.manage` + `Idempotency-Key` | UC-WRK-01 |
+| GET | `/v1/admin/work-orders/{workOrderId}` | `work-orders.read` | UC-WRK-02 |
+| PATCH | `/v1/admin/work-orders/{workOrderId}` | `work-orders.manage` | UC-WRK-03 |
+| POST | `/v1/admin/work-orders/{workOrderId}/status` | `work-orders.manage` | UC-WRK-04 |
+
+Desde T-189 parte b. Una orden de trabajo es la nota de servicio del equipo que un cliente deja en la tienda física: quién lo dejó, qué equipo, la falla, el diagnóstico, el trabajo y su estado. No cobra; las ventas de mostrador que la cobran y los datos para imprimirla llegan en la parte c (UC-WRK-05 y 06). La reciben el rol Vendedor, que atiende el mostrador, y el Administrador. Las fechas y los IDs siguen las convenciones de la sección 2; quién recibió, quién hizo cada cambio y el técnico van como IDs de cuentas de staff, como en el historial de las órdenes.
+
+### 25.1 `WorkOrder`
+
+```json
+{
+  "id": "0199a3c4-…",
+  "folio": "OT-000123",
+  "status": "DIAGNOSED",
+  "customerId": null,
+  "customerName": "María López Hernández",
+  "customerPhone": "4431234567",
+  "customerEmail": "maria@example.com",
+  "equipmentType": "Laptop",
+  "equipmentBrand": "Lenovo",
+  "equipmentModel": "ThinkPad T14",
+  "serialNumber": "PF3ABC12",
+  "accessories": "Cargador",
+  "equipmentCondition": "Rayones en la tapa",
+  "reportedFault": "No enciende",
+  "diagnosis": "Disco dañado",
+  "workPerformed": null,
+  "estimatedCost": { "amount": 120000, "currency": "MXN" },
+  "warehouseId": "01a0f54d-…",
+  "receivedBy": "0199a1b2-…",
+  "technicianId": "0199a1b3-…",
+  "receivedAt": "2026-10-15T16:00:00.000Z",
+  "closedAt": null,
+  "version": 3,
+  "statusHistory": [
+    { "fromStatus": null, "toStatus": "RECEIVED", "actorId": "0199a1b2-…", "note": null, "occurredAt": "2026-10-15T16:00:00.000Z" },
+    { "fromStatus": "RECEIVED", "toStatus": "DIAGNOSED", "actorId": "0199a1b3-…", "note": "Disco dañado", "occurredAt": "2026-10-16T18:30:00.000Z" }
+  ]
+}
+```
+
+- `folio`: `OT-` y el número consecutivo, con al menos seis dígitos (`OT-1234567` pasado el millón). El número sale de una secuencia de la base de datos: puede saltarse uno si falla la transacción que lo tomó, como el número interno de las órdenes (ADR-0049, ADR-0166).
+- `status`: `RECEIVED`, `DIAGNOSED`, `IN_REPAIR`, `READY`, `DELIVERED` o `CANCELLED` (§25.6).
+- `customerId`: el cliente registrado al que se ligó, o `null`. El nombre y el teléfono son siempre los de la orden de trabajo, porque la cuenta no guarda teléfono (ADR-0166).
+- `estimatedCost`: `Money` o `null`. Es informativo: la orden de trabajo no cobra (ADR-0165).
+- `warehouseId`: el almacén de la tienda que recibió el equipo, como en la venta de mostrador (ADR-0161). `receivedBy`: quién lo recibió. `technicianId`: el técnico asignado, o `null`.
+- `closedAt`: cuándo se entregó o se canceló; desde entonces no cambia nada.
+- `statusHistory`: del más antiguo al más reciente.
+
+### 25.2 `POST /v1/admin/work-orders` — Recibir un equipo (UC-WRK-01)
+
+- Exige `Idempotency-Key` (sección 4): un doble envío no crea ni imprime dos folios.
+- Request:
+
+  ```json
+  {
+    "warehouseId": "01a0f54d-…",
+    "customerId": null,
+    "customerName": "María López Hernández",
+    "customerPhone": "4431234567",
+    "customerEmail": "maria@example.com",
+    "equipmentType": "Laptop",
+    "equipmentBrand": "Lenovo",
+    "equipmentModel": "ThinkPad T14",
+    "serialNumber": "PF3ABC12",
+    "accessories": "Cargador",
+    "equipmentCondition": "Rayones en la tapa",
+    "reportedFault": "No enciende",
+    "estimatedCost": 35000,
+    "technicianId": null
+  }
+  ```
+
+- Obligatorios: `warehouseId`, un almacén activo; `customerName`, de 1 a 120 caracteres; `customerPhone`, exactamente 10 dígitos; `equipmentType`, de 1 a 60; y `reportedFault`, de 1 a 2,000.
+- Opcionales, y `null` o vacíos se guardan como `null`: `customerId`, un cliente activo; `customerEmail`, que se guarda sin espacios y en minúsculas; `equipmentBrand`, `equipmentModel` y `serialNumber`, hasta 60 caracteres; `accessories`, hasta 500; `equipmentCondition`, hasta 1,000; `estimatedCost`, en centavos, de 0 a 2,147,483,647; y `technicianId`, una cuenta de staff activa.
+- El diagnóstico y el trabajo realizado no se reciben aquí: se registran después (§25.5).
+- **Response 201:** `WorkOrder` en `RECEIVED`, a nombre de quien lo recibe, con `Location`.
+- **Errores:** 400 `validation-error`; 404 si el almacén no existe o está inactivo, si `customerId` no es de un cliente activo o si `technicianId` no es de una cuenta de staff activa; los de idempotencia de la sección 4.
+- Se audita como `work-orders.create`. El nombre, el teléfono, el email, el número de serie y los textos largos quedan solo como cambiados, sin su valor (ADR-0067).
+
+### 25.3 `GET /v1/admin/work-orders` — Listar y buscar (UC-WRK-02)
+
+- Paginado (sección 5). Cada elemento es un resumen: `id`, `folio`, `status`, `customerName`, `customerPhone`, `equipmentType`, `equipmentBrand`, `equipmentModel`, `serialNumber`, `warehouseId`, `technicianId`, `receivedAt` y `closedAt`; sin el historial ni los textos largos.
+- **Búsqueda `q`:** el folio exacto, como `OT-000123`, `ot-123` o `123`; parte del teléfono, con o sin espacios, guiones o paréntesis; o parte del nombre del cliente o del número de serie, sin distinguir mayúsculas. Los acentos cuentan: `Maria` no encuentra `María`, como en los demás listados administrativos.
+- **Filtros:** `status` (uno o más, separados por comas), `warehouseId`, `technicianId`, `customerId`, `receivedFrom` y `receivedTo` (ISO 8601, incluidos; una fecha sola incluye todo el día).
+- **Orden:** `sort` con `receivedAt` o `folio`, y `-` para descendente; por defecto `-receivedAt`.
+
+### 25.4 `GET /v1/admin/work-orders/{workOrderId}` — Consultar una orden de trabajo (UC-WRK-02)
+
+- **Response 200:** `WorkOrder`, con su historial. 404 si no existe.
+
+### 25.5 `PATCH /v1/admin/work-orders/{workOrderId}` — Corregir los datos y registrar el diagnóstico (UC-WRK-03)
+
+- Request: los campos de §25.2 salvo `warehouseId`, más `diagnosis` y `workPerformed` (hasta 4,000 caracteres cada uno) y `version`, obligatoria. Solo cambian los campos enviados; los obligatorios no aceptan `null`, y `null` quita un opcional.
+- No cambian la tienda ni quién recibió el equipo.
+- Un cliente ligado nuevo debe estar activo, y un técnico nuevo, ser una cuenta de staff activa; los que la orden ya tenía se conservan aunque ya no lo sean.
+- **Response 200:** `WorkOrder`. Sin cambios, no se guarda ni se audita, y la versión sigue igual.
+- **Errores:** 400 `validation-error`; 404 (la orden, el cliente o el técnico); 409 `version-conflict` con `currentVersion`; 409 `invalid-state-transition` si la orden se entregó o se canceló, porque la nota ya se imprimió y se firmó (ADR-0166).
+- Se audita como `work-orders.update`, solo con lo que cambió y los datos personales sin su valor.
+
+### 25.6 `POST /v1/admin/work-orders/{workOrderId}/status` — Cambiar el estado (UC-WRK-04)
+
+- Request `{ "status": "DIAGNOSED", "note": "Disco dañado", "version": 2 }`.
+- **Hacia adelante,** aunque salte pasos: `RECEIVED` → `DIAGNOSED` → `IN_REPAIR` → `READY` → `DELIVERED`. Por ejemplo, una revisión sin reparación pasa de `DIAGNOSED` a `READY`. Nunca regresa, ni se queda en el mismo estado.
+- **`CANCELLED`:** desde cualquier estado antes de `DELIVERED`, cuando el cliente se lleva su equipo sin el servicio; exige `note`.
+- `DELIVERED` y `CANCELLED` son finales y fijan `closedAt`. Entregar no exige pago, por garantías o revisiones sin costo (ADR-0165).
+- `note`: de 1 a 500 caracteres; opcional salvo para cancelar. Queda en el historial y en la auditoría: no lleva datos personales.
+- **Response 200:** `WorkOrder`, con el cambio en su historial: quién, cuándo y la nota.
+- **Errores:** 400 `validation-error`, también sin `note` al cancelar; 404; 409 `version-conflict` con `currentVersion`; 409 `invalid-state-transition` con `currentStatus` si el estado no está adelante o la orden se entregó o se canceló.
+- Se audita como `work-orders.status`, con la nota como motivo.

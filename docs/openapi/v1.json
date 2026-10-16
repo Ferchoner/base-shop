@@ -45,6 +45,8 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "work-orders.read",
+                "work-orders.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -2653,6 +2655,40 @@
         ],
         "type": "object"
       },
+      "ChangeWorkOrderStatusDto": {
+        "properties": {
+          "note": {
+            "description": "Nota del cambio, de 1 a 500 caracteres; obligatoria para `CANCELLED`. Queda en el historial y en la auditoría: no escribas datos personales.",
+            "maxLength": 500,
+            "minLength": 1,
+            "nullable": true,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "status": {
+            "description": "Uno adelante del actual, aunque salte pasos: `RECEIVED` → `DIAGNOSED` → `IN_REPAIR` → `READY` → `DELIVERED`; o `CANCELLED` antes de `DELIVERED` (ADR-0166).",
+            "enum": [
+              "RECEIVED",
+              "DIAGNOSED",
+              "IN_REPAIR",
+              "READY",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "description": "Versión leída (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
       "CheckoutQuoteDto": {
         "properties": {
           "discountTotal": {
@@ -3092,6 +3128,8 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "work-orders.read",
+                "work-orders.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -5720,6 +5758,110 @@
         ],
         "type": "object"
       },
+      "ReceiveWorkOrderDto": {
+        "properties": {
+          "accessories": {
+            "description": "Accesorios que se reciben con el equipo, como el cargador.",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "customerEmail": {
+            "description": "Email del cliente; se guarda sin espacios y en minúsculas.",
+            "format": "email",
+            "maxLength": 254,
+            "nullable": true,
+            "type": "string"
+          },
+          "customerId": {
+            "description": "Un cliente registrado y activo, para ligarle la orden; el nombre y el teléfono se piden igual, porque la cuenta no guarda teléfono (ADR-0166).",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "customerName": {
+            "description": "Nombre del cliente, de 1 a 120 caracteres.",
+            "example": "María López Hernández",
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "customerPhone": {
+            "description": "Teléfono del cliente: exactamente 10 dígitos.",
+            "example": "4431234567",
+            "pattern": "^[0-9]{10}$",
+            "type": "string"
+          },
+          "equipmentBrand": {
+            "description": "Marca del equipo.",
+            "maxLength": 60,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentCondition": {
+            "description": "Cómo se recibe el equipo, como golpes o rayones.",
+            "maxLength": 1000,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentModel": {
+            "description": "Modelo del equipo.",
+            "maxLength": 60,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentType": {
+            "description": "Tipo de equipo, de 1 a 60 caracteres.",
+            "example": "Laptop",
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "estimatedCost": {
+            "description": "Costo estimado en centavos, informativo: la orden de trabajo no cobra; se cobra con ventas de mostrador (ADR-0165).",
+            "example": 35000,
+            "maximum": 2147483647,
+            "minimum": 0,
+            "nullable": true,
+            "type": "number"
+          },
+          "reportedFault": {
+            "description": "La falla que reporta el cliente, de 1 a 2,000 caracteres.",
+            "example": "No enciende",
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "serialNumber": {
+            "description": "Número de serie.",
+            "maxLength": 60,
+            "nullable": true,
+            "type": "string"
+          },
+          "technicianId": {
+            "description": "El técnico asignado: una cuenta de staff activa.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "warehouseId": {
+            "description": "El almacén activo de la tienda que recibe el equipo, como en la venta de mostrador (ADR-0161).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouseId",
+          "customerName",
+          "customerPhone",
+          "equipmentType",
+          "reportedFault"
+        ],
+        "type": "object"
+      },
       "RecordTrackingDto": {
         "properties": {
           "carrierName": {
@@ -6216,6 +6358,8 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "work-orders.read",
+                "work-orders.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -7379,6 +7523,8 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "work-orders.read",
+                "work-orders.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -7549,6 +7695,113 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "UpdateWorkOrderDto": {
+        "properties": {
+          "accessories": {
+            "description": "`null` los quita.",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "customerEmail": {
+            "description": "`null` lo quita.",
+            "format": "email",
+            "maxLength": 254,
+            "nullable": true,
+            "type": "string"
+          },
+          "customerId": {
+            "description": "Un cliente registrado y activo; `null` desliga la orden de la cuenta.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "customerName": {
+            "description": "De 1 a 120 caracteres.",
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "customerPhone": {
+            "description": "Exactamente 10 dígitos.",
+            "pattern": "^[0-9]{10}$",
+            "type": "string"
+          },
+          "diagnosis": {
+            "description": "El diagnóstico del técnico; `null` lo quita.",
+            "maxLength": 4000,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentBrand": {
+            "description": "`null` la quita.",
+            "maxLength": 60,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentCondition": {
+            "description": "`null` lo quita.",
+            "maxLength": 1000,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentModel": {
+            "description": "`null` lo quita.",
+            "maxLength": 60,
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentType": {
+            "description": "De 1 a 60 caracteres.",
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "estimatedCost": {
+            "description": "Costo estimado en centavos, informativo; `null` lo quita.",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "nullable": true,
+            "type": "number"
+          },
+          "reportedFault": {
+            "description": "De 1 a 2,000 caracteres.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "serialNumber": {
+            "description": "`null` lo quita.",
+            "maxLength": 60,
+            "nullable": true,
+            "type": "string"
+          },
+          "technicianId": {
+            "description": "Un técnico nuevo debe ser una cuenta de staff activa; `null` lo quita.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "version": {
+            "description": "Versión leída (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          },
+          "workPerformed": {
+            "description": "El trabajo realizado; `null` lo quita.",
+            "maxLength": 4000,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
         "type": "object"
       },
       "VariantLookupDto": {
@@ -7725,6 +7978,308 @@
         },
         "required": [
           "data"
+        ],
+        "type": "object"
+      },
+      "WorkOrderDto": {
+        "properties": {
+          "accessories": {
+            "nullable": true,
+            "type": "string"
+          },
+          "closedAt": {
+            "description": "Cuándo se entregó o se canceló.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "customerEmail": {
+            "nullable": true,
+            "type": "string"
+          },
+          "customerId": {
+            "description": "El cliente registrado ligado.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerPhone": {
+            "description": "10 dígitos.",
+            "type": "string"
+          },
+          "diagnosis": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentBrand": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentCondition": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentModel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentType": {
+            "type": "string"
+          },
+          "estimatedCost": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Informativo; la orden de trabajo no cobra (ADR-0165).",
+            "nullable": true,
+            "type": "object"
+          },
+          "folio": {
+            "description": "Folio consecutivo (ADR-0166).",
+            "example": "OT-000123",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "receivedBy": {
+            "description": "La cuenta de staff que recibió el equipo.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reportedFault": {
+            "type": "string"
+          },
+          "serialNumber": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RECEIVED",
+              "DIAGNOSED",
+              "IN_REPAIR",
+              "READY",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "statusHistory": {
+            "description": "Del más antiguo al más reciente.",
+            "items": {
+              "$ref": "#/components/schemas/WorkOrderStatusEntryDto"
+            },
+            "type": "array"
+          },
+          "technicianId": {
+            "description": "El técnico asignado.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "version": {
+            "description": "Para el bloqueo optimista.",
+            "type": "number"
+          },
+          "warehouseId": {
+            "description": "El almacén de la tienda que recibió el equipo.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "workPerformed": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "equipmentBrand",
+          "equipmentModel",
+          "serialNumber",
+          "warehouseId",
+          "technicianId",
+          "receivedAt",
+          "closedAt",
+          "customerId",
+          "customerEmail",
+          "accessories",
+          "equipmentCondition",
+          "diagnosis",
+          "workPerformed",
+          "estimatedCost",
+          "receivedBy",
+          "statusHistory",
+          "reportedFault",
+          "version",
+          "folio",
+          "customerName",
+          "customerPhone",
+          "equipmentType"
+        ],
+        "type": "object"
+      },
+      "WorkOrderListDto": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkOrderSummaryDto"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "WorkOrderStatusEntryDto": {
+        "properties": {
+          "actorId": {
+            "description": "La cuenta de staff que hizo el cambio.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "fromStatus": {
+            "description": "`null` al recibir el equipo.",
+            "enum": [
+              "RECEIVED",
+              "DIAGNOSED",
+              "IN_REPAIR",
+              "READY",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "note": {
+            "description": "La nota del cambio; `null` sin ella.",
+            "nullable": true,
+            "type": "string"
+          },
+          "occurredAt": {
+            "description": "Cuándo ocurrió.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "toStatus": {
+            "description": "El estado al que pasó.",
+            "enum": [
+              "RECEIVED",
+              "DIAGNOSED",
+              "IN_REPAIR",
+              "READY",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "fromStatus",
+          "toStatus",
+          "actorId",
+          "note",
+          "occurredAt"
+        ],
+        "type": "object"
+      },
+      "WorkOrderSummaryDto": {
+        "properties": {
+          "closedAt": {
+            "description": "Cuándo se entregó o se canceló.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerPhone": {
+            "description": "10 dígitos.",
+            "type": "string"
+          },
+          "equipmentBrand": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentModel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentType": {
+            "type": "string"
+          },
+          "folio": {
+            "description": "Folio consecutivo (ADR-0166).",
+            "example": "OT-000123",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "serialNumber": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RECEIVED",
+              "DIAGNOSED",
+              "IN_REPAIR",
+              "READY",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "technicianId": {
+            "description": "El técnico asignado.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "warehouseId": {
+            "description": "El almacén de la tienda que recibió el equipo.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "equipmentBrand",
+          "equipmentModel",
+          "serialNumber",
+          "warehouseId",
+          "technicianId",
+          "receivedAt",
+          "closedAt",
+          "folio",
+          "customerName",
+          "customerPhone",
+          "equipmentType"
         ],
         "type": "object"
       }
@@ -18763,6 +19318,678 @@
         ],
         "x-required-permissions": [
           "orders.read"
+        ]
+      }
+    },
+    "/v1/admin/work-orders": {
+      "get": {
+        "description": "UC-WRK-02. Sin historial ni textos largos. `q` busca el folio exacto, o parte del nombre o del teléfono del cliente, o del número de serie.",
+        "operationId": "AdminWorkOrdersController_list_v1",
+        "parameters": [
+          {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Uno o más estados separados por comas: `RECEIVED`, `DIAGNOSED`, `IN_REPAIR`, `READY`, `DELIVERED`, `CANCELLED`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "example": "RECEIVED,DIAGNOSED",
+              "items": {
+                "enum": [
+                  "RECEIVED",
+                  "DIAGNOSED",
+                  "IN_REPAIR",
+                  "READY",
+                  "DELIVERED",
+                  "CANCELLED"
+                ],
+                "type": "string"
+              },
+              "type": "string"
+            }
+          },
+          {
+            "description": "El folio exacto (`OT-000123`, `ot-123` o `123`), o parte del nombre o del teléfono del cliente, o del número de\nserie, sin distinguir mayúsculas.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 254,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Las que recibió la tienda de este almacén.",
+            "in": "query",
+            "name": "warehouseId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Las asignadas a este técnico.",
+            "in": "query",
+            "name": "technicianId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Las ligadas a este cliente registrado.",
+            "in": "query",
+            "name": "customerId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601; incluida.",
+            "in": "query",
+            "name": "receivedFrom",
+            "required": false,
+            "schema": {
+              "example": "2026-10-01",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601; incluida (una fecha sola incluye todo el día).",
+            "in": "query",
+            "name": "receivedTo",
+            "required": false,
+            "schema": {
+              "example": "2026-10-31",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`receivedAt` o `folio`, con `-` para orden descendente; por defecto `-receivedAt`.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar y buscar órdenes de trabajo",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.read"
+        ]
+      },
+      "post": {
+        "description": "UC-WRK-01 (ADR-0166). Exige `Idempotency-Key`, para que un doble envío no imprima dos folios. Nace en `RECEIVED`, con el siguiente folio consecutivo, en la tienda del almacén `warehouseId` y a nombre de quien la recibe. El nombre y el teléfono del cliente son obligatorios, aunque se ligue un cliente registrado con `customerId`. Si el almacén no existe o está inactivo, si `customerId` no es de un cliente activo o si `technicianId` no es de una cuenta de staff activa, 404. Se audita como `work-orders.create`, sin los datos personales.",
+        "operationId": "AdminWorkOrdersController_receive_v1",
+        "parameters": [
+          {
+            "description": "Llave de idempotencia de 1 a 255 caracteres; se recomienda un UUID (API_SPEC.md, sección 4).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiveWorkOrderDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-key-missing`: Falta la llave de idempotencia; `validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-request-in-progress`: Solicitud en proceso"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-key-mismatch`: Llave de idempotencia reutilizada"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recibir un equipo: crear la orden de trabajo",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}": {
+      "get": {
+        "description": "UC-WRK-02. Todos sus datos y el historial de estados.",
+        "operationId": "AdminWorkOrdersController_get_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar una orden de trabajo, con su historial",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.read"
+        ]
+      },
+      "patch": {
+        "description": "UC-WRK-03 (ADR-0166). Solo cambian los campos enviados. Una orden entregada o cancelada ya no se edita: 409 `invalid-state-transition`. Un cliente ligado nuevo debe estar activo, y un técnico nuevo, ser una cuenta de staff activa; si no, 404. Sin cambios, no se guarda ni se audita. Se audita como `work-orders.update`, sin los datos personales.",
+        "operationId": "AdminWorkOrdersController_update_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkOrderDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Corregir los datos y registrar el diagnóstico y el trabajo",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}/status": {
+      "post": {
+        "description": "UC-WRK-04 (ADR-0166). Hacia adelante, aunque salte pasos (`RECEIVED` → `DIAGNOSED` → `IN_REPAIR` → `READY` → `DELIVERED`), o a `CANCELLED` con `note`, antes de `DELIVERED`. Nunca regresa: un estado que no está adelante, o una orden entregada o cancelada, responde 409 `invalid-state-transition`. Entregar no exige pago (ADR-0165). El historial guarda quién, cuándo y la nota. Se audita como `work-orders.status`, con la nota como motivo.",
+        "operationId": "AdminWorkOrdersController_changeStatus_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeWorkOrderStatusDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar el estado de una orden de trabajo",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.manage"
         ]
       }
     },

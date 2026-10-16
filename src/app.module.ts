@@ -13,6 +13,7 @@ import { PricingModule } from './modules/pricing/index.js';
 import { PrivacyModule } from './modules/privacy/index.js';
 import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
+import { WorkOrdersModule } from './modules/work-orders/index.js';
 import { AuthorizationModule } from './platform/auth/authorization.module.js';
 import { AppCacheModule } from './platform/cache/app-cache.module.js';
 import { ClockModule } from './platform/clock/clock.module.js';
@@ -61,6 +62,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     ShippingModule,
     NotificationsModule,
     PrivacyModule,
+    WorkOrdersModule,
   ],
 })
 export class AppModule {}
