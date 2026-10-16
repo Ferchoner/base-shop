@@ -183,6 +183,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0163 | Datos para el ticket, nota del pago y GTIN | Aceptada |
 | ADR-0164 | Carga masiva de productos y de existencias | Aceptada |
 | ADR-0165 | Servicios solo en tienda y órdenes de trabajo | Aceptada |
+| ADR-0166 | Órdenes de trabajo: folio, cliente, estados y edición | Aceptada |
 
 ---
 
@@ -926,12 +927,14 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
 | `events.manage` | Ver y reintentar las entregas de eventos de dominio (agregado por ADR-0150) |
 | `orders.read-blocked` | Consultar los datos personales bloqueados de un pedido, con motivo y auditado (agregado por ADR-0152) |
 | `orders.place` | Colocar pedidos a nombre de un cliente en la tienda física (agregado por ADR-0161) |
+| `work-orders.read` | Ver órdenes de trabajo (agregado por ADR-0165) |
+| `work-orders.manage` | Recibir equipos en la tienda física y llevar sus órdenes de trabajo (agregado por ADR-0165) |
 
   - **Roles iniciales:**
     - Superadministrador: todos los permisos. No se puede quitar el último (BR-USR-03).
     - Administrador: todos excepto `staff.manage` y, desde ADR-0162, `payments.configure`. Es el rol "de nivel alto" de ADR-0021.
     - Operador: `catalog.*`, `pricing.*`, `inventory.*`, `orders.read`, `shipping.manage`, `customers.read`.
-    - Vendedor (agregado por ADR-0161): `catalog.read`, `inventory.read`, `orders.read`, `orders.place`, `customers.read`.
+    - Vendedor (agregado por ADR-0161): `catalog.read`, `inventory.read`, `orders.read`, `orders.place`, `customers.read` y, desde ADR-0165, `work-orders.read` y `work-orders.manage`.
   - **Tipo de cuenta explícito:** cliente o staff. Las cuentas de staff no compran y los clientes nunca tienen roles.
   - **Primer superadministrador:** se crea con un script de línea de comandos ejecutado manualmente, con los datos en variables de entorno. No hay usuarios predeterminados en el repositorio ni en las migraciones.
   - **Alta del staff:** la hace un superadministrador desde `/v1/admin`, con contraseña temporal que se cambia obligatoriamente en el primer inicio de sesión. No existe registro público de staff.
@@ -5231,3 +5234,40 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `storeVisibility` suma `STORE_ONLY`, un valor nuevo de un campo del panel administrativo, un cambio compatible dentro de `v1`, porque los clientes toleran valores que no conocen (ADR-0034, ADR-0050): sin él, un servicio publicado aparecería sin precio;
   - el evento `ProductStoreOnlyChanged` se publica solo si el producto está publicado, y vacía la cache pública; el cambio de la marca es su propio método del producto, porque necesita la hora;
   - la plantilla de productos suma la columna y un servicio de ejemplo, con su precio y una existencia alta.
+
+  Parte b, el núcleo de las órdenes de trabajo, en ADR-0166, que precisa tres puntos de esta decisión: el nombre y el teléfono del cliente se piden siempre, los estados avanzan saltando pasos y una orden cerrada ya no se edita.
+
+---
+
+## ADR-0166 — Órdenes de trabajo: folio, cliente, estados y edición
+
+- **Fecha:** 2026-10-15
+- **Contexto:** T-189 parte b, el núcleo de las órdenes de trabajo de ADR-0165. Al planearla quedaron tres puntos que ADR-0165 no fijaba o fijaba de otra forma:
+  - pide "nombre y teléfono, o un cliente registrado", pero la cuenta de un cliente no guarda teléfono, y la tienda lo necesita para avisar que el equipo está listo;
+  - la secuencia de estados no dice si se pueden saltar pasos ni si se puede regresar;
+  - nada dice hasta cuándo se corrigen los datos.
+- **Decisión** (del usuario, con las 16 recomendaciones del plan):
+  - **Módulo `work-orders`:** un contexto nuevo, con las tablas `work_orders` y `work_order_status_history`. Usa a Identity y a Inventory solo por sus fachadas: si un cliente está activo, si una cuenta es de staff activa (el método nuevo `isActiveStaff`) y si un almacén está activo.
+  - **Folio:** sale de una secuencia de PostgreSQL, como el número interno de las órdenes (ADR-0049), y se muestra como `OT-000123`. Puede saltarse un número si falla la transacción que lo tomó. La búsqueda acepta `OT-000123`, `ot-123` o `123`.
+  - **El cliente:** el nombre y el teléfono, de 10 dígitos, son siempre obligatorios, y el email es opcional; `customerId` solo liga la orden a un cliente registrado, que debe estar activo. Precisa ADR-0165, que los pedía solo sin cliente registrado.
+  - **Equipo y trabajo:** el tipo y la falla son obligatorios; la marca, el modelo, el número de serie, los accesorios y el estado al recibirlo, opcionales. El diagnóstico y el trabajo realizado se registran después. El costo estimado, en centavos, es informativo.
+  - **La tienda y las personas:** la tienda es un almacén activo, como en la venta de mostrador (ADR-0161); quien recibe sale de la sesión; el técnico, opcional, es una cuenta de staff activa. Las respuestas dan solo sus IDs.
+  - **Alta con `Idempotency-Key` obligatoria:** un doble envío no imprime dos folios.
+  - **Estados:** hacia adelante, saltando pasos si hace falta (RECEIVED → DIAGNOSED → IN_REPAIR → READY → DELIVERED), y nunca hacia atrás; CANCELLED, con nota, desde cualquiera antes de DELIVERED. DELIVERED y CANCELLED son finales y fijan `closedAt`, desde donde la parte c contará los plazos de conservación. Precisa ADR-0165.
+  - **Edición:** con `version`, de los datos del cliente y del equipo, la falla, el diagnóstico, el trabajo, el costo y el técnico; no de la tienda ni de quien recibió. Una orden entregada o cancelada ya no se edita, porque la nota se imprimió y se firmó. Agrega esta regla a ADR-0165.
+  - **Búsqueda:** por el folio exacto, o parte del nombre o del teléfono del cliente, o del número de serie, sin distinguir mayúsculas; filtros por estado, almacén, técnico, cliente y fechas de recepción; orden por recepción o por folio.
+  - **Permisos:** `work-orders.read` y `work-orders.manage`, para los roles Vendedor y Administrador, por migración.
+  - **Auditoría:** `work-orders.create`, `work-orders.update` y `work-orders.status`, este con la nota como motivo. El nombre, el teléfono, el email, el número de serie y los textos largos quedan solo como cambiados (ADR-0067).
+  - **Sin bloqueo de fila:** todo cambio lleva la `version` leída, y el guardado la vuelve a comprobar, así que un `SELECT … FOR UPDATE` no cambiaría nada. Si la parte c agrega cambios sin `version`, como ligar ventas, agrega el bloqueo con su prueba.
+  - **OpenAPI** (ajusta ADR-0112): un campo de texto o de número que puede ser `null` declara solo `nullable: true` con `@ApiProperty`, sin `type`. El plugin de Swagger deduce su tipo también en las pruebas, así que el documento no cambia, y un `type` explícito dejaba sin llamar la función de tipo que genera el plugin: 17 de ellas bajaron la cobertura de funciones de su umbral de 99% (ADR-0157). Las fechas, las listas y los campos con otros DTO siguen declarando su `type`.
+- **Alternativas consideradas:**
+  - **Nombre y teléfono solo sin cliente registrado:** la orden de un cliente con cuenta quedaría sin teléfono.
+  - **Estados estrictamente consecutivos:** una revisión sin reparación tendría que pasar por En reparación.
+  - **Un folio sin huecos, con una tabla de contador:** serializaría todas las altas para evitar un hueco que solo deja una transacción fallida.
+  - **Corregir una orden cerrada:** cambiaría lo que el cliente firmó.
+- **Consecuencias:**
+  - El mostrador recibe equipos con folio, los busca y lleva su estado; las ventas que la cobran y la impresión llegan en la parte c.
+  - Rutas y permisos nuevos, compatibles dentro de `/v1`.
+  - Las órdenes de trabajo guardan el nombre, el teléfono y el email de clientes sin cuenta; su conservación llega en la parte c. La respuesta guardada por idempotencia del alta los lleva 24 horas, como la de una venta de mostrador.
+- **Revisar si:** hace falta regresar de estado, por ejemplo cuando una reparación falla en la prueba, o buscar sin distinguir acentos.
+- **Estado:** Aceptada (plan de T-189 parte b aprobado el 2026-10-15, con sus 16 recomendaciones). Implementada en T-189 parte b, con las migraciones `20261015140000_work_orders` y `20261015150000_identity_work_orders_permissions`.

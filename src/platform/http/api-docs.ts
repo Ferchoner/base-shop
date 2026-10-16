@@ -57,6 +57,9 @@ export const PATH_PARAMETERS: Readonly<Record<string, PathParameter>> = {
   userId: uuid('ID de la cuenta.'),
   variantId: uuid('ID de la variante.'),
   warehouseId: uuid('ID del almacén.'),
+  workOrderId: uuid(
+    'ID interno de la orden de trabajo; el staff la busca por su folio.',
+  ),
 };
 
 /** Swagger UI of API version 1; its OpenAPI document is at `/docs/v1/openapi.json` (ADR-0096). */

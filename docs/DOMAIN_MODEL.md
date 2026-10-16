@@ -16,6 +16,7 @@ Convención: los nombres de código (aggregates, eventos, casos de uso) van en i
 | Ordering | Core | Checkout y ciclo de vida de la orden |
 | Payments | Generic | Cobros vía proveedores, intentos, reembolsos, conciliación |
 | Shipping | Supporting | Cotización de envíos, envíos, rastreo |
+| Work Orders | Supporting | Órdenes de trabajo: el equipo que un cliente deja en la tienda física, su diagnóstico, el trabajo y su estado (ADR-0165, ADR-0166) |
 
 Capacidades transversales (no son contextos): auditoría técnica, notificaciones por correo (ADR-0074), privacidad (anonimización de clientes y compradores invitados, ADR-0145) y catálogo geográfico de estados y municipios del INEGI (dato de referencia de solo lectura, ADR-0057).
 
@@ -126,6 +127,20 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 
 ---
 
+## Work Orders
+
+| Elemento | Detalle |
+|---|---|
+| Aggregates | `WorkOrder` (folio, cliente con nombre, teléfono y email, y el cliente registrado ligado; equipo, falla, diagnóstico, trabajo, costo estimado informativo, almacén de la tienda, quién lo recibió y técnico; status: Received, Diagnosed, InRepair, Ready, Delivered, Cancelled; historial de estados) |
+| Reglas | Avanza saltando pasos y nunca regresa; se cancela con nota antes de entregarse; entregada o cancelada, ya no cambia (BR-WRK-03, BR-WRK-04) |
+| Repositories | `WorkOrderRepository` |
+| Puertos | `WorkOrderWarehouses` (Inventory) y `WorkOrderAccounts` (Identity), por sus fachadas |
+| Casos de uso | ReceiveWorkOrder (UC-WRK-01), UpdateWorkOrder (UC-WRK-03), WorkOrderLifecycle (UC-WRK-04) y las consultas (UC-WRK-02) |
+| Eventos | Ninguno por ahora |
+| Implementado | T-189 parte b (ADR-0166); las ventas ligadas, la impresión y la conservación de datos llegan en la parte c |
+
+---
+
 ## Relaciones entre contextos
 
 | Upstream → Downstream | Qué fluye | Mecanismo |
@@ -135,6 +150,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Pricing → Shopping, Ordering | Precios cotizados | Fachada síncrona `QuotePrices` |
 | Ordering → Inventory | Reservar, confirmar, liberar; reintegrar con las líneas y lo vendido (P-73) | Comando síncrono en checkout; comandos por eventos (ADR-0132) |
 | Identity → Ordering | Contacto del cliente y direcciones guardadas | Fachada síncrona; Identity nunca usa a Ordering (ADR-0132) |
+| Identity, Inventory → Work Orders | Si un cliente o una cuenta de staff está activa; si un almacén está activo | Fachadas síncronas (ADR-0166) |
 | Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; el checkout marca el carrito en su transacción (ADR-0019); Shopping reacciona a `OrderExpired` |
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134). Ordering escucha `RefundCompleted` desde T-190 parte b (ADR-0135) |
 | Ordering → Shipping | Orden pagada o cancelada; envíos de las órdenes | Fachada síncrona `ShippingFacade`, dentro de la transacción de la orden (ADR-0140) |
