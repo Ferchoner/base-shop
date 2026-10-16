@@ -6,7 +6,51 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.6, servicios solo en tienda y órdenes de trabajo, se cerró el 2026-10-16 y se publica como la 1.6.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+1.7 — Promociones. Inicio: 2026-10-16 (plan aprobado ese día).
+
+### Goal
+
+Que la tienda ofrezca promociones automáticas y cupones, en línea y en la tienda física, con el descuento repartido por línea, su IVA y la promoción registrada en la orden (ADR-0168).
+
+### Tasks
+
+| Paso | Tareas |
+|---|---|
+| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.6 en la guía de desarrollo |
+| 1 | T-200 parte a: el módulo de promociones y su administración: porcentaje o monto fijo, alcance, vigencia, canales, compra mínima y permisos |
+| 2 | T-200 parte b: aplicar las promociones automáticas en las cotizaciones y las órdenes, una por orden, con el descuento por línea, su IVA y un total mínimo de $1 |
+| 3 | T-200 parte c: los cupones, con sus límites de uso |
+
+- **Criterio de cierre:** los criterios de aceptación de T-200, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.7.0 publicada con su tag y su GitHub Release (ADR-0159).
+- **Fuera de esta versión:** combinar promociones; 2x1, 3x2, regalos y envío gratis como promoción; promociones para ciertos clientes; mostrarlas en la tienda pública; devoluciones parciales; la factura CFDI; y todo lo que ADR-0158 dejó fuera del MVP.
+- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.7.0.
+- **Siguiente versión:** ninguna prevista; la siguiente necesita su plan aprobado (ADR-0159).
+
+### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 167 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
+  - seguimos en Prisma 7.10.0, aunque está el parche 7.10.1, sin aviso de seguridad, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad (ADR-0158). La 8 sigue en versión candidata (8.0.0-rc.23).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.6:
+  - la búsqueda de las comparaciones completas cubre las pruebas unitarias, de integración y end-to-end de todos los módulos que usan la respuesta;
+  - una migración que crea o borra una tabla actualiza la cuenta de tablas de la prueba del esquema en el mismo cambio;
+  - el valor esperado de una prueba es un literal, no la constante que se prueba;
+  - una prueba que oculta datos incluye uno que debe seguir visible;
+  - antes de `test:cov` se comprueba que Docker responde;
+  - al cerrar una versión se revisan las sesiones de trabajo y las ramas locales que no están en `main`.
+
+### Risks
+
+- **El IVA con descuento:** baja con el descuento; la validación con el contador lo incluye (P-69).
+- **Descuentos sin el costo:** la API no conoce el costo de los productos, así que no impide vender por debajo de él; una promoción al 100% deja la orden en $1. Solo el Administrador las administra, y cada cambio se audita.
+- **Cupones adivinados:** un código que no existe y uno que no está vigente responden igual, y las cotizaciones limitan los intentos.
+- **Una promoción que cambia entre la cotización y la orden:** la orden responde 409 `total-mismatch`, como cuando cambia un precio, y el cliente vuelve a cotizar.
+- **Cambios de contrato:** `discountTotal` deja de ser siempre 0, y hay rutas, campos, permisos y un tipo de error nuevos, compatibles dentro de `/v1`; cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
+
+### Review
+
+PENDIENTE.
 
 ---
 

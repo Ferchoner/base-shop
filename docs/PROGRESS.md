@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). Las versiones 1.1.0, varios almacenes propios (ADR-0160, T-162), 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), 1.3.0, el pago en tienda configurable desde la API (ADR-0162, T-194), se cerraron el 2026-10-06; la 1.4.0, datos para el ticket, nota del pago y GTIN (ADR-0163, T-142, T-188 y T-197), y la 1.5.0, carga masiva de productos y de existencias (ADR-0164, T-146), el 2026-10-15; y la 1.6.0, servicios solo en tienda y órdenes de trabajo (ADR-0165, T-189), el 2026-10-16, todas con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. No hay sprint ni versión en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto, y cada versión nueva necesita un plan aprobado; ADR-0163 deja prevista la 1.7.
+MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). Las versiones 1.1.0, varios almacenes propios (ADR-0160, T-162), 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), 1.3.0, el pago en tienda configurable desde la API (ADR-0162, T-194), se cerraron el 2026-10-06; la 1.4.0, datos para el ticket, nota del pago y GTIN (ADR-0163, T-142, T-188 y T-197), y la 1.5.0, carga masiva de productos y de existencias (ADR-0164, T-146), el 2026-10-15; y la 1.6.0, servicios solo en tienda y órdenes de trabajo (ADR-0165, T-189), el 2026-10-16, todas con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. En curso: la versión 1.7, promociones (ADR-0168). No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
 
 ## Completed
 
@@ -187,6 +187,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.4.0: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
+- [ ] Versión 1.7: promociones (paso 0 y T-200, en tres partes); plan en `SPRINT.md`
 - [x] T-189 parte a: `storeOnly` en el producto, que no se vende en línea y sí en la tienda física; la tienda pública, el carrito, el checkout en línea y la recompra lo respetan, y la carga masiva lo acepta (BR-PRD-20, ADR-0165)
 - [x] T-189 parte b: el módulo de órdenes de trabajo en `/v1/admin/work-orders`, con folio consecutivo, cliente, equipo, diagnóstico, estados con su historial, búsqueda y los permisos `work-orders.read` y `work-orders.manage` (BR-WRK-01 a 05, ADR-0166)
 - [x] T-189 parte c1: las ventas de mostrador que cobran una orden de trabajo, con si están pagadas y los totales, y los datos para imprimir la nota de servicio, con las condiciones de `WORK_ORDER_FOOTER` (BR-WRK-06 y 07, ADR-0167)
@@ -202,7 +203,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 Hasta que una entidad quiera usar el proyecto (ADR-0158):
 
 - T-192 PayPal, con la conciliación de pagos y el reintento de reembolsos fallidos, y T-191, su verificación en sandbox (P-31)
-- T-193 Mercado Pago y Stripe, y T-200 promociones
+- T-193 Mercado Pago y Stripe
 - T-330 despliegue, cuando haya hosting (P-05, P-06)
 - Las decisiones pendientes de abajo, que no bloquean nada de lo construido
 
@@ -233,7 +234,7 @@ Ninguna pendiente.
 | ID | Decisión | Bloquea |
 |---|---|---|
 | P-24 | Proveedor real de correos; en desarrollo se usa un capturador local (ADR-0045). Se decide con el hosting. Debe ofrecer TLS, que producción exige, y con él se agrega la autenticación SMTP (ADR-0154) | — |
-| P-69 | Antes de operar con clientes reales: validación con el contador del IVA del costo de envío (ADR-0079) y del modo de redondeo del IVA (ADR-0094), y confirmación por el administrador de los valores de envío con costos reales de paquetería (ADR-0092) | — |
+| P-69 | Antes de operar con clientes reales: validación con el contador del IVA del costo de envío (ADR-0079) y del modo de redondeo del IVA (ADR-0094), el IVA de las órdenes con descuento (ADR-0168), y confirmación por el administrador de los valores de envío con costos reales de paquetería (ADR-0092) | — |
 
 ### Arquitectura, datos y seguridad
 

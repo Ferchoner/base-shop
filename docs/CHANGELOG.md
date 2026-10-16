@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.7 (nuevo ADR-0168): promociones. Una promoción descuenta un porcentaje, hasta el 100%, o un monto fijo, de toda la compra o de ciertos productos, categorías o marcas, con vigencia, canales y compra mínima, sola o con un cupón. Se aplica una por orden, en línea y en la tienda física; el descuento se reparte por línea, el IVA se calcula sobre el importe con descuento y la orden paga al menos $1. Se implementa en T-200, en tres partes.
+- Paso 0 de la versión 1.7: revisión contra los ADR sin desajustes y 0 vulnerabilidades en las dependencias de producción; Prisma sigue en 7.10.0, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.6.
+
 ## 1.6.0 (2026-10-16)
 
 Servicios solo en tienda y órdenes de trabajo (ADR-0165).
