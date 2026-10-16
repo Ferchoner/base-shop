@@ -60,6 +60,16 @@ T-189 parte b (ADR-0166).
 - **Huecos encontrados al escribir los mutantes:** por HTTP no se probaban los filtros del listado, su orden por defecto ni que un `PATCH` conserve lo que no envía; se agregaron antes de correrlos.
 - **Mutación:** 75 mutantes, todos muertos en la primera corrida.
 
+### Resultado del paso 3, primera mitad
+
+T-189 parte c1 (ADR-0167). La parte c va en dos pull requests: c1, las ventas ligadas y la nota de servicio; c2, la conservación de los datos.
+
+- **Ventas ligadas:** `work_order_sales`, con una venta para una sola orden de trabajo; se ligan y desligan con la versión de la orden de trabajo, mientras está abierta. Solo ventas de la tienda física que no vencieron, ni se cancelaron, ni se reembolsaron; el tipo de error nuevo `sale-not-linkable` (E-37) dice el estado de la venta.
+- **Pagada, según Ordering:** su fachada suma `storeSales`, que resume cada venta como `PAID`, `PENDING` o `NONE`, así que Work Orders no conoce sus estados. La orden de trabajo muestra sus ventas con su estado al momento y los totales de lo pagado y de lo que espera su pago.
+- **Nota de servicio:** la orden de trabajo, los datos del ticket, leídos de la misma configuración sin pasar por Ordering, y las condiciones de `WORK_ORDER_FOOTER`, vacía por defecto.
+- **La cuenta de tablas otra vez:** la prueba del esquema cuenta las tablas, 45 → 46, y volvió a fallar en la primera corrida completa, como en la parte b. Una tabla nueva cambia esa cuenta; queda para revisarla antes de correr las pruebas.
+- **Mutación:** 37 mutantes, todos muertos en la primera corrida.
+
 ### Risks
 
 - **Datos personales de clientes sin cuenta:** las órdenes de trabajo guardan nombre y teléfono; siguen el ciclo de conservación de las órdenes, y la validación legal pendiente los incluye (`PROJECT.md` §9).

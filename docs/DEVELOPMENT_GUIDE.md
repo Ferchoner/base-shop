@@ -339,7 +339,7 @@ Versiones (ADR-0159):
 - El proyecto corre solo en local por ahora (ADR-0031).
 - Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110).
 - La tasa de IVA es `VAT_RATE_BP` (1600, el 16%, por defecto); cambiarla exige reiniciar la API y no altera órdenes colocadas (ADR-0027, ADR-0122).
-- Los datos de la tienda para el ticket son `STORE_NAME` ("base-shop" en desarrollo), `STORE_ADDRESS`, `STORE_TAX_ID`, `STORE_PHONE` y `TICKET_FOOTER`; cambiarlos exige reiniciar la API (ADR-0163).
+- Los datos de la tienda para el ticket son `STORE_NAME` ("base-shop" en desarrollo), `STORE_ADDRESS`, `STORE_TAX_ID`, `STORE_PHONE` y `TICKET_FOOTER`; cambiarlos exige reiniciar la API (ADR-0163). La nota de servicio de una orden de trabajo usa los mismos, y sus condiciones vienen de `WORK_ORDER_FOOTER`, vacía por defecto; un salto de línea se escribe `\n` dentro de comillas dobles (ADR-0167).
 - Una reserva de stock dura `RESERVATION_TTL` (`20m` por defecto, de 5m a 2h, BR-INV-07, ADR-0128).
 - Las imágenes de producto se guardan en `IMAGE_STORAGE_DIR` (`./storage/images` por defecto, fuera de Git) y la API las sirve en `http://localhost:3000/media` (ADR-0121). `IMAGE_BASE_URL` es obligatoria en producción.
 - Los archivos de la auditoría van a `AUDIT_ARCHIVE_DIR` (`./storage/audit` por defecto, fuera de Git), que la API nunca sirve (ADR-0146). Se leen con `gunzip -c storage/audit/audit-AAAA-MM-DD*.jsonl.gz`; si un día tiene más de un archivo, los registros repetidos tienen el mismo `id`.

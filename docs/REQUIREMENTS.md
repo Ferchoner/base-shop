@@ -474,8 +474,8 @@ Desde la versión 1.6 (ADR-0165, T-189). Una orden de trabajo es la nota de serv
 | UC-WRK-02 | Consultar y buscar órdenes de trabajo | Staff (`work-orders.read`) | ADR-0165, ADR-0166 |
 | UC-WRK-03 | Registrar el diagnóstico y el trabajo, y corregir los datos | Staff (`work-orders.manage`) | BR-WRK-02, 04, ADR-0165, ADR-0166 |
 | UC-WRK-04 | Cambiar el estado de una orden de trabajo | Staff (`work-orders.manage`) | BR-WRK-03, 05, ADR-0165, ADR-0166 |
-| UC-WRK-05 | Ligar ventas de mostrador a una orden de trabajo | Staff (`work-orders.manage`) | ADR-0161, ADR-0165 |
-| UC-WRK-06 | Consultar los datos para imprimir la nota de servicio | Staff (`work-orders.read`) | ADR-0163, ADR-0165 |
+| UC-WRK-05 | Ligar ventas de mostrador a una orden de trabajo | Staff (`work-orders.manage`) | BR-WRK-06, 07, ADR-0161, ADR-0165, ADR-0167 |
+| UC-WRK-06 | Consultar los datos para imprimir la nota de servicio | Staff (`work-orders.read`) | ADR-0163, ADR-0165, ADR-0167 |
 
 Criterios de aceptación:
 
@@ -486,6 +486,7 @@ Criterios de aceptación:
 - **UC-WRK-01 a 04 (implementación, ADR-0166):** el alta exige `Idempotency-Key`, y un doble envío devuelve la misma orden; un almacén inactivo, un cliente que no está activo o un técnico que no es staff activo responden 404; la búsqueda acepta el folio como `OT-000123`, `ot-123` o `123`, y el teléfono con espacios o guiones; una versión vieja responde 409 `version-conflict`, y un estado que no está adelante o una orden cerrada, 409 `invalid-state-transition`.
 - **UC-WRK-05:** liga una o varias ventas de mostrador y muestra si están pagadas; entregar no exige pago.
 - **UC-WRK-06:** da los datos de la orden de trabajo y de la tienda, con las condiciones de `WORK_ORDER_FOOTER`; el cliente imprime la nota con su línea de firma.
+- **UC-WRK-05 y 06 (implementación, ADR-0167):** ligar y desligar llevan la versión de la orden de trabajo y solo se permiten mientras está abierta; una venta que no es de la tienda física, o que no existe, responde 404; una vencida, cancelada o reembolsada, 409 `sale-not-linkable`; una ya ligada, a esta o a otra, 409 `duplicate-value`. La orden de trabajo muestra cada venta con su estado al momento, si está pagada, y los totales de lo pagado y de lo que espera su pago. La nota trae la orden de trabajo con sus ventas, los datos del ticket y las condiciones, vacías hasta que el negocio las defina.
 - **Datos personales:** los del cliente se bloquean y se anonimizan con los plazos de las órdenes (ADR-0151), contados desde que se entregó o se canceló.
 
 ---
@@ -565,6 +566,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe | 409 (ADR-0082) | UC-CRT-09 |
 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | 409 | UC-CAT-11 |
 | E-36 | Más de 100 variantes distintas en un carrito (ADR-0131) | 409 | UC-CRT-02 |
+| E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | 409 | UC-WRK-05 |
 
 ---
 

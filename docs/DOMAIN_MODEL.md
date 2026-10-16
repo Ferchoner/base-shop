@@ -131,13 +131,13 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `WorkOrder` (folio, cliente con nombre, teléfono y email, y el cliente registrado ligado; equipo, falla, diagnóstico, trabajo, costo estimado informativo, almacén de la tienda, quién lo recibió y técnico; status: Received, Diagnosed, InRepair, Ready, Delivered, Cancelled; historial de estados) |
-| Reglas | Avanza saltando pasos y nunca regresa; se cancela con nota antes de entregarse; entregada o cancelada, ya no cambia (BR-WRK-03, BR-WRK-04) |
+| Aggregates | `WorkOrder` (folio, cliente con nombre, teléfono y email, y el cliente registrado ligado; equipo, falla, diagnóstico, trabajo, costo estimado informativo, almacén de la tienda, quién lo recibió y técnico; status: Received, Diagnosed, InRepair, Ready, Delivered, Cancelled; historial de estados; las ventas de mostrador que la cobran, ADR-0167) |
+| Reglas | Avanza saltando pasos y nunca regresa; se cancela con nota antes de entregarse; entregada o cancelada, ya no cambia ni liga ventas (BR-WRK-03, BR-WRK-04, BR-WRK-06) |
 | Repositories | `WorkOrderRepository` |
-| Puertos | `WorkOrderWarehouses` (Inventory) y `WorkOrderAccounts` (Identity), por sus fachadas |
-| Casos de uso | ReceiveWorkOrder (UC-WRK-01), UpdateWorkOrder (UC-WRK-03), WorkOrderLifecycle (UC-WRK-04) y las consultas (UC-WRK-02) |
+| Puertos | `WorkOrderWarehouses` (Inventory), `WorkOrderAccounts` (Identity) y `StoreSales` (Ordering), por sus fachadas |
+| Casos de uso | ReceiveWorkOrder (UC-WRK-01), UpdateWorkOrder (UC-WRK-03), WorkOrderLifecycle (UC-WRK-04), WorkOrderSales (UC-WRK-05) y WorkOrderReader, con las ventas y la nota de servicio (UC-WRK-02 y 06) |
 | Eventos | Ninguno por ahora |
-| Implementado | T-189 parte b (ADR-0166); las ventas ligadas, la impresión y la conservación de datos llegan en la parte c |
+| Implementado | T-189 parte b (ADR-0166) y parte c1, las ventas ligadas y la nota de servicio (ADR-0167); la conservación de datos llega en la parte c2 |
 
 ---
 
@@ -151,6 +151,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Ordering → Inventory | Reservar, confirmar, liberar; reintegrar con las líneas y lo vendido (P-73) | Comando síncrono en checkout; comandos por eventos (ADR-0132) |
 | Identity → Ordering | Contacto del cliente y direcciones guardadas | Fachada síncrona; Identity nunca usa a Ordering (ADR-0132) |
 | Identity, Inventory → Work Orders | Si un cliente o una cuenta de staff está activa; si un almacén está activo | Fachadas síncronas (ADR-0166) |
+| Ordering → Work Orders | Las ventas de la tienda física, con si la tienda tiene su dinero | Fachada síncrona `OrderingFacade.storeSales`; Ordering nunca usa Work Orders (ADR-0167) |
 | Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; el checkout marca el carrito en su transacción (ADR-0019); Shopping reacciona a `OrderExpired` |
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134). Ordering escucha `RefundCompleted` desde T-190 parte b (ADR-0135) |
 | Ordering → Shipping | Orden pagada o cancelada; envíos de las órdenes | Fachada síncrona `ShippingFacade`, dentro de la transacción de la orden (ADR-0140) |
