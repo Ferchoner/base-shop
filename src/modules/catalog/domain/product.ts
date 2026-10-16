@@ -54,6 +54,8 @@ export interface ProductSnapshot {
   readonly archivedAt: Date | null;
   /** Set on the first publication and never again: from then on, slug, SKUs and options are fixed (ADR-0068). */
   readonly firstPublishedAt: Date | null;
+  /** Sold only in the physical store, such as a service: never online (ADR-0165). */
+  readonly storeOnly: boolean;
   readonly variants: readonly VariantSnapshot[];
   readonly version: number;
 }
@@ -102,6 +104,8 @@ export class Product {
     description: string | null;
     brandId: BrandId | null;
     categoryIds: readonly CategoryId[];
+    /** Sold online too unless said (ADR-0165). */
+    storeOnly?: boolean;
   }): Product {
     return new Product({
       id: props.id,
@@ -114,6 +118,7 @@ export class Product {
       publishedAt: null,
       archivedAt: null,
       firstPublishedAt: null,
+      storeOnly: props.storeOnly ?? false,
       variants: [],
       version: 1,
     });
@@ -171,6 +176,24 @@ export class Product {
           ? this.state.categoryIds
           : validCategories(details.categoryIds),
     };
+  }
+
+  /**
+   * Sells the product only in the physical store, or online too (UC-CAT-17, ADR-0165), at any time but archived.
+   * A published product leaves the store or comes back at once, so the change publishes `ProductStoreOnlyChanged`,
+   * which clears the public catalog cache; a draft is not in the store.
+   */
+  changeStoreOnly(storeOnly: boolean, now: Date): void {
+    this.assertEditable();
+    if (storeOnly === this.state.storeOnly) return;
+    this.state = { ...this.state, storeOnly };
+    if (this.state.status === 'PUBLISHED') {
+      this.events.push({
+        ...eventMetadata('ProductStoreOnlyChanged', now),
+        productId: this.state.id,
+        storeOnly,
+      });
+    }
   }
 
   /**

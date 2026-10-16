@@ -414,6 +414,60 @@ describe('Product (UC-CAT-04 to 10, ADR-0068, ADR-0076, ADR-0123)', () => {
     });
   });
 
+  describe('sold only in the store (UC-CAT-17, ADR-0165)', () => {
+    it('is sold online too unless created otherwise', () => {
+      expect(draft().snapshot().storeOnly).toBe(false);
+      expect(draft({ storeOnly: true }).snapshot().storeOnly).toBe(true);
+    });
+
+    it('changes a published product with an event, which clears the store, and back', () => {
+      const { product } = published();
+
+      product.changeStoreOnly(true, LATER);
+
+      expect(product.snapshot().storeOnly).toBe(true);
+      expect(product.pullEvents()).toEqual([
+        expect.objectContaining({
+          eventType: 'ProductStoreOnlyChanged',
+          occurredAt: LATER,
+          productId: product.id,
+          storeOnly: true,
+        }),
+      ]);
+      product.changeStoreOnly(false, LATER);
+      expect(product.pullEvents()).toEqual([
+        expect.objectContaining({ storeOnly: false }),
+      ]);
+    });
+
+    it('changes a draft without an event, since it is not in the store', () => {
+      const product = draft();
+
+      product.changeStoreOnly(true, NOW);
+
+      expect(product.snapshot().storeOnly).toBe(true);
+      expect(product.pullEvents()).toEqual([]);
+    });
+
+    it('changes nothing, and publishes nothing, with the value it has', () => {
+      const { product } = published();
+
+      product.changeStoreOnly(false, LATER);
+
+      expect(product.pullEvents()).toEqual([]);
+    });
+
+    it('does not change an archived product', () => {
+      const { product } = published();
+      product.archive(NOW);
+
+      expect(() => product.changeStoreOnly(true, LATER)).toThrow(
+        InvalidStateTransitionError,
+      );
+      expect(product.snapshot().storeOnly).toBe(false);
+    });
+  });
+
   describe('publishing, archiving and reactivating (UC-CAT-09 and 10)', () => {
     it('publishes a draft with an active variant, with an event, and fixes the first publication', () => {
       const { product } = withSizes();

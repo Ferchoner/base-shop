@@ -250,6 +250,27 @@ describe('Reorder (e2e, T-181)', () => {
     const reorder = (user: AuthenticatedUser, publicCode: string) =>
       http().post(`/v1/me/orders/${publicCode}/reorder`).set(signedInAs(user));
 
+    it('skips a product sold only in the store, which is never sold online (ADR-0165)', async () => {
+      const [shirt, service] = [await variant(), await variant()];
+      const user = await customer();
+      const order = await customerOrder(user, [
+        { variantId: shirt, quantity: 1 },
+        { variantId: service, quantity: 1 },
+      ]);
+      await cancel(order.id);
+      await prisma.product.updateMany({
+        where: { variants: { some: { id: service } } },
+        data: { storeOnly: true },
+      });
+
+      const { body } = await reorder(user, order.publicCode).expect(200);
+
+      expect(body).toEqual({
+        cartId: expect.any(String),
+        skippedVariantIds: [service],
+      });
+    });
+
     it('copies the lines still sold into the active cart, up to 30 units, and the order does not change', async () => {
       const [shirt, cap] = [await variant(), await variant()];
       const user = await customer();

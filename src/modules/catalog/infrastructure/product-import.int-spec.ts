@@ -42,6 +42,7 @@ const EMPTY: Omit<ProductImportRow, 'line'> = {
   lengthCm: '',
   widthCm: '',
   heightCm: '',
+  storeOnly: '',
   options: {},
 };
 

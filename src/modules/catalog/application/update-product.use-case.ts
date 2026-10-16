@@ -3,6 +3,8 @@ import {
   assertVersion,
   AuditTrail,
   changesBetween,
+  Clock,
+  DomainEventPublisher,
   TransactionManager,
 } from '../../../shared-kernel/index.js';
 import type { BrandId } from '../domain/brand.js';
@@ -26,7 +28,8 @@ const SEARCHED_FIELDS = ['title', 'brandId', 'categoryIds'];
 /**
  * Edits the data of a product (UC-CAT-05) with optimistic locking. The slug is fixed from the first
  * publication (ADR-0068). A new brand or category must be active; one the product already had stays even if
- * it was deactivated later (ADR-0123). Without changes, nothing is saved or audited.
+ * it was deactivated later (ADR-0123). Selling a published product only in the store, or online again, publishes
+ * `ProductStoreOnlyChanged` (UC-CAT-17, ADR-0165). Without changes, nothing is saved or audited.
  */
 @Injectable()
 export class UpdateProduct {
@@ -37,6 +40,8 @@ export class UpdateProduct {
     private readonly searchIndex: ProductSearchIndex,
     private readonly transactions: TransactionManager,
     private readonly audit: AuditTrail,
+    private readonly events: DomainEventPublisher,
+    private readonly clock: Clock,
   ) {}
 
   execute(
@@ -47,6 +52,8 @@ export class UpdateProduct {
       description?: string | null;
       brandId?: BrandId | null;
       categoryIds?: readonly CategoryId[];
+      /** Sold only in the physical store (ADR-0165). */
+      storeOnly?: boolean;
       version: number;
     },
   ): Promise<void> {
@@ -69,11 +76,15 @@ export class UpdateProduct {
         await assertUsableCategories(this.categories, added);
       }
       product.editDetails(changes);
+      if (changes.storeOnly !== undefined) {
+        product.changeStoreOnly(changes.storeOnly, this.clock.now());
+      }
       const audited = changesBetween(before, auditedProductFields(product), {
         personal: LONG_PRODUCT_FIELDS,
       });
       if (Object.keys(audited).length === 0) return;
       await this.products.save(product);
+      this.events.publish(...product.pullEvents());
       if (SEARCHED_FIELDS.some((field) => field in audited)) {
         await this.searchIndex.refreshProducts([id]);
       }

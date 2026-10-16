@@ -35,6 +35,9 @@ Las filas con el mismo `slug` forman un producto. Sus datos (`title`, `descripti
 | `option:<nombre>` | No | Una columna por opción, como `option:talla`, hasta 3 por producto. Todas las variantes de un producto llenan las mismas, con combinaciones distintas; un producto sin opciones lleva una sola variante. |
 | `weightGrams` | No | Gramos enteros, mayores que 0. |
 | `lengthCm`, `widthCm`, `heightCm` | No | Centímetros con punto decimal y hasta un decimal, como `30.5`. |
+| `storeOnly` | No | `true` si se vende solo en la tienda física, como un servicio; `false` o vacía, también en línea (ADR-0165). Es dato del producto, como `title`. |
+
+La plantilla incluye un servicio, `revision-equipo`, que se vende solo en la tienda física. Su existencia, en `stock.csv`, es un número alto, porque un servicio no se agota.
 
 ## `prices.csv`
 

@@ -73,19 +73,25 @@ const SAVED: ShippingAddress = {
   country: 'MX',
 };
 
-const [shirt, cap, draft, unpriced] = [
+const [shirt, cap, draft, unpriced, service] = [
+  newId<'Variant'>(),
   newId<'Variant'>(),
   newId<'Variant'>(),
   newId<'Variant'>(),
   newId<'Variant'>(),
 ];
 
-const variant = (id: VariantId, onSale = true): CheckoutVariant => ({
+const variant = (
+  id: VariantId,
+  onSale = true,
+  storeOnly = false,
+): CheckoutVariant => ({
   id,
   sku: `SKU-${id.slice(-4)}`,
   productName: 'Camisa de lino',
   options: { talla: 'M' },
   onSale,
+  storeOnly,
 });
 
 /** Orders in memory; the first `taken` inserts find their public code taken. */
@@ -183,6 +189,8 @@ function setUp(
             variant(cap),
             variant(draft, false),
             variant(unpriced),
+            // Published, active and priced, but sold only in the store (ADR-0165).
+            variant(service, true, true),
           ]
             .filter(({ id }) => ids.includes(id))
             .map((v) => [v.id, v]),
@@ -200,6 +208,7 @@ function setUp(
               [shirt, 59_900],
               [cap, 19_900],
               [draft, 100],
+              [service, 25_000],
             ] as const
           )
             .filter(([id]) => ids.includes(id))
@@ -403,6 +412,7 @@ describe('Checkout: quote (UC-ORD-01)', () => {
         [shirt, 2],
         [draft, 1],
         [unpriced, 1],
+        [service, 1],
         [cap, 3],
       ]),
       available: new Set([shirt]),
@@ -421,6 +431,7 @@ describe('Checkout: quote (UC-ORD-01)', () => {
       [shirt, true, true, mxn(59_900)],
       [draft, false, false, null],
       [unpriced, false, false, null],
+      [service, false, false, null],
       [cap, true, false, mxn(19_900)],
     ]);
     expect(quote.lines[1]).toMatchObject({
@@ -660,6 +671,7 @@ describe('Checkout: placing an order (UC-ORD-02)', () => {
         [shirt, 2],
         [draft, 1],
         [unpriced, 1],
+        [service, 1],
       ]),
     });
 
@@ -667,7 +679,7 @@ describe('Checkout: placing an order (UC-ORD-02)', () => {
 
     await expect(failure).rejects.toThrow(VariantNotSellableError);
     await expect(failure).rejects.toMatchObject({
-      details: { variantIds: [draft, unpriced] },
+      details: { variantIds: [draft, unpriced, service] },
     });
     expect(calls).not.toContain('reserve');
   });

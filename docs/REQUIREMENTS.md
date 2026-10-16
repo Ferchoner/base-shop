@@ -207,7 +207,7 @@ Criterios de aceptación:
 | UC-CAT-14 | Listado administrativo del catálogo | Staff (`catalog.read`) | ADR-0016 |
 | UC-CAT-15 | Buscar una variante por su código (SKU o GTIN) | Staff (`catalog.read`) | BR-PRD-19, ADR-0163 |
 | UC-CAT-16 | Carga masiva de productos con sus variantes | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-09, BR-PRD-19, ADR-0164 |
-| UC-CAT-17 | Vender un producto solo en la tienda física | Staff (`catalog.write`) | ADR-0165 |
+| UC-CAT-17 | Vender un producto solo en la tienda física | Staff (`catalog.write`) | BR-PRD-20, ADR-0165 |
 
 Criterios de aceptación:
 
@@ -223,6 +223,7 @@ Criterios de aceptación:
 - **UC-CAT-12 / 13:** mover una categoría no crea ciclos; una categoría o marca con productos o subcategorías se desactiva en lugar de borrarse. Una categoría inactiva se reactiva solo si su padre está activa o es raíz, sin reactivar sus subcategorías; una marca inactiva se reactiva sin condiciones.
 - **UC-CAT-14:** indica qué productos publicados no son visibles por falta de precio vigente (`storeVisibility`, ADR-0129).
 - **UC-CAT-15 (ADR-0163):** encuentra la variante por su SKU exacto, sin distinguir mayúsculas, o por su GTIN, aunque se lea con otros ceros a la izquierda; responde todas las coincidencias, las activas primero, con su producto y si coincidieron por SKU o por GTIN; sin coincidencias, una lista vacía.
+- **UC-CAT-17 (implementación, ADR-0165):** `storeOnly` en el alta, la edición, la vista, el filtro del listado y la carga masiva; un producto publicado que lo cambia sale de la tienda pública o vuelve a ella en ese momento, porque se vacía su cache; `storeVisibility` dice `STORE_ONLY`; una línea que ya estaba en un carrito queda fuera del subtotal; la venta de mostrador lo cotiza y lo coloca.
 - **UC-CAT-17 (ADR-0165, versión 1.6):** un producto con `storeOnly` no aparece en la tienda pública, el carrito y el checkout en línea lo rechazan y la recompra lo omite; la venta de mostrador y los pedidos del staff lo aceptan; la marca se cambia en cualquier momento.
 - **UC-CAT-16 (implementación, ADR-0164):** cada error lleva su código en su celda, también los de las filas de un producto entre sí (`differsFromProduct`, `optionNames`), los del archivo (`repeated`) y los del catálogo (`taken`); un slug, SKU o GTIN que otro cambio toma entre la revisión y el guardado responde 409 sin guardar nada; 5,000 productos de 10 categorías caben en una transacción; las plantillas de `docs/templates/` se importan sin errores.
 - **UC-CAT-16 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, una por variante, crea productos nuevos en borrador con sus variantes, con la marca y las categorías por su slug; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un slug que ya existe o un SKU ya usado es un error de su fila, así que repetir el archivo no cambia nada.

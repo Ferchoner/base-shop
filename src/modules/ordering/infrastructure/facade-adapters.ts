@@ -194,6 +194,7 @@ export class CatalogFacadeCheckoutCatalog extends CheckoutCatalog {
           onSale:
             variant.productStatus === 'PUBLISHED' &&
             variant.status === 'ACTIVE',
+          storeOnly: variant.storeOnly,
         },
       ]),
     );

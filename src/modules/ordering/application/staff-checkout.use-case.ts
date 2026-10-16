@@ -113,6 +113,7 @@ export class StaffCheckout {
     const assessment = await this.placement.assess(
       input.lines,
       this.clock.now(),
+      'STORE',
     );
     const available = await this.stock.canFulfill(
       assessment.priced.map(({ variantId, quantity }) => ({
@@ -153,7 +154,11 @@ export class StaffCheckout {
               buyer.customerId,
               input.shippingAddress,
             );
-      const { items, priced } = await this.placement.assess(input.lines, now);
+      const { items, priced } = await this.placement.assess(
+        input.lines,
+        now,
+        'STORE',
+      );
       const unsellable = items
         .filter((item) => item.priced === null)
         .map(({ variant }) => variant.id);

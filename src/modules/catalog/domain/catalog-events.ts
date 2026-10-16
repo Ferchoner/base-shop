@@ -18,5 +18,17 @@ export interface VariantDiscontinued extends DomainEvent<'VariantDiscontinued'> 
   readonly variantId: VariantId;
 }
 
+/**
+ * A published product became sold only in the physical store, or online too (ADR-0165): it leaves the store or comes
+ * back. Clears the public catalog cache.
+ */
+export interface ProductStoreOnlyChanged extends DomainEvent<'ProductStoreOnlyChanged'> {
+  readonly productId: ProductId;
+  readonly storeOnly: boolean;
+}
+
 export type CatalogEvent =
-  ProductPublished | ProductArchived | VariantDiscontinued;
+  | ProductPublished
+  | ProductArchived
+  | VariantDiscontinued
+  | ProductStoreOnlyChanged;

@@ -5225,4 +5225,9 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Las órdenes de trabajo guardan datos personales de clientes sin cuenta, con su ciclo de conservación.
   - Cambios compatibles en `/v1`: rutas, campos y permisos nuevos. Por eso es una versión menor (ADR-0159).
 - **Revisar si:** hace falta avisar al cliente cuando su equipo esté listo, dar citas, guardar fotos o firmas, o llevar las refacciones aparte de la venta.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-15, con las 17 recomendaciones del plan). Se implementa en T-189, en la versión 1.6.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-15, con las 17 recomendaciones del plan). Se implementa en T-189, en la versión 1.6. Parte a, productos solo en tienda (plan aprobado el 2026-10-15, con sus 10 recomendaciones):
+  - la migración `20261015130000_catalog_product_store_only` agrega `products.store_only`, `false` por defecto; el alta, la edición, `AdminProduct`, el filtro del listado y la carga masiva (columna `storeOnly`) la llevan, y se audita con los demás datos;
+  - **una sola regla de lo que se vende en línea** (BR-PRD-20): la consulta de la tienda excluye estos productos, así que desaparecen del listado, la búsqueda, el detalle, las marcas y las imágenes; el carrito, que siempre es en línea, los trata como no vendibles, lo que cubre agregar, cambiar, la vista y la recompra; y la validación compartida de los checkouts recibe el canal, así que el checkout en línea los rechaza y la venta de mostrador los acepta;
+  - `storeVisibility` suma `STORE_ONLY`, un valor nuevo de un campo del panel administrativo, un cambio compatible dentro de `v1`, porque los clientes toleran valores que no conocen (ADR-0034, ADR-0050): sin él, un servicio publicado aparecería sin precio;
+  - el evento `ProductStoreOnlyChanged` se publica solo si el producto está publicado, y vacía la cache pública; el cambio de la marca es su propio método del producto, porque necesita la hora;
+  - la plantilla de productos suma la columna y un servicio de ejemplo, con su precio y una existencia alta.

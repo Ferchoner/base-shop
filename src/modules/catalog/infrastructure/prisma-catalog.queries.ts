@@ -63,6 +63,7 @@ const PRODUCT_FIELDS = {
     orderBy: { category: { name: 'asc' } },
   },
   status: true,
+  storeOnly: true,
   variants: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
   images: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
   publishedAt: true,
@@ -170,6 +171,9 @@ export class PrismaCatalogQueries extends CatalogQueries {
       ...(filter.categoryId === undefined
         ? {}
         : { categories: { some: { categoryId: filter.categoryId } } }),
+      ...(filter.storeOnly === undefined
+        ? {}
+        : { storeOnly: filter.storeOnly }),
     };
     const [rows, totalItems] = await Promise.all([
       this.txHost.tx.product.findMany({
@@ -272,7 +276,9 @@ export class PrismaCatalogQueries extends CatalogQueries {
     const rows = await this.txHost.tx.productVariant.findMany({
       where,
       include: {
-        product: { select: { slug: true, title: true, status: true } },
+        product: {
+          select: { slug: true, title: true, status: true, storeOnly: true },
+        },
       },
       orderBy: { sku: 'asc' },
     });
@@ -282,6 +288,7 @@ export class PrismaCatalogQueries extends CatalogQueries {
       productSlug: row.product.slug,
       productTitle: row.product.title,
       productStatus: row.product.status,
+      storeOnly: row.product.storeOnly,
       sku: row.sku,
       options: row.options as VariantOptions,
       status: row.status,
@@ -310,6 +317,7 @@ function toProductView(
       name: category.name,
     })),
     status: row.status,
+    storeOnly: row.storeOnly,
     variants: row.variants.map((variant) => ({
       id: toId<'Variant'>(variant.id),
       sku: variant.sku,

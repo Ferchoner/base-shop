@@ -62,7 +62,7 @@ describe('Bulk import of products (e2e, T-146 part a)', () => {
       },
     });
     await prisma.category.createMany({
-      data: ['Camisas', 'Hombre', 'Accesorios'].map((name) => ({
+      data: ['Camisas', 'Hombre', 'Accesorios', 'Servicios'].map((name) => ({
         id: newId(),
         name,
         slug: name.toLowerCase(),
@@ -129,14 +129,14 @@ describe('Bulk import of products (e2e, T-146 part a)', () => {
     }).expect(200);
 
     expect(products.body).toEqual({
-      rows: 4,
-      products: 2,
-      variants: 4,
+      rows: 5,
+      products: 3,
+      variants: 5,
       dryRun: false,
     });
     expect(prices.body).toEqual({
-      rows: 4,
-      created: 4,
+      rows: 5,
+      created: 5,
       unchanged: 0,
       dryRun: false,
     });
@@ -175,7 +175,14 @@ describe('Bulk import of products (e2e, T-146 part a)', () => {
       expect.objectContaining({
         slug: 'gorra-algodon',
         title: 'Gorra de algodón',
+        storeOnly: false,
         variants: [expect.objectContaining({ sku: 'GORRA-ALG', options: {} })],
+      }),
+      // A service, sold only in the store (ADR-0165).
+      expect.objectContaining({
+        slug: 'revision-equipo',
+        storeOnly: true,
+        variants: [expect.objectContaining({ sku: 'SERV-REVISION' })],
       }),
     ]);
     const detail = await http()
@@ -193,9 +200,9 @@ describe('Bulk import of products (e2e, T-146 part a)', () => {
     }).expect(200);
 
     expect(response.body).toEqual({
-      rows: 4,
-      products: 2,
-      variants: 4,
+      rows: 5,
+      products: 3,
+      variants: 5,
       dryRun: true,
     });
     expect(await prisma.product.count()).toBe(0);

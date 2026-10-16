@@ -4,8 +4,8 @@ import { OnDomainEvent } from '../../../platform/events/on-domain-event.decorato
 import { PUBLIC_CATALOG_CACHE } from '../application/public-catalog-cache.js';
 
 /**
- * Clears the public catalog cache when a product is published or archived, or a variant is discontinued
- * (ADR-0028, ADR-0104). The whole namespace goes, because one product shows up in many listings; other
+ * Clears the public catalog cache when a product is published or archived, a variant is discontinued, or a published
+ * product becomes sold only in the store or online again (ADR-0028, ADR-0104, ADR-0165). The whole namespace goes, because one product shows up in many listings; other
  * changes, such as prices or stock, show up when the TTL expires. The product use cases publish these events
  * (ADR-0123).
  */
@@ -25,6 +25,11 @@ export class PublicCatalogCacheInvalidation {
 
   @OnDomainEvent('VariantDiscontinued')
   onVariantDiscontinued(): Promise<void> {
+    return this.clear();
+  }
+
+  @OnDomainEvent('ProductStoreOnlyChanged')
+  onProductStoreOnlyChanged(): Promise<void> {
     return this.clear();
   }
 

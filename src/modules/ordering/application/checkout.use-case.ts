@@ -106,6 +106,7 @@ export class Checkout {
     const assessment = await this.placement.assess(
       cart.lines,
       this.clock.now(),
+      'ONLINE',
     );
     const available = await this.stock.canFulfill(
       assessment.priced.map(({ variantId, quantity }) => ({
@@ -145,7 +146,11 @@ export class Checkout {
         customerId,
         input.shippingAddress,
       );
-      const { items, priced } = await this.placement.assess(cart.lines, now);
+      const { items, priced } = await this.placement.assess(
+        cart.lines,
+        now,
+        'ONLINE',
+      );
       const unsellable = items
         .filter((item) => item.priced === null)
         .map(({ variant }) => variant.id);

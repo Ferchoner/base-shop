@@ -3,6 +3,7 @@ import {
   type Buyer,
   type CustomerId,
   type Order,
+  type OrderChannel,
   orderTotals,
   type OrderTotals,
   type PricedLine,
@@ -122,11 +123,17 @@ export class OrderPlacement {
   ) {}
 
   /**
-   * Each line with its variant and, when it can be sold now, its price and VAT (BR-PRD-11, BR-TAX-02).
+   * Each line with its variant and, when it can be sold now in the channel, its price and VAT (BR-PRD-11,
+   * BR-TAX-02): an online order never sells a product sold only in the store, which a sale in the store does
+   * (BR-PRD-20, ADR-0165).
    *
    * @throws NotFoundError for a variant that does not exist.
    */
-  async assess(lines: readonly StockLine[], at: Date): Promise<Assessment> {
+  async assess(
+    lines: readonly StockLine[],
+    at: Date,
+    channel: OrderChannel,
+  ): Promise<Assessment> {
     const ids = lines.map(({ variantId }) => variantId);
     const variants = await this.catalog.variants(ids);
     const prices = await this.prices.current(ids, at);
@@ -134,8 +141,10 @@ export class OrderPlacement {
       const variant = variants.get(variantId);
       if (variant === undefined) throw new NotFoundError('Variant', variantId);
       const unitPrice = prices.get(variantId);
+      const sellable =
+        variant.onSale && (channel === 'STORE' || !variant.storeOnly);
       const priced =
-        variant.onSale && unitPrice !== undefined
+        sellable && unitPrice !== undefined
           ? priceLine(
               {
                 variantId,

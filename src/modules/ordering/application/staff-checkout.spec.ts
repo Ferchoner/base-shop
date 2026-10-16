@@ -78,12 +78,17 @@ const staffId = newId<'User'>() as StaffId;
 const customer = newId<'User'>() as CustomerId;
 const savedId = newId();
 
-const variant = (id: VariantId, onSale = true): CheckoutVariant => ({
+const variant = (
+  id: VariantId,
+  onSale = true,
+  storeOnly = false,
+): CheckoutVariant => ({
   id,
   sku: `SKU-${id.slice(-4)}`,
   productName: 'Camisa de lino',
   options: { talla: 'M' },
   onSale,
+  storeOnly,
 });
 
 /** Orders in memory. */
@@ -144,7 +149,8 @@ function setUp(
       calls.push('variants');
       return Promise.resolve(
         new Map(
-          [variant(shirt), variant(cap), variant(draft, false)]
+          // The cap is sold only in the store, which a sale in the store sells (ADR-0165).
+          [variant(shirt), variant(cap, true, true), variant(draft, false)]
             .filter(({ id }) => ids.includes(id))
             .map((v) => [v.id, v]),
         ),
@@ -591,6 +597,21 @@ describe('StaffCheckout: a sale handed over in the store (ADR-0161)', () => {
     expect(audited[0].changes).toMatchObject({
       fulfillment: { from: null, to: 'IN_STORE' },
     });
+  });
+
+  it('places a product sold only in the store, which an online order does not (ADR-0165)', async () => {
+    const { checkout, orders } = setUp();
+
+    await checkout.place(
+      counter({
+        lines: [{ variantId: cap, quantity: 1 }],
+        expectedTotal: 19_900,
+      }),
+    );
+
+    expect(orders.saved[0].snapshot.lines).toEqual([
+      expect.objectContaining({ variantId: cap, quantity: 1 }),
+    ]);
   });
 
   it('places it for a customer or a guest who gives their data too', async () => {

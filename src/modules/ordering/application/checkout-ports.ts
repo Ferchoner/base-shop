@@ -62,6 +62,8 @@ export interface CheckoutVariant {
   readonly options: VariantOptions;
   /** Its product is published and the variant is active (BR-PRD-11). */
   readonly onSale: boolean;
+  /** Its product is sold only in the physical store: never in an online order (BR-PRD-20, ADR-0165). */
+  readonly storeOnly: boolean;
 }
 
 /** The variants of Catalog. */

@@ -3,6 +3,11 @@
 ## Unreleased
 
 - Plan de la versión 1.6 (nuevo ADR-0165): servicios solo en tienda y órdenes de trabajo. Un producto con `storeOnly` no se vende en línea y sí en la tienda física. Las órdenes de trabajo son la nota de servicio: folio, cliente, equipo, falla, diagnóstico, estados con su historial y las ventas de mostrador que la cobran, con los datos para imprimirla y la conservación de los datos del cliente. Se implementa en T-189, en tres partes.
+- T-189 parte a (ADR-0165): productos solo en tienda.
+  - `storeOnly` en el producto (`POST` y `PATCH /v1/admin/catalog/products`, `AdminProduct` y el filtro `?storeOnly=` del listado): el producto se vende solo en la tienda física, como un servicio (UC-CAT-17, BR-PRD-20).
+  - En línea no se vende: la tienda pública no lo muestra, el carrito y el checkout en línea responden 409 `variant-not-sellable`, y la recompra lo omite. La venta de mostrador y los pedidos del staff lo venden.
+  - `storeVisibility` suma `STORE_ONLY`, y cambiar la marca de un producto publicado vacía la cache de la tienda (`ProductStoreOnlyChanged`).
+  - La carga masiva de productos acepta la columna `storeOnly`, y su plantilla incluye un servicio de ejemplo.
 - Paso 0 de la versión 1.6: revisión contra los ADR sin desajustes y 0 vulnerabilidades en las dependencias de producción; Prisma sigue en 7.10.0, aunque salió el parche 7.10.1, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.5.
 
 ## 1.5.0 (2026-10-15)

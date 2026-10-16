@@ -84,6 +84,8 @@ export interface AdminProductView {
     readonly name: string;
   }[];
   readonly status: ProductStatus;
+  /** Sold only in the physical store (ADR-0165). */
+  readonly storeOnly: boolean;
   /** Oldest first. */
   readonly variants: readonly AdminVariantView[];
   /** By position. */
@@ -106,6 +108,8 @@ export interface VariantSnapshot {
   readonly productSlug: string;
   readonly productTitle: string;
   readonly productStatus: ProductStatus;
+  /** Its product is sold only in the physical store, never online (ADR-0165). */
+  readonly storeOnly: boolean;
   readonly sku: string;
   readonly options: VariantOptions;
   readonly status: VariantStatus;
@@ -141,6 +145,8 @@ export interface ProductFilter {
   readonly brandId?: BrandId;
   /** Products directly in this category. */
   readonly categoryId?: CategoryId;
+  /** Products sold only in the store, or online too (ADR-0165). */
+  readonly storeOnly?: boolean;
 }
 
 export type ProductSortField =

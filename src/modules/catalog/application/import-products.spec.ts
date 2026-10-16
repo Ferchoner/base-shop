@@ -176,6 +176,7 @@ const EMPTY: Omit<ProductImportRow, 'line'> = {
   lengthCm: '',
   widthCm: '',
   heightCm: '',
+  storeOnly: '',
   options: {},
 };
 
@@ -317,6 +318,7 @@ describe('ImportProducts (UC-CAT-16, ADR-0164)', () => {
       publishedAt: null,
       archivedAt: null,
       firstPublishedAt: null,
+      storeOnly: false,
       version: 1,
       variants: [
         {
@@ -474,6 +476,91 @@ describe('ImportProducts (UC-CAT-16, ADR-0164)', () => {
         }),
       ]),
     ).toEqual(['rows[2].categories unknownCategories']);
+  });
+
+  it('sells a product only in the store with storeOnly, whatever its case, and online with false or nothing', async () => {
+    const { importProducts, products } = setUp();
+
+    await importProducts.execute(
+      [
+        row(2, {
+          slug: 'revision',
+          title: 'Revisión de equipo',
+          sku: 'SERV-1',
+          storeOnly: 'TRUE',
+          options: { nivel: 'Básica' },
+        }),
+        // The next rows repeat it or leave it empty.
+        row(3, {
+          slug: 'revision',
+          sku: 'SERV-2',
+          storeOnly: 'true',
+          options: { nivel: 'Completa' },
+        }),
+        row(4, {
+          slug: 'revision',
+          sku: 'SERV-3',
+          options: { nivel: 'Express' },
+        }),
+        row(5, {
+          slug: 'gorra',
+          title: 'Gorra',
+          sku: 'G-1',
+          storeOnly: 'False',
+        }),
+        row(6, {
+          slug: 'camisa',
+          title: 'Camisa',
+          sku: 'C-1',
+          options: { talla: 'M' },
+        }),
+        // An empty storeOnly is false, so false repeats it.
+        row(7, {
+          slug: 'camisa',
+          sku: 'C-2',
+          storeOnly: 'FALSE',
+          options: { talla: 'G' },
+        }),
+      ],
+      { dryRun: false },
+    );
+
+    expect(
+      products.inserted.map((created) => [
+        created.snapshot().slug,
+        created.snapshot().storeOnly,
+      ]),
+    ).toEqual([
+      ['revision', true],
+      ['gorra', false],
+      ['camisa', false],
+    ]);
+  });
+
+  it('answers a storeOnly that is not true or false, without checking the variants of its product, or that differs from the first row', async () => {
+    expect(
+      await fieldsOf([
+        row(2, { slug: 'gorra', title: 'Gorra', sku: 'G-1', storeOnly: 'sí' }),
+        // Other option names, unchecked while the product has errors.
+        row(3, { slug: 'gorra', sku: 'G-2', options: { talla: 'M' } }),
+        row(4, { slug: 'gorra', sku: 'G-3', options: { color: 'Rojo' } }),
+        row(5, {
+          slug: 'camisa',
+          title: 'Camisa',
+          sku: 'C-1',
+          options: { talla: 'M' },
+        }),
+        row(6, {
+          slug: 'camisa',
+          sku: 'C-2',
+          storeOnly: 'true',
+          options: { talla: 'G' },
+        }),
+      ]),
+    ).toEqual([
+      'rows[2].storeOnly isBoolean',
+      'rows[6].storeOnly differsFromProduct',
+    ]);
   });
 
   it('answers a row with another number of cells as an error of the whole row', async () => {

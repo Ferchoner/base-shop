@@ -1779,12 +1779,17 @@
             ],
             "type": "string"
           },
+          "storeOnly": {
+            "description": "Si solo se vende en la tienda física, como un servicio: nunca en línea (ADR-0165).",
+            "type": "boolean"
+          },
           "storeVisibility": {
-            "description": "Si la tienda lo muestra: `HIDDEN_NO_PRICE` es un producto publicado sin variantes vendibles (activas y con precio vigente).",
+            "description": "Si la tienda lo muestra: `HIDDEN_NO_PRICE` es un producto publicado sin variantes vendibles (activas y con precio vigente), y `STORE_ONLY` uno publicado que solo se vende en la tienda física (ADR-0165).",
             "enum": [
               "VISIBLE",
               "HIDDEN_NO_PRICE",
-              "NOT_PUBLISHED"
+              "NOT_PUBLISHED",
+              "STORE_ONLY"
             ],
             "type": "string"
           },
@@ -1822,6 +1827,7 @@
           "updatedAt",
           "title",
           "slug",
+          "storeOnly",
           "version"
         ],
         "type": "object"
@@ -3031,6 +3037,10 @@
             "maxLength": 200,
             "minLength": 1,
             "type": "string"
+          },
+          "storeOnly": {
+            "description": "Si solo se vende en la tienda física, como un servicio (ADR-0165); `false` por defecto.",
+            "type": "boolean"
           },
           "title": {
             "description": "De 1 a 200 caracteres.",
@@ -7317,6 +7327,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "storeOnly": {
+            "description": "Solo en la tienda física, o también en línea (ADR-0165); se cambia también publicado.",
+            "type": "boolean"
+          },
           "title": {
             "description": "De 1 a 200 caracteres.",
             "maxLength": 200,
@@ -9454,6 +9468,15 @@
                 "type": "string"
               },
               "type": "string"
+            }
+          },
+          {
+            "description": "`true`: solo los productos que se venden solo en la tienda física; `false`: solo los que se venden también en línea.",
+            "in": "query",
+            "name": "storeOnly",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {

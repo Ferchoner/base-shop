@@ -13,6 +13,8 @@ export const STORE_VISIBILITIES = [
   'VISIBLE',
   'HIDDEN_NO_PRICE',
   'NOT_PUBLISHED',
+  /** Published, but sold only in the physical store (ADR-0165). */
+  'STORE_ONLY',
 ] as const;
 
 export type StoreVisibility = (typeof STORE_VISIBILITIES)[number];

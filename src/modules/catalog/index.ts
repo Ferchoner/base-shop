@@ -10,6 +10,7 @@ export type {
   CatalogEvent,
   ProductArchived,
   ProductPublished,
+  ProductStoreOnlyChanged,
   VariantDiscontinued,
 } from './domain/catalog-events.js';
 export type { ProductId } from './domain/product-id.js';

@@ -150,6 +150,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       categories: [{ id: category.body.id, name: 'Camisas' }],
       status: 'DRAFT',
       storeVisibility: 'NOT_PUBLISHED',
+      storeOnly: false,
       variants: [],
       images: [],
       publishedAt: null,
