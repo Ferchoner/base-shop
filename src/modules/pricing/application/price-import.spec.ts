@@ -126,10 +126,10 @@ describe('Bulk import values (UC-PRC-05, ADR-0126)', () => {
       }
 
       const answered = (thrownBy(() => errors.throwIfAny()) as PriceImportError)
-        .details?.errors;
+        .details.errors;
 
       expect(answered).toHaveLength(MAX_PRICE_IMPORT_ERRORS);
-      expect((answered as { field: string }[])[0].field).toBe('rows[2].sku');
+      expect(answered[0].field).toBe('rows[2].sku');
     });
   });
 });

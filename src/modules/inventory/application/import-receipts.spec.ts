@@ -272,12 +272,9 @@ async function fieldsOf(
   );
   expect(error).toBeInstanceOf(ReceiptImportError);
   expect([context.ledger.written, context.audited]).toEqual([[], []]);
-  return (
-    ((error as ReceiptImportError).details?.errors ?? []) as {
-      field: string;
-      code: string;
-    }[]
-  ).map(({ field, code }) => `${field} ${code}`);
+  return (error as ReceiptImportError).details.errors.map(
+    ({ field, code }) => `${field} ${code}`,
+  );
 }
 
 describe('ImportReceipts (UC-INV-12, ADR-0164)', () => {
@@ -475,12 +472,9 @@ describe('ImportReceipts (UC-INV-12, ADR-0164)', () => {
     ]).catch((thrown: unknown) => thrown);
 
     expect(
-      (
-        ((error as ReceiptImportError).details?.errors ?? []) as {
-          field: string;
-          code: string;
-        }[]
-      ).map(({ field, code }) => `${field} ${code}`),
+      (error as ReceiptImportError).details.errors.map(
+        ({ field, code }) => `${field} ${code}`,
+      ),
     ).toEqual([
       'rows[2].quantity quantity',
       'rows[2].sku unknownSku',
