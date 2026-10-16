@@ -43,6 +43,8 @@ export function toWorkOrderDto(view: WorkOrderDetail): WorkOrderDto {
     estimatedCost:
       view.estimatedCost === null ? null : toMoneyDto(view.estimatedCost),
     receivedBy: view.receivedBy,
+    blockedAt: view.blockedAt,
+    anonymizedAt: view.anonymizedAt,
     version: view.version,
     statusHistory: view.statusHistory.map((entry) => ({
       fromStatus: entry.fromStatus,

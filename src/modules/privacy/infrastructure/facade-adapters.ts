@@ -3,11 +3,13 @@ import { toId } from '../../../shared-kernel/index.js';
 import { IdentityAccessFacade } from '../../identity-access/index.js';
 import { OrderingFacade } from '../../ordering/index.js';
 import { ShoppingFacade } from '../../shopping/index.js';
+import { WorkOrdersFacade } from '../../work-orders/index.js';
 import {
   type Buyer,
   BuyerOrders,
   CustomerAccounts,
   CustomerCarts,
+  CustomerWorkOrders,
 } from '../application/anonymization-ports.js';
 
 // Privacy's ports answered with the facades of the modules that own the data (ADR-0005, ADR-0145). No module uses
@@ -89,5 +91,20 @@ export class ShoppingFacadeCustomerCarts extends CustomerCarts {
 
   deleteOf(customerId: string): Promise<void> {
     return this.shopping.deleteCartsOf(toId<'User'>(customerId));
+  }
+}
+
+@Injectable()
+export class WorkOrdersFacadeCustomerWorkOrders extends CustomerWorkOrders {
+  constructor(private readonly workOrders: WorkOrdersFacade) {
+    super();
+  }
+
+  anonymize(input: {
+    customerId: string;
+    reason: string;
+    at: Date;
+  }): Promise<number> {
+    return this.workOrders.anonymizeCustomerWorkOrders(input);
   }
 }

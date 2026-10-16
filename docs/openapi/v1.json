@@ -47,6 +47,7 @@
                 "orders.place",
                 "work-orders.read",
                 "work-orders.manage",
+                "work-orders.read-blocked",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -2384,6 +2385,58 @@
         ],
         "type": "object"
       },
+      "BlockedWorkOrderDataDto": {
+        "properties": {
+          "accessories": {
+            "nullable": true,
+            "type": "string"
+          },
+          "customerEmail": {
+            "nullable": true,
+            "type": "string"
+          },
+          "customerName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "customerPhone": {
+            "nullable": true,
+            "type": "string"
+          },
+          "diagnosis": {
+            "nullable": true,
+            "type": "string"
+          },
+          "equipmentCondition": {
+            "nullable": true,
+            "type": "string"
+          },
+          "reportedFault": {
+            "nullable": true,
+            "type": "string"
+          },
+          "serialNumber": {
+            "nullable": true,
+            "type": "string"
+          },
+          "workPerformed": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "customerName",
+          "customerPhone",
+          "customerEmail",
+          "serialNumber",
+          "accessories",
+          "equipmentCondition",
+          "reportedFault",
+          "diagnosis",
+          "workPerformed"
+        ],
+        "type": "object"
+      },
       "CancelOrderDto": {
         "properties": {
           "reason": {
@@ -3130,6 +3183,7 @@
                 "orders.place",
                 "work-orders.read",
                 "work-orders.manage",
+                "work-orders.read-blocked",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -3331,6 +3385,11 @@
             "example": 3,
             "type": "number"
           },
+          "anonymizedWorkOrderCount": {
+            "description": "Órdenes de trabajo ligadas al cliente que se anonimizaron (ADR-0167).",
+            "example": 1,
+            "type": "number"
+          },
           "userId": {
             "format": "uuid",
             "type": "string"
@@ -3339,7 +3398,8 @@
         "required": [
           "userId",
           "anonymizedAt",
-          "anonymizedOrderCount"
+          "anonymizedOrderCount",
+          "anonymizedWorkOrderCount"
         ],
         "type": "object"
       },
@@ -4940,7 +5000,7 @@
             "type": "boolean"
           },
           "operationalMonths": {
-            "description": "Meses que los datos personales de un pedido siguen visibles después de que concluye; después se bloquean.",
+            "description": "Meses que los datos personales de un pedido siguen visibles después de que concluye, y los de una orden de trabajo\ndespués de que se entrega o se cancela; después se bloquean.",
             "example": 12,
             "type": "number"
           }
@@ -6331,7 +6391,7 @@
                 "$ref": "#/components/schemas/PersonalDataRetentionDto"
               }
             ],
-            "description": "El ciclo de los datos personales de órdenes y envíos (ADR-0151)."
+            "description": "El ciclo de los datos personales de órdenes, envíos y órdenes de trabajo (ADR-0151, ADR-0167)."
           },
           "processedWebhookEventDays": {
             "description": "Días que se conserva un evento de webhook de pagos procesado.",
@@ -6441,6 +6501,7 @@
                 "orders.place",
                 "work-orders.read",
                 "work-orders.manage",
+                "work-orders.read-blocked",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -7656,6 +7717,7 @@
                 "orders.place",
                 "work-orders.read",
                 "work-orders.manage",
+                "work-orders.read-blocked",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -8118,6 +8180,18 @@
             "nullable": true,
             "type": "string"
           },
+          "anonymizedAt": {
+            "description": "Cuándo se anonimizaron los datos del cliente.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "blockedAt": {
+            "description": "Cuándo se bloquearon los datos del cliente (ADR-0167): se muestran como anonimizados, y se consultan con `POST …/blocked-data`.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "closedAt": {
             "description": "Cuándo se entregó o se canceló.",
             "format": "date-time",
@@ -8135,10 +8209,13 @@
             "type": "string"
           },
           "customerName": {
+            "description": "Nombre del cliente; `null` si la orden de trabajo está bloqueada o anonimizada (ADR-0167).",
+            "nullable": true,
             "type": "string"
           },
           "customerPhone": {
-            "description": "10 dígitos.",
+            "description": "10 dígitos; `null` si la orden de trabajo está bloqueada o anonimizada.",
+            "nullable": true,
             "type": "string"
           },
           "diagnosis": {
@@ -8197,6 +8274,8 @@
             "type": "string"
           },
           "reportedFault": {
+            "description": "La falla reportada; `null` si la orden de trabajo está bloqueada o anonimizada.",
+            "nullable": true,
             "type": "string"
           },
           "sales": {
@@ -8259,6 +8338,8 @@
         "required": [
           "id",
           "status",
+          "customerName",
+          "customerPhone",
           "equipmentBrand",
           "equipmentModel",
           "serialNumber",
@@ -8270,19 +8351,19 @@
           "customerEmail",
           "accessories",
           "equipmentCondition",
+          "reportedFault",
           "diagnosis",
           "workPerformed",
           "estimatedCost",
           "receivedBy",
+          "blockedAt",
+          "anonymizedAt",
           "statusHistory",
           "sales",
           "paidTotal",
           "unpaidTotal",
-          "reportedFault",
           "version",
           "folio",
-          "customerName",
-          "customerPhone",
           "equipmentType"
         ],
         "type": "object"
@@ -8302,6 +8383,22 @@
         "required": [
           "data",
           "meta"
+        ],
+        "type": "object"
+      },
+      "WorkOrderReasonDto": {
+        "properties": {
+          "reason": {
+            "description": "La referencia de la reclamación, el requerimiento o la solicitud, de 1 a 500 caracteres. Queda en la auditoría:\nno escribas datos personales.",
+            "example": "Solicitud ARCO 2026-014",
+            "maxLength": 500,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
         ],
         "type": "object"
       },
@@ -8366,10 +8463,13 @@
             "type": "string"
           },
           "customerName": {
+            "description": "Nombre del cliente; `null` si la orden de trabajo está bloqueada o anonimizada (ADR-0167).",
+            "nullable": true,
             "type": "string"
           },
           "customerPhone": {
-            "description": "10 dígitos.",
+            "description": "10 dígitos; `null` si la orden de trabajo está bloqueada o anonimizada.",
+            "nullable": true,
             "type": "string"
           },
           "equipmentBrand": {
@@ -8426,6 +8526,8 @@
         "required": [
           "id",
           "status",
+          "customerName",
+          "customerPhone",
           "equipmentBrand",
           "equipmentModel",
           "serialNumber",
@@ -8434,8 +8536,6 @@
           "receivedAt",
           "closedAt",
           "folio",
-          "customerName",
-          "customerPhone",
           "equipmentType"
         ],
         "type": "object"
@@ -12765,7 +12865,7 @@
     },
     "/v1/admin/identity/customers/{userId}/anonymize": {
       "post": {
-        "description": "Irreversible. Vacía el email, los nombres y la contraseña (estado ANONYMIZED, email libre); borra sus sesiones, enlaces, direcciones y carritos; y quita el email de contacto y los datos de quien recibe de sus órdenes y envíos, que conservan estado, municipio y código postal. Si tiene órdenes sin concluir, espera a que terminen (ADR-0067, ADR-0145). El cliente queda consultable en `GET /v1/admin/identity/customers/{userId}`.",
+        "description": "Irreversible. Vacía el email, los nombres y la contraseña (estado ANONYMIZED, email libre); borra sus sesiones, enlaces, direcciones y carritos; quita el email de contacto y los datos de quien recibe de sus órdenes y envíos, que conservan estado, municipio y código postal; y anonimiza las órdenes de trabajo ligadas a él (ADR-0167). Si tiene órdenes sin concluir, u órdenes de trabajo sin entregar ni cancelar, espera a que terminen: 409 `active-orders-exist` (ADR-0067, ADR-0145). El cliente queda consultable en `GET /v1/admin/identity/customers/{userId}`.",
         "operationId": "AnonymizationsController_anonymizeCustomer_v1",
         "parameters": [
           {
@@ -20025,6 +20125,250 @@
         ],
         "x-required-permissions": [
           "work-orders.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}/anonymize": {
+      "post": {
+        "description": "Por una solicitud recibida fuera del sistema (BR-PRIV-02, ADR-0167): borra el nombre, el teléfono, el email, el número de serie y los textos que pueden citar al cliente; conserva el folio, los estados, el equipo, el costo estimado y las ventas. Solo una orden de trabajo entregada o cancelada; abierta, o ya anonimizada, 409 `invalid-state-transition`. Las órdenes de trabajo de un cliente con cuenta se anonimizan con su cuenta. Se audita como `work-orders.anonymize` con el motivo y sin los valores, y borra la respuesta guardada al recibir el equipo.",
+        "operationId": "AdminWorkOrdersController_anonymize_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkOrderReasonDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anonimizar una orden de trabajo de un cliente sin cuenta",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "customers.manage"
+        ]
+      }
+    },
+    "/v1/admin/work-orders/{workOrderId}/blocked-data": {
+      "post": {
+        "description": "Para atender una reclamación o un requerimiento (ADR-0167), como en los pedidos (ADR-0152): los datos del cliente, el número de serie y los textos, como se guardaron. Solo en una orden de trabajo bloqueada (`blockedAt`); en una que no lo está, cuyos datos ya se ven, o en una anonimizada, que ya no los tiene, 409 `invalid-state-transition`. Se audita como `work-orders.read-blocked-data` con el motivo y sin los datos; si la auditoría falla, no se devuelve nada.",
+        "operationId": "AdminWorkOrdersController_readBlockedData_v1",
+        "parameters": [
+          {
+            "description": "ID interno de la orden de trabajo; el staff la busca por su folio.",
+            "in": "path",
+            "name": "workOrderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkOrderReasonDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedWorkOrderDataDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar los datos personales bloqueados de una orden de trabajo",
+        "tags": [
+          "Administración: órdenes de trabajo"
+        ],
+        "x-required-permissions": [
+          "work-orders.read-blocked"
         ]
       }
     },

@@ -154,6 +154,8 @@ describe('Work orders (e2e, T-189 part b)', () => {
         technicianId: null,
         receivedAt: expect.any(String),
         closedAt: null,
+        blockedAt: null,
+        anonymizedAt: null,
         version: 1,
         statusHistory: [
           {

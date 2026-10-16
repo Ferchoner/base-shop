@@ -63,6 +63,21 @@ export abstract class BuyerOrders {
   abstract hasOpenOrders(customerId: string): Promise<boolean>;
 }
 
+/** The work orders linked to a customer, in Work Orders (ADR-0167). */
+export abstract class CustomerWorkOrders {
+  /**
+   * Anonymizes every work order linked to the customer, all or none, each audited as `work-orders.anonymize`.
+   *
+   * @returns how many work orders it anonymized.
+   * @throws OpenWorkOrdersError (`active-orders-exist`) when one was neither delivered nor cancelled.
+   */
+  abstract anonymize(input: {
+    customerId: string;
+    reason: string;
+    at: Date;
+  }): Promise<number>;
+}
+
 /** The carts of a customer, in Shopping. */
 export abstract class CustomerCarts {
   /** Deletes every cart of the customer, with the guest carts merged into them. */

@@ -3,13 +3,14 @@ import { ApiProperty } from '@nestjs/swagger';
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments; nested
 // DTOs and null declare their type with @ApiProperty (DEVELOPMENT_GUIDE.md).
 
-/** The retention cycle of the personal data of orders and shipments (ADR-0070, ADR-0149). */
+/** The retention cycle of the personal data of orders, shipments and work orders (ADR-0070, ADR-0149, ADR-0167). */
 export class PersonalDataRetentionDto {
   /** Si el ciclo está activo; si no, los datos se conservan. */
   enabled: boolean;
 
   /**
-   * Meses que los datos personales de un pedido siguen visibles después de que concluye; después se bloquean.
+   * Meses que los datos personales de un pedido siguen visibles después de que concluye, y los de una orden de trabajo
+   * después de que se entrega o se cancela; después se bloquean.
    * @example 12
    */
   operationalMonths: number;
@@ -38,7 +39,7 @@ export class AuditTrailRetentionDto {
 
 /** Response of `GET /v1/privacy/retention-policy` (ADR-0149, ADR-0152). */
 export class RetentionPolicyDto {
-  /** El ciclo de los datos personales de órdenes y envíos (ADR-0151). */
+  /** El ciclo de los datos personales de órdenes, envíos y órdenes de trabajo (ADR-0151, ADR-0167). */
   @ApiProperty({ type: () => PersonalDataRetentionDto })
   personalData: PersonalDataRetentionDto;
 

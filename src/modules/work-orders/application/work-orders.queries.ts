@@ -28,8 +28,9 @@ export interface WorkOrderView {
   readonly folio: string;
   readonly status: WorkOrderStatus;
   readonly customerId: UserId | null;
-  readonly customerName: string;
-  readonly customerPhone: string;
+  /** `null` while blocked, and once anonymized (ADR-0167). */
+  readonly customerName: string | null;
+  readonly customerPhone: string | null;
   readonly customerEmail: string | null;
   readonly equipmentType: string;
   readonly equipmentBrand: string | null;
@@ -37,7 +38,7 @@ export interface WorkOrderView {
   readonly serialNumber: string | null;
   readonly accessories: string | null;
   readonly equipmentCondition: string | null;
-  readonly reportedFault: string;
+  readonly reportedFault: string | null;
   readonly diagnosis: string | null;
   readonly workPerformed: string | null;
   readonly estimatedCost: Money | null;
@@ -46,6 +47,12 @@ export interface WorkOrderView {
   readonly technicianId: UserId | null;
   readonly receivedAt: Date;
   readonly closedAt: Date | null;
+  /**
+   * When the data of its customer was blocked (ADR-0167): it shows only what an anonymized one keeps, and is read with
+   * `work-orders.read-blocked`.
+   */
+  readonly blockedAt: Date | null;
+  readonly anonymizedAt: Date | null;
   readonly version: number;
   /** Oldest first. */
   readonly statusHistory: readonly WorkOrderStatusEntryView[];
@@ -65,8 +72,9 @@ export interface WorkOrderSummaryView {
   readonly id: WorkOrderId;
   readonly folio: string;
   readonly status: WorkOrderStatus;
-  readonly customerName: string;
-  readonly customerPhone: string;
+  /** `null` while blocked, and once anonymized (ADR-0167). */
+  readonly customerName: string | null;
+  readonly customerPhone: string | null;
   readonly equipmentType: string;
   readonly equipmentBrand: string | null;
   readonly equipmentModel: string | null;

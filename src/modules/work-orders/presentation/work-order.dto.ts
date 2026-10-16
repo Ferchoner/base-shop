@@ -434,10 +434,19 @@ export class WorkOrderSummaryDto {
   @ApiProperty({ enum: WORK_ORDER_STATUSES })
   status: WorkOrderStatus;
 
-  customerName: string;
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Nombre del cliente; `null` si la orden de trabajo está bloqueada o anonimizada (ADR-0167).',
+  })
+  customerName: string | null;
 
-  /** 10 dígitos. */
-  customerPhone: string;
+  @ApiProperty({
+    nullable: true,
+    description:
+      '10 dígitos; `null` si la orden de trabajo está bloqueada o anonimizada.',
+  })
+  customerPhone: string | null;
 
   equipmentType: string;
 
@@ -491,7 +500,12 @@ export class WorkOrderDto extends WorkOrderSummaryDto {
   @ApiProperty({ nullable: true })
   equipmentCondition: string | null;
 
-  reportedFault: string;
+  @ApiProperty({
+    nullable: true,
+    description:
+      'La falla reportada; `null` si la orden de trabajo está bloqueada o anonimizada.',
+  })
+  reportedFault: string | null;
 
   @ApiProperty({ nullable: true })
   diagnosis: string | null;
@@ -509,6 +523,23 @@ export class WorkOrderDto extends WorkOrderSummaryDto {
   /** La cuenta de staff que recibió el equipo. */
   @ApiProperty({ type: String, format: 'uuid' })
   receivedBy: string;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Cuándo se bloquearon los datos del cliente (ADR-0167): se muestran como anonimizados, y se consultan con `POST …/blocked-data`.',
+  })
+  blockedAt: Date | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Cuándo se anonimizaron los datos del cliente.',
+  })
+  anonymizedAt: Date | null;
 
   /** Para el bloqueo optimista. */
   version: number;
@@ -639,4 +670,46 @@ export class ServiceNoteDto {
    * (ADR-0165). Pueden traer saltos de línea.
    */
   terms: string;
+}
+
+/** A reason to read the blocked data of a work order, or to anonymize one (ADR-0167). */
+export class WorkOrderReasonDto {
+  /**
+   * La referencia de la reclamación, el requerimiento o la solicitud, de 1 a 500 caracteres. Queda en la auditoría:
+   * no escribas datos personales. @example 'Solicitud ARCO 2026-014'
+   */
+  @IsString()
+  @Length(1, 500)
+  @Matches(/\S/, NOT_BLANK)
+  reason: string;
+}
+
+/** The data of the customer that a blocked work order hides (ADR-0167). */
+export class BlockedWorkOrderDataDto {
+  @ApiProperty({ nullable: true })
+  customerName: string | null;
+
+  @ApiProperty({ nullable: true })
+  customerPhone: string | null;
+
+  @ApiProperty({ nullable: true })
+  customerEmail: string | null;
+
+  @ApiProperty({ nullable: true })
+  serialNumber: string | null;
+
+  @ApiProperty({ nullable: true })
+  accessories: string | null;
+
+  @ApiProperty({ nullable: true })
+  equipmentCondition: string | null;
+
+  @ApiProperty({ nullable: true })
+  reportedFault: string | null;
+
+  @ApiProperty({ nullable: true })
+  diagnosis: string | null;
+
+  @ApiProperty({ nullable: true })
+  workPerformed: string | null;
 }

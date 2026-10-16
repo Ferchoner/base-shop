@@ -425,4 +425,109 @@ describe('WorkOrder (ADR-0165, ADR-0166)', () => {
       expect(receive().snapshot.sales).toEqual([]);
     });
   });
+
+  describe('the retention of the data of its customer (ADR-0167)', () => {
+    const CUTOFF = new Date('2026-10-20T00:00:00.000Z');
+    /** A work order delivered or cancelled at `closedAt`. */
+    const closed = (
+      closedAt: Date,
+      status: 'DELIVERED' | 'CANCELLED' = 'DELIVERED',
+    ) =>
+      WorkOrder.restore({
+        ...workOrderIn(status).snapshot,
+        diagnosis: 'Disco dañado',
+        workPerformed: 'Cambio de disco',
+        customerEmail: 'maria@example.com',
+        estimatedCost: Money.of(120_000, 'MXN'),
+        closedAt,
+      });
+
+    it('blocks the data of one closed at the cutoff or before, once', () => {
+      const workOrder = closed(CUTOFF);
+
+      expect(workOrder.closedBy(CUTOFF)).toBe(true);
+      expect(workOrder.blockIfDue(CUTOFF, LATER)).toBe(true);
+      expect(workOrder.snapshot).toMatchObject({
+        blockedAt: LATER,
+        customerName: DETAILS.customerName,
+      });
+      expect(workOrder.isBlocked).toBe(true);
+      expect(workOrder.blockIfDue(CUTOFF, new Date())).toBe(false);
+      expect(workOrder.snapshot.blockedAt).toEqual(LATER);
+    });
+
+    it('blocks nothing closed after the cutoff, open, or anonymized', () => {
+      const later = closed(new Date(CUTOFF.getTime() + 1));
+      const open = workOrderIn('READY');
+      const anonymized = closed(AT);
+      anonymized.anonymize(AT);
+
+      expect(later.closedBy(CUTOFF)).toBe(false);
+      expect(open.closedBy(CUTOFF)).toBe(false);
+      for (const workOrder of [later, open, anonymized]) {
+        expect(workOrder.blockIfDue(CUTOFF, LATER)).toBe(false);
+        expect(workOrder.isBlocked).toBe(false);
+      }
+    });
+
+    it.each(['DELIVERED', 'CANCELLED'] as const)(
+      'anonymizes one %s: takes away what identifies the customer and the texts that may quote them',
+      (status) => {
+        const workOrder = closed(AT, status);
+        workOrder.blockIfDue(AT, AT);
+
+        workOrder.anonymize(LATER);
+
+        expect(workOrder.snapshot).toMatchObject({
+          customerName: null,
+          customerPhone: null,
+          customerEmail: null,
+          serialNumber: null,
+          accessories: null,
+          equipmentCondition: null,
+          reportedFault: null,
+          diagnosis: null,
+          workPerformed: null,
+          equipmentType: 'Laptop',
+          equipmentBrand: 'Lenovo',
+          equipmentModel: 'ThinkPad T14',
+          estimatedCost: Money.of(120_000, 'MXN'),
+          status,
+          closedAt: AT,
+          blockedAt: AT,
+          anonymizedAt: LATER,
+        });
+        expect(workOrder.isAnonymized).toBe(true);
+      },
+    );
+
+    it.each(['RECEIVED', 'READY'] as const)(
+      'does not anonymize one %s',
+      (status) => {
+        const workOrder = workOrderIn(status);
+
+        expect(() => workOrder.anonymize(LATER)).toThrow(
+          expect.objectContaining(transition(status)),
+        );
+        expect(workOrder.snapshot.customerName).toBe(DETAILS.customerName);
+      },
+    );
+
+    it('does not anonymize one twice', () => {
+      const workOrder = closed(AT);
+      workOrder.anonymize(AT);
+
+      expect(() => workOrder.anonymize(LATER)).toThrow(
+        expect.objectContaining(transition('DELIVERED')),
+      );
+      expect(workOrder.snapshot.anonymizedAt).toEqual(AT);
+    });
+
+    it('is received neither blocked nor anonymized', () => {
+      expect(receive().snapshot).toMatchObject({
+        blockedAt: null,
+        anonymizedAt: null,
+      });
+    });
+  });
 });

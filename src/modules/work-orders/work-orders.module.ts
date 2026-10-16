@@ -10,11 +10,19 @@ import {
   type ServiceNoteSettings,
 } from './application/service-note.js';
 import { UpdateWorkOrder } from './application/update-work-order.use-case.js';
+import { WorkOrderAnonymizations } from './application/work-order-anonymizations.js';
 import {
+  ReceptionResponses,
   StoreSales,
   WorkOrderAccounts,
   WorkOrderWarehouses,
 } from './application/work-order-ports.js';
+import {
+  WORK_ORDER_RETENTION,
+  WorkOrderRetention,
+  type WorkOrderRetentionPolicy,
+} from './application/work-order-retention.js';
+import { WorkOrdersFacade } from './application/work-orders.facade.js';
 import { WorkOrderLifecycle } from './application/work-order-lifecycle.use-case.js';
 import { WorkOrderReader } from './application/work-order-reader.js';
 import { WorkOrderSales } from './application/work-order-sales.use-case.js';
@@ -26,14 +34,17 @@ import {
   OrderingFacadeStoreSales,
 } from './infrastructure/facade-adapters.js';
 import { PrismaWorkOrderRepository } from './infrastructure/prisma-work-order.repository.js';
+import { IdempotencyReceptionResponses } from './infrastructure/idempotency-reception-responses.js';
 import { PrismaWorkOrderQueries } from './infrastructure/prisma-work-orders.queries.js';
+import { WorkOrderRetentionJob } from './infrastructure/work-order-retention.job.js';
 import { AdminWorkOrdersController } from './presentation/admin-work-orders.controller.js';
 
 /**
  * Work Orders (ADR-0165, ADR-0166, ADR-0167): the service notes of the equipment a customer leaves in the physical
  * store. It reads warehouses from Inventory, accounts from Identity and the counter sales that pay for a work order
  * from Ordering, through their facades (ADR-0005); none of them uses Work Orders. The data of the store on the note
- * come from the configuration, as on the ticket (ADR-0163).
+ * come from the configuration, as on the ticket (ADR-0163). The data of the customer follow the retention cycle of the
+ * orders, with the same variables (ADR-0151, ADR-0167), and Privacy anonymizes them through its facade.
  */
 @Module({
   imports: [IdentityAccessModule, InventoryModule, OrderingModule],
@@ -44,6 +55,10 @@ import { AdminWorkOrdersController } from './presentation/admin-work-orders.cont
     WorkOrderLifecycle,
     WorkOrderSales,
     WorkOrderReader,
+    WorkOrderAnonymizations,
+    WorkOrderRetention,
+    WorkOrderRetentionJob,
+    WorkOrdersFacade,
     { provide: WorkOrderRepository, useClass: PrismaWorkOrderRepository },
     { provide: WorkOrderQueries, useClass: PrismaWorkOrderQueries },
     {
@@ -52,6 +67,22 @@ import { AdminWorkOrdersController } from './presentation/admin-work-orders.cont
     },
     { provide: WorkOrderAccounts, useClass: IdentityFacadeWorkOrderAccounts },
     { provide: StoreSales, useClass: OrderingFacadeStoreSales },
+    { provide: ReceptionResponses, useClass: IdempotencyReceptionResponses },
+    {
+      provide: WORK_ORDER_RETENTION,
+      inject: [ConfigService],
+      useFactory: (
+        config: ConfigService<EnvironmentVariables, true>,
+      ): WorkOrderRetentionPolicy => ({
+        enabled: config.get('PERSONAL_DATA_RETENTION_ENABLED', { infer: true }),
+        operationalMonths: config.get('PERSONAL_DATA_OPERATIONAL_MONTHS', {
+          infer: true,
+        }),
+        blockedMonths: config.get('PERSONAL_DATA_BLOCKED_MONTHS', {
+          infer: true,
+        }),
+      }),
+    },
     {
       provide: SERVICE_NOTE_SETTINGS,
       inject: [ConfigService],
@@ -68,5 +99,6 @@ import { AdminWorkOrdersController } from './presentation/admin-work-orders.cont
       }),
     },
   ],
+  exports: [WorkOrdersFacade],
 })
 export class WorkOrdersModule {}

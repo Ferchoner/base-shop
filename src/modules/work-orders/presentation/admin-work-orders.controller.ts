@@ -36,6 +36,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import { ReceiveWorkOrder } from '../application/receive-work-order.use-case.js';
 import { UpdateWorkOrder } from '../application/update-work-order.use-case.js';
+import { WorkOrderAnonymizations } from '../application/work-order-anonymizations.js';
 import { WorkOrderLifecycle } from '../application/work-order-lifecycle.use-case.js';
 import { WorkOrderReader } from '../application/work-order-reader.js';
 import { WorkOrderSales } from '../application/work-order-sales.use-case.js';
@@ -44,6 +45,7 @@ import {
   type WorkOrderSortField,
 } from '../application/work-orders.queries.js';
 import {
+  BlockedWorkOrderDataDto,
   ChangeWorkOrderStatusDto,
   LinkSaleDto,
   ReceiveWorkOrderDto,
@@ -53,6 +55,7 @@ import {
   WorkOrderDto,
   WorkOrderListDto,
   WorkOrderListQueryDto,
+  WorkOrderReasonDto,
 } from './work-order.dto.js';
 import {
   toServiceNoteDto,
@@ -92,6 +95,7 @@ export class AdminWorkOrdersController {
     private readonly updateWorkOrder: UpdateWorkOrder,
     private readonly lifecycle: WorkOrderLifecycle,
     private readonly sales: WorkOrderSales,
+    private readonly anonymizations: WorkOrderAnonymizations,
   ) {}
 
   @ApiOperation({
@@ -322,6 +326,46 @@ export class AdminWorkOrdersController {
     const note = await this.reader.serviceNote(id);
     if (note === null) throw new NotFoundError('WorkOrder', id);
     return toServiceNoteDto(note);
+  }
+
+  @ApiOperation({
+    summary:
+      'Consultar los datos personales bloqueados de una orden de trabajo',
+    description:
+      'Para atender una reclamación o un requerimiento (ADR-0167), como en los pedidos (ADR-0152): los datos del cliente, el número de serie y los textos, como se guardaron. Solo en una orden de trabajo bloqueada (`blockedAt`); en una que no lo está, cuyos datos ya se ven, o en una anonimizada, que ya no los tiene, 409 `invalid-state-transition`. Se audita como `work-orders.read-blocked-data` con el motivo y sin los datos; si la auditoría falla, no se devuelve nada.',
+  })
+  @ApiOkResponse({ type: BlockedWorkOrderDataDto })
+  @ApiProblemResponses('not-found', 'invalid-state-transition')
+  @RequirePermissions('work-orders.read-blocked')
+  @HttpCode(200)
+  @Post(':workOrderId/blocked-data')
+  readBlockedData(
+    @Param('workOrderId') workOrderId: string,
+    @Body() body: WorkOrderReasonDto,
+  ): Promise<BlockedWorkOrderDataDto> {
+    return this.anonymizations.readBlocked({
+      id: workOrderIdOf(workOrderId),
+      reason: body.reason,
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Anonimizar una orden de trabajo de un cliente sin cuenta',
+    description:
+      'Por una solicitud recibida fuera del sistema (BR-PRIV-02, ADR-0167): borra el nombre, el teléfono, el email, el número de serie y los textos que pueden citar al cliente; conserva el folio, los estados, el equipo, el costo estimado y las ventas. Solo una orden de trabajo entregada o cancelada; abierta, o ya anonimizada, 409 `invalid-state-transition`. Las órdenes de trabajo de un cliente con cuenta se anonimizan con su cuenta. Se audita como `work-orders.anonymize` con el motivo y sin los valores, y borra la respuesta guardada al recibir el equipo.',
+  })
+  @ApiOkResponse({ type: WorkOrderDto })
+  @ApiProblemResponses('not-found', 'invalid-state-transition')
+  @RequirePermissions('customers.manage')
+  @HttpCode(200)
+  @Post(':workOrderId/anonymize')
+  async anonymize(
+    @Param('workOrderId') workOrderId: string,
+    @Body() body: WorkOrderReasonDto,
+  ): Promise<WorkOrderDto> {
+    const id = workOrderIdOf(workOrderId);
+    await this.anonymizations.one({ id, reason: body.reason });
+    return this.read(id);
   }
 
   private async read(id: Id<'WorkOrder'>): Promise<WorkOrderDto> {
