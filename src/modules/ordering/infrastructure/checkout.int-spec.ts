@@ -132,6 +132,8 @@ describe('Ordering: checkout (T-180)', () => {
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();
+    await prisma.promotionTarget.deleteMany();
+    await prisma.promotion.deleteMany();
     await prisma.reservation.deleteMany();
     await prisma.cartLine.deleteMany();
     await prisma.cart.deleteMany();
@@ -257,6 +259,163 @@ describe('Ordering: checkout (T-180)', () => {
           : (result.reason as Error).constructor.name,
       )
       .sort();
+
+  /** A promotion of the whole purchase that started a day before the clock, in these channels. */
+  async function promotion(
+    columns: { percentage?: number; online?: boolean; inStore?: boolean } = {},
+  ): Promise<string> {
+    const id = newId();
+    await prisma.promotion.create({
+      data: {
+        id,
+        name: 'Buen Fin 10%',
+        percentage: columns.percentage ?? 10,
+        online: columns.online ?? true,
+        inStore: columns.inStore ?? true,
+        startsAt: new Date(START - 86_400_000),
+        createdBy: newId(),
+        updatedAt: new Date(START),
+      },
+    });
+    return id;
+  }
+
+  describe('the promotion of the order (T-200 part b, ADR-0168)', () => {
+    it('saves the discount of each line, the VAT left after it and the promotion, and reads them back', async () => {
+      const promotionId = await promotion();
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 2 }]);
+
+      const id = await run(() =>
+        checkout.placeOrder({
+          ...guestOrder(cartId, 2),
+          expectedTotal: 20_000 - 2_000 + 9_900,
+        }),
+      );
+
+      const row = await prisma.order.findUniqueOrThrow({
+        where: { id },
+        include: { lines: true },
+      });
+      // 18,000 × 1600 / 11600 = 2,482.76.
+      expect(row).toMatchObject({
+        subtotal: 20_000,
+        discountTotal: 2_000,
+        taxTotal: 2_483 + 1_366,
+        grandTotal: 27_900,
+        promotionId,
+        promotionName: 'Buen Fin 10%',
+      });
+      expect(row.lines).toEqual([
+        expect.objectContaining({
+          lineTotal: 20_000,
+          discountAmount: 2_000,
+          taxAmount: 2_483,
+        }),
+      ]);
+      const promotionOf = { id: promotionId, name: 'Buen Fin 10%' };
+      const view = await queries.findOrder(id);
+      expect(view).toMatchObject({
+        promotion: promotionOf,
+        lines: [{ discountAmount: Money.of(2_000, 'MXN') }],
+      });
+      expect(await queries.findAdminOrder(id)).toMatchObject({
+        promotion: promotionOf,
+        lines: [{ discountAmount: Money.of(2_000, 'MXN') }],
+      });
+      const saved = await run(() =>
+        moduleRef
+          .get(TransactionManager)
+          .run(() => moduleRef.get(OrderRepository).lock(id)),
+      );
+      expect(saved?.snapshot).toMatchObject({
+        promotion: promotionOf,
+        lines: [{ discountAmount: Money.of(2_000, 'MXN') }],
+      });
+    });
+
+    it('gives an online order no promotion of the store only', async () => {
+      await promotion({ online: false });
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 1 }]);
+
+      const id = await run(() => checkout.placeOrder(guestOrder(cartId, 1)));
+
+      expect(
+        await prisma.order.findUniqueOrThrow({ where: { id } }),
+      ).toMatchObject({
+        discountTotal: 0,
+        promotionId: null,
+        promotionName: null,
+      });
+      expect((await queries.findOrder(id))?.promotion).toBeNull();
+    });
+
+    it.each([
+      [
+        'order_lines_discount_amount_check',
+        'UPDATE order_lines SET discount_amount = line_total + 1',
+      ],
+      [
+        'order_lines_tax_amount_check',
+        'UPDATE order_lines SET tax_amount = line_total - discount_amount + 1',
+      ],
+      [
+        'orders_promotion_check',
+        'UPDATE orders SET promotion_id = NULL, promotion_name = NULL',
+      ],
+      ['orders_promotion_check', 'UPDATE orders SET promotion_name = NULL'],
+      [
+        'orders_promotion_check',
+        'UPDATE orders SET discount_total = 0, grand_total = subtotal + shipping_cost',
+      ],
+      [
+        'orders_discount_minimum_check',
+        'UPDATE orders SET discount_total = subtotal - 99, grand_total = shipping_cost + 99',
+      ],
+      [
+        'orders_amounts_check',
+        'UPDATE orders SET tax_total = subtotal + shipping_cost - discount_total + 1',
+      ],
+      [
+        'orders_amounts_check',
+        'UPDATE orders SET discount_total = subtotal + 1, grand_total = shipping_cost - 1',
+      ],
+    ])('enforces %s', async (constraint, sql) => {
+      await promotion();
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 2 }]);
+      await run(() =>
+        checkout.placeOrder({
+          ...guestOrder(cartId, 2),
+          expectedTotal: 27_900,
+        }),
+      );
+
+      await expect(prisma.$executeRawUnsafe(sql)).rejects.toThrow(constraint);
+    });
+
+    it('takes the products paying exactly one peso with a discount', async () => {
+      await promotion({ percentage: 100 });
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 1 }]);
+
+      const id = await run(() =>
+        checkout.placeOrder({
+          ...guestOrder(cartId, 1),
+          expectedTotal: 100 + 9_900,
+        }),
+      );
+
+      expect(
+        await prisma.order.findUniqueOrThrow({ where: { id } }),
+      ).toMatchObject({
+        subtotal: 10_000,
+        discountTotal: 9_900,
+        grandTotal: 10_000,
+      });
+    });
+  });
 
   describe('persistence', () => {
     it('saves the order with its snapshots, number, lines and first status, and reads it back', async () => {

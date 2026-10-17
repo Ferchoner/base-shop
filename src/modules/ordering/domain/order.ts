@@ -72,14 +72,20 @@ export interface PricedLine {
   readonly unitPrice: Money;
   readonly quantity: number;
   readonly taxRateBp: number;
-  /** The VAT contained in the line total, rounded by line (BR-TAX-02). */
+  /** The VAT contained in the line total less its discount, rounded by line (BR-TAX-02, ADR-0168). */
   readonly taxAmount: Money;
+  /** The unit price by the quantity, before the discount. */
   readonly lineTotal: Money;
+  /** What the promotion of the order takes off the line (ADR-0168); zero without one. */
+  readonly discountAmount: Money;
 }
 
-/** The total and the VAT of a line, with its price VAT included (ADR-0008, ADR-0094). */
+/** The total and the VAT of a line, with its price VAT included and no discount (ADR-0008, ADR-0094). */
 export function priceLine(
-  item: Omit<PricedLine, 'taxRateBp' | 'taxAmount' | 'lineTotal'>,
+  item: Omit<
+    PricedLine,
+    'taxRateBp' | 'taxAmount' | 'lineTotal' | 'discountAmount'
+  >,
   taxRateBp: number,
 ): PricedLine {
   const lineTotal = item.unitPrice.multiply(item.quantity);
@@ -88,6 +94,21 @@ export function priceLine(
     taxRateBp,
     taxAmount: lineTotal.containedTax(taxRateBp),
     lineTotal,
+    discountAmount: Money.zero(lineTotal.currency),
+  };
+}
+
+/**
+ * A priced line with what a promotion takes off it (ADR-0168): its VAT is the one contained in what is left, since
+ * the discount lowers the base of the tax.
+ *
+ * @throws InvalidValueError when the discount is more than the line total.
+ */
+export function discountLine(line: PricedLine, discount: Money): PricedLine {
+  return {
+    ...line,
+    discountAmount: discount,
+    taxAmount: line.lineTotal.subtract(discount).containedTax(line.taxRateBp),
   };
 }
 
@@ -108,7 +129,7 @@ export interface OrderTotals {
   readonly taxTotal: Money;
   readonly shippingCost: Money;
   readonly shippingTaxAmount: Money;
-  /** Always zero in the MVP (ADR-0018). */
+  /** What the promotion of the order takes off its lines, their discounts added up (ADR-0168); zero without one. */
   readonly discountTotal: Money;
   readonly grandTotal: Money;
 }
@@ -121,14 +142,25 @@ export function orderTotals(
   const zero = Money.zero('MXN');
   const subtotal = lines.reduce((sum, line) => sum.add(line.lineTotal), zero);
   const linesTax = lines.reduce((sum, line) => sum.add(line.taxAmount), zero);
+  const discountTotal = lines.reduce(
+    (sum, line) => sum.add(line.discountAmount),
+    zero,
+  );
   return {
     subtotal,
     taxTotal: linesTax.add(shipping.taxAmount),
     shippingCost: shipping.cost,
     shippingTaxAmount: shipping.taxAmount,
-    discountTotal: zero,
-    grandTotal: subtotal.add(shipping.cost).subtract(zero),
+    discountTotal,
+    grandTotal: subtotal.add(shipping.cost).subtract(discountTotal),
   };
+}
+
+/** The promotion an order got (ADR-0168), as it was when the order was placed. */
+export interface AppliedPromotion {
+  readonly id: Id<'Promotion'>;
+  /** The name the customer saw. */
+  readonly name: string;
 }
 
 /** The address an order ships to, with the names of its state and municipality (ADR-0057). */
@@ -272,6 +304,8 @@ export interface OrderSnapshot {
   readonly status: OrderStatus;
   readonly lines: readonly OrderLine[];
   readonly totals: OrderTotals;
+  /** The promotion its discount comes from; `null` without a discount (ADR-0168). */
+  readonly promotion: AppliedPromotion | null;
   readonly shippingTaxRateBp: number;
   readonly fulfillment: OrderFulfillment;
   /** `null` for an order handed over in the store, which ships nowhere (ADR-0161); so are the next two. */
@@ -318,6 +352,8 @@ export interface NewOrder {
   readonly publicCode: PublicCode;
   readonly buyer: Buyer;
   readonly lines: readonly PricedLine[];
+  /** The promotion that takes off the discounts of the lines; missing or `null` when they have none. */
+  readonly promotion?: AppliedPromotion | null;
   readonly reservation: {
     readonly id: ReservationId;
     readonly expiresAt: Date;
@@ -406,7 +442,7 @@ export class Order {
 
   /**
    * @throws InvalidValueError for an order to ship without a contact email: only a sale handed over in the store may
-   *   have no buyer data (ADR-0161).
+   *   have no buyer data (ADR-0161); or for a discount without its promotion, or the other way round (ADR-0168).
    */
   private static create(
     input: NewOrder,
@@ -440,6 +476,14 @@ export class Order {
     const shipping =
       delivery.fulfillment === 'SHIPPING' ? delivery.shipping : null;
     const zero = Money.zero('MXN');
+    const totals = orderTotals(
+      input.lines,
+      shipping ?? { cost: zero, taxAmount: zero },
+    );
+    const promotion = input.promotion ?? null;
+    if ((promotion === null) !== totals.discountTotal.isZero()) {
+      throw new InvalidValueError('A discount comes with its promotion');
+    }
     return new Order({
       id: input.id,
       publicCode: input.publicCode,
@@ -452,10 +496,8 @@ export class Order {
         id: newId<'OrderLine'>(),
         lineNumber: index + 1,
       })),
-      totals: orderTotals(
-        input.lines,
-        shipping ?? { cost: zero, taxAmount: zero },
-      ),
+      totals,
+      promotion,
       shippingTaxRateBp: shipping?.taxRateBp ?? 0,
       fulfillment: delivery.fulfillment,
       deliveryMinBusinessDays: shipping?.deliveryMinBusinessDays ?? null,

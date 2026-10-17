@@ -1,7 +1,9 @@
 import { Money, NotFoundError } from '../../../shared-kernel/index.js';
 import {
+  type AppliedPromotion,
   type Buyer,
   type CustomerId,
+  discountLine,
   type Order,
   type OrderChannel,
   orderTotals,
@@ -22,6 +24,7 @@ import {
   CheckoutCatalog,
   CheckoutCustomers,
   CheckoutPrices,
+  CheckoutPromotions,
   CheckoutShipping,
   type CheckoutVariant,
   type ShippingCharge,
@@ -58,6 +61,8 @@ export interface QuoteLine {
   readonly options: VariantOptions;
   readonly unitPrice: Money | null;
   readonly lineTotal: Money | null;
+  /** What the promotion of the quote takes off the line (ADR-0168). */
+  readonly discountAmount: Money | null;
   readonly taxRateBp: number | null;
   readonly taxAmount: Money | null;
   readonly sellable: boolean;
@@ -69,6 +74,8 @@ export interface QuoteLine {
 export interface CheckoutQuote {
   readonly lines: readonly QuoteLine[];
   readonly totals: OrderTotals;
+  /** The promotion of the discount; `null` without one (ADR-0168). */
+  readonly promotion: AppliedPromotion | null;
   readonly freeShippingThreshold: Money | null;
   /** `null` for an order handed over in the store, which ships nowhere (ADR-0161). */
   readonly deliveryMinBusinessDays: number | null;
@@ -103,18 +110,22 @@ export interface Assessment {
     /** `null` when the line cannot be sold now. */
     readonly priced: PricedLine | null;
   }[];
+  /** The lines that can be sold, with their discounts. */
   readonly priced: readonly PricedLine[];
+  /** The promotion they get; `null` when none takes anything off (ADR-0168). */
+  readonly promotion: AppliedPromotion | null;
 }
 
 /**
- * What placing an order needs wherever its lines come from, a cart or the staff (ADR-0132, ADR-0161): their prices and
- * VAT now, their shipping, the buyer, the address, and saving the order with a free public code. Every read is in
- * force now, never from a cache (ADR-0028).
+ * What placing an order needs wherever its lines come from, a cart or the staff (ADR-0132, ADR-0161): their prices,
+ * discount and VAT now, their shipping, the buyer, the address, and saving the order with a free public code. Every
+ * read is in force now, never from a cache (ADR-0028).
  */
 export class OrderPlacement {
   constructor(
     private readonly catalog: CheckoutCatalog,
     private readonly prices: CheckoutPrices,
+    private readonly promotions: CheckoutPromotions,
     private readonly shipping: CheckoutShipping,
     private readonly customers: CheckoutCustomers,
     private readonly locations: ShippingLocations,
@@ -123,9 +134,10 @@ export class OrderPlacement {
   ) {}
 
   /**
-   * Each line with its variant and, when it can be sold now in the channel, its price and VAT (BR-PRD-11,
-   * BR-TAX-02): an online order never sells a product sold only in the store, which a sale in the store does
-   * (BR-PRD-20, ADR-0165).
+   * Each line with its variant and, when it can be sold now in the channel, its price, its discount and its VAT
+   * (BR-PRD-11, BR-TAX-02): an online order never sells a product sold only in the store, which a sale in the store
+   * does (BR-PRD-20, ADR-0165). The lines that can be sold get the promotion that takes off the most in the channel
+   * (ADR-0168), and the VAT of each is the one left after its discount.
    *
    * @throws NotFoundError for a variant that does not exist.
    */
@@ -159,24 +171,51 @@ export class OrderPlacement {
           : null;
       return { variant, quantity, priced };
     });
+    const sellable = items.flatMap(({ priced }) =>
+      priced === null ? [] : [priced],
+    );
+    const discount = await this.promotions.discountFor({
+      channel,
+      at,
+      lines: sellable.map(({ variantId, lineTotal }) => ({
+        variantId,
+        lineTotal,
+      })),
+    });
+    if (discount === null) {
+      return { items, priced: sellable, promotion: null };
+    }
+    const discounted = new Map(
+      sellable.map((line, index) => [
+        line.variantId,
+        discountLine(line, discount.discounts[index]),
+      ]),
+    );
     return {
-      items,
-      priced: items.flatMap(({ priced }) => (priced === null ? [] : [priced])),
+      items: items.map((item) => ({
+        ...item,
+        priced: item.priced && discounted.get(item.priced.variantId)!,
+      })),
+      priced: [...discounted.values()],
+      promotion: discount.promotion,
     };
   }
 
-  /** The shipping of these lines: free from the threshold on, which the shipping itself does not count. */
+  /**
+   * The shipping of these lines: free once the subtotal less the discount reaches the threshold, which the shipping
+   * itself does not count (ADR-0079, ADR-0168).
+   */
   quoteShipping(lines: readonly PricedLine[]): Promise<ShippingCharge> {
     const zero = Money.zero('MXN');
     return this.shipping.quote({
       subtotal: lines.reduce((sum, line) => sum.add(line.lineTotal), zero),
-      discount: zero,
+      discount: lines.reduce((sum, line) => sum.add(line.discountAmount), zero),
     });
   }
 
   /** The quote of assessed lines, with whether each can be fulfilled (UC-ORD-01, UC-ORD-12). */
   quoteOf(
-    { items, priced }: Assessment,
+    { items, priced, promotion }: Assessment,
     available: ReadonlyMap<VariantId, boolean>,
     shipping: QuotedShipping,
   ): CheckoutQuote {
@@ -189,6 +228,7 @@ export class OrderPlacement {
         options: variant.options,
         unitPrice: line?.unitPrice ?? null,
         lineTotal: line?.lineTotal ?? null,
+        discountAmount: line?.discountAmount ?? null,
         taxRateBp: line?.taxRateBp ?? null,
         taxAmount: line?.taxAmount ?? null,
         sellable: line !== null,
@@ -198,6 +238,7 @@ export class OrderPlacement {
     return {
       lines,
       totals: orderTotals(priced, shipping),
+      promotion,
       freeShippingThreshold: shipping.freeShippingThreshold,
       deliveryMinBusinessDays: shipping.deliveryMinBusinessDays,
       deliveryMaxBusinessDays: shipping.deliveryMaxBusinessDays,

@@ -489,13 +489,14 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ```json
 {
-  "lines": [ { "variantId": "…", "quantity": 2, "sku": "…", "productTitle": "…", "options": {}, "unitPrice": {}, "lineTotal": {}, "taxRateBp": 1600, "taxAmount": {}, "sellable": true, "canFulfill": true } ],
+  "lines": [ { "variantId": "…", "quantity": 2, "sku": "…", "productTitle": "…", "options": {}, "unitPrice": {}, "lineTotal": {}, "discountAmount": {}, "taxRateBp": 1600, "taxAmount": {}, "sellable": true, "canFulfill": true } ],
   "subtotal": { "amount": 119800, "currency": "MXN" },
   "taxTotal": { "amount": 17890, "currency": "MXN" },
   "shippingCost": { "amount": 9900, "currency": "MXN" },
   "shippingTaxAmount": { "amount": 1366, "currency": "MXN" },
   "discountTotal": { "amount": 0, "currency": "MXN" },
   "grandTotal": { "amount": 129700, "currency": "MXN" },
+  "promotion": null,
   "freeShippingThreshold": { "amount": 150000, "currency": "MXN" },
   "estimatedDelivery": { "minBusinessDays": 3, "maxBusinessDays": 7 },
   "readyToPlace": true
@@ -508,7 +509,11 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - `grandTotal.amount` es el valor que el cliente envía como `expectedTotal`.
 - `estimatedDelivery`: plazo de entrega estimado en días hábiles, contado desde la confirmación del pago; es un estimado, no una fecha comprometida (ADR-0083).
 - `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
-- Una línea no vendible lleva `unitPrice`, `lineTotal`, `taxRateBp` y `taxAmount` en `null` y `canFulfill: false`; los totales suman solo las líneas vendibles (ADR-0132).
+- **Promoción (desde T-200 parte b, ADR-0168, §26.7):**
+  - `promotion` es `{ "id", "name" }` de la promoción que más descuenta en el canal y en el momento de la cotización, o `null` si ninguna quita algo;
+  - `discountAmount` de cada línea es lo que le quita, y `discountTotal` su suma;
+  - `lineTotal` y `subtotal` siguen siendo antes del descuento, y `taxAmount` es el IVA contenido en `lineTotal` menos `discountAmount`.
+- Una línea no vendible lleva `unitPrice`, `lineTotal`, `discountAmount`, `taxRateBp` y `taxAmount` en `null` y `canFulfill: false`; los totales suman solo las líneas vendibles (ADR-0132).
 - `freeShippingThreshold` es `null` si el envío nunca es gratis (ADR-0092).
 - En la cotización del staff con `fulfillment` `IN_STORE` (§15.7, ADR-0161), `shippingCost` y `shippingTaxAmount` son 0, y `freeShippingThreshold` y `estimatedDelivery` son `null`: la orden se entrega en la tienda.
 
@@ -519,9 +524,10 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
   "publicCode": "K7M4-Q9XA",
   "status": "PENDING_PAYMENT",
   "contactEmail": "cliente@example.com",
-  "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {} } ],
+  "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {}, "discountAmount": {} } ],
   "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
   "fulfillment": "SHIPPING",
+  "promotion": { "id": "0199a3e1-…", "name": "Buen Fin 10%" },
   "shippingAddress": { "…": "Address" },
   "estimatedDelivery": { "minBusinessDays": 3, "maxBusinessDays": 7 },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
@@ -534,6 +540,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 - Nunca incluye `orderNumber` interno ni `id` (ADR-0049).
 - `payment` y `shipment` son `null` si no existen.
+- `promotion` (ADR-0168): la promoción de su descuento, con el nombre que vio el cliente al colocarla, o `null` sin descuento. Cada línea guarda su `discountAmount`, y su `taxAmount` es el IVA de lo que queda; el listado no trae `promotion`.
 - `contactEmail` es `null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), que el comprador ya no ve: solo el staff, en `AdminOrder` (§8.9, ADR-0145). También es `null` en una venta de mostrador sin datos del comprador, sin que la orden esté anonimizada; el comprador no la consulta, porque no dio email (ADR-0161).
 - Una orden bloqueada (ADR-0151) tampoco la ve el comprador: no aparece en `GET /v1/me/orders` ni en el enlace de acceso, y su detalle, la consulta de invitado y la recompra responden 404, como una orden que no existe.
 - `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
@@ -547,6 +554,8 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 `channel` dice dónde se colocó la orden (ADR-0161): `ONLINE`, en la tienda en línea desde un carrito, o `STORE`, en la tienda física, donde el staff la colocó a nombre del cliente. En una orden `STORE`, `placedBy` es la cuenta de staff que la colocó y `warehouseId` el almacén que eligió, del único que sale su stock; en una `ONLINE`, los dos son `null`.
 
 `blockedAt` dice cuándo se bloquearon los datos personales de la orden (ADR-0151). Desde entonces, `contactEmail` es `null` y `shippingAddress` sigue §8.2, como en una anonimizada, también en el listado.
+
+`promotion` (ADR-0168), solo en el detalle, como en §8.8, para el ticket.
 
 `fulfilledFrom` (ADR-0163), solo en el detalle, es el almacén del que salieron los productos, para el ticket: `{ "id", "code", "name" }` del almacén de una orden `STORE`, o del de su envío en una `ONLINE`; `null` mientras una `ONLINE` no tiene envío. Se muestra aunque el almacén esté inactivo. El listado no lo trae.
 
@@ -2128,7 +2137,7 @@ Desde T-189 parte c2, los datos del cliente de una orden de trabajo siguen el ci
 | PATCH | `/v1/admin/promotions/{promotionId}` | `promotions.manage` | UC-PRM-03 |
 | POST | `/v1/admin/promotions/{promotionId}/end` | `promotions.manage` | UC-PRM-03 |
 
-Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda la compra, o de ciertos productos, categorías y marcas, en línea, en la tienda física o en los dos. Las administra el rol Administrador, y el Vendedor las consulta para saber qué ofrecer en el mostrador. Se aplican a las cotizaciones y las órdenes desde la parte b, y con cupón desde la parte c; mientras tanto, solo se administran.
+Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda la compra, o de ciertos productos, categorías y marcas, en línea, en la tienda física o en los dos. Las administra el rol Administrador, y el Vendedor las consulta para saber qué ofrecer en el mostrador. Desde la parte b, las automáticas se aplican a las cotizaciones y las órdenes (§26.7); con cupón, desde la parte c.
 
 ### 26.1 `Promotion`
 
@@ -2241,3 +2250,23 @@ Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda l
 - **Response 200:** `Promotion` en `ENDED`.
 - **Errores:** 404 si no existe; 409 `version-conflict`; 409 `invalid-state-transition` si ya terminó.
 - Se audita como `promotions.end`.
+
+### 26.7 Cómo se aplica a una cotización y a una orden (UC-PRM-04)
+
+Desde T-200 parte b. Las tres cotizaciones (§15.2, §15.7) y las órdenes que colocan, en línea y en la tienda física, reciben la promoción automática que más descuenta.
+
+- **Cuáles compiten:**
+  - las vigentes en el momento de la cotización o de la orden, en su canal: `ONLINE` en línea y `STORE` en la tienda física;
+  - con su compra mínima cumplida por el subtotal de las líneas vendibles, antes del descuento.
+- **A qué líneas aplica:**
+  - una de toda la compra, a todas las vendibles;
+  - una con `targets`, a las líneas cuyo producto nombra, cuya marca nombra, o cuyo producto está en una categoría que nombra o debajo de ella, aunque la categoría esté inactiva.
+- **Cuánto quita:**
+  - **Porcentaje:** se calcula por línea y se redondea a la mitad hacia arriba, como el IVA.
+  - **Monto fijo:** se descuenta una vez, sin pasar de lo que suman sus líneas, y se reparte en proporción a su importe. Los centavos que deja el redondeo van, uno por uno, a las líneas de mayor importe; si empatan, a la primera.
+- **Mínimo de un peso:** los productos pagan al menos $1. Si el descuento los dejaría por debajo, se reduce, primero en la línea con más descuento; así una promoción al 100% cobra $1, más el envío si lo hay.
+- **Cuál gana:** la que más quita. A igual descuento, la que empezó antes; luego, la primera por ID. Una que no quita nada no aplica, y `promotion` es `null`.
+- **IVA:** el de cada línea se calcula sobre `lineTotal` menos `discountAmount`, porque el descuento reduce la base (ADR-0168).
+- **Envío gratis:** compara el subtotal menos el descuento (ADR-0079), así que un descuento puede dejar una compra sin envío gratis.
+- **`expectedTotal`:** incluye el descuento. Si la promoción cambia entre la cotización y la orden, se responde 409 `total-mismatch` con `currentTotal`, como cuando cambia un precio (§15.3).
+- **La orden guarda** la promoción, con el nombre que vio el cliente, y el descuento de cada línea. El correo de la orden recibida muestra el descuento con ese nombre. El carrito (§14) no muestra el descuento: lo da la cotización.

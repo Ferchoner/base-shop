@@ -484,8 +484,10 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 | shipping_tax_amount | integer | No | IVA contenido en `shipping_cost`; 0 con envío gratis (ADR-0079) |
 | shipping_tax_rate_bp | integer | No | Tasa aplicada al envío, en puntos base (ADR-0079) |
 | delivery_min_business_days, delivery_max_business_days | integer | Sí | Snapshot del plazo de entrega estimado, en días hábiles desde la confirmación del pago (ADR-0083); `NULL` en una orden `IN_STORE` |
-| discount_total | integer | No | Default 0 (ADR-0018) |
+| discount_total | integer | No | Default 0 (ADR-0018); la suma de los `discount_amount` de sus líneas (ADR-0168) |
 | grand_total | integer | No | — |
+| promotion_id | uuid | Sí | La promoción del descuento; referencia lógica a `promotions` (ADR-0168) |
+| promotion_name | text | Sí | Su nombre al colocar la orden, el que vio el cliente |
 | fulfillment | enum `order_fulfillment` (SHIPPING, IN_STORE) | No | Default `SHIPPING`; `IN_STORE` es la venta de mostrador, que se entrega en la tienda (ADR-0161) |
 | shipping_address | jsonb | Sí | Snapshot con el formato de ADR-0057; `NULL` en una orden `IN_STORE` |
 | reservation_id | uuid | Sí | Referencia lógica a Inventory |
@@ -524,6 +526,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 - **Implementado en T-187 parte a (ADR-0161):**
   - la migración `20261006150100_ordering_store_orders` crea `order_channel` y agrega `channel`, con `ONLINE` para las órdenes existentes, que salieron todas de un carrito; deja `source_cart_id` opcional y agrega `placed_by`, `warehouse_id`, `orders_channel_check` y el índice parcial;
   - la primera entrada de `order_status_history` lleva como actor a la cuenta de staff en una orden `STORE`.
+- **Implementado en T-200 parte b (ADR-0168):** la migración `20261017120000_ordering_promotions` agrega `promotion_id`, `promotion_name` y `order_lines.discount_amount`, con 0 y sin promoción para las órdenes existentes. `orders_amounts_check` limita ahora el IVA al total con el descuento, y el descuento al subtotal; `orders_discount_minimum_check` exige que con un descuento los productos sumen al menos $1 (`subtotal - discount_total >= 100`); `orders_promotion_check` exige la promoción con su nombre si y solo si hay descuento.
 - **Implementado en T-187 parte b (ADR-0161):** la migración `20261006170000_ordering_in_store_delivery` crea `order_fulfillment`, agrega `fulfillment` con `SHIPPING` para las órdenes existentes, deja opcionales la dirección y los días de entrega, agrega `orders_fulfillment_check` y reemplaza las restricciones del email y del aviso de privacidad.
 
 ### 8.2 `order_lines` (order_items)
@@ -540,8 +543,9 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 | unit_price | integer | Snapshot, IVA incluido; `CHECK (unit_price >= 0)` |
 | quantity | integer | `CHECK (quantity BETWEEN 1 AND 30)` |
 | tax_rate_bp | integer | Snapshot en puntos base (1600); `CHECK (tax_rate_bp >= 0)` |
-| tax_amount | integer | IVA contenido en la línea, redondeado por línea (ADR-0008) |
-| line_total | integer | `CHECK (line_total = unit_price * quantity)` |
+| tax_amount | integer | IVA contenido en la línea menos su descuento, redondeado por línea (ADR-0008, ADR-0168); `CHECK (tax_amount BETWEEN 0 AND line_total - discount_amount)` |
+| line_total | integer | `CHECK (line_total = unit_price * quantity)`; antes del descuento |
+| discount_amount | integer | Default 0; lo que la promoción quita a la línea (ADR-0168); `CHECK (discount_amount BETWEEN 0 AND line_total)` |
 
 - **Integridad:** inmutables tras colocar la orden (BR-ORD-03); `grand_total` y `subtotal` se validan contra la suma de líneas en la aplicación (sin trigger, para no duplicar la lógica del aggregate).
 

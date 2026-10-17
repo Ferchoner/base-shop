@@ -8,10 +8,23 @@ export interface CatalogTarget extends PromotionTarget {
   readonly usable: boolean;
 }
 
+/** What a variant is for a promotion (ADR-0168): its product, its brand, and its categories with every one above them. */
+export interface VariantClassification {
+  readonly variantId: string;
+  readonly productId: string;
+  readonly brandId: string | null;
+  readonly categoryIds: readonly string[];
+}
+
 /** The products, categories and brands of Catalog, through its facade (ADR-0005). */
 export abstract class PromotionCatalog {
   /** The ones that exist among these targets, with their name and whether they are in use; the others are left out. */
   abstract targets(
     targets: readonly PromotionTarget[],
   ): Promise<readonly CatalogTarget[]>;
+
+  /** These variants, classified; a variant that does not exist is left out. */
+  abstract classify(
+    variantIds: readonly string[],
+  ): Promise<readonly VariantClassification[]>;
 }

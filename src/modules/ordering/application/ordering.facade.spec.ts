@@ -110,6 +110,7 @@ describe('OrderingFacade (ADR-0074, ADR-0143)', () => {
         taxTotal: mxn(5_504),
         grandTotal: mxn(39_900),
       },
+      promotionName: null,
       shippingAddress: {
         recipientName: 'María López',
         street: 'Av. Madero',

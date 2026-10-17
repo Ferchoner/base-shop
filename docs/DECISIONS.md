@@ -5371,3 +5371,9 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - el estado se calcula con las fechas y no se guarda; terminarla guarda `ended_at` y `ended_by`, y nada se borra;
   - la fachada de Catalog suma `entries`, que da los productos, las categorías y las marcas por su ID, con su nombre y su estado;
   - la misma lista de productos, categorías y marcas en otro orden no es un cambio, y una promoción vigente acepta sus demás términos si llegan iguales.
+
+  El plan de la parte b, aprobado el 2026-10-17 con sus 18 recomendaciones, precisa que una categoría cuenta aunque esté inactiva, que a igual descuento gana la promoción que empezó antes, que el mínimo de un peso se aplica a los productos y que el correo nombra la promoción. Parte b implementada:
+  - Promotions expone `PromotionsFacade.discountFor`, que elige la promoción y reparte su descuento; Ordering la usa por un puerto, y la fachada de Catalog suma `classifications`, con la marca y las categorías de cada variante y todas sus categorías superiores, en una consulta recursiva;
+  - **el mínimo de un peso en los productos:** el envío gratis depende del descuento, y aplicar el mínimo al total haría que cada uno dependiera del otro. Con un 100% y envío, la orden paga $1 más el envío;
+  - la migración `20261017120000_ordering_promotions` agrega `order_lines.discount_amount`, `orders.promotion_id` y `orders.promotion_name`, y las restricciones del descuento: hasta el importe de la línea, el IVA de lo que queda, la promoción con su nombre solo con descuento, y el peso que pagan los productos;
+  - sin candado sobre la promoción: si alguien la termina mientras se coloca una orden, esa orden aún puede recibirla; `expectedTotal` protege al cliente.

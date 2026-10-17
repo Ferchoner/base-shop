@@ -48,6 +48,7 @@ import {
   MAX_ORDER_LINE_QUANTITY,
   MAX_STAFF_ORDER_LINES,
 } from '../application/staff-order-limits.js';
+import { AppliedPromotionDto } from './checkout.dto.js';
 import {
   AdminOrderPaymentDto,
   AdminOrderShipmentDto,
@@ -267,6 +268,14 @@ export class FulfillmentWarehouseDto {
 export class AdminOrderDto extends AdminOrderSummaryDto {
   @ApiProperty({ type: () => [AdminOrderLineDto] })
   lines: AdminOrderLineDto[];
+
+  @ApiProperty({
+    type: () => AppliedPromotionDto,
+    nullable: true,
+    description:
+      'La promoción de su descuento, con el nombre que vio el cliente, para el ticket; `null` sin descuento (ADR-0168).',
+  })
+  promotion: AppliedPromotionDto | null;
 
   @ApiProperty({
     type: () => FulfillmentWarehouseDto,

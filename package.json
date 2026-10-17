@@ -22,7 +22,7 @@
     "test:cov": "npm test -- --coverage && npm run test:int -- --coverage && npm run test:e2e -- --coverage && npm run coverage:check",
     "coverage:check": "node scripts/coverage.ts",
     "test:debug": "node --experimental-vm-modules --inspect-brk node_modules/jest/bin/jest.js --runInBand",
-    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
+    "test:e2e": "node --experimental-vm-modules --max-old-space-size=6144 node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "format:check": "prettier --check .",
     "test:int": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-int.json --runInBand",
     "openapi:update": "node test/support/update-openapi.mjs",

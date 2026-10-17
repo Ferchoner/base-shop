@@ -6,6 +6,7 @@ import {
 } from '../../../shared-kernel/index.js';
 import {
   type Buyer,
+  discountLine,
   Order,
   type OrderShipping,
   type OrderSnapshot,
@@ -93,6 +94,7 @@ describe('Pricing of an order (ADR-0008, BR-TAX-02, BR-ORD-16)', () => {
       taxRateBp: 1600,
       lineTotal: mxn(119_800),
       taxAmount: mxn(16_524),
+      discountAmount: mxn(0),
     });
     // 1,000 × 1600 / 11600 = 137.93: rounded by line, not over the order.
     expect(line(1_000, 1).taxAmount).toEqual(mxn(138));
@@ -109,6 +111,37 @@ describe('Pricing of an order (ADR-0008, BR-TAX-02, BR-ORD-16)', () => {
       grandTotal: mxn(130_700),
     });
     expect(orderTotals([], SHIPPING).grandTotal).toEqual(mxn(9_900));
+  });
+
+  it('works out the VAT of a line on what is left after its discount (ADR-0168)', () => {
+    const discounted = discountLine(line(59_900, 2), mxn(11_980));
+
+    // 107,820 × 1600 / 11600 = 14,871.72.
+    expect(discounted).toMatchObject({
+      lineTotal: mxn(119_800),
+      discountAmount: mxn(11_980),
+      taxAmount: mxn(14_872),
+    });
+    expect(discountLine(line(1_000, 1), mxn(1_000)).taxAmount).toEqual(mxn(0));
+    expect(() => discountLine(line(1_000, 1), mxn(1_001))).toThrow(
+      InvalidValueError,
+    );
+  });
+
+  it('takes the discounts of the lines off the total, with the VAT they leave (ADR-0168)', () => {
+    expect(
+      orderTotals(
+        [discountLine(line(59_900, 2), mxn(11_980)), line(1_000, 1)],
+        SHIPPING,
+      ),
+    ).toEqual({
+      subtotal: mxn(120_800),
+      taxTotal: mxn(14_872 + 138 + 1_366),
+      shippingCost: mxn(9_900),
+      shippingTaxAmount: mxn(1_366),
+      discountTotal: mxn(11_980),
+      grandTotal: mxn(118_720),
+    });
   });
 });
 
@@ -134,6 +167,7 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
         { ...lines[1], id: expect.any(String), lineNumber: 2 },
       ],
       totals: orderTotals(lines, SHIPPING),
+      promotion: null,
       shippingTaxRateBp: 1600,
       fulfillment: 'SHIPPING',
       deliveryMinBusinessDays: 3,
@@ -220,6 +254,30 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
 
   it('needs at least one line (BR-ORD-01)', () => {
     expect(() => place({ lines: [] })).toThrow(EmptyCartError);
+  });
+
+  it('keeps the promotion of its discount (ADR-0168)', () => {
+    const promotion = { id: newId<'Promotion'>(), name: 'Buen Fin 10%' };
+
+    const order = place({
+      lines: [discountLine(line(59_900, 2), mxn(11_980))],
+      promotion,
+    });
+
+    expect(order.snapshot.promotion).toEqual(promotion);
+    expect(order.snapshot.totals.discountTotal).toEqual(mxn(11_980));
+    expect(place({ promotion: null }).snapshot.promotion).toBeNull();
+  });
+
+  it('takes a discount only with its promotion, and a promotion only with a discount (ADR-0168)', () => {
+    const promotion = { id: newId<'Promotion'>(), name: 'Buen Fin 10%' };
+
+    expect(() =>
+      place({ lines: [discountLine(line(59_900, 2), mxn(1))] }),
+    ).toThrow(new InvalidValueError('A discount comes with its promotion'));
+    expect(() => place({ promotion })).toThrow(
+      new InvalidValueError('A discount comes with its promotion'),
+    );
   });
 
   it('needs a contact email, and the privacy notice of a guest', () => {

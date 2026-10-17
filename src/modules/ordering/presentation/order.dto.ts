@@ -41,7 +41,7 @@ import {
   type OrderFulfillment,
   type OrderStatus,
 } from '../application/order-values.js';
-import { EstimatedDeliveryDto } from './checkout.dto.js';
+import { AppliedPromotionDto, EstimatedDeliveryDto } from './checkout.dto.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments;
 // fields holding other DTOs, lists, dates, enums, objects or null declare their type with @ApiProperty
@@ -239,13 +239,17 @@ export class OrderLineDto {
   /** Tasa de IVA en puntos base. @example 1600 */
   taxRateBp: number;
 
-  /** IVA contenido en `lineTotal`. */
+  /** IVA contenido en `lineTotal` menos `discountAmount` (ADR-0168). */
   @ApiProperty({ type: () => MoneyDto })
   taxAmount: MoneyDto;
 
-  /** Precio por cantidad, con IVA. */
+  /** Precio por cantidad, con IVA, antes del descuento. */
   @ApiProperty({ type: () => MoneyDto })
   lineTotal: MoneyDto;
+
+  /** Lo que la promoción de la orden quitó a la línea; 0 sin ella (ADR-0168). */
+  @ApiProperty({ type: () => MoneyDto })
+  discountAmount: MoneyDto;
 }
 
 /** The payment of an order, as the customer sees it (T-190). */
@@ -440,7 +444,7 @@ export class OrderFieldsDto {
   @ApiProperty({ type: () => MoneyDto })
   shippingTaxAmount: MoneyDto;
 
-  /** Siempre 0 en el MVP. */
+  /** Lo que la promoción quitó a las líneas, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168). */
   @ApiProperty({ type: () => MoneyDto })
   discountTotal: MoneyDto;
 
@@ -526,6 +530,14 @@ export class OrderDto extends OrderSummaryDto {
   /** En el orden en que se colocaron. */
   @ApiProperty({ type: () => [OrderLineDto] })
   lines: OrderLineDto[];
+
+  @ApiProperty({
+    type: () => AppliedPromotionDto,
+    nullable: true,
+    description:
+      'La promoción de su descuento, con el nombre que vio el cliente; `null` sin descuento (ADR-0168).',
+  })
+  promotion: AppliedPromotionDto | null;
 
   @ApiProperty({
     type: () => PostalAddressDto,

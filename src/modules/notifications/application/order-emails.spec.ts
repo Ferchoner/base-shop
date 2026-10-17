@@ -37,6 +37,7 @@ function order(changes: Partial<NoticeOrder> = {}): NoticeOrder {
       taxTotal: mxn(5_504),
       grandTotal: mxn(39_900),
     },
+    promotionName: null,
     shippingAddress: {
       recipientName: 'María López',
       street: 'Av. Madero',
@@ -153,6 +154,18 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
     expect(text).toContain('Envío: gratis');
     expect(text).toContain('Descuento: -$50.00');
     expect(text).toContain('Av. Madero 123, int. B, Centro');
+  });
+
+  it('names the promotion of the discount (ADR-0168)', () => {
+    const { text } = orderPlacedEmail(
+      order({
+        totals: { ...order().totals, discountTotal: mxn(5_000) },
+        promotionName: 'Buen Fin 10%',
+      }),
+      true,
+    );
+
+    expect(text).toContain('Descuento (Buen Fin 10%): -$50.00');
   });
 
   it('quotes the address as typed on one line and without links, since a guest email is not verified (ADR-0154)', () => {

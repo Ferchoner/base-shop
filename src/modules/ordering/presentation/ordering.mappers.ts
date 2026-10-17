@@ -54,6 +54,8 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
       options: { ...line.options },
       unitPrice: line.unitPrice === null ? null : toMoneyDto(line.unitPrice),
       lineTotal: line.lineTotal === null ? null : toMoneyDto(line.lineTotal),
+      discountAmount:
+        line.discountAmount === null ? null : toMoneyDto(line.discountAmount),
       taxRateBp: line.taxRateBp,
       taxAmount: line.taxAmount === null ? null : toMoneyDto(line.taxAmount),
       sellable: line.sellable,
@@ -65,6 +67,7 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
     shippingTaxAmount: toMoneyDto(totals.shippingTaxAmount),
     discountTotal: toMoneyDto(totals.discountTotal),
     grandTotal: toMoneyDto(totals.grandTotal),
+    promotion: quote.promotion === null ? null : { ...quote.promotion },
     freeShippingThreshold:
       quote.freeShippingThreshold === null
         ? null
@@ -144,6 +147,7 @@ export function toOrderDto(view: WithPaymentAndShipment<OrderView>): OrderDto {
   return {
     ...toOrderSummaryDto(view),
     lines: view.lines.map(toLineDto),
+    promotion: view.promotion === null ? null : { ...view.promotion },
     shippingAddress:
       view.shippingAddress === null ? null : { ...view.shippingAddress },
   };
@@ -195,6 +199,7 @@ export function toAdminOrderDto(view: AdminOrderRead): AdminOrderDto {
   return {
     ...toAdminOrderSummaryDto(view),
     lines: view.lines.map((line) => ({ id: line.id, ...toLineDto(line) })),
+    promotion: view.promotion === null ? null : { ...view.promotion },
     fulfilledFrom:
       view.fulfilledFrom === null ? null : { ...view.fulfilledFrom },
     statusHistory: view.statusHistory.map((entry) => ({ ...entry })),
@@ -269,6 +274,7 @@ function toLineDto(line: OrderLineView): OrderLineDto {
     taxRateBp: line.taxRateBp,
     taxAmount: toMoneyDto(line.taxAmount),
     lineTotal: toMoneyDto(line.lineTotal),
+    discountAmount: toMoneyDto(line.discountAmount),
   };
 }
 

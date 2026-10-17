@@ -42,7 +42,7 @@ export class PrismaOrderRepository extends OrderRepository {
         id, public_code, customer_id, contact_email, status, currency,
         subtotal, tax_total, shipping_cost, shipping_tax_amount, shipping_tax_rate_bp,
         fulfillment, delivery_min_business_days, delivery_max_business_days, discount_total, grand_total,
-        shipping_address, reservation_id, channel, source_cart_id, placed_by, warehouse_id,
+        promotion_id, promotion_name, shipping_address, reservation_id, channel, source_cart_id, placed_by, warehouse_id,
         privacy_notice_version, placed_at, payment_due_at, created_at, updated_at)
       VALUES (
         ${o.id}::uuid, ${o.publicCode}, ${o.customerId}::uuid, ${o.contactEmail},
@@ -51,6 +51,7 @@ export class PrismaOrderRepository extends OrderRepository {
         ${totals.shippingTaxAmount.amount}, ${o.shippingTaxRateBp},
         ${o.fulfillment}::order_fulfillment, ${o.deliveryMinBusinessDays}, ${o.deliveryMaxBusinessDays},
         ${totals.discountTotal.amount}, ${totals.grandTotal.amount},
+        ${o.promotion?.id ?? null}::uuid, ${o.promotion?.name ?? null},
         ${o.shippingAddress === null ? null : JSON.stringify(o.shippingAddress)}::jsonb,
         ${o.reservationId}::uuid,
         ${o.channel}::order_channel, ${o.sourceCartId}::uuid, ${o.placedBy}::uuid,
@@ -72,6 +73,7 @@ export class PrismaOrderRepository extends OrderRepository {
         taxRateBp: line.taxRateBp,
         taxAmount: line.taxAmount.amount,
         lineTotal: line.lineTotal.amount,
+        discountAmount: line.discountAmount.amount,
       })),
     });
     await this.txHost.tx.orderStatusHistory.create({
@@ -234,6 +236,7 @@ function toSnapshot(row: OrderRow) {
       taxRateBp: line.taxRateBp,
       taxAmount: money(line.taxAmount),
       lineTotal: money(line.lineTotal),
+      discountAmount: money(line.discountAmount),
     })),
     totals: {
       subtotal: money(row.subtotal),
@@ -243,6 +246,11 @@ function toSnapshot(row: OrderRow) {
       discountTotal: money(row.discountTotal),
       grandTotal: money(row.grandTotal),
     },
+    // The database keeps both or neither (`orders_promotion_check`).
+    promotion:
+      row.promotionId === null
+        ? null
+        : { id: toId<'Promotion'>(row.promotionId), name: row.promotionName! },
     shippingTaxRateBp: row.shippingTaxRateBp,
     fulfillment: row.fulfillment,
     deliveryMinBusinessDays: row.deliveryMinBusinessDays,

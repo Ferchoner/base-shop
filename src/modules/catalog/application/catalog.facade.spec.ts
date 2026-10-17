@@ -137,6 +137,32 @@ describe('CatalogFacade.entries (ADR-0168)', () => {
   });
 });
 
+describe('CatalogFacade.classifications (ADR-0168)', () => {
+  it('classifies each variant once, and asks nothing for none', async () => {
+    const variant = newId<'Variant'>();
+    const classified = {
+      variantId: variant,
+      productId: newId<'Product'>(),
+      brandId: null,
+      categoryIds: [newId<'Category'>()],
+    };
+    const asked: unknown[] = [];
+    const queries = {
+      classifyVariants: (ids: readonly VariantId[]) => {
+        asked.push([...ids]);
+        return Promise.resolve([classified]);
+      },
+    } as unknown as CatalogQueries;
+    const facade = new CatalogFacade(queries, images);
+
+    expect(await facade.classifications([variant, variant])).toEqual([
+      classified,
+    ]);
+    expect(await facade.classifications([])).toEqual([]);
+    expect(asked).toEqual([[variant]]);
+  });
+});
+
 describe('CatalogFacade.variantsWithImage (T-170, ADR-0131)', () => {
   const productId = newId<'Product'>();
   const otherProduct = newId<'Product'>();

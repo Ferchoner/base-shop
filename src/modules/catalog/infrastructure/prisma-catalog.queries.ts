@@ -20,6 +20,7 @@ import {
   type ProductFilter,
   type ProductImageView,
   type ProductSortField,
+  type VariantClassificationView,
   type VariantLookupView,
   type VariantSnapshot,
 } from '../application/catalog.queries.js';
@@ -292,6 +293,50 @@ export class PrismaCatalogQueries extends CatalogQueries {
       categories,
       brands,
     };
+  }
+
+  async classifyVariants(
+    ids: readonly VariantId[],
+  ): Promise<VariantClassificationView[]> {
+    const tx = this.txHost.tx;
+    const [variants, lineage] = await Promise.all([
+      tx.productVariant.findMany({
+        select: {
+          id: true,
+          productId: true,
+          product: { select: { brandId: true } },
+        },
+        where: { id: { in: [...ids] } },
+        orderBy: { id: 'asc' },
+      }),
+      // The categories of each product and, walking up the tree, every one above them (ADR-0168).
+      tx.$queryRaw<{ variant_id: string; category_id: string }[]>`
+        WITH RECURSIVE lineage (variant_id, category_id) AS (
+          SELECT v.id, pc.category_id
+            FROM product_variants v
+            JOIN product_categories pc ON pc.product_id = v.product_id
+           WHERE v.id = ANY(${[...ids]}::uuid[])
+          UNION
+          SELECT l.variant_id, c.parent_id
+            FROM lineage l
+            JOIN categories c ON c.id = l.category_id
+           WHERE c.parent_id IS NOT NULL
+        )
+        SELECT variant_id::text, category_id::text
+          FROM lineage
+         ORDER BY variant_id, category_id`,
+    ]);
+    return variants.map((row) => ({
+      variantId: toId<'Variant'>(row.id),
+      productId: toId<'Product'>(row.productId),
+      brandId:
+        row.product.brandId === null
+          ? null
+          : toId<'Brand'>(row.product.brandId),
+      categoryIds: lineage
+        .filter(({ variant_id }) => variant_id === row.id)
+        .map(({ category_id }) => toId<'Category'>(category_id)),
+    }));
   }
 
   async findImagesOfProducts(

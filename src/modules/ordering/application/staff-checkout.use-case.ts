@@ -27,6 +27,7 @@ import {
   CheckoutCatalog,
   CheckoutCustomers,
   CheckoutPrices,
+  CheckoutPromotions,
   CheckoutShipping,
   OrderStock,
   ShippingLocations,
@@ -78,6 +79,7 @@ export class StaffCheckout {
   constructor(
     catalog: CheckoutCatalog,
     prices: CheckoutPrices,
+    promotions: CheckoutPromotions,
     private readonly stock: OrderStock,
     shipping: CheckoutShipping,
     customers: CheckoutCustomers,
@@ -92,6 +94,7 @@ export class StaffCheckout {
     this.placement = new OrderPlacement(
       catalog,
       prices,
+      promotions,
       shipping,
       customers,
       locations,
@@ -154,7 +157,7 @@ export class StaffCheckout {
               buyer.customerId,
               input.shippingAddress,
             );
-      const { items, priced } = await this.placement.assess(
+      const { items, priced, promotion } = await this.placement.assess(
         input.lines,
         now,
         'STORE',
@@ -190,6 +193,7 @@ export class StaffCheckout {
           publicCode,
           buyer,
           lines: priced,
+          promotion,
           delivery,
           reservation,
           placedBy: input.staffId,

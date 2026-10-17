@@ -3,6 +3,7 @@ import { CatalogFacade } from '../../catalog/index.js';
 import {
   type CatalogTarget,
   PromotionCatalog,
+  type VariantClassification,
 } from '../application/promotion-ports.js';
 import type { PromotionTarget } from '../domain/promotion.js';
 
@@ -43,5 +44,11 @@ export class CatalogFacadePromotionCatalog extends PromotionCatalog {
         usable: status === 'ACTIVE',
       })),
     ];
+  }
+
+  classify(
+    variantIds: readonly string[],
+  ): Promise<readonly VariantClassification[]> {
+    return this.catalog.classifications(variantIds);
   }
 }

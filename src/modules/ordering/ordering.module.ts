@@ -8,6 +8,7 @@ import { IdentityAccessModule } from '../identity-access/index.js';
 import { InventoryModule } from '../inventory/index.js';
 import { PaymentsModule } from '../payments/index.js';
 import { PricingModule } from '../pricing/index.js';
+import { PromotionsModule } from '../promotions/index.js';
 import { ShippingModule } from '../shipping/index.js';
 import { ShoppingModule } from '../shopping/index.js';
 import {
@@ -15,6 +16,7 @@ import {
   CheckoutCatalog,
   CheckoutCustomers,
   CheckoutPrices,
+  CheckoutPromotions,
   CheckoutShipping,
   OrderStock,
   ShippingLocations,
@@ -63,6 +65,7 @@ import {
   InventoryFacadeOrderWarehouses,
   PaymentsFacadeOrderPayments,
   PricingFacadeCheckoutPrices,
+  PromotionsFacadeCheckoutPromotions,
   ShippingFacadeCheckoutShipping,
   ShippingFacadeOrderShipments,
   ShoppingFacadeCheckoutCarts,
@@ -91,8 +94,8 @@ import { OrdersController } from './presentation/orders.controller.js';
 
 /**
  * Ordering bounded context (ADR-0004). Wires its layers; see docs/ARCHITECTURE.md. It uses Shopping, Catalog,
- * Pricing, Inventory, Shipping, Identity & Access, Geo and Payments through their facades, and none of them uses
- * Ordering, so they never form a cycle (ADR-0132, ADR-0134). Its own facade is for Notifications, which only reads
+ * Pricing, Promotions, Inventory, Shipping, Identity & Access, Geo and Payments through their facades, and none of
+ * them uses Ordering, so they never form a cycle (ADR-0132, ADR-0134, ADR-0168). Its own facade is for Notifications, which only reads
  * the order for its emails (ADR-0143), and for Privacy, which anonymizes the orders of a buyer (ADR-0145).
  */
 @Module({
@@ -105,6 +108,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     IdentityAccessModule,
     GeoModule,
     PaymentsModule,
+    PromotionsModule,
   ],
   controllers: [
     CheckoutController,
@@ -186,6 +190,10 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: CheckoutCarts, useClass: ShoppingFacadeCheckoutCarts },
     { provide: CheckoutCatalog, useClass: CatalogFacadeCheckoutCatalog },
     { provide: CheckoutPrices, useClass: PricingFacadeCheckoutPrices },
+    {
+      provide: CheckoutPromotions,
+      useClass: PromotionsFacadeCheckoutPromotions,
+    },
     { provide: OrderStock, useClass: InventoryFacadeOrderStock },
     { provide: CheckoutShipping, useClass: ShippingFacadeCheckoutShipping },
     { provide: CheckoutCustomers, useClass: IdentityFacadeCheckoutCustomers },

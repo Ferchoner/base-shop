@@ -10,6 +10,7 @@ import {
   type PaymentView,
 } from '../../payments/index.js';
 import { PricingFacade } from '../../pricing/index.js';
+import { PromotionsFacade } from '../../promotions/index.js';
 import { ShippingFacade } from '../../shipping/index.js';
 import {
   type OrderShipment,
@@ -22,10 +23,12 @@ import {
   CheckoutCatalog,
   CheckoutCustomers,
   CheckoutPrices,
+  CheckoutPromotions,
   CheckoutShipping,
   type CheckoutTarget,
   type CheckoutVariant,
   type LocationNames,
+  type OrderDiscount,
   OrderStock,
   type RestockMovement,
   type ShippingCharge,
@@ -38,6 +41,7 @@ import type {
   CustomerId,
   Order,
   OrderAddress,
+  OrderChannel,
   OrderId,
   RestockLine,
   RestockReason,
@@ -215,6 +219,33 @@ export class PricingFacadeCheckoutPrices extends CheckoutPrices {
     return new Map(
       [...quotes].map(([variantId, quote]) => [variantId, quote.amount]),
     );
+  }
+}
+
+@Injectable()
+export class PromotionsFacadeCheckoutPromotions extends CheckoutPromotions {
+  constructor(private readonly promotions: PromotionsFacade) {
+    super();
+  }
+
+  async discountFor(input: {
+    readonly channel: OrderChannel;
+    readonly at: Date;
+    readonly lines: readonly {
+      readonly variantId: VariantId;
+      readonly lineTotal: Money;
+    }[];
+  }): Promise<OrderDiscount | null> {
+    const applied = await this.promotions.discountFor(input);
+    return applied === null
+      ? null
+      : {
+          promotion: {
+            id: toId<'Promotion'>(applied.promotion.id),
+            name: applied.promotion.name,
+          },
+          discounts: applied.discounts,
+        };
   }
 }
 

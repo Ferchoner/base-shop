@@ -11,30 +11,30 @@ enum PromotionTargetType {
 
 /// A percentage or an amount off the whole purchase or certain products, categories or brands (UC-PRM-01 to 03).
 model Promotion {
-  id              String            @id @db.Uuid
+  id              String    @id @db.Uuid
   /// The customer sees it on their order and on the ticket.
   name            String
   /// A whole percentage from 1 to 100, or else `amountOff`: exactly one of them (CHECK in the migration).
   percentage      Int?
   /// In cents of MXN, once per order (ADR-0168). CHECK: more than 0 (manual SQL).
-  amountOff       Int?              @map("amount_off")
+  amountOff       Int?      @map("amount_off")
   /// The channels where it applies; at least one (CHECK in the migration).
   online          Boolean
-  inStore         Boolean           @map("in_store")
+  inStore         Boolean   @map("in_store")
   /// In cents of MXN, of the subtotal with VAT. CHECK: more than 0 (manual SQL).
-  minimumSubtotal Int?              @map("minimum_subtotal")
-  startsAt        DateTime          @map("starts_at") @db.Timestamptz(3)
+  minimumSubtotal Int?      @map("minimum_subtotal")
+  startsAt        DateTime  @map("starts_at") @db.Timestamptz(3)
   /// CHECK: after `starts_at` (manual SQL).
-  endsAt          DateTime?         @map("ends_at") @db.Timestamptz(3)
+  endsAt          DateTime? @map("ends_at") @db.Timestamptz(3)
   /// When it was ended by hand, and the staff member who did it; a logical reference to Identity. Both or neither
   /// (CHECK in the migration).
-  endedAt         DateTime?         @map("ended_at") @db.Timestamptz(3)
-  endedBy         String?           @map("ended_by") @db.Uuid
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(3)
+  endedBy         String?   @map("ended_by") @db.Uuid
   /// The staff member who created it; a logical reference to Identity.
-  createdBy       String            @map("created_by") @db.Uuid
-  version         Int               @default(1)
-  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy       String    @map("created_by") @db.Uuid
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   targets PromotionTarget[]
 

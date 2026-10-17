@@ -29,6 +29,8 @@ import {
   type CheckoutCatalog,
   type CheckoutCustomers,
   type CheckoutPrices,
+  type CheckoutPromotions,
+  type OrderDiscount,
   type CheckoutShipping,
   type CheckoutTarget,
   type CheckoutVariant,
@@ -152,6 +154,8 @@ function setUp(
     shortOf?: VariantId[];
     taken?: number;
     freeShipping?: boolean;
+    /** What Promotions answers for the lines that can be sold. */
+    discount?: OrderDiscount | null;
   } = {},
 ) {
   const calls: string[] = [];
@@ -217,6 +221,14 @@ function setUp(
       );
     },
   };
+  const promotionAsks: Parameters<CheckoutPromotions['discountFor']>[0][] = [];
+  const promotions: CheckoutPromotions = {
+    discountFor: (input) => {
+      calls.push('promotions');
+      promotionAsks.push(input);
+      return Promise.resolve(options.discount ?? null);
+    },
+  };
   const stock: OrderStock = {
     canFulfill: (lines) => {
       asked.stock.push(lines.map((line) => ({ ...line })));
@@ -259,7 +271,13 @@ function setUp(
   };
   const shipping: CheckoutShipping = {
     quote: ({ subtotal, discount }): Promise<ShippingCharge> => {
-      expect(discount).toEqual(mxn(0));
+      // The free shipping compares the subtotal less the discount (ADR-0079, ADR-0168).
+      expect(discount).toEqual(
+        (options.discount?.discounts ?? []).reduce(
+          (sum, each) => sum.add(each),
+          mxn(0),
+        ),
+      );
       const free = options.freeShipping === true;
       return Promise.resolve({
         cost: free ? mxn(0) : mxn(9_900),
@@ -315,6 +333,7 @@ function setUp(
     carts,
     catalog,
     prices,
+    promotions,
     stock,
     shipping,
     customers,
@@ -325,7 +344,16 @@ function setUp(
     { now: () => NOW },
     1600,
   );
-  return { checkout, calls, reserved, checkedOut, orders, asked, published };
+  return {
+    checkout,
+    calls,
+    reserved,
+    checkedOut,
+    orders,
+    asked,
+    published,
+    promotionAsks,
+  };
 }
 
 const buyer = newId<'User'>() as CustomerId;
@@ -367,6 +395,86 @@ const customerOrder = (
   ...changes,
 });
 
+const BUEN_FIN = { id: newId<'Promotion'>(), name: 'Buen Fin 10%' };
+
+describe('Checkout: the promotion of the order (T-200 part b, ADR-0168)', () => {
+  it('quotes the discount of each line, with the VAT left after it, and the promotion', async () => {
+    const { checkout, promotionAsks } = setUp({
+      carts: cartsWith([
+        [shirt, 2],
+        [draft, 1],
+        [cap, 1],
+      ]),
+      discount: { promotion: BUEN_FIN, discounts: [mxn(11_980), mxn(0)] },
+    });
+
+    const quote = await checkout.quote({ guestCartId });
+
+    // Only the lines that can be sold, with their totals, in the order of the cart.
+    expect(promotionAsks).toEqual([
+      {
+        channel: 'ONLINE',
+        at: NOW,
+        lines: [
+          { variantId: shirt, lineTotal: mxn(119_800) },
+          { variantId: cap, lineTotal: mxn(19_900) },
+        ],
+      },
+    ]);
+    expect(
+      quote.lines.map(({ variantId, discountAmount, taxAmount }) => ({
+        variantId,
+        discountAmount,
+        taxAmount,
+      })),
+    ).toEqual([
+      // 107,820 × 1600 / 11600 = 14,871.72.
+      { variantId: shirt, discountAmount: mxn(11_980), taxAmount: mxn(14_872) },
+      { variantId: draft, discountAmount: null, taxAmount: null },
+      { variantId: cap, discountAmount: mxn(0), taxAmount: mxn(2_745) },
+    ]);
+    expect(quote.totals).toEqual({
+      subtotal: mxn(139_700),
+      taxTotal: mxn(14_872 + 2_745 + 1_366),
+      shippingCost: mxn(9_900),
+      shippingTaxAmount: mxn(1_366),
+      discountTotal: mxn(11_980),
+      grandTotal: mxn(137_620),
+    });
+    expect(quote.promotion).toEqual(BUEN_FIN);
+  });
+
+  it('places the order with its discount and its promotion, the total including the discount', async () => {
+    const { checkout, orders } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      discount: { promotion: BUEN_FIN, discounts: [mxn(11_980)] },
+    });
+
+    await checkout.placeOrder(guestOrder({ expectedTotal: 117_720 }));
+
+    expect(orders.saved[0].snapshot).toMatchObject({
+      promotion: BUEN_FIN,
+      lines: [{ discountAmount: mxn(11_980), taxAmount: mxn(14_872) }],
+      totals: { discountTotal: mxn(11_980), grandTotal: mxn(117_720) },
+    });
+  });
+
+  it('refuses the total without the discount', async () => {
+    const { checkout, orders } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      discount: { promotion: BUEN_FIN, discounts: [mxn(11_980)] },
+    });
+
+    await expect(
+      checkout.placeOrder(guestOrder({ expectedTotal: 129_700 })),
+    ).rejects.toMatchObject({
+      code: 'total-mismatch',
+      details: { currentTotal: { amount: 117_720, currency: 'MXN' } },
+    });
+    expect(orders.saved).toEqual([]);
+  });
+});
+
 describe('Checkout: quote (UC-ORD-01)', () => {
   it('prices the lines now, with VAT by line, shipping and delivery', async () => {
     const { checkout, calls } = setUp({ carts: cartsWith([[shirt, 2]]) });
@@ -383,6 +491,7 @@ describe('Checkout: quote (UC-ORD-01)', () => {
           options: { talla: 'M' },
           unitPrice: mxn(59_900),
           lineTotal: mxn(119_800),
+          discountAmount: mxn(0),
           taxRateBp: 1600,
           taxAmount: mxn(16_524),
           sellable: true,
@@ -397,13 +506,14 @@ describe('Checkout: quote (UC-ORD-01)', () => {
         discountTotal: mxn(0),
         grandTotal: mxn(129_700),
       },
+      promotion: null,
       freeShippingThreshold: mxn(150_000),
       deliveryMinBusinessDays: 3,
       deliveryMaxBusinessDays: 7,
       readyToPlace: true,
     });
     // A quote never locks, reserves nor writes anything.
-    expect(calls).toEqual(['toQuote']);
+    expect(calls).toEqual(['toQuote', 'promotions']);
   });
 
   it('marks the lines that cannot be sold, asks the stock only for the others, and totals only them', async () => {
@@ -505,6 +615,7 @@ describe('Checkout: placing an order (UC-ORD-02)', () => {
       'transaction',
       'lockToOrder',
       'resolve',
+      'promotions',
       'reserve',
       'checkOut',
     ]);

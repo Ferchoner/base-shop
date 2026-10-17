@@ -4,6 +4,7 @@ import type { VariantId } from '../domain/variant.js';
 import {
   type CatalogEntriesView,
   CatalogQueries,
+  type VariantClassificationView,
   type VariantSnapshot,
 } from './catalog.queries.js';
 import { ProductImageStorage } from './product-image-storage.js';
@@ -11,6 +12,7 @@ import { ProductImageStorage } from './product-image-storage.js';
 export type {
   CatalogEntriesView as CatalogEntries,
   CatalogEntryView as CatalogEntry,
+  VariantClassificationView as VariantClassification,
   VariantSnapshot,
 } from './catalog.queries.js';
 
@@ -119,6 +121,20 @@ export class CatalogFacade {
     return productIds.length + categoryIds.length + brandIds.length === 0
       ? Promise.resolve({ products: [], categories: [], brands: [] })
       : this.queries.findEntries({ productIds, categoryIds, brandIds });
+  }
+
+  /**
+   * The variants with these IDs, each with its product, its brand and the categories of its product with every one
+   * above them, active or not (ADR-0168). An ID that does not exist is left out. Promotions finds with it the lines a
+   * promotion of products, categories or brands applies to.
+   */
+  classifications(
+    ids: readonly string[],
+  ): Promise<VariantClassificationView[]> {
+    const unique = [...new Set(ids)].map((id) => toId<'Variant'>(id));
+    return unique.length === 0
+      ? Promise.resolve([])
+      : this.queries.classifyVariants(unique);
   }
 
   /**

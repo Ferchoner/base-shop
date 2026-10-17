@@ -1,4 +1,4 @@
-import type { Promotion, PromotionId } from './promotion.js';
+import type { Promotion, PromotionChannel, PromotionId } from './promotion.js';
 
 /**
  * Persistence of promotions (DATABASE.md §18). An abstract class rather than an interface, so it can be the
@@ -10,6 +10,9 @@ export abstract class PromotionRepository {
 
   /** The promotion with this ID; `null` if it does not exist. */
   abstract find(id: PromotionId): Promise<Promotion | null>;
+
+  /** The promotions active at `at` in this channel, with their targets, by ID (ADR-0168). */
+  abstract activeAt(at: Date, channel: PromotionChannel): Promise<Promotion[]>;
 
   /**
    * Writes the terms of a promotion, and its targets when they changed, and counts one more version. Every change
