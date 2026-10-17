@@ -40,6 +40,18 @@ Que la tienda ofrezca promociones automáticas y cupones, en línea y en la tien
   - antes de `test:cov` se comprueba que Docker responde;
   - al cerrar una versión se revisan las sesiones de trabajo y las ramas locales que no están en `main`.
 
+### Resultado del paso 1
+
+T-200 parte a (ADR-0168).
+
+- **Módulo nuevo `promotions`:** cinco rutas en `/v1/admin/promotions`, dos tablas y dos permisos: el Administrador administra las promociones y el Vendedor las consulta. Lee a Catalog solo por su fachada, que suma `entries`: los productos, las categorías y las marcas por su ID, con su nombre y su estado.
+- **El estado no se guarda:** sale de las fechas al consultar, también en el filtro del listado. Terminar una promoción guarda quién y cuándo, y nada se borra.
+- **Precisiones del plan:** una promoción mezcla productos, categorías y marcas; los porcentajes son enteros; el monto fijo se descuenta una vez por orden; y lo que se agrega debe existir y estar en uso, mientras que lo que ya tenía se queda.
+- **Encontrado en la primera corrida de las pruebas unitarias:** la misma lista de productos, categorías y marcas en otro orden se guardaba y se auditaba como un cambio; ahora conserva su orden y no cuenta.
+- **Las prácticas de la review de la 1.6, aplicadas:** las cuentas fijas de tablas (46 → 48) y de permisos (22 → 24) se actualizaron con sus migraciones, y no fallaron en la corrida completa.
+- **Cobertura de funciones:** 99.19%. Quedan sin llamar cuatro funciones de tipo del plugin de Swagger, en campos con `enum` o `type` explícito, como en los DTO de precios, órdenes y órdenes de trabajo; la de `startsAt` en la edición sí era un hueco, y una prueba end-to-end la cubre.
+- **Mutación:** 52 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida, los dos en el filtro de estado del listado: ninguna promoción empezaba justo en el momento de la consulta, y ninguna se había terminado a mano después de empezar. La prueba de integración suma los dos casos.
+
 ### Risks
 
 - **El IVA con descuento:** baja con el descuento; la validación con el contador lo incluye (P-69).

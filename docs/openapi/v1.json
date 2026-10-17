@@ -48,6 +48,8 @@
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
+                "promotions.read",
+                "promotions.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -3145,6 +3147,76 @@
         ],
         "type": "object"
       },
+      "CreatePromotionDto": {
+        "properties": {
+          "amountOff": {
+            "description": "Monto fijo de descuento en centavos, una vez por orden, repartido entre las líneas a las que aplica. Exactamente uno de `percentage` y `amountOff`.",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "number"
+          },
+          "channels": {
+            "description": "Dónde aplica: `ONLINE`, `STORE` o los dos; por defecto, los dos.",
+            "items": {
+              "enum": [
+                "ONLINE",
+                "STORE"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "endsAt": {
+            "description": "Fin, excluido, fecha y hora con zona horaria, posterior al inicio; `null` o ausente, sin fin.",
+            "example": "2026-11-17T06:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "minimumSubtotal": {
+            "description": "Compra mínima en centavos, sobre el subtotal con IVA de la orden; `null` o ausente, sin mínimo.",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "nullable": true,
+            "type": "number"
+          },
+          "name": {
+            "description": "Nombre de 1 a 120 caracteres; lo ve el cliente en su orden y en el ticket.",
+            "example": "Buen Fin 10%",
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "percentage": {
+            "description": "Porcentaje entero de descuento, de 1 a 100, sobre las líneas a las que aplica. Exactamente uno de `percentage` y `amountOff`.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "startsAt": {
+            "description": "Inicio, fecha y hora con zona horaria. Ausente o no posterior al momento actual: empieza ahora.",
+            "example": "2026-11-13T06:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "targets": {
+            "description": "Hasta 100 productos, categorías (con sus subcategorías) y marcas, cada uno una vez; sin ellos, o vacío, aplica a toda la compra.",
+            "items": {
+              "$ref": "#/components/schemas/PromotionTargetDto"
+            },
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateRoleDto": {
         "properties": {
           "description": {
@@ -3184,6 +3256,8 @@
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
+                "promotions.read",
+                "promotions.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -3450,6 +3524,19 @@
         },
         "required": [
           "emailVerified"
+        ],
+        "type": "object"
+      },
+      "EndPromotionDto": {
+        "properties": {
+          "version": {
+            "description": "Versión leída (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "version"
         ],
         "type": "object"
       },
@@ -5772,6 +5859,290 @@
         ],
         "type": "object"
       },
+      "PromotionDto": {
+        "properties": {
+          "amountOff": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Monto fijo de descuento, una vez por orden; `null` con `percentage`.",
+            "nullable": true,
+            "type": "object"
+          },
+          "channels": {
+            "items": {
+              "enum": [
+                "ONLINE",
+                "STORE"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "description": "La cuenta de staff que la creó.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "endedAt": {
+            "description": "Cuándo se terminó a mano.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "endedBy": {
+            "description": "La cuenta de staff que la terminó.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "Fin, excluido; `null` sin fin.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "minimumSubtotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Compra mínima sobre el subtotal con IVA; `null` sin mínimo.",
+            "nullable": true,
+            "type": "object"
+          },
+          "name": {
+            "description": "Lo ve el cliente en su orden y en el ticket.",
+            "type": "string"
+          },
+          "percentage": {
+            "description": "Porcentaje entero de descuento; `null` con `amountOff`.",
+            "nullable": true,
+            "type": "number"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "Al momento de la consulta: `SCHEDULED` antes de su inicio, `ACTIVE` hasta su fin, `ENDED` desde entonces o desde que se terminó.",
+            "enum": [
+              "SCHEDULED",
+              "ACTIVE",
+              "ENDED"
+            ],
+            "type": "string"
+          },
+          "targetCount": {
+            "description": "Cuántos productos, categorías y marcas tiene; 0 aplica a toda la compra.",
+            "type": "number"
+          },
+          "targets": {
+            "description": "Productos, luego categorías, luego marcas; vacía, aplica a toda la compra.",
+            "items": {
+              "$ref": "#/components/schemas/PromotionTargetViewDto"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "description": "Para el bloqueo optimista.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "percentage",
+          "amountOff",
+          "channels",
+          "minimumSubtotal",
+          "startsAt",
+          "endsAt",
+          "endedAt",
+          "targets",
+          "endedBy",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "version",
+          "name",
+          "targetCount"
+        ],
+        "type": "object"
+      },
+      "PromotionListDto": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PromotionSummaryDto"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "PromotionSummaryDto": {
+        "properties": {
+          "amountOff": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Monto fijo de descuento, una vez por orden; `null` con `percentage`.",
+            "nullable": true,
+            "type": "object"
+          },
+          "channels": {
+            "items": {
+              "enum": [
+                "ONLINE",
+                "STORE"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "endedAt": {
+            "description": "Cuándo se terminó a mano.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "Fin, excluido; `null` sin fin.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "minimumSubtotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Compra mínima sobre el subtotal con IVA; `null` sin mínimo.",
+            "nullable": true,
+            "type": "object"
+          },
+          "name": {
+            "description": "Lo ve el cliente en su orden y en el ticket.",
+            "type": "string"
+          },
+          "percentage": {
+            "description": "Porcentaje entero de descuento; `null` con `amountOff`.",
+            "nullable": true,
+            "type": "number"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "Al momento de la consulta: `SCHEDULED` antes de su inicio, `ACTIVE` hasta su fin, `ENDED` desde entonces o desde que se terminó.",
+            "enum": [
+              "SCHEDULED",
+              "ACTIVE",
+              "ENDED"
+            ],
+            "type": "string"
+          },
+          "targetCount": {
+            "description": "Cuántos productos, categorías y marcas tiene; 0 aplica a toda la compra.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "percentage",
+          "amountOff",
+          "channels",
+          "minimumSubtotal",
+          "startsAt",
+          "endsAt",
+          "endedAt",
+          "name",
+          "targetCount"
+        ],
+        "type": "object"
+      },
+      "PromotionTargetDto": {
+        "properties": {
+          "id": {
+            "description": "El ID del producto, la categoría o la marca.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": {
+            "description": "`PRODUCT`, `CATEGORY` (con sus subcategorías) o `BRAND`; debe existir y estar en uso.",
+            "enum": [
+              "PRODUCT",
+              "CATEGORY",
+              "BRAND"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "type": "object"
+      },
+      "PromotionTargetViewDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "El título del producto, o el nombre de la categoría o la marca; `null` si el catálogo ya no lo tiene.",
+            "nullable": true,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "PRODUCT",
+              "CATEGORY",
+              "BRAND"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "PublicCategoryDto": {
         "properties": {
           "children": {
@@ -6502,6 +6873,8 @@
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
+                "promotions.read",
+                "promotions.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -7685,6 +8058,77 @@
         ],
         "type": "object"
       },
+      "UpdatePromotionDto": {
+        "properties": {
+          "amountOff": {
+            "description": "Monto fijo de descuento en centavos, una vez por orden, repartido entre las líneas a las que aplica. Exactamente uno de `percentage` y `amountOff`.",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "number"
+          },
+          "channels": {
+            "description": "Dónde aplica: `ONLINE`, `STORE` o los dos.",
+            "items": {
+              "enum": [
+                "ONLINE",
+                "STORE"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "endsAt": {
+            "description": "Fin, excluido, posterior al inicio y, ya iniciada, al momento actual; `null` lo quita.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "minimumSubtotal": {
+            "description": "Compra mínima en centavos; `null` la quita.",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "nullable": true,
+            "type": "number"
+          },
+          "name": {
+            "description": "Nombre de 1 a 120 caracteres.",
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "percentage": {
+            "description": "Porcentaje entero de descuento, de 1 a 100, sobre las líneas a las que aplica. Exactamente uno de `percentage` y `amountOff`.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "startsAt": {
+            "description": "Inicio, fecha y hora con zona horaria; no posterior al momento actual, empieza ahora.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "targets": {
+            "description": "Reemplaza la lista: hasta 100 productos, categorías y marcas; vacía, toda la compra.",
+            "items": {
+              "$ref": "#/components/schemas/PromotionTargetDto"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "version": {
+            "description": "Versión leída (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
       "UpdateRoleDto": {
         "properties": {
           "description": {
@@ -7718,6 +8162,8 @@
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
+                "promotions.read",
+                "promotions.manage",
                 "payments.manage",
                 "payments.configure",
                 "shipping.manage",
@@ -18395,6 +18841,610 @@
         ],
         "x-required-permissions": [
           "pricing.write"
+        ]
+      }
+    },
+    "/v1/admin/promotions": {
+      "get": {
+        "description": "UC-PRM-02. Sin sus productos, categorías y marcas, que da la consulta de cada una. El estado se calcula al momento de la consulta.",
+        "operationId": "AdminPromotionsController_list_v1",
+        "parameters": [
+          {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Uno o más estados separados por comas, al momento de la consulta: `SCHEDULED`, `ACTIVE`, `ENDED`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "example": "SCHEDULED,ACTIVE",
+              "items": {
+                "enum": [
+                  "SCHEDULED",
+                  "ACTIVE",
+                  "ENDED"
+                ],
+                "type": "string"
+              },
+              "type": "string"
+            }
+          },
+          {
+            "description": "Las que aplican en este canal.",
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ONLINE",
+                "STORE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "`ORDER`: las de toda la compra. `ITEMS`: las de ciertos productos, categorías o marcas.",
+            "in": "query",
+            "name": "appliesTo",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ORDER",
+                "ITEMS"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Parte del nombre, sin distinguir mayúsculas.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 254,
+              "type": "string"
+            }
+          },
+          {
+            "description": "`startsAt` o `name`, con `-` para orden descendente; por defecto `-startsAt`.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar promociones",
+        "tags": [
+          "Administración: promociones"
+        ],
+        "x-required-permissions": [
+          "promotions.read"
+        ]
+      },
+      "post": {
+        "description": "UC-PRM-01 (ADR-0168). Un porcentaje entero (`percentage`, de 1 a 100) o un monto fijo por orden (`amountOff`), exactamente uno; sobre toda la compra, o sobre los productos, categorías (con sus subcategorías) y marcas de `targets`, que deben existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no. En línea, en la tienda física o en los dos; con compra mínima opcional. Sin `startsAt`, o con uno que ya pasó, empieza ahora. Se audita como `promotions.create`.",
+        "operationId": "AdminPromotionsController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePromotionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear una promoción",
+        "tags": [
+          "Administración: promociones"
+        ],
+        "x-required-permissions": [
+          "promotions.manage"
+        ]
+      }
+    },
+    "/v1/admin/promotions/{promotionId}": {
+      "get": {
+        "description": "UC-PRM-02. Con sus productos, categorías y marcas, cada uno con su nombre actual en el catálogo.",
+        "operationId": "AdminPromotionsController_get_v1",
+        "parameters": [
+          {
+            "description": "ID de la promoción.",
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar una promoción",
+        "tags": [
+          "Administración: promociones"
+        ],
+        "x-required-permissions": [
+          "promotions.read"
+        ]
+      },
+      "patch": {
+        "description": "UC-PRM-03 (ADR-0168). Solo cambian los campos enviados; `percentage` o `amountOff` reemplazan el descuento, y `targets`, la lista completa. Antes de su inicio se cambia todo; ya iniciada, solo `name` y `endsAt`, que debe ser posterior al momento actual: otro cambio responde 409 `invalid-state-transition`, igual que editar una terminada. Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén. Sin cambios, no se guarda ni se audita. Se audita como `promotions.update`.",
+        "operationId": "AdminPromotionsController_update_v1",
+        "parameters": [
+          {
+            "description": "ID de la promoción.",
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePromotionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar una promoción",
+        "tags": [
+          "Administración: promociones"
+        ],
+        "x-required-permissions": [
+          "promotions.manage"
+        ]
+      }
+    },
+    "/v1/admin/promotions/{promotionId}/end": {
+      "post": {
+        "description": "UC-PRM-03 (ADR-0168). Una vigente deja de aplicar ahora, y una programada ya no empieza; se conserva, porque las órdenes guardan cuál recibieron. Una terminada responde 409 `invalid-state-transition`. Se audita como `promotions.end`.",
+        "operationId": "AdminPromotionsController_end_v1",
+        "parameters": [
+          {
+            "description": "ID de la promoción.",
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndPromotionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Terminar una promoción",
+        "tags": [
+          "Administración: promociones"
+        ],
+        "x-required-permissions": [
+          "promotions.manage"
         ]
       }
     },

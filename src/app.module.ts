@@ -11,6 +11,7 @@ import { OrderingModule } from './modules/ordering/index.js';
 import { PaymentsModule } from './modules/payments/index.js';
 import { PricingModule } from './modules/pricing/index.js';
 import { PrivacyModule } from './modules/privacy/index.js';
+import { PromotionsModule } from './modules/promotions/index.js';
 import { ShippingModule } from './modules/shipping/index.js';
 import { ShoppingModule } from './modules/shopping/index.js';
 import { WorkOrdersModule } from './modules/work-orders/index.js';
@@ -63,6 +64,7 @@ import { PersistenceModule } from './platform/persistence/persistence.module.js'
     NotificationsModule,
     PrivacyModule,
     WorkOrdersModule,
+    PromotionsModule,
   ],
 })
 export class AppModule {}

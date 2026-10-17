@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { toId } from '../../../shared-kernel/index.js';
 import type { VariantId } from '../domain/variant.js';
-import { CatalogQueries, type VariantSnapshot } from './catalog.queries.js';
+import {
+  type CatalogEntriesView,
+  CatalogQueries,
+  type VariantSnapshot,
+} from './catalog.queries.js';
 import { ProductImageStorage } from './product-image-storage.js';
 
-export type { VariantSnapshot } from './catalog.queries.js';
+export type {
+  CatalogEntriesView as CatalogEntries,
+  CatalogEntryView as CatalogEntry,
+  VariantSnapshot,
+} from './catalog.queries.js';
 
 /** An image as other contexts show it, with its absolute URL (ADR-0024). */
 export interface VariantImage {
@@ -24,7 +33,8 @@ export interface VariantWithImage extends VariantSnapshot {
  * checks with it that a variant exists before pricing it and finds variants by SKU for the bulk import
  * (T-145, ADR-0125, ADR-0126). Inventory checks variants and completes and searches its stock listing with
  * it (T-160, ADR-0127). The cart shows its lines with it (T-170, ADR-0131), and Ordering will take the SKU,
- * the options and the product from it.
+ * the options and the product from it. Promotions checks the products, categories and brands a promotion targets with
+ * it (ADR-0168).
  */
 @Injectable()
 export class CatalogFacade {
@@ -90,6 +100,25 @@ export class CatalogFacade {
               },
       };
     });
+  }
+
+  /**
+   * The products, categories and brands with these IDs, with their name and status, whatever it is (ADR-0168). An ID
+   * that does not exist is left out, so the caller decides whether that is an error.
+   */
+  entries(ids: {
+    readonly productIds?: readonly string[];
+    readonly categoryIds?: readonly string[];
+    readonly brandIds?: readonly string[];
+  }): Promise<CatalogEntriesView> {
+    const unique = <Kind extends string>(list?: readonly string[]) =>
+      [...new Set(list ?? [])].map((id) => toId<Kind>(id));
+    const productIds = unique<'Product'>(ids.productIds);
+    const categoryIds = unique<'Category'>(ids.categoryIds);
+    const brandIds = unique<'Brand'>(ids.brandIds);
+    return productIds.length + categoryIds.length + brandIds.length === 0
+      ? Promise.resolve({ products: [], categories: [], brands: [] })
+      : this.queries.findEntries({ productIds, categoryIds, brandIds });
   }
 
   /**

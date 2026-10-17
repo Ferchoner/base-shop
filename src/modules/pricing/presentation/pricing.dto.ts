@@ -10,6 +10,10 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import {
+  DATE_TIME_WITH_OFFSET,
+  WITH_OFFSET,
+} from '../../../platform/http/date-time.js';
 import { CommaSeparated } from '../../../platform/http/pagination/pagination.js';
 import { MoneyDto } from '../../../platform/http/money.dto.js';
 import { MAX_MONEY_AMOUNT } from '../../../shared-kernel/index.js';
@@ -20,10 +24,6 @@ import {
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
 // Fields holding other DTOs, dates or null declare their type with @ApiProperty (DEVELOPMENT_GUIDE.md).
-
-/** A date and time with its offset, so the instant never depends on the server's time zone. */
-const DATE_TIME_WITH_OFFSET =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
 
 /** `PriceList` of API_SPEC.md §12. */
 export class PriceListDto {
@@ -163,9 +163,7 @@ export class SetPriceDto {
   })
   @IsOptional()
   @IsISO8601({ strict: true })
-  @Matches(DATE_TIME_WITH_OFFSET, {
-    context: { message: 'Debe ser fecha y hora con zona horaria.' },
-  })
+  @Matches(DATE_TIME_WITH_OFFSET, WITH_OFFSET)
   effectiveFrom?: string | null;
 }
 

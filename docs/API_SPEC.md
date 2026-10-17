@@ -74,7 +74,7 @@ Las transiciones de estado nunca se hacen con `PATCH` del campo `status`: cada u
 
 ### 2.3 Concurrencia optimista
 
-Los recursos con columna `version` (`users`, `roles`, `products`, `price_lists`, `orders`, `payments`, `shipments`, `shipping_methods`) devuelven `version` en su representación. `variant_prices`, `reservations` y `carts` también la tienen, pero solo para la concurrencia interna (`DATABASE.md`, sección 12). Toda modificación administrativa de esos recursos (PATCH y acciones) exige `version` en el cuerpo:
+Los recursos con columna `version` (`users`, `roles`, `products`, `price_lists`, `orders`, `payments`, `shipments`, `shipping_methods`, `work_orders`, `promotions`) devuelven `version` en su representación. `variant_prices`, `reservations` y `carts` también la tienen, pero solo para la concurrencia interna (`DATABASE.md`, sección 12). Toda modificación administrativa de esos recursos (PATCH y acciones) exige `version` en el cuerpo:
 
 - `version` ausente → 400 `validation-error`.
 - `version` distinta de la actual → 409 `version-conflict` (E-05); el cliente vuelve a leer y reintenta.
@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, y `work-orders.read-blocked` de ADR-0167). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, y `promotions.read` y `promotions.manage` de ADR-0168). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -1814,6 +1814,7 @@ Ninguno: el último, el cálculo de `storeVisibility`, se resolvió en ADR-0129.
 | UC-AUD-02 | Sección 18 |
 | UC-WRK-01 a 04 | Sección 25 (ADR-0166) |
 | UC-WRK-05, 06 | Sección 25 (ADR-0167) |
+| UC-PRM-01 a 03 | Sección 26 (ADR-0168) |
 | UC-AUD-01, 03, UC-NTF-01, UC-SYS-01 a 03 | Sin API: transversales y jobs |
 
 Las entregas de eventos (sección 22) son una herramienta de operación, sin caso de uso propio.
@@ -2114,3 +2115,129 @@ Desde T-189 parte c2, los datos del cliente de una orden de trabajo siguen el ci
 - **Response 200:** `WorkOrder`, anonimizado.
 - **Errores:** 404 si no existe; 409 `invalid-state-transition` si está abierta o ya se anonimizó.
 - Se audita como `work-orders.anonymize`, con el motivo y sin los valores.
+
+---
+
+## 26. Endpoints — Promociones (ADR-0168)
+
+| Método | Ruta | Permiso | UC |
+|---|---|---|---|
+| GET | `/v1/admin/promotions` | `promotions.read` | UC-PRM-02 |
+| POST | `/v1/admin/promotions` | `promotions.manage` | UC-PRM-01 |
+| GET | `/v1/admin/promotions/{promotionId}` | `promotions.read` | UC-PRM-02 |
+| PATCH | `/v1/admin/promotions/{promotionId}` | `promotions.manage` | UC-PRM-03 |
+| POST | `/v1/admin/promotions/{promotionId}/end` | `promotions.manage` | UC-PRM-03 |
+
+Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda la compra, o de ciertos productos, categorías y marcas, en línea, en la tienda física o en los dos. Las administra el rol Administrador, y el Vendedor las consulta para saber qué ofrecer en el mostrador. Se aplican a las cotizaciones y las órdenes desde la parte b, y con cupón desde la parte c; mientras tanto, solo se administran.
+
+### 26.1 `Promotion`
+
+```json
+{
+  "id": "0199a3e1-…",
+  "name": "Buen Fin 10%",
+  "status": "SCHEDULED",
+  "percentage": 10,
+  "amountOff": null,
+  "targetCount": 2,
+  "channels": ["ONLINE", "STORE"],
+  "minimumSubtotal": { "amount": 50000, "currency": "MXN" },
+  "startsAt": "2026-11-13T06:00:00.000Z",
+  "endsAt": "2026-11-17T06:00:00.000Z",
+  "endedAt": null,
+  "targets": [
+    { "type": "PRODUCT", "id": "0199a2c0-…", "name": "Camisa de lino" },
+    { "type": "BRAND", "id": "0199a2b1-…", "name": "Lino Fino" }
+  ],
+  "endedBy": null,
+  "createdBy": "0199a1b2-…",
+  "createdAt": "2026-10-16T18:00:00.000Z",
+  "updatedAt": "2026-10-16T18:00:00.000Z",
+  "version": 1
+}
+```
+
+- `name`: lo ve el cliente en su orden y en el ticket.
+- `status`: se calcula al momento de la consulta. `SCHEDULED` antes de `startsAt`; `ACTIVE` desde `startsAt` hasta `endsAt`, que no se incluye; `ENDED` desde `endsAt`, o desde que se terminó a mano (`endedAt`, §26.6).
+- `percentage` o `amountOff`, exactamente uno:
+  - `percentage`: un porcentaje entero, de 1 a 100, de cada línea a la que aplica;
+  - `amountOff`: `Money`, un monto fijo una vez por orden, repartido entre esas líneas.
+- `targets`: productos, luego categorías, luego marcas, cada uno con su nombre actual en el catálogo, o `null` si ya no lo tiene. Una categoría incluye sus subcategorías. Vacía, la promoción aplica a toda la compra; `targetCount` dice cuántos tiene.
+- `channels`: `ONLINE`, `STORE` o los dos.
+- `minimumSubtotal`: `Money`, la compra mínima sobre el subtotal con IVA de la orden, o `null` sin mínimo.
+- `endsAt`: `null`, sin fin. `endedBy`: la cuenta de staff que la terminó.
+
+### 26.2 `POST /v1/admin/promotions` — Crear una promoción (UC-PRM-01)
+
+- Request:
+
+  ```json
+  {
+    "name": "Buen Fin 10%",
+    "percentage": 10,
+    "targets": [
+      { "type": "PRODUCT", "id": "0199a2c0-…" },
+      { "type": "BRAND", "id": "0199a2b1-…" }
+    ],
+    "channels": ["ONLINE", "STORE"],
+    "minimumSubtotal": 50000,
+    "startsAt": "2026-11-13T00:00:00-06:00",
+    "endsAt": "2026-11-17T00:00:00-06:00"
+  }
+  ```
+
+- **Obligatorios:**
+  - `name`, de 1 a 120 caracteres;
+  - exactamente uno de `percentage`, entero de 1 a 100, y `amountOff`, en centavos, de 1 a 2,147,483,647.
+- **Opcionales:**
+  - `targets`: hasta 100, cada uno una vez, con `type` (`PRODUCT`, `CATEGORY` o `BRAND`) y `id`; sin ellos, toda la compra;
+  - `channels`: uno o los dos, sin repetir; por defecto, los dos;
+  - `minimumSubtotal`: en centavos, de 1 a 2,147,483,647;
+  - `startsAt` y `endsAt`: fecha y hora con zona horaria, como un precio programado (§12). Sin `startsAt`, o con uno que no es posterior al momento actual, empieza ahora. `endsAt` debe ser posterior al inicio.
+- Cada producto, categoría o marca debe existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no.
+- **Response 201:** `Promotion`, con `Location`.
+- **Errores:** 400 `validation-error`:
+  - en `amountOff` con código `exclusive` si llegan los dos descuentos, y en `percentage` con código `required` si no llega ninguno;
+  - en `targets[i].id` con `unknownTarget` si no existe, o `unusableTarget` si no está en uso;
+  - en `endsAt` con `afterStart` si no es posterior al inicio.
+- Se audita como `promotions.create`, con todos sus términos.
+
+### 26.3 `GET /v1/admin/promotions` — Listar promociones (UC-PRM-02)
+
+- Paginado (sección 5). Cada elemento es `Promotion` sin `targets`, `endedBy`, `createdBy`, `createdAt`, `updatedAt` ni `version`.
+- **Filtros:**
+  - `q`: parte del nombre, sin distinguir mayúsculas;
+  - `status`: uno o más, separados por comas, al momento de la consulta;
+  - `channel`: las que aplican en `ONLINE` o en `STORE`;
+  - `appliesTo`: `ORDER`, las de toda la compra, o `ITEMS`, las de ciertos productos, categorías o marcas.
+- **Orden:** `sort` con `startsAt` o `name`, y `-` para descendente; por defecto `-startsAt`.
+
+### 26.4 `GET /v1/admin/promotions/{promotionId}` — Consultar una promoción (UC-PRM-02)
+
+- **Response 200:** `Promotion`, con sus productos, categorías y marcas. 404 si no existe.
+
+### 26.5 `PATCH /v1/admin/promotions/{promotionId}` — Editar una promoción (UC-PRM-03)
+
+- Request: los campos de §26.2 y `version`, obligatoria. Solo cambian los campos enviados:
+  - `percentage` o `amountOff`, uno de los dos, reemplaza el descuento;
+  - `targets` reemplaza la lista completa; vacía, toda la compra;
+  - `name`, `targets`, `channels` y `startsAt` no aceptan `null`; `null` quita `minimumSubtotal` o `endsAt`.
+- **Antes de su inicio** se cambia todo; un `startsAt` que no es posterior al momento actual la hace empezar ahora.
+- **Ya iniciada**, solo `name` y `endsAt`, que debe ser posterior al momento actual. Los demás pueden llegar con el valor que ya tienen.
+- **Terminada,** nada.
+- Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén.
+- **Response 200:** `Promotion`. Sin cambios, no se guarda ni se audita, y la versión sigue igual.
+- **Errores:**
+  - 400 `validation-error`, como en §26.2, y en `endsAt` con `inFuture` si, ya iniciada, no es posterior al momento actual;
+  - 404 si no existe;
+  - 409 `version-conflict` con `currentVersion`;
+  - 409 `invalid-state-transition` con `currentStatus`, si cambia otro término de una iniciada, o cualquiera de una terminada.
+- Se audita como `promotions.update`, solo con lo que cambió.
+
+### 26.6 `POST /v1/admin/promotions/{promotionId}/end` — Terminar una promoción (UC-PRM-03)
+
+- Request `{ "version": 2 }`.
+- Una vigente deja de aplicar ahora, y una programada ya no empieza. Guarda `endedAt` y `endedBy`. La promoción se conserva, porque las órdenes guardan cuál recibieron.
+- **Response 200:** `Promotion` en `ENDED`.
+- **Errores:** 404 si no existe; 409 `version-conflict`; 409 `invalid-state-transition` si ya terminó.
+- Se audita como `promotions.end`.

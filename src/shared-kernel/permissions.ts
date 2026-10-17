@@ -28,6 +28,9 @@ export const PERMISSIONS = {
     'Recibir equipos en la tienda física y llevar sus órdenes de trabajo',
   'work-orders.read-blocked':
     'Consultar los datos personales bloqueados de una orden de trabajo, con motivo y auditado',
+  // Promotions
+  'promotions.read': 'Ver promociones',
+  'promotions.manage': 'Crear, editar y terminar promociones',
   // Payments
   'payments.manage': 'Registrar pagos manuales y emitir reembolsos',
   'payments.configure': 'Habilitar o deshabilitar el pago manual en tienda',

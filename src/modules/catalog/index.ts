@@ -1,6 +1,8 @@
 // Public API of the Catalog context (ADR-0005): other modules import only from this file.
 export { CatalogModule } from './catalog.module.js';
 export {
+  type CatalogEntries,
+  type CatalogEntry,
   CatalogFacade,
   type VariantImage,
   type VariantSnapshot,

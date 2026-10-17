@@ -131,6 +131,8 @@ Catálogo y roles de ADR-0043.
 | `audit.read` | ✓ | ✓ | — | — |
 | `events.manage` (ADR-0150) | ✓ | ✓ | — | — |
 | `work-orders.read`, `work-orders.manage` (ADR-0165) | ✓ | ✓ | — | ✓ |
+| `promotions.read` (ADR-0168) | ✓ | ✓ | — | ✓ |
+| `promotions.manage` (ADR-0168) | ✓ | ✓ | — | — |
 
 `shipping.configure` (ADR-0075) lo tienen solo Superadministrador y Administrador: el Operador gestiona envíos, pero no cambia el costo de envío ni el umbral de envío gratis. `payments.configure` lo tiene solo el Superadministrador, y ningún otro rol puede tenerlo (BR-USR-21, ADR-0162). El Vendedor coloca pedidos en la tienda física, pero no registra su pago (`payments.manage`): quien coloca el pedido no confirma que se pagó (ADR-0161). El Vendedor, que atiende el mostrador, también recibe equipos y lleva sus órdenes de trabajo (ADR-0165).
 
@@ -508,6 +510,7 @@ Criterios de aceptación:
 
 - **UC-PRM-01:** un porcentaje de 1% a 100% o un monto fijo; para toda la compra, o para ciertos productos, categorías, con sus subcategorías, o marcas; con inicio y un fin opcional; en línea, en la tienda física o en ambos, por defecto ambos; con una compra mínima opcional; automática o con cupón. Se audita.
 - **UC-PRM-03:** antes de su inicio se edita todo; ya iniciada, solo el nombre y el fin, o se termina. Se audita.
+- **UC-PRM-01 a 03 (implementación, T-200 parte a):** exactamente uno de `percentage` y `amountOff`; cada producto, categoría o marca que no existe o no está en uso es un error de su lugar en `targets`; el estado se calcula al consultar; terminar una promoción guarda quién y cuándo, y ya iniciada, los demás términos pueden llegar con el valor que tienen (BR-PRM-01 a 05).
 - **UC-PRM-04:** una sola promoción por orden: la del cupón, si se da, o la automática que más descuente. El descuento se reparte en centavos entre las líneas a las que aplica; el IVA de cada línea se calcula sobre su importe con descuento; la orden paga al menos $1. La orden guarda el descuento de cada línea, `discountTotal` y la promoción, y `expectedTotal` incluye el descuento.
 - **UC-PRM-05:** el código es único y no distingue mayúsculas; los límites de usos totales y de una vez por cliente son opcionales; un uso cuenta al colocar la orden y se devuelve si la orden vence o se cancela; un código que no existe y uno que no está vigente responden igual.
 
