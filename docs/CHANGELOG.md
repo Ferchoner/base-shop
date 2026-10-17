@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## 1.7.0 (2026-10-16)
+
+Promociones (ADR-0168).
 
 - Plan de la versión 1.7 (nuevo ADR-0168): promociones. Una promoción descuenta un porcentaje, hasta el 100%, o un monto fijo, de toda la compra o de ciertos productos, categorías o marcas, con vigencia, canales y compra mínima, sola o con un cupón. Se aplica una por orden, en línea y en la tienda física; el descuento se reparte por línea, el IVA se calcula sobre el importe con descuento y la orden paga al menos $1. Se implementa en T-200, en tres partes.
 - Paso 0 de la versión 1.7: revisión contra los ADR sin desajustes y 0 vulnerabilidades en las dependencias de producción; Prisma sigue en 7.10.0, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.6.
@@ -21,6 +23,7 @@
   - Tipo de error nuevo `coupon-not-applicable` (409, E-38), con `reason`; un código que nadie tiene y uno que no está vigente responden igual. Hasta 10 códigos que nadie tiene por IP en 15 minutos (`RATE_LIMIT_COUPON_ATTEMPTS`).
   - `Promotion` suma `code`, `usageLimit`, `oncePerCustomer` y `uses`, y el listado, el filtro `kind`; `q` también encuentra un cupón por su código. `promotion` suma `code` en `CheckoutQuote`, `Order` y `AdminOrder`. El cuerpo de `POST /v1/me/checkout/quote` es opcional.
   - Las migraciones `20261017140000_promotions_coupons` y `20261017150000_ordering_coupons` agregan las columnas, las restricciones y el índice de los usos por cliente.
+- Versión 1.7.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.7.0` y un GitHub Release.
 
 ## 1.6.0 (2026-10-16)
 
