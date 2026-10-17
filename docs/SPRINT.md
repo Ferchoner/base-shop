@@ -6,87 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-1.7 — Promociones. Inicio: 2026-10-16 (plan aprobado ese día).
-
-### Goal
-
-Que la tienda ofrezca promociones automáticas y cupones, en línea y en la tienda física, con el descuento repartido por línea, su IVA y la promoción registrada en la orden (ADR-0168).
-
-### Tasks
-
-| Paso | Tareas |
-|---|---|
-| 0 | Revisión contra los ADR; `npm audit`; versión de Prisma; prácticas de la review de la versión 1.6 en la guía de desarrollo |
-| 1 | T-200 parte a: el módulo de promociones y su administración: porcentaje o monto fijo, alcance, vigencia, canales, compra mínima y permisos |
-| 2 | T-200 parte b: aplicar las promociones automáticas en las cotizaciones y las órdenes, una por orden, con el descuento por línea, su IVA y un total mínimo de $1 |
-| 3 | T-200 parte c: los cupones, con sus límites de uso |
-
-- **Criterio de cierre:** los criterios de aceptación de T-200, que fija el plan de cada parte; la CI en verde en `main`; y la versión 1.7.0 publicada con su tag y su GitHub Release (ADR-0159).
-- **Fuera de esta versión:** combinar promociones; 2x1, 3x2, regalos y envío gratis como promoción; promociones para ciertos clientes; mostrarlas en la tienda pública; devoluciones parciales; la factura CFDI; y todo lo que ADR-0158 dejó fuera del MVP.
-- **Flujo de trabajo:** el de las versiones anteriores. Cada parte va en su rama y su pull request, con el plan aprobado antes de implementarla. El último pull request sube la versión a 1.7.0.
-- **Siguiente versión:** ninguna prevista; la siguiente necesita su plan aprobado (ADR-0159).
-
-### Resultado del paso 0
-
-- **Revisión contra los ADR:** los 167 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
-- **Dependencias:**
-  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
-  - seguimos en Prisma 7.10.0, aunque está el parche 7.10.1, sin aviso de seguridad, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad (ADR-0158). La 8 sigue en versión candidata (8.0.0-rc.23).
-- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.6:
-  - la búsqueda de las comparaciones completas cubre las pruebas unitarias, de integración y end-to-end de todos los módulos que usan la respuesta;
-  - una migración que crea o borra una tabla actualiza la cuenta de tablas de la prueba del esquema en el mismo cambio;
-  - el valor esperado de una prueba es un literal, no la constante que se prueba;
-  - una prueba que oculta datos incluye uno que debe seguir visible;
-  - antes de `test:cov` se comprueba que Docker responde;
-  - al cerrar una versión se revisan las sesiones de trabajo y las ramas locales que no están en `main`.
-
-### Resultado del paso 1
-
-T-200 parte a (ADR-0168).
-
-- **Módulo nuevo `promotions`:** cinco rutas en `/v1/admin/promotions`, dos tablas y dos permisos: el Administrador administra las promociones y el Vendedor las consulta. Lee a Catalog solo por su fachada, que suma `entries`: los productos, las categorías y las marcas por su ID, con su nombre y su estado.
-- **El estado no se guarda:** sale de las fechas al consultar, también en el filtro del listado. Terminar una promoción guarda quién y cuándo, y nada se borra.
-- **Precisiones del plan:** una promoción mezcla productos, categorías y marcas; los porcentajes son enteros; el monto fijo se descuenta una vez por orden; y lo que se agrega debe existir y estar en uso, mientras que lo que ya tenía se queda.
-- **Encontrado en la primera corrida de las pruebas unitarias:** la misma lista de productos, categorías y marcas en otro orden se guardaba y se auditaba como un cambio; ahora conserva su orden y no cuenta.
-- **Las prácticas de la review de la 1.6, aplicadas:** las cuentas fijas de tablas (46 → 48) y de permisos (22 → 24) se actualizaron con sus migraciones, y no fallaron en la corrida completa.
-- **Cobertura de funciones:** 99.19%. Quedan sin llamar cuatro funciones de tipo del plugin de Swagger, en campos con `enum` o `type` explícito, como en los DTO de precios, órdenes y órdenes de trabajo; la de `startsAt` en la edición sí era un hueco, y una prueba end-to-end la cubre.
-- **Mutación:** 52 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida, los dos en el filtro de estado del listado: ninguna promoción empezaba justo en el momento de la consulta, y ninguna se había terminado a mano después de empezar. La prueba de integración suma los dos casos.
-
-### Resultado del paso 2
-
-T-200 parte b (ADR-0168).
-
-- **Una promoción por cotización y por orden:** las tres cotizaciones y las órdenes, en línea y en la tienda física, reciben la automática que más descuenta en su canal. Promotions la elige y reparte el descuento con su fachada nueva, y Ordering solo lo aplica.
-- **Las categorías, con sus superiores:** la fachada de Catalog clasifica cada variante con su marca y sus categorías, y con todas las de arriba, en una consulta recursiva; una promoción de una categoría alcanza a las subcategorías, también a las inactivas.
-- **El mínimo de un peso, en los productos:** el envío gratis depende del descuento, así que aplicarlo al total haría que cada uno dependiera del otro. Con un 100% y envío, la orden paga $1 más el envío.
-- **El descuento queda por línea:** cada línea guarda el suyo y el IVA de lo que queda, y la orden guarda la promoción con el nombre que vio el cliente. La base exige que las cuentas cuadren, con ocho restricciones nuevas que prueba la integración.
-- **Comparaciones completas, buscadas antes de correr:** la guía pide buscarlas en todas las suites; la búsqueda encontró las del checkout y las de los correos, y la corrida completa encontró una más, la de una línea que no se vende en la e2e del checkout.
-- **Memoria de la e2e con cobertura:** con la suite nueva, la corrida pasó los 4 GB que Node usa por defecto y se detuvo. `npm run test:e2e` sube el límite a 6 GB, también en la CI, y la guía lo registra.
-- **Mutación:** 49 mutantes, todos muertos en la primera corrida.
-
-### Resultado del paso 3
-
-T-200 parte c (ADR-0168). Con ella, T-200 queda en DONE.
-
-- **El cupón reemplaza a la automática:** `couponCode`, opcional en las seis rutas, trae un cupón que se aplica aunque descuente menos; si no aplica, la cotización o la orden responde 409 `coupon-not-applicable` con su motivo, sin otra promoción. Un código que nadie tiene, uno que no está vigente y uno de otro canal responden igual.
-- **Los usos, en la fila del cupón:** la orden los cuenta con un `UPDATE` que comprueba el límite en la misma sentencia y bloquea la fila hasta que termina su transacción. La integración lo prueba con la fila bloqueada desde otra conexión: de dos órdenes por el último uso, una responde `exhausted`; de dos del mismo comprador, una responde `alreadyUsed`, porque una vez por cliente se revisa después de contar.
-- **Devolver y volver a contar:** el vencimiento y la cancelación devuelven el uso en su transacción, y el pago tardío de una orden vencida lo vuelve a contar aunque pase el límite, porque el cliente ya pagó.
-- **Una vez por cliente, sin datos nuevos:** se cuenta por el email de contacto de sus órdenes con el cupón que no vencieron, no se cancelaron ni se reembolsaron, con un índice parcial nuevo. Una orden anonimizada deja de contar.
-- **El límite de intentos, en una suite aparte:** 10 códigos que nadie tiene por IP en 15 minutos, con el `FailedAttemptLimiter` del login. Su prueba end-to-end usa su propia aplicación con un límite de 3, como la del login, para no gastar el presupuesto de las demás pruebas.
-- **Encontrado por la cobertura y el contrato:** la cotización del cliente acepta un cuerpo opcional, que OpenAPI marcaba obligatorio, y un valor por defecto de `couponCode` que ninguna llamada usaba se quitó. Una promoción automática auditaba `oncePerCustomer: false`, que no le corresponde; ya no lo audita.
-- **Mutación:** 60 mutantes, todos muertos en la primera corrida.
-
-### Risks
-
-- **El IVA con descuento:** baja con el descuento; la validación con el contador lo incluye (P-69).
-- **Descuentos sin el costo:** la API no conoce el costo de los productos, así que no impide vender por debajo de él; una promoción al 100% deja la orden en $1. Solo el Administrador las administra, y cada cambio se audita.
-- **Cupones adivinados:** un código que no existe y uno que no está vigente responden igual, y las cotizaciones limitan los intentos.
-- **Una promoción que cambia entre la cotización y la orden:** la orden responde 409 `total-mismatch`, como cuando cambia un precio, y el cliente vuelve a cotizar.
-- **Cambios de contrato:** `discountTotal` deja de ser siempre 0, y hay rutas, campos, permisos y un tipo de error nuevos, compatibles dentro de `/v1`; cada uno queda en `API_SPEC.md`, en `docs/openapi/v1.json` y en `CHANGELOG.md`.
-
-### Review
-
-PENDIENTE.
+Ninguna. La versión 1.7, promociones, se cerró el 2026-10-16 y se publica como la 1.7.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -112,6 +32,129 @@ PENDIENTE.
 ---
 
 ## Historial
+
+### Versión 1.7 — Promociones (2026-10-16)
+
+**Goal:** Que la tienda ofrezca promociones automáticas y cupones, en línea y en la tienda física, con el descuento repartido por línea, su IVA y la promoción registrada en la orden (ADR-0168). **Tareas:** T-200, en tres partes, precedidas por un paso 0.
+
+**Fecha:** 2026-10-16. **Resultado:** objetivo cumplido. T-200 está en DONE, el pipeline de CI está en verde en `main`, y la versión se publica como la 1.7.0, con su tag y su GitHub Release (ADR-0159).
+- El Administrador crea, edita y termina promociones de un porcentaje o un monto fijo, para toda la compra o para ciertos productos, categorías y marcas, con vigencia, canales y compra mínima; el Vendedor las consulta para saber qué ofrecer en el mostrador.
+- Las tres cotizaciones y las órdenes, en línea y en la tienda física, reciben la promoción automática que más descuenta en su canal, o el cupón que trae el cliente, que la reemplaza.
+- El descuento queda por línea, con el IVA de lo que queda, y la orden guarda la promoción con su nombre y su código; los productos pagan al menos un peso.
+- Un cupón limita sus usos en total y a uno por cliente, y dos órdenes nunca toman su último uso.
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0168; revisión contra los ADR sin desajustes; 0 vulnerabilidades en las dependencias de producción; prácticas de la review de la versión 1.6 en la guía | DONE | Paso 0, pull request #132 |
+| El módulo de promociones en `/v1/admin/promotions`: porcentaje o monto fijo, productos, categorías y marcas, canales, compra mínima y vigencia (UC-PRM-01 a 03, BR-PRM-01 a 05); permisos `promotions.read` y `promotions.manage` | DONE | T-200 parte a, pull request #133 |
+| Las promociones automáticas en las cotizaciones y las órdenes, con el descuento y el IVA por línea, el mínimo de un peso y la promoción en la orden y su correo (UC-PRM-04, BR-PRM-06 a 09) | DONE | T-200 parte b, pull request #134 |
+| Los cupones, con `couponCode` en las seis rutas, límite de usos y una vez por cliente, el error `coupon-not-applicable` y 10 códigos que nadie tiene por IP en 15 minutos (UC-PRM-05, BR-PRM-10 a 12) | DONE | T-200 parte c, pull request #135 |
+| 152 rutas de `/v1`, 5 de ellas nuevas; 2 tablas nuevas, 48 en total; 2 permisos nuevos, 24 en total; un tipo de error nuevo; todos los cambios de contrato son compatibles, aunque `discountTotal` deja de ser siempre 0 | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| 3,199 tests (1,887 unitarios, 601 de integración y 711 end-to-end), 263 más que en la versión 1.6; cobertura de 98.92% de sentencias, 85.27% de ramas, 99.21% de funciones y 99.49% de líneas; 0 secretos en el historial | — | CI |
+| Dependencias: 0 vulnerabilidades en las de producción; en las de desarrollo, el mismo aviso moderado de `sprintf-js`, sin versión corregida | — | `npm audit` |
+| 168 ADR: 164 aceptados, 2 reemplazados (ADR-0014 y ADR-0081) y 2 reemplazados parcialmente (ADR-0001 y ADR-0077); 1 nuevo en esta versión (ADR-0168) | — | `DECISIONS.md` |
+| Siguen abiertas 8 decisiones | — | `PROGRESS.md` |
+
+El trabajo se integró en 4 pull requests a `main` (del #132 al #135), y el pipeline pasó a la primera en todos. En `main` pasó después de cada fusión salvo la de #133: la corrida end-to-end con cobertura se quedó sin memoria, el mismo límite que la parte b encontró en local y corrigió en #134 subiendo la memoria de Node a 6 GB; desde entonces pasa.
+
+#### Decisiones abiertas
+
+Las mismas 8 del cierre del MVP, que quedaron fuera de él (ADR-0158); ver la review del Sprint 9. Ninguna bloquea lo construido en esta versión. El IVA calculado sobre el importe con descuento se suma a la validación pendiente con el contador (P-69), y la validación legal de los datos personales que captura el staff sigue en la lista de `PROJECT.md` §9 (ADR-0161, ADR-0165).
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Descuentos sin registro:** la orden guarda el descuento de cada línea y la promoción que lo dio, con el nombre que vio el cliente y el código del cupón; el correo y la cotización los muestran.
+  - **Cupones adivinados:** un código que nadie tiene responde igual que uno que no está vigente, y se limitan a 10 por IP en 15 minutos.
+  - **Un cupón usado de más:** el uso se cuenta en la fila del cupón, que queda bloqueada hasta que la orden termina, y la integración prueba las dos órdenes a la vez.
+  - **Cambios de contrato:** rutas, campos, permisos y un tipo de error nuevos, compatibles dentro de `/v1`. Cada uno está en `API_SPEC.md`, en el OpenAPI y en `CHANGELOG.md`.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews de los sprints y de las versiones 1.1 a 1.6, entre ellos el aviso moderado de `sprintf-js` y la validación legal de los datos que captura el staff.
+- **Nuevos:**
+  - **El IVA con descuento:** baja con el descuento; la validación con el contador lo incluye (P-69).
+  - **Descuentos sin el costo:** la API no conoce el costo de los productos, así que no impide vender por debajo de él; una promoción al 100% deja la orden en $1. Solo el Administrador las administra, y cada cambio se audita.
+  - **`discountTotal` deja de ser 0:** quien muestre las órdenes o las cotizaciones tiene que mostrarlo.
+  - **Usos sobre el límite:** el pago tardío de una orden vencida vuelve a contar su uso aunque pase el límite, porque el cliente ya pagó; `uses` puede ser mayor que `usageLimit`.
+  - **El límite de los cupones, por IP y en memoria:** como los demás límites, detrás de un proxy necesita la IP real del cliente (P-06) y cuenta por instancia.
+
+#### Qué funcionó
+
+- **Partes pequeñas:** T-200 se dividió en tres partes, cada una con su plan y su pull request, y cada una pasó el pipeline a la primera.
+- **Módulos por sus fachadas:** Ordering pide la promoción, el cupón y sus usos solo a `PromotionsFacade`, por puertos; Promotions clasifica las variantes con la fachada de Catalog, y nunca usa a Ordering. Las reglas de capas no marcaron nada.
+- **El límite y el candado en una sola sentencia:** contar un uso es un `UPDATE` que comprueba el límite y bloquea la fila; la prueba de integración bloquea la fila desde otra conexión hasta que las dos órdenes esperan, como pidió la review de la 1.6 para los candados.
+- **Una suite aparte para un límite en memoria:** la prueba del límite de los cupones levanta su propia aplicación con un límite bajo, como la del login, y no depende de cuántos códigos rechazaron las demás pruebas.
+- **Las prácticas de la review de la versión 1.6:**
+  - las cuentas fijas de tablas (46 → 48) y de permisos (22 → 24) se actualizaron con sus migraciones;
+  - las comparaciones completas se buscaron en las tres suites antes de la corrida completa de la parte b, que encontró una más; en la parte c salieron en las corridas de los módulos afectados, y la completa pasó a la primera;
+  - antes de cada `test:cov` se comprobó que Docker respondía.
+- **Pruebas de mutación:**
+
+  | Parte | Sobrevivieron | Causa |
+  |---|---|---|
+  | T-200 parte a | 2 de 52 | Casos sin probar, agregados: una promoción que empieza justo en el momento de la consulta, y una que se terminó a mano después de empezar |
+  | T-200 parte b | 0 de 49 | — |
+  | T-200 parte c | 0 de 60 | — |
+
+#### Qué mejorar
+
+- **La corrida de `main` después de cada fusión:** la de #133 falló por memoria y no se vio hasta el cierre, aunque la parte b corrigió la causa sin saberlo. Después de cada fusión, antes de empezar la siguiente parte, se revisa que la corrida de `main` pasó.
+- **Las fechas de los documentos:** ADR-0168 registró la fecha del plan de la parte b en UTC, un día después de la fecha local; se corrigió. Los documentos usan la fecha de México; solo los nombres de las migraciones van en UTC.
+- **La memoria de la corrida end-to-end:** con cada suite nueva crece, porque Jest conserva los módulos ESM de cada una en el mismo proceso. Antes de subir otra vez el límite se mide con `--logHeapUsage`, como dice la guía.
+
+#### Resultado del paso 0
+
+- **Revisión contra los ADR:** los 167 ADR del índice tienen su sección, y no hay referencias a ADR, tareas, decisiones, reglas, casos de uso ni errores que no existan. Su única alerta sigue siendo un script que no existe, citado entre las alternativas descartadas de ADR-0122.
+- **Dependencias:**
+  - `npm audit`: en producción, sin vulnerabilidades; en desarrollo, el mismo aviso moderado de `sprintf-js`, que ninguna versión corrige. La auditoría de la CI pasa;
+  - seguimos en Prisma 7.10.0, aunque está el parche 7.10.1, sin aviso de seguridad, porque Dependabot sigue en pausa salvo las actualizaciones de seguridad (ADR-0158). La 8 sigue en versión candidata (8.0.0-rc.23).
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.6:
+  - la búsqueda de las comparaciones completas cubre las pruebas unitarias, de integración y end-to-end de todos los módulos que usan la respuesta;
+  - una migración que crea o borra una tabla actualiza la cuenta de tablas de la prueba del esquema en el mismo cambio;
+  - el valor esperado de una prueba es un literal, no la constante que se prueba;
+  - una prueba que oculta datos incluye uno que debe seguir visible;
+  - antes de `test:cov` se comprueba que Docker responde;
+  - al cerrar una versión se revisan las sesiones de trabajo y las ramas locales que no están en `main`.
+
+#### Resultado del paso 1
+
+T-200 parte a (ADR-0168).
+
+- **Módulo nuevo `promotions`:** cinco rutas en `/v1/admin/promotions`, dos tablas y dos permisos: el Administrador administra las promociones y el Vendedor las consulta. Lee a Catalog solo por su fachada, que suma `entries`: los productos, las categorías y las marcas por su ID, con su nombre y su estado.
+- **El estado no se guarda:** sale de las fechas al consultar, también en el filtro del listado. Terminar una promoción guarda quién y cuándo, y nada se borra.
+- **Precisiones del plan:** una promoción mezcla productos, categorías y marcas; los porcentajes son enteros; el monto fijo se descuenta una vez por orden; y lo que se agrega debe existir y estar en uso, mientras que lo que ya tenía se queda.
+- **Encontrado en la primera corrida de las pruebas unitarias:** la misma lista de productos, categorías y marcas en otro orden se guardaba y se auditaba como un cambio; ahora conserva su orden y no cuenta.
+- **Las prácticas de la review de la 1.6, aplicadas:** las cuentas fijas de tablas (46 → 48) y de permisos (22 → 24) se actualizaron con sus migraciones, y no fallaron en la corrida completa.
+- **Cobertura de funciones:** 99.19%. Quedan sin llamar cuatro funciones de tipo del plugin de Swagger, en campos con `enum` o `type` explícito, como en los DTO de precios, órdenes y órdenes de trabajo; la de `startsAt` en la edición sí era un hueco, y una prueba end-to-end la cubre.
+- **Mutación:** 52 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida, los dos en el filtro de estado del listado: ninguna promoción empezaba justo en el momento de la consulta, y ninguna se había terminado a mano después de empezar. La prueba de integración suma los dos casos.
+
+#### Resultado del paso 2
+
+T-200 parte b (ADR-0168).
+
+- **Una promoción por cotización y por orden:** las tres cotizaciones y las órdenes, en línea y en la tienda física, reciben la automática que más descuenta en su canal. Promotions la elige y reparte el descuento con su fachada nueva, y Ordering solo lo aplica.
+- **Las categorías, con sus superiores:** la fachada de Catalog clasifica cada variante con su marca y sus categorías, y con todas las de arriba, en una consulta recursiva; una promoción de una categoría alcanza a las subcategorías, también a las inactivas.
+- **El mínimo de un peso, en los productos:** el envío gratis depende del descuento, así que aplicarlo al total haría que cada uno dependiera del otro. Con un 100% y envío, la orden paga $1 más el envío.
+- **El descuento queda por línea:** cada línea guarda el suyo y el IVA de lo que queda, y la orden guarda la promoción con el nombre que vio el cliente. La base exige que las cuentas cuadren, con ocho restricciones nuevas que prueba la integración.
+- **Comparaciones completas, buscadas antes de correr:** la guía pide buscarlas en todas las suites; la búsqueda encontró las del checkout y las de los correos, y la corrida completa encontró una más, la de una línea que no se vende en la e2e del checkout.
+- **Memoria de la e2e con cobertura:** con la suite nueva, la corrida pasó los 4 GB que Node usa por defecto y se detuvo. `npm run test:e2e` sube el límite a 6 GB, también en la CI, y la guía lo registra.
+- **Mutación:** 49 mutantes, todos muertos en la primera corrida.
+
+#### Resultado del paso 3
+
+T-200 parte c (ADR-0168). Con ella, T-200 queda en DONE.
+
+- **El cupón reemplaza a la automática:** `couponCode`, opcional en las seis rutas, trae un cupón que se aplica aunque descuente menos; si no aplica, la cotización o la orden responde 409 `coupon-not-applicable` con su motivo, sin otra promoción. Un código que nadie tiene, uno que no está vigente y uno de otro canal responden igual.
+- **Los usos, en la fila del cupón:** la orden los cuenta con un `UPDATE` que comprueba el límite en la misma sentencia y bloquea la fila hasta que termina su transacción. La integración lo prueba con la fila bloqueada desde otra conexión: de dos órdenes por el último uso, una responde `exhausted`; de dos del mismo comprador, una responde `alreadyUsed`, porque una vez por cliente se revisa después de contar.
+- **Devolver y volver a contar:** el vencimiento y la cancelación devuelven el uso en su transacción, y el pago tardío de una orden vencida lo vuelve a contar aunque pase el límite, porque el cliente ya pagó.
+- **Una vez por cliente, sin datos nuevos:** se cuenta por el email de contacto de sus órdenes con el cupón que no vencieron, no se cancelaron ni se reembolsaron, con un índice parcial nuevo. Una orden anonimizada deja de contar.
+- **El límite de intentos, en una suite aparte:** 10 códigos que nadie tiene por IP en 15 minutos, con el `FailedAttemptLimiter` del login. Su prueba end-to-end usa su propia aplicación con un límite de 3, como la del login, para no gastar el presupuesto de las demás pruebas.
+- **Encontrado por la cobertura y el contrato:** la cotización del cliente acepta un cuerpo opcional, que OpenAPI marcaba obligatorio, y un valor por defecto de `couponCode` que ninguna llamada usaba se quitó. Una promoción automática auditaba `oncePerCustomer: false`, que no le corresponde; ya no lo audita.
+- **Mutación:** 60 mutantes, todos muertos en la primera corrida.
+
+#### Siguiente versión
+
+Ninguna en curso ni prevista: la siguiente necesita un plan aprobado (ADR-0159). La 1.7 dejó fuera combinar promociones; el 2x1, el 3x2, los regalos y el envío gratis como promoción; las promociones para ciertos clientes; mostrarlas en la tienda pública; y las devoluciones parciales (ADR-0168). Las prácticas de esta review entran a `DEVELOPMENT_GUIDE.md` en el paso 0 de la siguiente versión, como las de la 1.6.
 
 ### Versión 1.6 — Servicios solo en tienda y órdenes de trabajo (2026-10-15 a 2026-10-16)
 
