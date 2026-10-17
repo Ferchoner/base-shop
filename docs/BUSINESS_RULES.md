@@ -174,6 +174,9 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-PRM-07. Una promoción de productos, categorías o marcas aplica a las líneas cuyo producto nombra, cuya marca nombra, o cuyo producto está en una categoría que nombra o debajo de ella, aunque esté inactiva.
 - BR-PRM-08. El porcentaje se calcula por línea y se redondea como el IVA; el monto fijo, sin pasar de lo que suman sus líneas, se reparte en proporción a su importe, y los centavos del redondeo van a las líneas de mayor importe, la primera si empatan.
 - BR-PRM-09. Con un descuento, los productos pagan al menos un peso: si no, el descuento se reduce, primero en la línea con más descuento.
+- BR-PRM-10. Una promoción con código es un cupón: nunca se aplica sola, sino a quien da su código, sin distinguir mayúsculas, y reemplaza a la automática aunque descuente menos. Si no aplica, la cotización o la orden se rechaza, sin otra promoción; un código que nadie tiene y uno que no está vigente responden igual. El código, de 4 a 30 letras, números o guiones, es único entre todas las promociones, también las terminadas.
+- BR-PRM-11. Un cupón puede limitar sus usos en total y a uno por cliente. Una vez por cliente se cuenta por el email de contacto de sus órdenes con el cupón que no vencieron, no se cancelaron ni se reembolsaron; una venta de mostrador sin datos del comprador no puede usarlo.
+- BR-PRM-12. Un uso cuenta al colocar la orden, sin que dos órdenes tomen el último, y se devuelve cuando la orden vence o se cancela; un pago tardío de una orden vencida lo vuelve a contar, aunque pase el límite. El límite cambia en cualquier momento, nunca por debajo de los usos; el código y una vez por cliente, solo antes del inicio. La recompra y la restauración del carrito no llevan el cupón.
 
 ## Impuestos
 

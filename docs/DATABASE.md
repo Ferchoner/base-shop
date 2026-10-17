@@ -488,6 +488,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 | grand_total | integer | No | — |
 | promotion_id | uuid | Sí | La promoción del descuento; referencia lógica a `promotions` (ADR-0168) |
 | promotion_name | text | Sí | Su nombre al colocar la orden, el que vio el cliente |
+| promotion_code | text | Sí | El código del cupón, en mayúsculas; `NULL` con una promoción automática (ADR-0168) |
 | fulfillment | enum `order_fulfillment` (SHIPPING, IN_STORE) | No | Default `SHIPPING`; `IN_STORE` es la venta de mostrador, que se entrega en la tienda (ADR-0161) |
 | shipping_address | jsonb | Sí | Snapshot con el formato de ADR-0057; `NULL` en una orden `IN_STORE` |
 | reservation_id | uuid | Sí | Referencia lógica a Inventory |
@@ -506,7 +507,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 | created_at, updated_at | timestamptz(3) | No | — |
 
 - **Restricciones:** `CHECK (subtotal >= 0 AND tax_total >= 0 AND tax_total <= subtotal + shipping_cost AND shipping_cost >= 0 AND discount_total >= 0)`; `CHECK (shipping_tax_amount >= 0 AND shipping_tax_amount <= shipping_cost AND shipping_tax_amount <= tax_total AND shipping_tax_rate_bp >= 0)` (ADR-0079); `CHECK (grand_total = subtotal + shipping_cost - discount_total)`; `CHECK (delivery_min_business_days > 0 AND delivery_max_business_days >= delivery_min_business_days)` (ADR-0083); `CHECK (public_code ~ '^[0-9A-HJKMNP-TV-Z]{8}$')`; `CHECK (anonymized_at IS NOT NULL OR contact_email IS NOT NULL)`; `CHECK (customer_id IS NOT NULL OR anonymized_at IS NOT NULL OR privacy_notice_version IS NOT NULL)` (un invitado siempre registra la versión del aviso); `CHECK (blocked_at IS NULL OR concluded_at IS NOT NULL)` (solo se bloquea una orden que concluyó, ADR-0151); `orders_channel_check`: una orden `ONLINE` tiene `source_cart_id` y no tiene `placed_by` ni `warehouse_id`, y una `STORE` tiene `placed_by` y `warehouse_id` y no tiene `source_cart_id` (ADR-0161); `orders_fulfillment_check`: una orden `SHIPPING` tiene dirección y días de entrega, y una `IN_STORE` es `STORE`, sin dirección, sin días de entrega y sin costo de envío. `orders_contact_email_check` y `orders_guest_privacy_notice_check` admiten una orden `IN_STORE` sin cliente, email ni aviso (ADR-0161).
-- **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado); `orders_retention_idx` sobre `(concluded_at) WHERE anonymized_at IS NULL` (ciclo de conservación, ADR-0151); `(placed_by, placed_at DESC) WHERE placed_by IS NOT NULL` (órdenes de una cuenta de staff, ADR-0161).
+- **Índices:** únicos de `order_number` y `public_code`; `(customer_id, placed_at DESC)`; `(status, placed_at DESC)`; `(contact_email)` (consulta de invitado); `orders_retention_idx` sobre `(concluded_at) WHERE anonymized_at IS NULL` (ciclo de conservación, ADR-0151); `(placed_by, placed_at DESC) WHERE placed_by IS NOT NULL` (órdenes de una cuenta de staff, ADR-0161); `orders_promotion_contact_idx` sobre `(promotion_id, contact_email) WHERE promotion_id IS NOT NULL` (los usos de un cupón por cliente, ADR-0168).
 - **Integridad:** nunca se borra. Que las transiciones de estado sean válidas lo garantiza el aggregate; cada cambio se registra en `order_status_history`.
 - **Implementado en T-180 parte a (ADR-0132):**
   - la orden se escribe con `INSERT … ON CONFLICT (public_code) DO NOTHING`: un código repetido no aborta la transacción, y la aplicación sortea otro;
@@ -527,6 +528,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
   - la migración `20261006150100_ordering_store_orders` crea `order_channel` y agrega `channel`, con `ONLINE` para las órdenes existentes, que salieron todas de un carrito; deja `source_cart_id` opcional y agrega `placed_by`, `warehouse_id`, `orders_channel_check` y el índice parcial;
   - la primera entrada de `order_status_history` lleva como actor a la cuenta de staff en una orden `STORE`.
 - **Implementado en T-200 parte b (ADR-0168):** la migración `20261017120000_ordering_promotions` agrega `promotion_id`, `promotion_name` y `order_lines.discount_amount`, con 0 y sin promoción para las órdenes existentes. `orders_amounts_check` limita ahora el IVA al total con el descuento, y el descuento al subtotal; `orders_discount_minimum_check` exige que con un descuento los productos sumen al menos $1 (`subtotal - discount_total >= 100`); `orders_promotion_check` exige la promoción con su nombre si y solo si hay descuento.
+- **Implementado en T-200 parte c (ADR-0168):** la migración `20261017150000_ordering_coupons` agrega `promotion_code`, con `orders_promotion_code_check`: el código solo con una promoción, y el índice parcial `orders_promotion_contact_idx`, con el que una orden cuenta si su email de contacto ya usó un cupón de una vez por cliente, entre sus órdenes que no están en `EXPIRED`, `CANCELLED` ni `REFUNDED`.
 - **Implementado en T-187 parte b (ADR-0161):** la migración `20261006170000_ordering_in_store_delivery` crea `order_fulfillment`, agrega `fulfillment` con `SHIPPING` para las órdenes existentes, deja opcionales la dirección y los días de entrega, agrega `orders_fulfillment_check` y reemplaza las restricciones del email y del aviso de privacidad.
 
 ### 8.2 `order_lines` (order_items)
@@ -1015,7 +1017,7 @@ Las ventas de mostrador que cobran una orden de trabajo (T-189 parte c, ADR-0167
 
 ## 18. Promotions
 
-Desde T-200 parte a (ADR-0168), migración `20261016140000_promotions`. Las referencias a Catalog e Identity son lógicas, sin FK.
+Desde T-200 parte a (ADR-0168), migración `20261016140000_promotions`; los cupones, desde la parte c, con `20261017140000_promotions_coupons`. Las referencias a Catalog e Identity son lógicas, sin FK.
 
 ### 18.1 `promotions`
 
@@ -1032,13 +1034,18 @@ Desde T-200 parte a (ADR-0168), migración `20261016140000_promotions`. Las refe
 | ended_at | timestamptz(3) | Sí | Cuándo se terminó a mano |
 | ended_by | uuid | Sí | Quién la terminó; referencia lógica a `users`. `CHECK ((ended_at IS NULL) = (ended_by IS NULL))` |
 | created_by | uuid | No | Quién la creó; referencia lógica a `users` |
+| code | text | Sí | El código de un cupón, en mayúsculas; `NULL` en una automática. Único; `CHECK (code ~ '^[A-Z0-9-]{4,30}$')` |
+| usage_limit | integer | Sí | Usos en total del cupón; `NULL` sin límite. `CHECK (usage_limit >= 1)` |
+| once_per_customer | boolean | No | Default `false`; cada cliente usa el cupón una vez |
+| uses | integer | No | Default 0; las órdenes que cuentan un uso. `CHECK (uses >= 0)`; puede pasar `usage_limit` con un pago tardío |
 | version | integer | No | Default 1; bloqueo optimista |
 | created_at, updated_at | timestamptz(3) | No | Los escribe el reloj de la API (ADR-0124) |
 
 - **Descuento:** `CHECK ((percentage IS NULL) <> (amount_off IS NULL))`: exactamente uno de los dos (BR-PRM-01).
 - **Estado:** no se guarda; sale de `starts_at`, `ends_at` y `ended_at` al consultar (BR-PRM-04).
-- **Índices:** `(starts_at DESC)`, el orden por defecto del listado.
-- **Escrituras:** un cambio guarda solo sobre la versión que leyó (`UPDATE … WHERE version = …`). Nunca se borra (BR-PRM-05).
+- **Cupón:** `promotions_coupon_check`: sin `code`, ni `usage_limit`, ni `once_per_customer`, y `uses` en 0 (BR-PRM-10 y 11).
+- **Índices:** `(starts_at DESC)`, el orden por defecto del listado; único de `code`, `promotions_code_key`.
+- **Escrituras:** un cambio guarda solo sobre la versión que leyó (`UPDATE … WHERE version = …`), sin escribir `uses`. Los usos cambian con `UPDATE promotions SET uses = uses + 1 WHERE id = … AND (usage_limit IS NULL OR uses < usage_limit)`, en la transacción de la orden, que bloquea la fila hasta que termina: una segunda orden espera y vuelve a evaluar el límite (BR-PRM-12). Devolver un uso nunca baja de 0. Nunca se borra (BR-PRM-05).
 
 ### 18.2 `promotion_targets`
 
