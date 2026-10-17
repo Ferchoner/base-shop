@@ -14,6 +14,7 @@ import {
   type BrandFilter,
   type BrandSortField,
   type BrandView,
+  type CatalogEntriesView,
   CatalogQueries,
   type CategoryView,
   type ProductFilter,
@@ -251,6 +252,46 @@ export class PrismaCatalogQueries extends CatalogQueries {
       .sort(
         (a, b) => Number(b.status === 'ACTIVE') - Number(a.status === 'ACTIVE'),
       );
+  }
+
+  async findEntries(ids: {
+    readonly productIds: readonly ProductId[];
+    readonly categoryIds: readonly CategoryId[];
+    readonly brandIds: readonly BrandId[];
+  }): Promise<CatalogEntriesView> {
+    const tx = this.txHost.tx;
+    const [products, categories, brands] = await Promise.all([
+      ids.productIds.length === 0
+        ? []
+        : tx.product.findMany({
+            select: { id: true, title: true, status: true },
+            where: { id: { in: [...ids.productIds] } },
+            orderBy: { id: 'asc' },
+          }),
+      ids.categoryIds.length === 0
+        ? []
+        : tx.category.findMany({
+            select: { id: true, name: true, status: true },
+            where: { id: { in: [...ids.categoryIds] } },
+            orderBy: { id: 'asc' },
+          }),
+      ids.brandIds.length === 0
+        ? []
+        : tx.brand.findMany({
+            select: { id: true, name: true, status: true },
+            where: { id: { in: [...ids.brandIds] } },
+            orderBy: { id: 'asc' },
+          }),
+    ]);
+    return {
+      products: products.map(({ id, title, status }) => ({
+        id,
+        name: title,
+        status,
+      })),
+      categories,
+      brands,
+    };
   }
 
   async findImagesOfProducts(

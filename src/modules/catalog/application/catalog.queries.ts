@@ -138,6 +138,24 @@ export interface VariantLookupView {
   };
 }
 
+/**
+ * A product, category or brand as another context names it (ADR-0168): Promotions checks the ones a promotion targets
+ * and shows their names.
+ */
+export interface CatalogEntryView<Status extends string> {
+  readonly id: string;
+  /** The title of a product, or the name of a category or a brand. */
+  readonly name: string;
+  readonly status: Status;
+}
+
+/** The products, categories and brands found among some IDs; an ID that does not exist is left out. */
+export interface CatalogEntriesView {
+  readonly products: readonly CatalogEntryView<ProductStatus>[];
+  readonly categories: readonly CatalogEntryView<CatalogStatus>[];
+  readonly brands: readonly CatalogEntryView<CatalogStatus>[];
+}
+
 export interface ProductFilter {
   /** Part of the title, of a SKU or of a GTIN, whatever its case. */
   readonly q?: string;
@@ -197,6 +215,16 @@ export abstract class CatalogQueries {
    * (ADR-0163): active first, then by SKU. Empty when none matches.
    */
   abstract lookUpVariants(code: string): Promise<VariantLookupView[]>;
+
+  /**
+   * The products, categories and brands with these IDs, in any status, each list ordered by ID; an ID that does not
+   * exist is left out.
+   */
+  abstract findEntries(ids: {
+    readonly productIds: readonly ProductId[];
+    readonly categoryIds: readonly CategoryId[];
+    readonly brandIds: readonly BrandId[];
+  }): Promise<CatalogEntriesView>;
 
   /** The images of these products, by position; the cart takes the main image of each variant from them. */
   abstract findImagesOfProducts(

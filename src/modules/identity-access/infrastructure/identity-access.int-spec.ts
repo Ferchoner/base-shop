@@ -170,6 +170,7 @@ describe('Identity & Access persistence (T-130)', () => {
           'inventory.read',
           'orders.place',
           'orders.read',
+          'promotions.read',
           'work-orders.manage',
           'work-orders.read',
         ].sort(),

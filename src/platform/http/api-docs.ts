@@ -38,6 +38,7 @@ export const PATH_PARAMETERS: Readonly<Record<string, PathParameter>> = {
   periodId: uuid('ID del periodo de precio.'),
   priceListId: uuid('ID de la lista de precios.'),
   productId: uuid('ID del producto.'),
+  promotionId: uuid('ID de la promoción.'),
   publicCode: {
     description:
       'Código público del pedido, de 8 caracteres, con o sin el guion del medio y sin distinguir mayúsculas.',

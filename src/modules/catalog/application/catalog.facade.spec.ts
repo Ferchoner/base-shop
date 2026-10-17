@@ -79,6 +79,64 @@ describe('CatalogFacade (ADR-0005, ADR-0125)', () => {
   });
 });
 
+describe('CatalogFacade.entries (ADR-0168)', () => {
+  const product = newId<'Product'>();
+  const category = newId<'Category'>();
+  const brand = newId<'Brand'>();
+  const found = {
+    products: [{ id: product, name: 'Camisa de lino', status: 'ARCHIVED' }],
+    categories: [{ id: category, name: 'Camisas', status: 'ACTIVE' }],
+    brands: [{ id: brand, name: 'Lino Fino', status: 'INACTIVE' }],
+  };
+
+  function queriesAsked() {
+    const asked: unknown[] = [];
+    const queries = {
+      findEntries: (ids: unknown) => {
+        asked.push(ids);
+        return Promise.resolve(found);
+      },
+    } as unknown as CatalogQueries;
+    return { facade: new CatalogFacade(queries, images), asked };
+  }
+
+  it('answers the products, categories and brands, asking each ID once', async () => {
+    const { facade, asked } = queriesAsked();
+
+    expect(
+      await facade.entries({
+        productIds: [product, product],
+        categoryIds: [category],
+        brandIds: [brand, brand],
+      }),
+    ).toEqual(found);
+    expect(asked).toEqual([
+      { productIds: [product], categoryIds: [category], brandIds: [brand] },
+    ]);
+  });
+
+  it('asks for the kinds it is not given as empty lists', async () => {
+    const { facade, asked } = queriesAsked();
+
+    await facade.entries({ brandIds: [brand] });
+
+    expect(asked).toEqual([
+      { productIds: [], categoryIds: [], brandIds: [brand] },
+    ]);
+  });
+
+  it('asks nothing for no IDs', async () => {
+    const { facade, asked } = queriesAsked();
+
+    expect(await facade.entries({ productIds: [], brandIds: [] })).toEqual({
+      products: [],
+      categories: [],
+      brands: [],
+    });
+    expect(asked).toEqual([]);
+  });
+});
+
 describe('CatalogFacade.variantsWithImage (T-170, ADR-0131)', () => {
   const productId = newId<'Product'>();
   const otherProduct = newId<'Product'>();

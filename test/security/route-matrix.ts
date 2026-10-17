@@ -325,4 +325,16 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/work-orders/:workOrderId/anonymize': {
     access: ['customers.manage'],
   },
+
+  // Staff: promotions (ADR-0168). The Vendedor role reads them, to know what to offer; only the Administrador role
+  // manages them.
+  'GET /v1/admin/promotions': { access: ['promotions.read'] },
+  'POST /v1/admin/promotions': { access: ['promotions.manage'] },
+  'GET /v1/admin/promotions/:promotionId': { access: ['promotions.read'] },
+  'PATCH /v1/admin/promotions/:promotionId': {
+    access: ['promotions.manage'],
+  },
+  'POST /v1/admin/promotions/:promotionId/end': {
+    access: ['promotions.manage'],
+  },
 };
