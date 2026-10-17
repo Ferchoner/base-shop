@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). Las versiones 1.1.0, varios almacenes propios (ADR-0160, T-162), 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), 1.3.0, el pago en tienda configurable desde la API (ADR-0162, T-194), se cerraron el 2026-10-06; la 1.4.0, datos para el ticket, nota del pago y GTIN (ADR-0163, T-142, T-188 y T-197), y la 1.5.0, carga masiva de productos y de existencias (ADR-0164, T-146), el 2026-10-15; y la 1.6.0, servicios solo en tienda y órdenes de trabajo (ADR-0165, T-189), el 2026-10-16, todas con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. En curso: la versión 1.7, promociones (ADR-0168). No hay sprint en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto.
+MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desarrollo sigue por versiones (ADR-0159). Las versiones 1.1.0, varios almacenes propios (ADR-0160, T-162), 1.2.0, ventas asistidas en la tienda física (ADR-0161, T-187), 1.3.0, el pago en tienda configurable desde la API (ADR-0162, T-194), se cerraron el 2026-10-06; la 1.4.0, datos para el ticket, nota del pago y GTIN (ADR-0163, T-142, T-188 y T-197), y la 1.5.0, carga masiva de productos y de existencias (ADR-0164, T-146), el 2026-10-15; y la 1.6.0, servicios solo en tienda y órdenes de trabajo (ADR-0165, T-189), y la 1.7.0, promociones (ADR-0168, T-200), el 2026-10-16, todas con el objetivo cumplido; sus reviews están en el historial de `SPRINT.md`. No hay sprint ni versión en curso: lo que queda fuera del MVP espera a que una entidad quiera usar el proyecto, y cada versión nueva necesita un plan aprobado.
 
 ## Completed
 
@@ -187,7 +187,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.4.0: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
-- [ ] Versión 1.7: promociones (paso 0 y T-200, en tres partes); plan en `SPRINT.md`
+- [x] Versión 1.7.0: promociones (paso 0 y T-200, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
 - [x] T-200 parte a: el módulo de promociones en `/v1/admin/promotions`, con porcentaje o monto fijo, productos, categorías y marcas, canales, compra mínima y vigencia; `promotions.read` para el Administrador y el Vendedor, y `promotions.manage` para el Administrador (BR-PRM-01 a 05, ADR-0168)
 - [x] T-200 parte b: las cotizaciones y las órdenes, en línea y en tienda, reciben la promoción automática que más descuenta; cada línea guarda su descuento y el IVA de lo que queda, los productos pagan al menos $1, y la orden y su correo muestran la promoción (BR-PRM-06 a 09, ADR-0168)
 - [x] T-200 parte c: los cupones, con `couponCode` en las tres cotizaciones y las tres rutas que colocan órdenes; reemplazan a la automática, con límite de usos y una vez por cliente; un cupón que no aplica responde `coupon-not-applicable` con su motivo, y los códigos que nadie tiene se limitan por IP (BR-PRM-10 a 12, ADR-0168)
