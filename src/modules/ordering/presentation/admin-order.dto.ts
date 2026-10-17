@@ -48,7 +48,7 @@ import {
   MAX_ORDER_LINE_QUANTITY,
   MAX_STAFF_ORDER_LINES,
 } from '../application/staff-order-limits.js';
-import { AppliedPromotionDto } from './checkout.dto.js';
+import { AppliedPromotionDto, CouponCodeDto } from './checkout.dto.js';
 import {
   AdminOrderPaymentDto,
   AdminOrderShipmentDto,
@@ -389,7 +389,7 @@ export class StaffOrderLineDto {
 }
 
 /** Request of `POST /v1/admin/orders/quote` (UC-ORD-12, API_SPEC.md §15.7). */
-export class StaffQuoteDto {
+export class StaffQuoteDto extends CouponCodeDto {
   @ApiProperty({
     type: () => [StaffOrderLineDto],
     description: `De 1 a ${MAX_STAFF_ORDER_LINES} líneas, cada variante una sola vez, en el orden en que la orden las numera.`,

@@ -148,6 +148,10 @@ describe('Promotions (e2e, T-200 part a)', () => {
         startsAt,
         endsAt,
         endedAt: null,
+        code: null,
+        usageLimit: null,
+        oncePerCustomer: false,
+        uses: 0,
         targets: [
           { type: 'PRODUCT', id: shirt, name: 'Camisa de lino' },
           { type: 'BRAND', id: lino, name: 'Lino Fino' },

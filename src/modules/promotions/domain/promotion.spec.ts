@@ -12,7 +12,7 @@ import {
   type PromotionTarget,
   type UserId,
 } from './promotion.js';
-import { PromotionEndError } from './promotion-errors.js';
+import { PromotionEndError, UsageLimitError } from './promotion-errors.js';
 
 const NOW = new Date('2026-10-16T18:00:00.000Z');
 const HOUR = 3_600_000;
@@ -52,13 +52,75 @@ describe('Promotion (ADR-0168)', () => {
       expect(promotion.snapshot).toEqual({
         id: promotion.id,
         ...TERMS,
+        code: null,
+        usageLimit: null,
+        oncePerCustomer: false,
         createdBy: admin,
         endedAt: null,
         endedBy: null,
+        uses: 0,
         version: 1,
       });
       expect(promotion.statusAt(NOW)).toBe('SCHEDULED');
       expect(promotion.targetsChanged).toBe(false);
+      expect(promotion.isCoupon).toBe(false);
+    });
+
+    it('is a coupon with a code, kept trimmed and in uppercase, with its limits of use (T-200 part c)', () => {
+      const coupon = create({
+        code: '  hola-10 ',
+        usageLimit: 100,
+        oncePerCustomer: true,
+      });
+
+      expect(coupon.snapshot).toMatchObject({
+        code: 'HOLA-10',
+        usageLimit: 100,
+        oncePerCustomer: true,
+        uses: 0,
+      });
+      expect(coupon.isCoupon).toBe(true);
+      expect(create({ code: 'ABCD' }).snapshot).toMatchObject({
+        code: 'ABCD',
+        usageLimit: null,
+        oncePerCustomer: false,
+      });
+    });
+
+    it('takes a code of 4 to 30 letters, digits or dashes', () => {
+      expect(create({ code: 'A'.repeat(30) }).snapshot.code).toBe(
+        'A'.repeat(30),
+      );
+      for (const code of [
+        'ABC',
+        'A'.repeat(31),
+        'HOLA 10',
+        'HOLA_10',
+        'AÑO-1',
+      ]) {
+        expect(() => create({ code })).toThrow(
+          new InvalidValueError('A code has 4 to 30 letters, digits or dashes'),
+        );
+      }
+    });
+
+    it('takes a whole usage limit of at least 1', () => {
+      expect(create({ code: 'HOLA', usageLimit: 1 }).snapshot.usageLimit).toBe(
+        1,
+      );
+      for (const usageLimit of [0, -1, 1.5]) {
+        expect(() => create({ code: 'HOLA', usageLimit })).toThrow(
+          InvalidValueError,
+        );
+      }
+    });
+
+    it('gives limits of use only to a coupon', () => {
+      for (const terms of [{ usageLimit: 5 }, { oncePerCustomer: true }]) {
+        expect(() => create(terms)).toThrow(
+          new InvalidValueError('Only a coupon has limits of use'),
+        );
+      }
     });
 
     it('starts now without a start, or with one already past', () => {
@@ -338,6 +400,69 @@ describe('Promotion (ADR-0168)', () => {
       expect(() => promotion.edit({ name: 'Otra' }, NOW)).toThrow(
         new InvalidStateTransitionError('ENDED', 'edit'),
       );
+    });
+
+    it('changes the code and the limits of a coupon before it starts, and its usage limit any time', () => {
+      const coupon = create({ code: 'HOLA', usageLimit: 10 });
+
+      coupon.edit({ code: 'adios', oncePerCustomer: true }, NOW);
+      expect(coupon.snapshot).toMatchObject({
+        code: 'ADIOS',
+        oncePerCustomer: true,
+      });
+
+      const running = create(
+        { code: 'HOLA', usageLimit: 10, startsAt: at(-1) },
+        at(-2),
+      );
+      running.edit({ usageLimit: 20 }, NOW);
+      running.edit({ usageLimit: null, code: 'hola' }, NOW);
+      expect(running.snapshot).toMatchObject({
+        code: 'HOLA',
+        usageLimit: null,
+      });
+    });
+
+    it.each([
+      ['code', { code: 'OTRO' }],
+      ['code', { code: null }],
+      ['oncePerCustomer', { oncePerCustomer: true }],
+    ] as const)(
+      'refuses to change the %s of a coupon once started',
+      (term, changes) => {
+        const running = create({ code: 'HOLA', startsAt: at(-1) }, at(-2));
+
+        expect(() => running.edit(changes, NOW)).toThrow(
+          new InvalidStateTransitionError('ACTIVE', `change its ${term}`),
+        );
+      },
+    );
+
+    it('refuses a usage limit below the uses it has, taking one equal to them', () => {
+      const running = Promotion.restore({
+        ...create({ code: 'HOLA', usageLimit: 10, startsAt: at(-1) }, at(-2))
+          .snapshot,
+        uses: 4,
+      });
+
+      expect(() => running.edit({ usageLimit: 3 }, NOW)).toThrow(
+        new UsageLimitError(4),
+      );
+      expect(() => running.edit({ usageLimit: 3 }, NOW)).toThrow(
+        expect.objectContaining({
+          details: {
+            errors: [
+              {
+                field: 'usageLimit',
+                code: 'belowUses',
+                message: 'No puede ser menor que los usos que ya tiene: 4.',
+              },
+            ],
+          },
+        }),
+      );
+      running.edit({ usageLimit: 4 }, NOW);
+      expect(running.snapshot.usageLimit).toBe(4);
     });
 
     it('checks the terms again', () => {

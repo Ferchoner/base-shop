@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -43,7 +44,9 @@ import {
   type PromotionTargetType,
 } from '../application/promotion-values.js';
 import {
+  PROMOTION_KINDS,
   PROMOTION_REACHES,
+  type PromotionKind,
   type PromotionReach,
 } from '../application/promotions.queries.js';
 
@@ -52,6 +55,13 @@ import {
 // (DEVELOPMENT_GUIDE.md).
 
 const NOT_BLANK = { context: { message: 'No puede estar vacío.' } };
+
+/** A code as the staff writes it: it is kept in uppercase (ADR-0168). */
+const COUPON_INPUT = /^[A-Za-z0-9-]{4,30}$/;
+
+const CODE_FORMAT = {
+  context: { message: 'Debe tener de 4 a 30 letras, números o guiones.' },
+};
 
 /** Required in a change: present, it cannot be `null`. */
 const unlessMissing = (_: unknown, value: unknown) => value !== undefined;
@@ -172,6 +182,38 @@ export class CreatePromotionDto extends PromotionTermsDto {
   @IsISO8601({ strict: true })
   @Matches(DATE_TIME_WITH_OFFSET, WITH_OFFSET)
   endsAt?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'BUENFIN',
+    description:
+      'Código de 4 a 30 letras, números o guiones, que se guarda en mayúsculas: con él es un cupón, que solo aplica a quien lo da; sin él, la promoción se aplica sola. Único, también entre las promociones terminadas (ADR-0168).',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(COUPON_INPUT, CODE_FORMAT)
+  code?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    minimum: 1,
+    maximum: LIMITS.usageLimit,
+    description:
+      'Cuántas veces se puede usar el cupón en total; `null` o ausente, sin límite. Solo con `code`.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(LIMITS.usageLimit)
+  usageLimit?: number | null;
+
+  /**
+   * Si cada cliente usa el cupón una sola vez, contado por el email de contacto de sus órdenes; por defecto `false`.
+   * Solo con `code`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  oncePerCustomer?: boolean;
 }
 
 /**
@@ -248,6 +290,34 @@ export class UpdatePromotionDto extends PromotionTermsDto {
   @Matches(DATE_TIME_WITH_OFFSET, WITH_OFFSET)
   endsAt?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Código del cupón, de 4 a 30 letras, números o guiones; `null` lo quita y la promoción se aplica sola. Solo antes de su inicio.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(COUPON_INPUT, CODE_FORMAT)
+  code?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    minimum: 1,
+    maximum: LIMITS.usageLimit,
+    description:
+      'Usos en total del cupón, nunca menos de los que ya tiene; `null` lo quita. Se cambia también ya iniciada.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(LIMITS.usageLimit)
+  usageLimit?: number | null;
+
+  /** Si cada cliente usa el cupón una sola vez; solo antes de su inicio. */
+  @ValidateIf(unlessMissing)
+  @IsBoolean()
+  oncePerCustomer?: boolean;
+
   /** Versión leída (bloqueo optimista). */
   @IsInt()
   @Min(1)
@@ -264,7 +334,7 @@ export class EndPromotionDto {
 
 /** Query of `GET /v1/admin/promotions` (UC-PRM-02, API_SPEC.md §26.3). */
 export class PromotionListQueryDto extends PageQueryDto {
-  /** Parte del nombre, sin distinguir mayúsculas. */
+  /** Parte del nombre, o el código exacto de un cupón, sin distinguir mayúsculas. */
   @IsOptional()
   @IsString()
   @MaxLength(254)
@@ -296,6 +366,15 @@ export class PromotionListQueryDto extends PageQueryDto {
   @IsOptional()
   @IsIn(PROMOTION_REACHES)
   appliesTo?: PromotionReach;
+
+  @ApiPropertyOptional({
+    enum: PROMOTION_KINDS,
+    description:
+      '`AUTOMATIC`: las que se aplican solas. `COUPON`: los cupones, con su código.',
+  })
+  @IsOptional()
+  @IsIn(PROMOTION_KINDS)
+  kind?: PromotionKind;
 
   /** `startsAt` o `name`, con `-` para orden descendente; por defecto `-startsAt`. */
   @IsOptional()
@@ -379,6 +458,28 @@ export class PromotionSummaryDto {
     description: 'Cuándo se terminó a mano.',
   })
   endedAt: Date | null;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'El código del cupón, en mayúsculas; `null` en una promoción automática (ADR-0168).',
+  })
+  code: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Cuántas veces se puede usar el cupón; `null` sin límite.',
+  })
+  usageLimit: number | null;
+
+  /** Si cada cliente usa el cupón una sola vez. */
+  oncePerCustomer: boolean;
+
+  /**
+   * Las órdenes que cuentan un uso del cupón: colocadas, y ni vencidas ni canceladas. Un pago tardío puede pasar el
+   * límite.
+   */
+  uses: number;
 }
 
 /** `Promotion` (API_SPEC.md §26.1). */

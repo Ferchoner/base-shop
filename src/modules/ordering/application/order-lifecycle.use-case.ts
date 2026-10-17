@@ -12,7 +12,7 @@ import {
 import type { Order, OrderId, StaffId } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
-import { OrderStock, type StockLine } from './checkout-ports.js';
+import { OrderCoupons, OrderStock, type StockLine } from './checkout-ports.js';
 import { orderCancelled, orderPaid } from './order-events.js';
 import { restockAudit } from './order-restocks.use-case.js';
 import { OrderPayments } from './payment-ports.js';
@@ -59,6 +59,7 @@ export class OrderLifecycle {
   constructor(
     private readonly orders: OrderRepository,
     private readonly stock: OrderStock,
+    private readonly coupons: OrderCoupons,
     private readonly payments: OrderPayments,
     private readonly shipments: OrderShipments,
     private readonly transactions: TransactionManager,
@@ -101,6 +102,8 @@ export class OrderLifecycle {
         await this.shipments.cancel(order.id);
         await this.payments.startRefund(order.id);
       }
+      // A cancelled order gives back the use of its coupon, paid or not (ADR-0168).
+      if (order.coupon !== null) await this.coupons.release(order.coupon);
       const restocked = input.restock ? order.linesToRestock() : [];
       if (input.restock) {
         await this.stock.restock({
@@ -225,6 +228,9 @@ export class OrderLifecycle {
           break;
         case 'EXPIRED':
           outcome = await this.latePayment(order, payment.capturedAt, now);
+          // Its expiry gave back the use of its coupon: it counts it again, even past the limit, since the customer
+          // paid (ADR-0168).
+          if (order.coupon !== null) await this.coupons.recount(order.coupon);
           break;
         case 'CANCELLED':
           if (!order.recordPaymentAfterCancellation(payment.capturedAt)) {

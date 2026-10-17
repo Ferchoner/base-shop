@@ -81,9 +81,10 @@ export class AdminPromotionsController {
   @ApiOperation({
     summary: 'Crear una promoción',
     description:
-      'UC-PRM-01 (ADR-0168). Un porcentaje entero (`percentage`, de 1 a 100) o un monto fijo por orden (`amountOff`), exactamente uno; sobre toda la compra, o sobre los productos, categorías (con sus subcategorías) y marcas de `targets`, que deben existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no. En línea, en la tienda física o en los dos; con compra mínima opcional. Sin `startsAt`, o con uno que ya pasó, empieza ahora. Se audita como `promotions.create`.',
+      'UC-PRM-01 (ADR-0168). Un porcentaje entero (`percentage`, de 1 a 100) o un monto fijo por orden (`amountOff`), exactamente uno; sobre toda la compra, o sobre los productos, categorías (con sus subcategorías) y marcas de `targets`, que deben existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no. En línea, en la tienda física o en los dos; con compra mínima opcional. Sin `startsAt`, o con uno que ya pasó, empieza ahora. Con `code` es un cupón (ADR-0168): solo aplica a quien lo da, con sus límites opcionales `usageLimit` y `oncePerCustomer`; un código que ya tiene otra promoción, aunque haya terminado, responde 409 `duplicate-value`. Se audita como `promotions.create`.',
   })
   @ApiCreatedResponse({ type: PromotionDto })
+  @ApiProblemResponses('duplicate-value')
   @RequirePermissions('promotions.manage')
   @Post()
   async create(
@@ -102,6 +103,9 @@ export class AdminPromotionsController {
         minimumSubtotal: moneyOf(body.minimumSubtotal),
         startsAt: dateOf(body.startsAt),
         endsAt: dateOf(body.endsAt),
+        code: body.code ?? null,
+        usageLimit: body.usageLimit ?? null,
+        oncePerCustomer: body.oncePerCustomer ?? false,
       },
     });
     response.setHeader('Location', `/v1/admin/promotions/${id}`);
@@ -123,6 +127,7 @@ export class AdminPromotionsController {
         status: query.status,
         channel: query.channel,
         appliesTo: query.appliesTo,
+        kind: query.kind,
       },
       toSortOrders<PromotionSortField>(query.sort, '-startsAt'),
       query,
@@ -146,13 +151,14 @@ export class AdminPromotionsController {
   @ApiOperation({
     summary: 'Editar una promoción',
     description:
-      'UC-PRM-03 (ADR-0168). Solo cambian los campos enviados; `percentage` o `amountOff` reemplazan el descuento, y `targets`, la lista completa. Antes de su inicio se cambia todo; ya iniciada, solo `name` y `endsAt`, que debe ser posterior al momento actual: otro cambio responde 409 `invalid-state-transition`, igual que editar una terminada. Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén. Sin cambios, no se guarda ni se audita. Se audita como `promotions.update`.',
+      'UC-PRM-03 (ADR-0168). Solo cambian los campos enviados; `percentage` o `amountOff` reemplazan el descuento, y `targets`, la lista completa. Antes de su inicio se cambia todo; ya iniciada, solo `name`, `endsAt`, que debe ser posterior al momento actual, y `usageLimit`, nunca por debajo de `uses`: otro cambio responde 409 `invalid-state-transition`, igual que editar una terminada. Un código que ya tiene otra promoción responde 409 `duplicate-value`. Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén. Sin cambios, no se guarda ni se audita. Se audita como `promotions.update`.',
   })
   @ApiOkResponse({ type: PromotionDto })
   @ApiProblemResponses(
     'not-found',
     'version-conflict',
     'invalid-state-transition',
+    'duplicate-value',
   )
   @RequirePermissions('promotions.manage')
   @Patch(':promotionId')
@@ -171,6 +177,9 @@ export class AdminPromotionsController {
         minimumSubtotal: changed(body.minimumSubtotal, moneyOf),
         startsAt: changed(body.startsAt, (value) => new Date(value)),
         endsAt: changed(body.endsAt, dateOf),
+        code: body.code,
+        usageLimit: body.usageLimit,
+        oncePerCustomer: body.oncePerCustomer,
       },
       body.version,
     );

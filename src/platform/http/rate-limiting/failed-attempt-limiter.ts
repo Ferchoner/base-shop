@@ -9,7 +9,7 @@ import {
 } from '../../config/rate-limit-value.js';
 import { ProblemException } from '../problem-details/problem.exception.js';
 
-export type FailedAttemptLimit = 'login-ip' | 'password-change';
+export type FailedAttemptLimit = 'login-ip' | 'password-change' | 'coupon';
 
 /** Past this many keys, expired ones are swept on the next failure, so memory stays bounded. */
 export const SWEEP_THRESHOLD = 10_000;
@@ -21,6 +21,8 @@ export const SWEEP_THRESHOLD = 10_000;
  *   anyone keep the owner of an account out (T-310).
  * - `password-change`: 5 wrong current passwords per user in 15 minutes, against someone trying them with a stolen
  *   access token.
+ * - `coupon`: 10 coupon codes nobody has per IP in 15 minutes, against someone guessing codes (ADR-0168); a customer
+ *   who mistypes theirs once is not slowed down.
  *
  * It slows down by time and never locks accounts. Counters live in memory, like the request limits. Callers check
  * with `assertAllowed` before verifying the password, and call `recordFailure` when it is wrong.
@@ -41,6 +43,9 @@ export class FailedAttemptLimiter {
       ),
       'password-change': parseRateLimit(
         config.get('RATE_LIMIT_PASSWORD_CHANGE', { infer: true }),
+      ),
+      coupon: parseRateLimit(
+        config.get('RATE_LIMIT_COUPON_ATTEMPTS', { infer: true }),
       ),
     };
   }

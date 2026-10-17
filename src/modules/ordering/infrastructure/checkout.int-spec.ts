@@ -33,7 +33,10 @@ import {
   type VariantId,
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
-import { TotalMismatchError } from '../domain/ordering-errors.js';
+import {
+  CouponNotApplicableError,
+  TotalMismatchError,
+} from '../domain/ordering-errors.js';
 import { type PublicCode, parsePublicCode } from '../domain/public-code.js';
 import { OrderingModule } from '../ordering.module.js';
 
@@ -414,6 +417,236 @@ describe('Ordering: checkout (T-180)', () => {
         discountTotal: 9_900,
         grandTotal: 10_000,
       });
+    });
+  });
+
+  describe('coupons (T-200 part c, ADR-0168)', () => {
+    /** A coupon of 10% of the whole purchase, `HOLA-10`, that started a day before the clock. */
+    async function coupon(
+      columns: {
+        usageLimit?: number;
+        oncePerCustomer?: boolean;
+        uses?: number;
+      } = {},
+    ): Promise<string> {
+      const id = newId();
+      await prisma.promotion.create({
+        data: {
+          id,
+          name: 'Bienvenida',
+          percentage: 10,
+          online: true,
+          inStore: true,
+          startsAt: new Date(START - 86_400_000),
+          createdBy: newId(),
+          updatedAt: new Date(START),
+          code: 'HOLA-10',
+          usageLimit: columns.usageLimit ?? null,
+          oncePerCustomer: columns.oncePerCustomer ?? false,
+          uses: columns.uses ?? 0,
+        },
+      });
+      return id;
+    }
+
+    const usesOf = async (id: string) =>
+      (await prisma.promotion.findUniqueOrThrow({ where: { id } })).uses;
+
+    /** A guest order of one shirt with the coupon: $100.00 less $10.00, plus $99.00 of shipping. */
+    const withCoupon = (cartId: CartId): GuestOrderInput => ({
+      ...guestOrder(cartId, 1),
+      expectedTotal: 10_000 - 1_000 + 9_900,
+      couponCode: 'hola-10',
+    });
+
+    it('places the order with the coupon instead of a larger automatic promotion, saving its code and counting its use', async () => {
+      await promotion({ percentage: 50 });
+      const couponId = await coupon({ usageLimit: 5 });
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 1 }]);
+
+      const quote = await run(() =>
+        checkout.quote({ guestCartId: cartId }, 'hola-10'),
+      );
+      expect(quote.promotion).toEqual({
+        id: couponId,
+        name: 'Bienvenida',
+        code: 'HOLA-10',
+      });
+      // A quote counts no use.
+      expect(await usesOf(couponId)).toBe(0);
+
+      const id = await run(() => checkout.placeOrder(withCoupon(cartId)));
+
+      expect(
+        await prisma.order.findUniqueOrThrow({ where: { id } }),
+      ).toMatchObject({
+        discountTotal: 1_000,
+        grandTotal: 18_900,
+        promotionId: couponId,
+        promotionName: 'Bienvenida',
+        promotionCode: 'HOLA-10',
+      });
+      expect(await usesOf(couponId)).toBe(1);
+      const promotionOf = {
+        id: couponId,
+        name: 'Bienvenida',
+        code: 'HOLA-10',
+      };
+      expect((await queries.findOrder(id))?.promotion).toEqual(promotionOf);
+      expect((await queries.findAdminOrder(id))?.promotion).toEqual(
+        promotionOf,
+      );
+      const saved = await run(() =>
+        moduleRef
+          .get(TransactionManager)
+          .run(() => moduleRef.get(OrderRepository).lock(id)),
+      );
+      expect(saved?.snapshot.promotion).toEqual(promotionOf);
+      expect(saved?.coupon).toBe(couponId);
+    });
+
+    it('refuses a code nobody has and a coupon with no uses left, placing nothing', async () => {
+      const couponId = await coupon({ usageLimit: 2, uses: 2 });
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 1 }]);
+
+      await expect(
+        run(() =>
+          checkout.placeOrder({ ...withCoupon(cartId), couponCode: 'OTRO' }),
+        ),
+      ).rejects.toThrow(new CouponNotApplicableError('unavailable'));
+      await expect(
+        run(() => checkout.placeOrder(withCoupon(cartId))),
+      ).rejects.toThrow(new CouponNotApplicableError('exhausted'));
+
+      expect(await prisma.order.count()).toBe(0);
+      expect(await reserved(shirt)).toBe(0);
+      expect(await usesOf(couponId)).toBe(2);
+      expect(
+        (await prisma.cart.findUniqueOrThrow({ where: { id: cartId } })).status,
+      ).toBe('ACTIVE');
+    });
+
+    it('gives the last use to one order only, and the other reserves nothing', async () => {
+      const couponId = await coupon({ usageLimit: 1 });
+      const shirt = await variant();
+      const carts = [
+        await cart([{ variantId: shirt, quantity: 1 }]),
+        await cart([{ variantId: shirt, quantity: 1 }]),
+      ];
+      const client = await holder();
+      try {
+        await client.query(
+          'SELECT 1 FROM promotions WHERE id = $1 FOR UPDATE',
+          [couponId],
+        );
+        const placements = carts.map((cartId) =>
+          run(() => checkout.placeOrder(withCoupon(cartId))),
+        );
+        await waitForLockWaiters(2);
+        await client.query('COMMIT');
+
+        const settled = await Promise.allSettled(placements);
+        expect(outcomes(settled)).toEqual(['CouponNotApplicableError', 'ok']);
+        const refused = settled.find(({ status }) => status === 'rejected');
+        expect((refused as PromiseRejectedResult).reason).toMatchObject({
+          reason: 'exhausted',
+        });
+      } finally {
+        await client.end();
+      }
+      expect(await prisma.order.count()).toBe(1);
+      expect(await usesOf(couponId)).toBe(1);
+      expect(await reserved(shirt)).toBe(1);
+    });
+
+    it('gives a coupon of once per customer to one order of the same contact at a time, and again once it expired', async () => {
+      const couponId = await coupon({ oncePerCustomer: true });
+      const shirt = await variant();
+      const carts = [
+        await cart([{ variantId: shirt, quantity: 1 }]),
+        await cart([{ variantId: shirt, quantity: 1 }]),
+      ];
+      const client = await holder();
+      try {
+        await client.query(
+          'SELECT 1 FROM promotions WHERE id = $1 FOR UPDATE',
+          [couponId],
+        );
+        const placements = carts.map((cartId, index) =>
+          run(() =>
+            checkout.placeOrder({
+              ...withCoupon(cartId),
+              // The same contact, however it is written.
+              contactEmail:
+                index === 0 ? 'cliente@example.com' : ' Cliente@Example.COM',
+            }),
+          ),
+        );
+        await waitForLockWaiters(2);
+        await client.query('COMMIT');
+
+        const settled = await Promise.allSettled(placements);
+        expect(outcomes(settled)).toEqual(['CouponNotApplicableError', 'ok']);
+        const refused = settled.find(({ status }) => status === 'rejected');
+        expect((refused as PromiseRejectedResult).reason).toMatchObject({
+          reason: 'alreadyUsed',
+        });
+      } finally {
+        await client.end();
+      }
+      expect(await usesOf(couponId)).toBe(1);
+
+      // Another contact uses it; and the first one again, once its order no longer counts.
+      const third = await cart([{ variantId: shirt, quantity: 1 }]);
+      await run(() =>
+        checkout.placeOrder({
+          ...withCoupon(third),
+          contactEmail: 'otra@example.com',
+        }),
+      );
+      await prisma.order.updateMany({
+        where: { contactEmail: 'cliente@example.com' },
+        data: { status: 'EXPIRED' },
+      });
+      const fourth = await cart([{ variantId: shirt, quantity: 1 }]);
+      await run(() => checkout.placeOrder(withCoupon(fourth)));
+      expect(await prisma.order.count()).toBe(3);
+    });
+
+    it('tells a customer in the quote that they used a coupon of once per customer', async () => {
+      await coupon({ oncePerCustomer: true });
+      const shirt = await variant();
+      const customer = await verifiedCustomer();
+      await cart([{ variantId: shirt, quantity: 1 }], customer);
+      await run(() =>
+        checkout.placeOrder({
+          customerId: customer,
+          shippingAddress: ADDRESS,
+          expectedTotal: 18_900,
+          couponCode: 'HOLA-10',
+        }),
+      );
+      await cart([{ variantId: shirt, quantity: 1 }], customer);
+
+      await expect(
+        run(() => checkout.quote({ customerId: customer }, 'HOLA-10')),
+      ).rejects.toThrow(new CouponNotApplicableError('alreadyUsed'));
+      // Without the coupon, the quote goes on.
+      expect(
+        (await run(() => checkout.quote({ customerId: customer }))).promotion,
+      ).toBeNull();
+    });
+
+    it('enforces orders_promotion_code_check', async () => {
+      const shirt = await variant();
+      const cartId = await cart([{ variantId: shirt, quantity: 1 }]);
+      await run(() => checkout.placeOrder(guestOrder(cartId, 1)));
+
+      await expect(
+        prisma.$executeRawUnsafe("UPDATE orders SET promotion_code = 'HOLA'"),
+      ).rejects.toThrow('orders_promotion_code_check');
     });
   });
 

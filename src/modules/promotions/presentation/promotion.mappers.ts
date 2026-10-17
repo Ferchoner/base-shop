@@ -23,6 +23,10 @@ export function toPromotionSummaryDto(
     startsAt: view.startsAt,
     endsAt: view.endsAt,
     endedAt: view.endedAt,
+    code: view.code,
+    usageLimit: view.usageLimit,
+    oncePerCustomer: view.oncePerCustomer,
+    uses: view.uses,
   };
 }
 

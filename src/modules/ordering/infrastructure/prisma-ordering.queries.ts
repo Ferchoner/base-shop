@@ -47,6 +47,7 @@ const SUMMARY_FIELDS = {
   grandTotal: true,
   promotionId: true,
   promotionName: true,
+  promotionCode: true,
   fulfillment: true,
   deliveryMinBusinessDays: true,
   deliveryMaxBusinessDays: true,
@@ -348,10 +349,15 @@ function toOrderView(row: OrderRow): OrderView {
 function promotionOf(row: {
   readonly promotionId: string | null;
   readonly promotionName: string | null;
+  readonly promotionCode: string | null;
 }): AppliedPromotion | null {
   return row.promotionId === null
     ? null
-    : { id: toId<'Promotion'>(row.promotionId), name: row.promotionName! };
+    : {
+        id: toId<'Promotion'>(row.promotionId),
+        name: row.promotionName!,
+        code: row.promotionCode,
+      };
 }
 
 function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {

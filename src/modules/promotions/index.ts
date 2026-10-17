@@ -2,6 +2,8 @@
 export { PromotionsModule } from './promotions.module.js';
 export {
   type AppliedDiscount,
+  type CouponRefusal,
+  type CouponResult,
   type PromotionLine,
   PromotionsFacade,
 } from './application/promotions.facade.js';

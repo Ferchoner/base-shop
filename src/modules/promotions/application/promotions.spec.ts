@@ -74,6 +74,19 @@ class InMemoryPromotions extends PromotionRepository {
     );
   }
 
+  // The coupon of an order, which these use cases never reach (promotions-facade.spec.ts).
+  findByCode(): Promise<Promotion | null> {
+    throw new Error('Not used here');
+  }
+
+  addUse(): Promise<boolean> {
+    throw new Error('Not used here');
+  }
+
+  removeUse(): Promise<void> {
+    throw new Error('Not used here');
+  }
+
   // The discount of an order, which these use cases never reach (promotions-facade.spec.ts).
   activeAt(): Promise<Promotion[]> {
     throw new Error('Not used here');
@@ -207,6 +220,32 @@ describe('Promotions (T-200 part a, ADR-0168)', () => {
       expect(audited[0].changes).not.toHaveProperty('percentage');
     });
 
+    it('creates a coupon, auditing its code and its limits of use (T-200 part c)', async () => {
+      const { create, promotions, audited } = setUp();
+
+      const id = await create.execute({
+        staffId: admin,
+        terms: {
+          ...TERMS,
+          code: 'buen-fin',
+          usageLimit: 500,
+          oncePerCustomer: true,
+        },
+      });
+
+      expect(promotions.stored.get(id)).toMatchObject({
+        code: 'BUEN-FIN',
+        usageLimit: 500,
+        oncePerCustomer: true,
+        uses: 0,
+      });
+      expect(audited[0].changes).toMatchObject({
+        code: { from: null, to: 'BUEN-FIN' },
+        usageLimit: { from: null, to: 500 },
+        oncePerCustomer: { from: null, to: true },
+      });
+    });
+
     it('refuses targets that do not exist or are not in use, naming each by its place', async () => {
       const { create, promotions, audited } = setUp();
 
@@ -326,6 +365,41 @@ describe('Promotions (T-200 part a, ADR-0168)', () => {
       });
     });
 
+    it('changes the usage limit of a started coupon and audits it, refusing one below its uses (T-200 part c)', async () => {
+      const { update, promotions, audited } = setUp();
+      const coupon = Promotion.restore({
+        ...Promotion.create({
+          id: newId<'Promotion'>() as PromotionId,
+          terms: { ...TERMS, code: 'HOLA', usageLimit: 10, startsAt: null },
+          createdBy: admin,
+          at: NOW,
+        }).snapshot,
+        uses: 6,
+      });
+      await promotions.insert(coupon);
+
+      await update.execute(coupon.id, { usageLimit: 6 }, 1);
+      await expect(
+        update.execute(coupon.id, { usageLimit: 5 }, 2),
+      ).rejects.toMatchObject({
+        code: 'validation-error',
+        details: { errors: [{ field: 'usageLimit', code: 'belowUses' }] },
+      });
+
+      expect(promotions.stored.get(coupon.id)).toMatchObject({
+        usageLimit: 6,
+        uses: 6,
+        version: 2,
+      });
+      expect(audited).toEqual([
+        {
+          action: 'promotions.update',
+          resource: { type: 'promotion', id: coupon.id },
+          changes: { usageLimit: { from: 10, to: 6 } },
+        },
+      ]);
+    });
+
     it('refuses a new target that is not in use', async () => {
       const { update, promotions, id } = await created();
 
@@ -430,6 +504,10 @@ describe('Promotions (T-200 part a, ADR-0168)', () => {
       createdBy: admin,
       createdAt: NOW,
       updatedAt: NOW,
+      code: null,
+      usageLimit: null,
+      oncePerCustomer: false,
+      uses: 0,
       version: 1,
     };
 
@@ -481,6 +559,10 @@ describe('Promotions (T-200 part a, ADR-0168)', () => {
         startsAt: new Date('2026-10-01T00:00:00.000Z'),
         endsAt: null,
         endedAt: null,
+        code: 'HOLA',
+        usageLimit: 10,
+        oncePerCustomer: true,
+        uses: 3,
       };
       const { reader: read, listedAt } = reader(null, [
         summary,

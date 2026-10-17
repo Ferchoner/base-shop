@@ -16,6 +16,7 @@ import type {
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import {
+  CouponNotApplicableError,
   EmailNotVerifiedError,
   EmptyCartError,
   InvalidShippingAddressError,
@@ -96,13 +97,25 @@ const variant = (
   storeOnly,
 });
 
-/** Orders in memory; the first `taken` inserts find their public code taken. */
+/**
+ * Orders in memory; the first `taken` inserts find their public code taken, and the contact emails in `couponUsers`
+ * used the coupon already.
+ */
 class InMemoryOrders extends OrderRepository {
   readonly saved: Order[] = [];
   readonly tried: Order[] = [];
+  readonly couponAsks: [string, string][] = [];
 
-  constructor(private taken = 0) {
+  constructor(
+    private taken = 0,
+    private readonly couponUsers: readonly string[] = [],
+  ) {
     super();
+  }
+
+  usedCoupon(promotionId: string, contactEmail: string): Promise<boolean> {
+    this.couponAsks.push([promotionId, contactEmail]);
+    return Promise.resolve(this.couponUsers.includes(contactEmail));
   }
 
   insert(order: Order): Promise<boolean> {
@@ -156,6 +169,12 @@ function setUp(
     freeShipping?: boolean;
     /** What Promotions answers for the lines that can be sold. */
     discount?: OrderDiscount | null;
+    /** What Promotions answers for a coupon; by default, that none has the code. */
+    coupon?: Awaited<ReturnType<CheckoutPromotions['couponFor']>>;
+    /** Whether the coupon has a use left. */
+    redeemable?: boolean;
+    /** The contact emails that used the coupon already. */
+    couponUsers?: string[];
   } = {},
 ) {
   const calls: string[] = [];
@@ -222,11 +241,23 @@ function setUp(
     },
   };
   const promotionAsks: Parameters<CheckoutPromotions['discountFor']>[0][] = [];
+  const couponAsks: Parameters<CheckoutPromotions['couponFor']>[0][] = [];
+  const redeemed: string[] = [];
   const promotions: CheckoutPromotions = {
     discountFor: (input) => {
       calls.push('promotions');
       promotionAsks.push(input);
       return Promise.resolve(options.discount ?? null);
+    },
+    couponFor: (input) => {
+      calls.push('coupon');
+      couponAsks.push(input);
+      return Promise.resolve(options.coupon ?? { refused: 'unavailable' });
+    },
+    redeem: (promotionId) => {
+      calls.push('redeem');
+      redeemed.push(promotionId);
+      return Promise.resolve(options.redeemable ?? true);
     },
   };
   const stock: OrderStock = {
@@ -272,11 +303,12 @@ function setUp(
   const shipping: CheckoutShipping = {
     quote: ({ subtotal, discount }): Promise<ShippingCharge> => {
       // The free shipping compares the subtotal less the discount (ADR-0079, ADR-0168).
+      const given =
+        options.coupon !== undefined && 'discount' in options.coupon
+          ? options.coupon.discount
+          : options.discount;
       expect(discount).toEqual(
-        (options.discount?.discounts ?? []).reduce(
-          (sum, each) => sum.add(each),
-          mxn(0),
-        ),
+        (given?.discounts ?? []).reduce((sum, each) => sum.add(each), mxn(0)),
       );
       const free = options.freeShipping === true;
       return Promise.resolve({
@@ -316,7 +348,7 @@ function setUp(
       );
     },
   };
-  const orders = new InMemoryOrders(options.taken);
+  const orders = new InMemoryOrders(options.taken, options.couponUsers);
   const inline = {
     run: <T>(work: () => Promise<T>) => {
       calls.push('transaction');
@@ -353,6 +385,8 @@ function setUp(
     asked,
     published,
     promotionAsks,
+    couponAsks,
+    redeemed,
   };
 }
 
@@ -395,7 +429,17 @@ const customerOrder = (
   ...changes,
 });
 
-const BUEN_FIN = { id: newId<'Promotion'>(), name: 'Buen Fin 10%' };
+const BUEN_FIN = { id: newId<'Promotion'>(), name: 'Buen Fin 10%', code: null };
+const COUPON = {
+  id: newId<'Promotion'>(),
+  name: 'Cupón de bienvenida',
+  code: 'HOLA-10',
+};
+
+/** What Promotions answers for a coupon that applies, taking 5,990 off the shirts. */
+const applies = (oncePerCustomer = false) => ({
+  discount: { promotion: COUPON, oncePerCustomer, discounts: [mxn(5_990)] },
+});
 
 describe('Checkout: the promotion of the order (T-200 part b, ADR-0168)', () => {
   it('quotes the discount of each line, with the VAT left after it, and the promotion', async () => {
@@ -405,7 +449,11 @@ describe('Checkout: the promotion of the order (T-200 part b, ADR-0168)', () => 
         [draft, 1],
         [cap, 1],
       ]),
-      discount: { promotion: BUEN_FIN, discounts: [mxn(11_980), mxn(0)] },
+      discount: {
+        promotion: BUEN_FIN,
+        oncePerCustomer: false,
+        discounts: [mxn(11_980), mxn(0)],
+      },
     });
 
     const quote = await checkout.quote({ guestCartId });
@@ -447,7 +495,11 @@ describe('Checkout: the promotion of the order (T-200 part b, ADR-0168)', () => 
   it('places the order with its discount and its promotion, the total including the discount', async () => {
     const { checkout, orders } = setUp({
       carts: cartsWith([[shirt, 2]]),
-      discount: { promotion: BUEN_FIN, discounts: [mxn(11_980)] },
+      discount: {
+        promotion: BUEN_FIN,
+        oncePerCustomer: false,
+        discounts: [mxn(11_980)],
+      },
     });
 
     await checkout.placeOrder(guestOrder({ expectedTotal: 117_720 }));
@@ -462,7 +514,11 @@ describe('Checkout: the promotion of the order (T-200 part b, ADR-0168)', () => 
   it('refuses the total without the discount', async () => {
     const { checkout, orders } = setUp({
       carts: cartsWith([[shirt, 2]]),
-      discount: { promotion: BUEN_FIN, discounts: [mxn(11_980)] },
+      discount: {
+        promotion: BUEN_FIN,
+        oncePerCustomer: false,
+        discounts: [mxn(11_980)],
+      },
     });
 
     await expect(
@@ -472,6 +528,218 @@ describe('Checkout: the promotion of the order (T-200 part b, ADR-0168)', () => 
       details: { currentTotal: { amount: 117_720, currency: 'MXN' } },
     });
     expect(orders.saved).toEqual([]);
+  });
+});
+
+describe('Checkout: coupons (T-200 part c, ADR-0168)', () => {
+  it('quotes with the coupon instead of the automatic promotions, asking for the code as given', async () => {
+    const { checkout, calls, couponAsks, orders } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      discount: {
+        promotion: BUEN_FIN,
+        oncePerCustomer: false,
+        discounts: [mxn(11_980)],
+      },
+      coupon: applies(),
+    });
+
+    const quote = await checkout.quote({ guestCartId }, 'hola-10');
+
+    expect(calls).toEqual(['toQuote', 'coupon']);
+    expect(couponAsks).toEqual([
+      {
+        channel: 'ONLINE',
+        at: NOW,
+        lines: [{ variantId: shirt, lineTotal: mxn(119_800) }],
+        code: 'hola-10',
+      },
+    ]);
+    expect(quote.promotion).toEqual(COUPON);
+    expect(quote.totals.discountTotal).toEqual(mxn(5_990));
+    // A quote never counts a use, nor asks the uses of a guest.
+    expect(orders.couponAsks).toEqual([]);
+  });
+
+  it.each([
+    ['unavailable'],
+    ['exhausted'],
+    ['minimumNotMet'],
+    ['noEligibleLines'],
+  ] as const)(
+    'answers a coupon refused as %s, without falling back to the automatic promotion',
+    async (reason) => {
+      const { checkout } = setUp({
+        carts: cartsWith([[shirt, 2]]),
+        discount: {
+          promotion: BUEN_FIN,
+          oncePerCustomer: false,
+          discounts: [mxn(11_980)],
+        },
+        coupon: { refused: reason },
+      });
+
+      await expect(checkout.quote({ guestCartId }, 'HOLA-10')).rejects.toThrow(
+        new CouponNotApplicableError(reason),
+      );
+    },
+  );
+
+  it('tells a customer in the quote that they used a coupon of once per customer already', async () => {
+    const { checkout, orders } = setUp({
+      carts: cartsWith([[shirt, 2]], buyer),
+      coupon: applies(true),
+      contact: { email: 'Ana@Example.com', emailVerified: true },
+      couponUsers: ['ana@example.com'],
+    });
+
+    await expect(
+      checkout.quote({ customerId: buyer }, 'HOLA-10'),
+    ).rejects.toMatchObject({
+      code: 'coupon-not-applicable',
+      reason: 'alreadyUsed',
+    });
+    // Counted by the contact email, normalized as the orders keep it.
+    expect(orders.couponAsks).toEqual([[COUPON.id, 'ana@example.com']]);
+  });
+
+  it('quotes a coupon of once per customer for a customer who has not used it', async () => {
+    const { checkout, orders } = setUp({
+      carts: cartsWith([[shirt, 2]], buyer),
+      coupon: applies(true),
+      couponUsers: ['otra@example.com'],
+    });
+
+    const quote = await checkout.quote({ customerId: buyer }, 'HOLA-10');
+
+    expect(quote.promotion).toEqual(COUPON);
+    expect(orders.couponAsks).toEqual([[COUPON.id, 'ana@example.com']]);
+  });
+
+  it('never asks the uses of a customer for a coupon any customer can use again, nor of one without account', async () => {
+    const reused = setUp({
+      carts: cartsWith([[shirt, 2]], buyer),
+      coupon: applies(),
+    });
+    const gone = setUp({
+      carts: cartsWith([[shirt, 2]], buyer),
+      coupon: applies(true),
+      contact: null,
+    });
+
+    await reused.checkout.quote({ customerId: buyer }, 'HOLA-10');
+    await gone.checkout.quote({ customerId: buyer }, 'HOLA-10');
+
+    expect(reused.calls).not.toContain('contact');
+    expect(reused.orders.couponAsks).toEqual([]);
+    expect(gone.calls).toContain('contact');
+    expect(gone.orders.couponAsks).toEqual([]);
+  });
+
+  it('places the order with the coupon, counting its use after the total and before the stock', async () => {
+    const { checkout, calls, orders, redeemed } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      coupon: applies(),
+    });
+
+    await checkout.placeOrder(
+      guestOrder({ expectedTotal: 123_710, couponCode: 'hola-10' }),
+    );
+
+    expect(calls).toEqual([
+      'transaction',
+      'lockToOrder',
+      'resolve',
+      'coupon',
+      'redeem',
+      'reserve',
+      'checkOut',
+    ]);
+    expect(redeemed).toEqual([COUPON.id]);
+    expect(orders.saved[0].snapshot).toMatchObject({
+      promotion: COUPON,
+      totals: { discountTotal: mxn(5_990), grandTotal: mxn(123_710) },
+    });
+    // Any customer can use it again: nobody asks their orders.
+    expect(orders.couponAsks).toEqual([]);
+  });
+
+  it('counts no use of an automatic promotion', async () => {
+    const { checkout, redeemed } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      discount: {
+        promotion: BUEN_FIN,
+        oncePerCustomer: false,
+        discounts: [mxn(11_980)],
+      },
+    });
+
+    await checkout.placeOrder(guestOrder({ expectedTotal: 117_720 }));
+
+    expect(redeemed).toEqual([]);
+  });
+
+  it('counts no use when the total differs', async () => {
+    const { checkout, redeemed } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      coupon: applies(),
+    });
+
+    await expect(
+      checkout.placeOrder(guestOrder({ couponCode: 'HOLA-10' })),
+    ).rejects.toBeInstanceOf(TotalMismatchError);
+    expect(redeemed).toEqual([]);
+  });
+
+  it('answers exhausted when the last use went to another order, reserving nothing', async () => {
+    const { checkout, reserved, orders } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      coupon: applies(),
+      redeemable: false,
+    });
+
+    await expect(
+      checkout.placeOrder(
+        guestOrder({ expectedTotal: 123_710, couponCode: 'HOLA-10' }),
+      ),
+    ).rejects.toThrow(new CouponNotApplicableError('exhausted'));
+    expect(reserved).toEqual([]);
+    expect(orders.saved).toEqual([]);
+  });
+
+  it('answers alreadyUsed for a guest whose contact email used a coupon of once per customer, after counting it', async () => {
+    const { checkout, calls, reserved, orders } = setUp({
+      carts: cartsWith([[shirt, 2]]),
+      coupon: applies(true),
+      couponUsers: ['cliente@example.com'],
+    });
+
+    await expect(
+      checkout.placeOrder(
+        guestOrder({
+          contactEmail: 'Cliente@Example.com',
+          expectedTotal: 123_710,
+          couponCode: 'HOLA-10',
+        }),
+      ),
+    ).rejects.toThrow(new CouponNotApplicableError('alreadyUsed'));
+    // Counting first locks the coupon, so a second order of the same buyer waits for the first and then finds it.
+    expect(calls.slice(-1)).toEqual(['redeem']);
+    expect(orders.couponAsks).toEqual([[COUPON.id, 'cliente@example.com']]);
+    expect(reserved).toEqual([]);
+  });
+
+  it("places a customer's order with a coupon of once per customer they never used, by the account email", async () => {
+    const { checkout, orders } = setUp({
+      carts: cartsWith([[shirt, 2]], buyer),
+      coupon: applies(true),
+    });
+
+    await checkout.placeOrder(
+      customerOrder({ expectedTotal: 123_710, couponCode: 'HOLA-10' }),
+    );
+
+    expect(orders.couponAsks).toEqual([[COUPON.id, 'ana@example.com']]);
+    expect(orders.saved[0].snapshot.promotion).toEqual(COUPON);
   });
 });
 

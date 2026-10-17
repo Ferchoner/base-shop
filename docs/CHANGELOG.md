@@ -15,6 +15,12 @@
   - El IVA de cada línea se calcula sobre su importe con descuento (BR-TAX-02), y el envío gratis compara el subtotal menos el descuento.
   - `CheckoutQuote`, `Order` y `AdminOrder` suman `promotion` y el `discountAmount` de cada línea; `discountTotal` deja de ser siempre 0. El correo de la orden recibida nombra la promoción.
   - La migración `20261017120000_ordering_promotions` agrega las columnas y las restricciones del descuento.
+- T-200 parte c (ADR-0168): los cupones.
+  - Una promoción con `code` es un cupón: solo aplica a quien lo da, en `couponCode`, opcional, en las tres cotizaciones y las tres rutas que colocan órdenes, sin distinguir mayúsculas. Reemplaza a la automática aunque descuente menos (BR-PRM-10).
+  - `usageLimit` y `oncePerCustomer`, opcionales, limitan sus usos; `uses` dice cuántos tiene. Un uso cuenta al colocar la orden, sin que dos órdenes tomen el último, y se devuelve al vencerla o cancelarla (BR-PRM-11 y 12).
+  - Tipo de error nuevo `coupon-not-applicable` (409, E-38), con `reason`; un código que nadie tiene y uno que no está vigente responden igual. Hasta 10 códigos que nadie tiene por IP en 15 minutos (`RATE_LIMIT_COUPON_ATTEMPTS`).
+  - `Promotion` suma `code`, `usageLimit`, `oncePerCustomer` y `uses`, y el listado, el filtro `kind`; `q` también encuentra un cupón por su código. `promotion` suma `code` en `CheckoutQuote`, `Order` y `AdminOrder`. El cuerpo de `POST /v1/me/checkout/quote` es opcional.
+  - Las migraciones `20261017140000_promotions_coupons` y `20261017150000_ordering_coupons` agregan las columnas, las restricciones y el índice de los usos por cliente.
 
 ## 1.6.0 (2026-10-16)
 

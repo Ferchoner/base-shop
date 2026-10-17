@@ -1,4 +1,4 @@
-import type { Money } from '../../../shared-kernel/index.js';
+import type { Id, Money } from '../../../shared-kernel/index.js';
 import type {
   AppliedPromotion,
   CartId,
@@ -88,9 +88,15 @@ export abstract class CheckoutPrices {
 /** The discount of an order, as Promotions gives it (ADR-0168). */
 export interface OrderDiscount {
   readonly promotion: AppliedPromotion;
+  /** Whether each customer uses its coupon once, counted by the contact email of their orders. */
+  readonly oncePerCustomer: boolean;
   /** What it takes off each line, in the order of the lines given. */
   readonly discounts: readonly Money[];
 }
+
+/** Why Promotions refuses a coupon; the uses by each customer are counted here, in the orders. */
+export type PromotionsCouponRefusal =
+  'unavailable' | 'exhausted' | 'minimumNotMet' | 'noEligibleLines';
 
 /** The promotions of Promotions, read without a cache (ADR-0028, ADR-0168). */
 export abstract class CheckoutPromotions {
@@ -106,6 +112,36 @@ export abstract class CheckoutPromotions {
       readonly lineTotal: Money;
     }[];
   }): Promise<OrderDiscount | null>;
+
+  /** What the coupon with this code takes off these lines at `at` in this channel, or why it does not apply. */
+  abstract couponFor(input: {
+    readonly channel: OrderChannel;
+    readonly at: Date;
+    readonly lines: readonly {
+      readonly variantId: VariantId;
+      readonly lineTotal: Money;
+    }[];
+    readonly code: string;
+  }): Promise<
+    | { readonly discount: OrderDiscount }
+    | { readonly refused: PromotionsCouponRefusal }
+  >;
+
+  /**
+   * Counts a use of a coupon in the transaction of the order, its row locked until it ends.
+   *
+   * @returns false when the coupon has no uses left.
+   */
+  abstract redeem(promotionId: Id<'Promotion'>): Promise<boolean>;
+}
+
+/** The uses of the coupons of orders, through the facade of Promotions (ADR-0168), in the transaction of each change. */
+export abstract class OrderCoupons {
+  /** Gives back the use of an order that expired or was cancelled. */
+  abstract release(promotionId: Id<'Promotion'>): Promise<void>;
+
+  /** Counts again the use of an order a late payment reopens, even past the limit of the coupon. */
+  abstract recount(promotionId: Id<'Promotion'>): Promise<void>;
 }
 
 /** A reservation of the stock of an order, and when it ends. */

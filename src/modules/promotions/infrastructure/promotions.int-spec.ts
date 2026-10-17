@@ -1,6 +1,8 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
+import pg from 'pg';
+import { waitForLockWaiters } from '../../../../test/support/lock-waiters.js';
 import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
@@ -10,6 +12,7 @@ import { PersistenceModule } from '../../../platform/persistence/persistence.mod
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
   Clock,
+  DuplicateValueError,
   Money,
   newId,
   type SortOrder,
@@ -218,9 +221,13 @@ describe('Promotions (T-200 part a)', () => {
         id,
         ...TERMS,
         targets: [targets[2], targets[1], targets[0]],
+        code: null,
+        usageLimit: null,
+        oncePerCustomer: false,
         createdBy: admin,
         endedAt: null,
         endedBy: null,
+        uses: 0,
         version: 1,
       });
       expect(await repository.find(newId<'Promotion'>())).toBeNull();
@@ -364,6 +371,13 @@ describe('Promotions (T-200 part a)', () => {
       ['promotions_dates_check', { endsAt: NOW }],
       ['promotions_ended_check', { endedAt: NOW }],
       ['promotions_ended_check', { endedBy: admin }],
+      ['promotions_code_check', { code: 'hola' }],
+      ['promotions_code_check', { code: 'ABC' }],
+      ['promotions_usage_limit_check', { code: 'HOLA', usageLimit: 0 }],
+      ['promotions_uses_check', { code: 'HOLA', uses: -1 }],
+      ['promotions_coupon_check', { usageLimit: 5 }],
+      ['promotions_coupon_check', { oncePerCustomer: true }],
+      ['promotions_coupon_check', { uses: 1 }],
     ])('enforces %s', async (constraint, columns) => {
       await expect(insert(columns)).rejects.toThrow(constraint);
     });
@@ -428,6 +442,10 @@ describe('Promotions (T-200 part a)', () => {
         id,
         ...TERMS,
         targets: [targets[1], targets[0]],
+        code: null,
+        usageLimit: null,
+        oncePerCustomer: false,
+        uses: 0,
         endedAt: null,
         endedBy: null,
         createdBy: admin,
@@ -453,6 +471,10 @@ describe('Promotions (T-200 part a)', () => {
             startsAt: TERMS.startsAt,
             endsAt: TERMS.endsAt,
             endedAt: null,
+            code: null,
+            usageLimit: null,
+            oncePerCustomer: false,
+            uses: 0,
           },
         ],
         totalItems: 1,
@@ -546,6 +568,194 @@ describe('Promotions (T-200 part a)', () => {
 
       expect(page.items.map(({ name }) => name)).toEqual(['Primera']);
       expect(page.totalItems).toBe(3);
+    });
+  });
+
+  describe('coupons (T-200 part c, ADR-0168)', () => {
+    const coupon = (terms: Partial<NewPromotionTerms> = {}) =>
+      create({ code: 'hola-10', startsAt: null, ...terms });
+
+    /** Runs `work` in a transaction of its own, as an order does. */
+    const inTransaction = <T>(work: () => Promise<T>) =>
+      run(() => moduleRef.get(TransactionManager).run(work));
+
+    const usesOf = async (id: string) =>
+      (await prisma.promotion.findUniqueOrThrow({ where: { id } })).uses;
+
+    it('saves a coupon with its code in uppercase and its limits, and finds it by its code', async () => {
+      const id = await coupon({ usageLimit: 3, oncePerCustomer: true });
+
+      expect((await repository.findByCode('HOLA-10'))?.snapshot).toMatchObject({
+        id,
+        code: 'HOLA-10',
+        usageLimit: 3,
+        oncePerCustomer: true,
+        uses: 0,
+      });
+      expect(await repository.findByCode('hola-10')).toBeNull();
+      expect(await repository.findByCode('OTRO')).toBeNull();
+      // A coupon never applies by itself.
+      expect(await repository.activeAt(NOW, 'ONLINE')).toEqual([]);
+    });
+
+    it('answers a code another promotion has, even ended, as a duplicate value, creating or editing', async () => {
+      const first = await coupon();
+      await run(() =>
+        moduleRef
+          .get(EndPromotion)
+          .execute({ id: first, staffId: admin, version: 1 }),
+      );
+      const other = await create({ code: 'OTRO' });
+
+      await expect(coupon({ code: 'HOLA-10' })).rejects.toThrow(
+        new DuplicateValueError('code'),
+      );
+      await expect(
+        run(() =>
+          moduleRef.get(UpdatePromotion).execute(other, { code: 'hola-10' }, 1),
+        ),
+      ).rejects.toMatchObject({
+        code: 'duplicate-value',
+        details: { field: 'code' },
+      });
+      expect(await prisma.promotion.count()).toBe(2);
+    });
+
+    it('counts uses within the limit only, beyond it when asked, and gives them back never below none', async () => {
+      const id = (await coupon({ usageLimit: 2 })) as PromotionId;
+
+      expect(
+        await inTransaction(() =>
+          repository.addUse(id, { beyondLimit: false }),
+        ),
+      ).toBe(true);
+      expect(
+        await inTransaction(() =>
+          repository.addUse(id, { beyondLimit: false }),
+        ),
+      ).toBe(true);
+      expect(
+        await inTransaction(() =>
+          repository.addUse(id, { beyondLimit: false }),
+        ),
+      ).toBe(false);
+      expect(await usesOf(id)).toBe(2);
+      expect(
+        await inTransaction(() => repository.addUse(id, { beyondLimit: true })),
+      ).toBe(true);
+      expect(await usesOf(id)).toBe(3);
+
+      for (let time = 0; time < 4; time++) {
+        await inTransaction(() => repository.removeUse(id));
+      }
+      expect(await usesOf(id)).toBe(0);
+      expect(
+        await inTransaction(() =>
+          repository.addUse(newId<'Promotion'>() as PromotionId, {
+            beyondLimit: true,
+          }),
+        ),
+      ).toBe(false);
+    });
+
+    it('never writes the uses when the staff saves a change', async () => {
+      const id = (await coupon({ usageLimit: 10 })) as PromotionId;
+      const read = (await repository.find(id))!;
+      await inTransaction(() => repository.addUse(id, { beyondLimit: false }));
+
+      read.edit({ name: 'Otra', usageLimit: 20 }, NOW);
+      await inTransaction(() => repository.save(read, NOW));
+
+      expect(
+        await prisma.promotion.findUniqueOrThrow({ where: { id } }),
+      ).toMatchObject({
+        name: 'Otra',
+        usageLimit: 20,
+        uses: 1,
+      });
+    });
+
+    it('gives the last use to one order only when two count it at once', async () => {
+      const id = (await coupon({ usageLimit: 1 })) as PromotionId;
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
+      });
+      await client.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          'SELECT 1 FROM promotions WHERE id = $1 FOR UPDATE',
+          [id],
+        );
+        const counted = [1, 2].map(() =>
+          inTransaction(() => repository.addUse(id, { beyondLimit: false })),
+        );
+        await waitForLockWaiters(2);
+        await client.query('COMMIT');
+
+        expect((await Promise.all(counted)).sort()).toEqual([false, true]);
+      } finally {
+        await client.end();
+      }
+      expect(await usesOf(id)).toBe(1);
+    });
+
+    it('lists coupons or automatic promotions, and finds a coupon by its exact code', async () => {
+      await create({ name: 'Automática' });
+      await coupon({ name: 'Cupón', usageLimit: 5, oncePerCustomer: true });
+      await coupon({ name: 'Otro cupón', code: 'HOLA-100' });
+      const names = async (filter: PromotionFilter) =>
+        (
+          await queries.listPromotions(
+            filter,
+            [{ field: 'name', direction: 'asc' }],
+            { page: 1, pageSize: 20 },
+            NOW,
+          )
+        ).items.map(({ name }) => name);
+
+      expect(await names({ kind: 'COUPON' })).toEqual(['Cupón', 'Otro cupón']);
+      expect(await names({ kind: 'AUTOMATIC' })).toEqual(['Automática']);
+      expect(await names({ q: ' hola-10 ' })).toEqual(['Cupón']);
+      expect(await names({ q: 'cupón' })).toEqual(['Cupón', 'Otro cupón']);
+      const { items } = await queries.listPromotions(
+        { kind: 'COUPON' },
+        [{ field: 'name', direction: 'asc' }],
+        { page: 1, pageSize: 20 },
+        NOW,
+      );
+      expect(items[0]).toMatchObject({
+        code: 'HOLA-10',
+        usageLimit: 5,
+        oncePerCustomer: true,
+        uses: 0,
+      });
+      expect(await queries.findPromotion(items[0].id)).toMatchObject({
+        code: 'HOLA-10',
+        usageLimit: 5,
+        oncePerCustomer: true,
+        uses: 0,
+      });
+    });
+
+    it('audits the code and the limits of a coupon', async () => {
+      const id = await coupon({ usageLimit: 5, oncePerCustomer: true });
+      await run(() =>
+        moduleRef.get(UpdatePromotion).execute(id, { usageLimit: null }, 1),
+      );
+
+      const entries = await prisma.auditLog.findMany({
+        where: { resourceId: id },
+        orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+      });
+      expect(entries[0].changes).toMatchObject({
+        code: { from: null, to: 'HOLA-10' },
+        usageLimit: { from: null, to: 5 },
+        oncePerCustomer: { from: null, to: true },
+      });
+      expect(entries[1].changes).toEqual({
+        usageLimit: { from: 5, to: null },
+      });
     });
   });
 
@@ -679,7 +889,12 @@ describe('Promotions (T-200 part a)', () => {
           ],
         }),
       ).toEqual({
-        promotion: { id: promotionId, name: 'Ropa 20%' },
+        promotion: {
+          id: promotionId,
+          name: 'Ropa 20%',
+          code: null,
+          oncePerCustomer: false,
+        },
         discounts: [Money.of(10_000, 'MXN')],
       });
     });

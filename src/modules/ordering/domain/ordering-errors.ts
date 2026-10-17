@@ -59,6 +59,31 @@ export class VariantNotSellableError extends DomainError {
   }
 }
 
+/** Why a coupon does not apply to an order (E-38, ADR-0168). */
+export type CouponRefusal =
+  | 'unavailable'
+  | 'exhausted'
+  | 'minimumNotMet'
+  | 'noEligibleLines'
+  | 'alreadyUsed'
+  | 'buyerRequired';
+
+/**
+ * The coupon of a quote or an order does not apply (E-38, ADR-0168), and nothing is placed: it does not exist, is not
+ * active or is not of the channel (`unavailable`, all answered alike so codes are never confirmed), it has no uses left
+ * (`exhausted`), the subtotal does not reach its minimum (`minimumNotMet`), it takes nothing off (`noEligibleLines`),
+ * the customer used it already (`alreadyUsed`), or a sale without buyer data gives one of once per customer
+ * (`buyerRequired`). Answered 409 `coupon-not-applicable` with `reason`.
+ */
+export class CouponNotApplicableError extends DomainError {
+  readonly code = 'coupon-not-applicable';
+  readonly category = 'conflict';
+
+  constructor(readonly reason: CouponRefusal) {
+    super(`The coupon does not apply: ${reason}`, { reason });
+  }
+}
+
 /**
  * The total worked out now is not the one the customer accepted (BR-ORD-06, ADR-0019, E-06): the order is not
  * placed. Answered 409 `total-mismatch` with `currentTotal`, so the customer can quote again.

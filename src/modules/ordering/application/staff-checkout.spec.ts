@@ -20,6 +20,7 @@ import type {
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import {
+  CouponNotApplicableError,
   EmailNotVerifiedError,
   TotalMismatchError,
   VariantNotSellableError,
@@ -93,9 +94,19 @@ const variant = (
   storeOnly,
 });
 
-/** Orders in memory. */
+/** Orders in memory; the contact emails in `couponUsers` used the coupon already. */
 class InMemoryOrders extends OrderRepository {
   readonly saved: Order[] = [];
+  readonly couponAsks: [string, string][] = [];
+
+  constructor(private readonly couponUsers: readonly string[] = []) {
+    super();
+  }
+
+  usedCoupon(promotionId: string, contactEmail: string): Promise<boolean> {
+    this.couponAsks.push([promotionId, contactEmail]);
+    return Promise.resolve(this.couponUsers.includes(contactEmail));
+  }
 
   insert(order: Order): Promise<boolean> {
     this.saved.push(order);
@@ -139,6 +150,10 @@ function setUp(
     contact?: { email: string; emailVerified: boolean } | null;
     /** What Promotions answers for the lines that can be sold. */
     discount?: OrderDiscount | null;
+    /** What Promotions answers for a coupon; by default, that none has the code. */
+    coupon?: Awaited<ReturnType<CheckoutPromotions['couponFor']>>;
+    /** The contact emails that used the coupon already. */
+    couponUsers?: string[];
   } = {},
 ) {
   const calls: string[] = [];
@@ -178,11 +193,23 @@ function setUp(
       ),
   };
   const promotionAsks: Parameters<CheckoutPromotions['discountFor']>[0][] = [];
+  const couponAsks: Parameters<CheckoutPromotions['couponFor']>[0][] = [];
+  const redeemed: string[] = [];
   const promotions: CheckoutPromotions = {
     discountFor: (input) => {
       calls.push('promotions');
       promotionAsks.push(input);
       return Promise.resolve(options.discount ?? null);
+    },
+    couponFor: (input) => {
+      calls.push('coupon');
+      couponAsks.push(input);
+      return Promise.resolve(options.coupon ?? { refused: 'unavailable' });
+    },
+    redeem: (promotionId) => {
+      calls.push('redeem');
+      redeemed.push(promotionId);
+      return Promise.resolve(true);
     },
   };
   const stock: OrderStock = {
@@ -265,7 +292,7 @@ function setUp(
       });
     },
   };
-  const orders = new InMemoryOrders();
+  const orders = new InMemoryOrders(options.couponUsers);
   const inline = {
     run: <T>(work: () => Promise<T>) => {
       calls.push('transaction');
@@ -310,6 +337,8 @@ function setUp(
     published,
     audited,
     promotionAsks,
+    couponAsks,
+    redeemed,
   };
 }
 
@@ -591,9 +620,17 @@ describe('StaffCheckout: a sale handed over in the store (ADR-0161)', () => {
   });
 
   it('gets the promotions of the physical store, and a sale at 100% charges one peso (ADR-0168)', async () => {
-    const promotion = { id: newId<'Promotion'>(), name: 'Todo gratis' };
+    const promotion = {
+      id: newId<'Promotion'>(),
+      name: 'Todo gratis',
+      code: null,
+    };
     const { checkout, orders, promotionAsks } = setUp({
-      discount: { promotion, discounts: [mxn(119_700)] },
+      discount: {
+        promotion,
+        oncePerCustomer: false,
+        discounts: [mxn(119_700)],
+      },
     });
 
     const quote = await checkout.quote({
@@ -699,5 +736,102 @@ describe('StaffCheckout: a sale handed over in the store (ADR-0161)', () => {
     await expect(
       setUp().checkout.place(counter({ expectedTotal: 129_700 })),
     ).rejects.toThrow(TotalMismatchError);
+  });
+});
+
+describe('StaffCheckout: coupons (T-200 part c, ADR-0168)', () => {
+  const COUPON = {
+    id: newId<'Promotion'>(),
+    name: 'Cupón de la tienda',
+    code: 'TIENDA-10',
+  };
+  const applies = (oncePerCustomer = false) => ({
+    discount: { promotion: COUPON, oncePerCustomer, discounts: [mxn(11_980)] },
+  });
+  const counter = (changes: Partial<StaffOrderInput> = {}) =>
+    order({
+      fulfillment: 'IN_STORE',
+      buyer: null,
+      shippingAddress: null,
+      expectedTotal: 107_820,
+      couponCode: 'tienda-10',
+      ...changes,
+    });
+
+  it('quotes with the coupon of the physical store', async () => {
+    const { checkout, calls, couponAsks, orders } = setUp({
+      coupon: applies(true),
+    });
+
+    const quote = await checkout.quote({
+      lines: [{ variantId: shirt, quantity: 2 }],
+      warehouseId: store,
+      fulfillment: 'IN_STORE',
+      couponCode: 'tienda-10',
+    });
+
+    expect(calls).not.toContain('promotions');
+    expect(couponAsks).toEqual([
+      {
+        channel: 'STORE',
+        at: NOW,
+        lines: [{ variantId: shirt, lineTotal: mxn(119_800) }],
+        code: 'tienda-10',
+      },
+    ]);
+    expect(quote).toMatchObject({
+      promotion: COUPON,
+      totals: { discountTotal: mxn(11_980), grandTotal: mxn(107_820) },
+    });
+    // The quote of the staff has no buyer: placing the order checks the uses.
+    expect(orders.couponAsks).toEqual([]);
+  });
+
+  it('answers a coupon that does not apply', async () => {
+    const { checkout } = setUp({ coupon: { refused: 'minimumNotMet' } });
+
+    await expect(checkout.place(counter())).rejects.toThrow(
+      new CouponNotApplicableError('minimumNotMet'),
+    );
+  });
+
+  it('places a sale handed over without buyer data with a coupon any customer can use again, counting its use', async () => {
+    const { checkout, calls, orders, redeemed } = setUp({ coupon: applies() });
+
+    await checkout.place(counter());
+
+    expect(calls).toEqual([
+      'transaction',
+      'isActiveWarehouse store',
+      'variants',
+      'coupon',
+      'redeem',
+      'reserve',
+      'audit',
+    ]);
+    expect(redeemed).toEqual([COUPON.id]);
+    expect(orders.saved[0].snapshot.promotion).toEqual(COUPON);
+  });
+
+  it('answers buyerRequired for a coupon of once per customer without buyer data, counting nothing', async () => {
+    const { checkout, redeemed, orders } = setUp({ coupon: applies(true) });
+
+    await expect(checkout.place(counter())).rejects.toThrow(
+      new CouponNotApplicableError('buyerRequired'),
+    );
+    expect(redeemed).toEqual([]);
+    expect(orders.saved).toEqual([]);
+  });
+
+  it('checks a coupon of once per customer by the contact email of the guest, normalized', async () => {
+    const { checkout, orders } = setUp({
+      coupon: applies(true),
+      couponUsers: ['cliente@example.com'],
+    });
+
+    await expect(checkout.place(counter({ buyer: guest }))).rejects.toThrow(
+      new CouponNotApplicableError('alreadyUsed'),
+    );
+    expect(orders.couponAsks).toEqual([[COUPON.id, 'cliente@example.com']]);
   });
 });

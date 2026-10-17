@@ -10,7 +10,11 @@ import {
   type SortOrder,
   toId,
 } from '../../../shared-kernel/index.js';
-import type { PromotionId, PromotionStatus } from '../domain/promotion.js';
+import {
+  normalizedCouponCode,
+  type PromotionId,
+  type PromotionStatus,
+} from '../domain/promotion.js';
 import {
   type PromotionFilter,
   PromotionQueries,
@@ -45,6 +49,7 @@ export class PrismaPromotionQueries extends PromotionQueries {
       ...toTerms(row),
       endedAt: row.endedAt,
       endedBy: row.endedBy === null ? null : toId<'User'>(row.endedBy),
+      uses: row.uses,
       createdBy: toId<'User'>(row.createdBy),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -62,7 +67,12 @@ export class PrismaPromotionQueries extends PromotionQueries {
       AND: [
         filter.q === undefined
           ? {}
-          : { name: { contains: filter.q.trim(), mode: 'insensitive' } },
+          : {
+              OR: [
+                { name: { contains: filter.q.trim(), mode: 'insensitive' } },
+                { code: normalizedCouponCode(filter.q) },
+              ],
+            },
         filter.status === undefined
           ? {}
           : { OR: filter.status.map((status) => statusWhere(status, at)) },
@@ -76,6 +86,11 @@ export class PrismaPromotionQueries extends PromotionQueries {
           : filter.appliesTo === 'ORDER'
             ? { targets: { none: {} } }
             : { targets: { some: {} } },
+        filter.kind === undefined
+          ? {}
+          : filter.kind === 'AUTOMATIC'
+            ? { code: null }
+            : { code: { not: null } },
       ],
     };
     const [rows, totalItems] = await Promise.all([
@@ -105,6 +120,10 @@ export class PrismaPromotionQueries extends PromotionQueries {
         startsAt: row.startsAt,
         endsAt: row.endsAt,
         endedAt: row.endedAt,
+        code: row.code,
+        usageLimit: row.usageLimit,
+        oncePerCustomer: row.oncePerCustomer,
+        uses: row.uses,
       })),
       totalItems,
     };

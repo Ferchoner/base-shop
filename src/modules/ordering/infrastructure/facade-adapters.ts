@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { DomainError, type Money, toId } from '../../../shared-kernel/index.js';
+import {
+  DomainError,
+  type Id,
+  type Money,
+  toId,
+} from '../../../shared-kernel/index.js';
 import { CatalogFacade } from '../../catalog/index.js';
 import { GeoCatalog } from '../../geo/index.js';
 import { IdentityAccessFacade } from '../../identity-access/index.js';
@@ -10,7 +15,10 @@ import {
   type PaymentView,
 } from '../../payments/index.js';
 import { PricingFacade } from '../../pricing/index.js';
-import { PromotionsFacade } from '../../promotions/index.js';
+import {
+  type AppliedDiscount,
+  PromotionsFacade,
+} from '../../promotions/index.js';
 import { ShippingFacade } from '../../shipping/index.js';
 import {
   type OrderShipment,
@@ -28,8 +36,10 @@ import {
   type CheckoutTarget,
   type CheckoutVariant,
   type LocationNames,
+  OrderCoupons,
   type OrderDiscount,
   OrderStock,
+  type PromotionsCouponRefusal,
   type RestockMovement,
   type ShippingCharge,
   ShippingLocations,
@@ -237,16 +247,57 @@ export class PromotionsFacadeCheckoutPromotions extends CheckoutPromotions {
     }[];
   }): Promise<OrderDiscount | null> {
     const applied = await this.promotions.discountFor(input);
-    return applied === null
-      ? null
-      : {
-          promotion: {
-            id: toId<'Promotion'>(applied.promotion.id),
-            name: applied.promotion.name,
-          },
-          discounts: applied.discounts,
-        };
+    return applied === null ? null : discountOf(applied);
   }
+
+  async couponFor(input: {
+    readonly channel: OrderChannel;
+    readonly at: Date;
+    readonly lines: readonly {
+      readonly variantId: VariantId;
+      readonly lineTotal: Money;
+    }[];
+    readonly code: string;
+  }): Promise<
+    | { readonly discount: OrderDiscount }
+    | { readonly refused: PromotionsCouponRefusal }
+  > {
+    const result = await this.promotions.couponFor(input);
+    return 'refused' in result
+      ? result
+      : { discount: discountOf(result.applied) };
+  }
+
+  redeem(promotionId: Id<'Promotion'>): Promise<boolean> {
+    return this.promotions.redeem(promotionId);
+  }
+}
+
+@Injectable()
+export class PromotionsFacadeOrderCoupons extends OrderCoupons {
+  constructor(private readonly promotions: PromotionsFacade) {
+    super();
+  }
+
+  release(promotionId: Id<'Promotion'>): Promise<void> {
+    return this.promotions.release(promotionId);
+  }
+
+  recount(promotionId: Id<'Promotion'>): Promise<void> {
+    return this.promotions.recount(promotionId);
+  }
+}
+
+function discountOf(applied: AppliedDiscount): OrderDiscount {
+  return {
+    promotion: {
+      id: toId<'Promotion'>(applied.promotion.id),
+      name: applied.promotion.name,
+      code: applied.promotion.code,
+    },
+    oncePerCustomer: applied.promotion.oncePerCustomer,
+    discounts: applied.discounts,
+  };
 }
 
 @Injectable()

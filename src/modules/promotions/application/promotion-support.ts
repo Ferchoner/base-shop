@@ -61,5 +61,9 @@ export function auditedPromotionFields(
     minimumSubtotal: p.minimumSubtotal,
     startsAt: p.startsAt,
     endsAt: p.endsAt,
+    // Only a coupon has limits of use: an automatic promotion audits none.
+    code: p.code,
+    usageLimit: p.usageLimit,
+    oncePerCustomer: p.code === null ? null : p.oncePerCustomer,
   };
 }

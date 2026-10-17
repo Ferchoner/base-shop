@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +29,7 @@ import {
 } from '../../../platform/http/pagination/pagination.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
+import { FailedAttemptLimiter } from '../../../platform/http/rate-limiting/failed-attempt-limiter.js';
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import {
@@ -49,6 +51,7 @@ import {
   PlaceCustomerOrderDto,
   ReorderDto,
 } from './order.dto.js';
+import { withCouponAttempts } from './coupon-attempts.js';
 import {
   toOrderDto,
   toOrderSummaryDto,
@@ -80,6 +83,7 @@ export class MeOrdersController {
     private readonly reader: OrderReader,
     private readonly paymentRequests: OrderPaymentRequests,
     private readonly reorders: OrderReorders,
+    private readonly couponAttempts: FailedAttemptLimiter,
   ) {}
 
   @ApiOperation({
@@ -128,14 +132,22 @@ export class MeOrdersController {
   async place(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: PlaceCustomerOrderDto,
+    @Req() request: { ip?: string },
     @Res({ passthrough: true })
     response: { setHeader(name: string, value: string): void },
   ): Promise<OrderDto> {
-    const id = await this.checkout.placeOrder({
-      customerId: customer(user),
-      shippingAddress: shippingAddressOf(body),
-      expectedTotal: body.expectedTotal,
-    });
+    const id = await withCouponAttempts(
+      this.couponAttempts,
+      request,
+      body.couponCode,
+      () =>
+        this.checkout.placeOrder({
+          customerId: customer(user),
+          shippingAddress: shippingAddressOf(body),
+          expectedTotal: body.expectedTotal,
+          couponCode: body.couponCode ?? null,
+        }),
+    );
     const order = await this.reader.order(id);
     // The transaction that created it already committed.
     if (order === null) throw new Error(`Order ${id} was not saved`);

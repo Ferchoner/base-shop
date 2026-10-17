@@ -64,6 +64,18 @@ T-200 parte b (ADR-0168).
 - **Memoria de la e2e con cobertura:** con la suite nueva, la corrida pasó los 4 GB que Node usa por defecto y se detuvo. `npm run test:e2e` sube el límite a 6 GB, también en la CI, y la guía lo registra.
 - **Mutación:** 49 mutantes, todos muertos en la primera corrida.
 
+### Resultado del paso 3
+
+T-200 parte c (ADR-0168). Con ella, T-200 queda en DONE.
+
+- **El cupón reemplaza a la automática:** `couponCode`, opcional en las seis rutas, trae un cupón que se aplica aunque descuente menos; si no aplica, la cotización o la orden responde 409 `coupon-not-applicable` con su motivo, sin otra promoción. Un código que nadie tiene, uno que no está vigente y uno de otro canal responden igual.
+- **Los usos, en la fila del cupón:** la orden los cuenta con un `UPDATE` que comprueba el límite en la misma sentencia y bloquea la fila hasta que termina su transacción. La integración lo prueba con la fila bloqueada desde otra conexión: de dos órdenes por el último uso, una responde `exhausted`; de dos del mismo comprador, una responde `alreadyUsed`, porque una vez por cliente se revisa después de contar.
+- **Devolver y volver a contar:** el vencimiento y la cancelación devuelven el uso en su transacción, y el pago tardío de una orden vencida lo vuelve a contar aunque pase el límite, porque el cliente ya pagó.
+- **Una vez por cliente, sin datos nuevos:** se cuenta por el email de contacto de sus órdenes con el cupón que no vencieron, no se cancelaron ni se reembolsaron, con un índice parcial nuevo. Una orden anonimizada deja de contar.
+- **El límite de intentos, en una suite aparte:** 10 códigos que nadie tiene por IP en 15 minutos, con el `FailedAttemptLimiter` del login. Su prueba end-to-end usa su propia aplicación con un límite de 3, como la del login, para no gastar el presupuesto de las demás pruebas.
+- **Encontrado por la cobertura y el contrato:** la cotización del cliente acepta un cuerpo opcional, que OpenAPI marcaba obligatorio, y un valor por defecto de `couponCode` que ninguna llamada usaba se quitó. Una promoción automática auditaba `oncePerCustomer: false`, que no le corresponde; ya no lo audita.
+- **Mutación:** 60 mutantes, todos muertos en la primera corrida.
+
 ### Risks
 
 - **El IVA con descuento:** baja con el descuento; la validación con el contador lo incluye (P-69).

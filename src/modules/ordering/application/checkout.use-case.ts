@@ -51,6 +51,8 @@ export interface GuestOrderInput {
   readonly privacyNoticeVersion: string;
   /** `grandTotal.amount` of the quote the customer accepted (ADR-0019). */
   readonly expectedTotal: number;
+  /** The code of a coupon, whatever its case (ADR-0168); missing or `null` without one. */
+  readonly couponCode?: string | null;
 }
 
 /** UC-ORD-02, customer route: the contact is the account email, and the address is saved or not. */
@@ -58,6 +60,7 @@ export interface CustomerOrderInput {
   readonly customerId: CustomerId;
   readonly shippingAddress: { readonly addressId: string } | AddressInput;
   readonly expectedTotal: number;
+  readonly couponCode?: string | null;
 }
 
 /**
@@ -100,17 +103,30 @@ export class Checkout {
    * What the order of the cart would cost now (UC-ORD-01), without changing anything. Lines that cannot be
    * sold or fulfilled are marked, and the quote is not ready to place.
    *
+   * With a coupon, it replaces the automatic promotions (ADR-0168); a customer who used one of once per customer
+   * already is told so here, while a guest is told when placing the order.
+   *
    * @throws NotFoundError for a guest cart that does not exist or has an owner; CartNotActiveError;
-   *   EmptyCartError for a cart without lines, or a customer without an active cart.
+   *   EmptyCartError for a cart without lines, or a customer without an active cart; CouponNotApplicableError.
    */
-  async quote(target: CheckoutTarget): Promise<CheckoutQuote> {
+  async quote(
+    target: CheckoutTarget,
+    couponCode: string | null = null,
+  ): Promise<CheckoutQuote> {
     const cart = await this.carts.toQuote(target);
     if (cart === null || cart.lines.length === 0) throw new EmptyCartError();
     const assessment = await this.placement.assess(
       cart.lines,
       this.clock.now(),
       'ONLINE',
+      couponCode,
     );
+    if ('customerId' in target && assessment.oncePerCustomer) {
+      const email = await this.placement.contactEmailOf(target.customerId);
+      if (email !== null) {
+        await this.placement.assertCouponUnused(assessment, email);
+      }
+    }
     const available = await this.stock.canFulfill(
       assessment.priced.map(({ variantId, quantity }) => ({
         variantId,
@@ -149,11 +165,13 @@ export class Checkout {
         customerId,
         input.shippingAddress,
       );
-      const { items, priced, promotion } = await this.placement.assess(
+      const assessment = await this.placement.assess(
         cart.lines,
         now,
         'ONLINE',
+        input.couponCode ?? null,
       );
+      const { items, priced, promotion } = assessment;
       const unsellable = items
         .filter((item) => item.priced === null)
         .map(({ variant }) => variant.id);
@@ -163,6 +181,7 @@ export class Checkout {
       if (total.amount !== input.expectedTotal) {
         throw new TotalMismatchError(total);
       }
+      await this.placement.useCoupon(assessment, buyer.contactEmail);
       const id = newId<'Order'>();
       const reservation = await this.stock.reserve(
         id,

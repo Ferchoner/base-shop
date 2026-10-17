@@ -4,6 +4,7 @@ import {
   type Buyer,
   type CustomerId,
   discountLine,
+  normalizedContactEmail,
   type Order,
   type OrderChannel,
   orderTotals,
@@ -16,6 +17,7 @@ import {
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import {
+  CouponNotApplicableError,
   EmailNotVerifiedError,
   InvalidShippingAddressError,
 } from '../domain/ordering-errors.js';
@@ -27,6 +29,7 @@ import {
   CheckoutPromotions,
   CheckoutShipping,
   type CheckoutVariant,
+  type OrderDiscount,
   type ShippingCharge,
   ShippingLocations,
   type StockLine,
@@ -114,6 +117,8 @@ export interface Assessment {
   readonly priced: readonly PricedLine[];
   /** The promotion they get; `null` when none takes anything off (ADR-0168). */
   readonly promotion: AppliedPromotion | null;
+  /** Whether the promotion is a coupon each customer uses once. */
+  readonly oncePerCustomer: boolean;
 }
 
 /**
@@ -145,6 +150,7 @@ export class OrderPlacement {
     lines: readonly StockLine[],
     at: Date,
     channel: OrderChannel,
+    couponCode: string | null,
   ): Promise<Assessment> {
     const ids = lines.map(({ variantId }) => variantId);
     const variants = await this.catalog.variants(ids);
@@ -174,16 +180,14 @@ export class OrderPlacement {
     const sellable = items.flatMap(({ priced }) =>
       priced === null ? [] : [priced],
     );
-    const discount = await this.promotions.discountFor({
-      channel,
-      at,
-      lines: sellable.map(({ variantId, lineTotal }) => ({
-        variantId,
-        lineTotal,
-      })),
-    });
+    const discount = await this.discountOf(sellable, at, channel, couponCode);
     if (discount === null) {
-      return { items, priced: sellable, promotion: null };
+      return {
+        items,
+        priced: sellable,
+        promotion: null,
+        oncePerCustomer: false,
+      };
     }
     const discounted = new Map(
       sellable.map((line, index) => [
@@ -198,7 +202,89 @@ export class OrderPlacement {
       })),
       priced: [...discounted.values()],
       promotion: discount.promotion,
+      oncePerCustomer: discount.oncePerCustomer,
     };
+  }
+
+  /**
+   * The discount of the lines that can be sold (ADR-0168): the coupon given, which replaces the automatic promotions
+   * even when it takes off less, or else the automatic one that takes off the most.
+   *
+   * @throws CouponNotApplicableError when the coupon does not apply.
+   */
+  private async discountOf(
+    sellable: readonly PricedLine[],
+    at: Date,
+    channel: OrderChannel,
+    couponCode: string | null,
+  ): Promise<OrderDiscount | null> {
+    const lines = sellable.map(({ variantId, lineTotal }) => ({
+      variantId,
+      lineTotal,
+    }));
+    if (couponCode === null) {
+      return this.promotions.discountFor({ channel, at, lines });
+    }
+    const coupon = await this.promotions.couponFor({
+      channel,
+      at,
+      lines,
+      code: couponCode,
+    });
+    if ('refused' in coupon) throw new CouponNotApplicableError(coupon.refused);
+    return coupon.discount;
+  }
+
+  /** The email of the account of an ACTIVE customer; `null` for any other. */
+  async contactEmailOf(customerId: CustomerId): Promise<string | null> {
+    return (await this.customers.contact(customerId))?.email ?? null;
+  }
+
+  /**
+   * Whether the customer with this contact email used the coupon of the assessment already (ADR-0168), for a quote that
+   * knows who buys.
+   *
+   * @throws CouponNotApplicableError `alreadyUsed`.
+   */
+  async assertCouponUnused(
+    { promotion, oncePerCustomer }: Assessment,
+    contactEmail: string,
+  ): Promise<void> {
+    if (
+      promotion !== null &&
+      oncePerCustomer &&
+      (await this.orders.usedCoupon(
+        promotion.id,
+        normalizedContactEmail(contactEmail),
+      ))
+    ) {
+      throw new CouponNotApplicableError('alreadyUsed');
+    }
+  }
+
+  /**
+   * Counts the use of the coupon of the order, if it has one, in its transaction (ADR-0168): the row of the coupon
+   * stays locked until it ends, so two orders never take its last use. Once per customer is checked after counting:
+   * a second order of the same customer at the same time waits for the first, and then finds it.
+   *
+   * @throws CouponNotApplicableError `buyerRequired` for a sale without buyer data and a coupon of once per customer;
+   *   `exhausted` when it has no uses left; `alreadyUsed`.
+   */
+  async useCoupon(
+    assessment: Assessment,
+    contactEmail: string | null,
+  ): Promise<void> {
+    const { promotion, oncePerCustomer } = assessment;
+    if (promotion === null || promotion.code === null) return;
+    if (oncePerCustomer && contactEmail === null) {
+      throw new CouponNotApplicableError('buyerRequired');
+    }
+    if (!(await this.promotions.redeem(promotion.id))) {
+      throw new CouponNotApplicableError('exhausted');
+    }
+    if (contactEmail !== null) {
+      await this.assertCouponUnused(assessment, contactEmail);
+    }
   }
 
   /**

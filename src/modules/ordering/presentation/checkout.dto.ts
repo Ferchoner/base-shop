@@ -1,13 +1,34 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { MoneyDto } from '../../../platform/http/money.dto.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments;
 // fields holding other DTOs, lists, dates, enums, objects or null declare their type with @ApiProperty
 // (DEVELOPMENT_GUIDE.md).
 
+/** The coupon a quote or an order may bring (ADR-0168): its code, trimmed. */
+export class CouponCodeDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'BUENFIN',
+    description:
+      'El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @Length(1, 30)
+  couponCode?: string | null;
+}
+
+/** Request of `POST /v1/me/checkout/quote` (UC-ORD-01, API_SPEC.md §15.2): only an optional coupon. */
+export class CustomerQuoteDto extends CouponCodeDto {}
+
 /** Request of `POST /v1/checkout/quote` (UC-ORD-01, API_SPEC.md §15.2). */
-export class GuestQuoteDto {
+export class GuestQuoteDto extends CouponCodeDto {
   /** El `cartId` del carrito de invitado. */
   @IsUUID('all')
   cartId: string;
@@ -96,6 +117,14 @@ export class AppliedPromotionDto {
 
   /** El nombre de la promoción, como lo ve el cliente. @example 'Buen Fin 10%' */
   name: string;
+
+  @ApiProperty({
+    nullable: true,
+    example: 'BUENFIN',
+    description:
+      'El código del cupón, en mayúsculas; `null` en una promoción automática (ADR-0168).',
+  })
+  code: string | null;
 }
 
 /** `CheckoutQuote` of API_SPEC.md §8.7. */

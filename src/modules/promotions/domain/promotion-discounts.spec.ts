@@ -8,6 +8,7 @@ import {
 import {
   appliesTo,
   bestDiscount,
+  couponDiscount,
   type DiscountableLine,
   discountsOf,
   withMinimumPayment,
@@ -327,6 +328,18 @@ describe('Promotion discounts (T-200 part b, ADR-0168)', () => {
       ).toBeNull();
     });
 
+    it('is never a coupon, which applies only to whoever gives its code (T-200 part c)', () => {
+      const coupon = promotion({
+        code: 'TODO',
+        discount: { type: 'PERCENTAGE', percentage: 50 },
+      });
+
+      expect(
+        bestDiscount([coupon, promotion()], [SHIRT], 'ONLINE', NOW)?.promotion,
+      ).not.toBe(coupon);
+      expect(bestDiscount([coupon], [SHIRT], 'ONLINE', NOW)).toBeNull();
+    });
+
     it('is the one that started first on a tie, then the first by ID', () => {
       const later = promotion({}, at(-1));
       const earlier = promotion({}, at(-2));
@@ -342,5 +355,122 @@ describe('Promotion discounts (T-200 part b, ADR-0168)', () => {
         bestDiscount([second, later, first], [SHIRT], 'ONLINE', NOW)?.promotion,
       ).toBe(first);
     });
+  });
+});
+
+describe('What a coupon takes off (T-200 part c, ADR-0168)', () => {
+  const coupon = (terms: Partial<NewPromotionTerms> = {}, uses = 0) =>
+    Promotion.restore({
+      ...promotion({ code: 'HOLA-10', ...terms }).snapshot,
+      uses,
+    });
+
+  it('takes off what its discount does, with the products paying one peso, even when another would take off more', () => {
+    expect(couponDiscount(coupon(), [SHIRT, CAP], 'ONLINE', NOW)).toEqual({
+      discounts: [mxn(6_000), mxn(2_000)],
+    });
+    expect(
+      couponDiscount(
+        coupon({ discount: { type: 'PERCENTAGE', percentage: 100 } }),
+        [SHIRT],
+        'STORE',
+        NOW,
+      ),
+    ).toEqual({ discounts: [mxn(59_900)] });
+  });
+
+  it('is unavailable before it starts, once it ended and in another channel', () => {
+    for (const [terms, created, channel] of [
+      [{ startsAt: at(1) }, NOW, 'ONLINE'],
+      [{ endsAt: NOW }, at(-2), 'ONLINE'],
+      [{ channels: ['STORE'] }, at(-1), 'ONLINE'],
+      [{ channels: ['ONLINE'] }, at(-1), 'STORE'],
+    ] as const) {
+      expect(
+        couponDiscount(
+          Promotion.restore(
+            promotion({ code: 'HOLA-10', ...terms }, created).snapshot,
+          ),
+          [SHIRT],
+          channel,
+          NOW,
+        ),
+      ).toEqual({ refused: 'unavailable' });
+    }
+  });
+
+  it('is exhausted once its uses reach its limit, and never without one', () => {
+    expect(
+      couponDiscount(coupon({ usageLimit: 3 }, 3), [SHIRT], 'ONLINE', NOW),
+    ).toEqual({ refused: 'exhausted' });
+    expect(
+      couponDiscount(coupon({ usageLimit: 3 }, 2), [SHIRT], 'ONLINE', NOW),
+    ).toEqual({ discounts: [mxn(6_000)] });
+    expect(couponDiscount(coupon({}, 1_000), [SHIRT], 'ONLINE', NOW)).toEqual({
+      discounts: [mxn(6_000)],
+    });
+  });
+
+  it('needs its minimum purchase, before any discount', () => {
+    expect(
+      couponDiscount(
+        coupon({ minimumSubtotal: mxn(80_001) }),
+        [SHIRT, CAP],
+        'ONLINE',
+        NOW,
+      ),
+    ).toEqual({ refused: 'minimumNotMet' });
+    expect(
+      couponDiscount(
+        coupon({ minimumSubtotal: mxn(80_000) }),
+        [SHIRT, CAP],
+        'ONLINE',
+        NOW,
+      ),
+    ).toEqual({ discounts: [mxn(6_000), mxn(2_000)] });
+  });
+
+  it('has no eligible lines when it takes nothing off them', () => {
+    expect(
+      couponDiscount(
+        coupon({ targets: [{ type: 'PRODUCT', id: newId() }] }),
+        [SHIRT],
+        'ONLINE',
+        NOW,
+      ),
+    ).toEqual({ refused: 'noEligibleLines' });
+    expect(
+      couponDiscount(
+        coupon(),
+        [{ ...CAP, lineTotal: mxn(100) }],
+        'ONLINE',
+        NOW,
+      ),
+    ).toEqual({ refused: 'noEligibleLines' });
+  });
+
+  it('checks, in this order: available, uses, minimum and lines', () => {
+    const exhaustedAndShort = coupon(
+      { usageLimit: 1, minimumSubtotal: mxn(1_000_000) },
+      1,
+    );
+
+    expect(couponDiscount(exhaustedAndShort, [SHIRT], 'ONLINE', NOW)).toEqual({
+      refused: 'exhausted',
+    });
+    expect(
+      couponDiscount(exhaustedAndShort, [SHIRT], 'ONLINE', at(-2)),
+    ).toEqual({ refused: 'unavailable' });
+    expect(
+      couponDiscount(
+        coupon({
+          minimumSubtotal: mxn(1_000_000),
+          targets: [{ type: 'PRODUCT', id: newId() }],
+        }),
+        [SHIRT],
+        'ONLINE',
+        NOW,
+      ),
+    ).toEqual({ refused: 'minimumNotMet' });
   });
 });

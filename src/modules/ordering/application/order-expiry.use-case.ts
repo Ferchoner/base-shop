@@ -14,7 +14,7 @@ import type {
   VariantId,
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
-import { OrderStock } from './checkout-ports.js';
+import { OrderCoupons, OrderStock } from './checkout-ports.js';
 
 /** How many orders one run expires at most; the next run, a minute later, goes on (ADR-0029). */
 export const EXPIRY_BATCH_SIZE = 100;
@@ -52,6 +52,7 @@ export class OrderExpiry {
   constructor(
     private readonly orders: OrderRepository,
     private readonly stock: OrderStock,
+    private readonly coupons: OrderCoupons,
     private readonly transactions: TransactionManager,
     private readonly events: DomainEventPublisher,
     private readonly clock: Clock,
@@ -93,6 +94,8 @@ export class OrderExpiry {
       const now = this.clock.now();
       if (order === null || !order.expireIfDue(now)) return false;
       await this.stock.expire(order.id);
+      // An expired order gives back the use of its coupon (ADR-0168).
+      if (order.coupon !== null) await this.coupons.release(order.coupon);
       await this.orders.save(order, now);
       this.events.publish(expiredEvent(order, now));
       return true;

@@ -179,13 +179,14 @@ ADR-0065: `@nestjs/throttler` con contadores en memoria; límites configurables 
 | Enlace de acceso a los pedidos de invitado | 3 por email y 10 por IP por hora (ADR-0148) |
 | Colocar orden | 10 por usuario o carrito en 10 minutos; las de invitado, además, 5 por email de contacto por hora (ADR-0154) |
 | Colocar orden en la tienda física | 30 por cuenta de staff en 10 minutos: cada orden aparta stock (ADR-0161) |
+| Cupones | 10 códigos que nadie tiene por IP en 15 minutos, en las cotizaciones y las órdenes; un código que nadie tiene y uno que no está vigente responden igual (ADR-0168) |
 | Todos los endpoints, también los anteriores | 100 solicitudes por minuto por IP (ADR-0154) |
 
 - La tabla de referencia por endpoint está en `API_SPEC.md` (sección 7).
 - Se frena por tiempo; nunca se bloquean cuentas por intentos fallidos.
 - 429 con `Retry-After` al exceder un límite.
 - Detrás de un proxy, la IP a considerar se configura al elegir hosting (P-06).
-- Mecanismo (ADR-0102): en el login cuentan solo los intentos fallidos, por IP, y en el cambio de contraseña, las contraseñas actuales incorrectas, por usuario (ADR-0154); los correos usados como clave se guardan en memoria como huella SHA-256; los webhooks quedan fuera; la autenticación debe ejecutarse antes del guard de rate limiting para que los límites por usuario vean quién llama.
+- Mecanismo (ADR-0102): en el login cuentan solo los intentos fallidos, por IP; en el cambio de contraseña, las contraseñas actuales incorrectas, por usuario (ADR-0154); y en los cupones, los códigos que responden `unavailable`, por IP (ADR-0168); los correos usados como clave se guardan en memoria como huella SHA-256; los webhooks quedan fuera; la autenticación debe ejecutarse antes del guard de rate limiting para que los límites por usuario vean quién llama.
 - Los límites propios se suman al general por IP: cuentan por claves que elige el cliente, como el carrito o el email (ADR-0154).
 - El rate limiting por IP no basta para proteger la memoria de la cache, porque cada combinación de filtros del catálogo público es una clave nueva y llegan desde muchas IP. Cada espacio de la cache guarda hasta 1 000 valores y descarta el que se usó hace más tiempo (ADR-0129).
 

@@ -217,6 +217,13 @@ export class EnvironmentVariables {
   })
   RATE_LIMIT_PASSWORD_CHANGE: string = '5/15m';
 
+  /** Coupon codes nobody has, per IP, in quotes and orders. Format `<count>/<duration>` (ADR-0168). */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_COUPON_ATTEMPTS: string = '10/15m';
+
   /** Sign-ups per IP. Format `<count>/<duration>` (ADR-0065, ADR-0102). */
   @Expose()
   @Matches(RATE_LIMIT_PATTERN, {

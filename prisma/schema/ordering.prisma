@@ -52,6 +52,8 @@ model Order {
   /// name the customer saw. Both with a discount, neither without one (CHECK in the migration, ADR-0168).
   promotionId             String?          @map("promotion_id") @db.Uuid
   promotionName           String?          @map("promotion_name")
+  /// The code of the coupon the customer used; only with a promotion (CHECK in the migration, ADR-0168).
+  promotionCode           String?          @map("promotion_code")
   /// SHIPPING, or IN_STORE for an order handed over in the store, which has no address nor delivery time (ADR-0161).
   fulfillment             OrderFulfillment @default(SHIPPING)
   shippingAddress         Json?            @map("shipping_address") @db.JsonB
@@ -94,6 +96,8 @@ model Order {
   @@index([contactEmail])
   @@index([concludedAt], map: "orders_retention_idx", where: raw("anonymized_at IS NULL"))
   @@index([placedBy, placedAt(sort: Desc)], where: raw("placed_by IS NOT NULL"))
+  /// The uses of a coupon by each customer (ADR-0168).
+  @@index([promotionId, contactEmail], map: "orders_promotion_contact_idx", where: raw("promotion_id IS NOT NULL"))
   @@map("orders")
 }
 

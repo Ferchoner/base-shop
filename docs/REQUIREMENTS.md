@@ -514,6 +514,7 @@ Criterios de aceptación:
 - **UC-PRM-01 a 03 (implementación, T-200 parte a):** exactamente uno de `percentage` y `amountOff`; cada producto, categoría o marca que no existe o no está en uso es un error de su lugar en `targets`; el estado se calcula al consultar; terminar una promoción guarda quién y cuándo, y ya iniciada, los demás términos pueden llegar con el valor que tienen (BR-PRM-01 a 05).
 - **UC-PRM-04:** una sola promoción por orden: la del cupón, si se da, o la automática que más descuente. El descuento se reparte en centavos entre las líneas a las que aplica; el IVA de cada línea se calcula sobre su importe con descuento; la orden paga al menos $1. La orden guarda el descuento de cada línea, `discountTotal` y la promoción, y `expectedTotal` incluye el descuento.
 - **UC-PRM-05:** el código es único y no distingue mayúsculas; los límites de usos totales y de una vez por cliente son opcionales; un uso cuenta al colocar la orden y se devuelve si la orden vence o se cancela; un código que no existe y uno que no está vigente responden igual.
+- **UC-PRM-05 (implementación, T-200 parte c):** `couponCode`, opcional, en las tres cotizaciones y las tres rutas que colocan órdenes; el cupón reemplaza a la automática aunque descuente menos, y si no aplica responde 409 `coupon-not-applicable` con su motivo, sin otra promoción (E-38); la orden cuenta su uso en su transacción, con la fila del cupón bloqueada; una vez por cliente se cuenta por el email de contacto de sus órdenes; 10 códigos que nadie tiene por IP en 15 minutos (BR-PRM-10 a 12).
 
 ---
 
@@ -593,6 +594,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-35 | Más de 20 imágenes en un producto (ADR-0124) | 409 | UC-CAT-11 |
 | E-36 | Más de 100 variantes distintas en un carrito (ADR-0131) | 409 | UC-CRT-02 |
 | E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | 409 | UC-WRK-05 |
+| E-38 | Un cupón que no aplica: nadie tiene su código o no está vigente en el canal, no alcanza su compra mínima, no quita nada, no le quedan usos, el comprador ya lo usó, o es de una vez por cliente en una venta sin datos del comprador (ADR-0168) | 409 | UC-PRM-05 |
 
 ---
 

@@ -21,7 +21,7 @@ import {
 import { OrderRepository } from '../domain/order.repository.js';
 import { RestockNotAllowedError } from '../domain/ordering-errors.js';
 import type { PublicCode } from '../domain/public-code.js';
-import type { OrderStock, StockLine } from './checkout-ports.js';
+import type { OrderCoupons, OrderStock, StockLine } from './checkout-ports.js';
 import type { OrderPayments } from './payment-ports.js';
 import type { OrderShipments } from './shipment-ports.js';
 import { OrderLifecycle } from './order-lifecycle.use-case.js';
@@ -143,6 +143,10 @@ class InMemoryOrders extends OrderRepository {
   constructor(...orders: Order[]) {
     super();
     for (const order of orders) this.orders.set(order.id, order);
+  }
+
+  usedCoupon(): Promise<boolean> {
+    throw new Error('Only placing an order asks the uses of a coupon');
   }
 
   insert(): Promise<boolean> {
@@ -298,9 +302,20 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
       published.push(...batch);
     },
   } as unknown as DomainEventPublisher;
+  const coupons: OrderCoupons = {
+    release: (promotionId) => {
+      calls.push(`releaseCoupon ${promotionId}`);
+      return Promise.resolve();
+    },
+    recount: (promotionId) => {
+      calls.push(`recountCoupon ${promotionId}`);
+      return Promise.resolve();
+    },
+  };
   const lifecycle = new OrderLifecycle(
     orders,
     stock,
+    coupons,
     payments,
     shipments,
     inline,
@@ -319,6 +334,19 @@ function setUp(order: Order, options: Parameters<typeof fakeStock>[0] = {}) {
     reservedIn,
   };
 }
+
+const coupon = newId<'Promotion'>();
+
+/** The order with the coupon `coupon`, or with an automatic promotion. */
+const withPromotion = (order: Order, code: string | null = 'HOLA-10') =>
+  Order.restore({
+    ...order.snapshot,
+    promotion: {
+      id: code === null ? newId<'Promotion'>() : coupon,
+      name: 'Promoción',
+      code,
+    },
+  });
 
 const savedOne = (orders: InMemoryOrders) => {
   expect(orders.saved).toHaveLength(1);
@@ -362,6 +390,29 @@ describe('OrderLifecycle: cancelling (UC-ORD-07)', () => {
         reason: 'Duplicado',
       },
     ]);
+  });
+
+  it('gives back the use of the coupon of a cancelled order, paid or not, never of an automatic promotion (ADR-0168)', async () => {
+    for (const [order, expected] of [
+      [
+        withPromotion(saved('PENDING_PAYMENT')),
+        ['release', 'cancelPending', `releaseCoupon ${coupon}`],
+      ],
+      [
+        withPromotion(saved('PAID', CAPTURED)),
+        ['cancelShipment', 'startRefund', `releaseCoupon ${coupon}`],
+      ],
+      [
+        withPromotion(saved('PENDING_PAYMENT'), null),
+        ['release', 'cancelPending'],
+      ],
+    ] as const) {
+      const { lifecycle, calls } = setUp(order);
+
+      await cancel(lifecycle, order);
+
+      expect(calls).toEqual(expected);
+    }
   });
 
   it('rejects an outdated version, a restock of an unpaid order and an order that cannot be cancelled, changing nothing', async () => {
@@ -637,6 +688,41 @@ describe('OrderLifecycle: a captured payment (UC-ORD-09)', () => {
         status: 'PAID',
         reservationId: reservation,
       });
+    }
+  });
+
+  it('counts the use of the coupon of a late payment again, also when it waits for stock (ADR-0168)', async () => {
+    for (const [available, expected] of [
+      [
+        true,
+        [
+          'reserveIfAvailable 2,1',
+          'commit',
+          `recountCoupon ${coupon}`,
+          'createShipment',
+        ],
+      ],
+      [false, ['reserveIfAvailable 2,1', `recountCoupon ${coupon}`]],
+    ] as const) {
+      const order = withPromotion(saved('EXPIRED'));
+      const { lifecycle, calls } = setUp(order, { available });
+
+      await pay(lifecycle, order);
+
+      expect(calls).toEqual(expected);
+    }
+  });
+
+  it('counts no use again for a payment in time, nor for a late one of an automatic promotion', async () => {
+    for (const order of [
+      withPromotion(saved('PENDING_PAYMENT')),
+      withPromotion(saved('EXPIRED'), null),
+    ]) {
+      const { lifecycle, calls } = setUp(order);
+
+      expect(await pay(lifecycle, order)).toBe('paid');
+
+      expect(calls.filter((call) => call.includes('Coupon'))).toEqual([]);
     }
   });
 
