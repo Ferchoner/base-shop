@@ -23,6 +23,7 @@ import {
   type OrderView,
 } from '../application/ordering.queries.js';
 import {
+  type AppliedPromotion,
   type CustomerId,
   type OrderAddress,
   type OrderId,
@@ -44,6 +45,8 @@ const SUMMARY_FIELDS = {
   shippingTaxAmount: true,
   discountTotal: true,
   grandTotal: true,
+  promotionId: true,
+  promotionName: true,
   fulfillment: true,
   deliveryMinBusinessDays: true,
   deliveryMaxBusinessDays: true,
@@ -333,10 +336,22 @@ function toOrderView(row: OrderRow): OrderView {
       taxRateBp: line.taxRateBp,
       taxAmount: Money.of(line.taxAmount, 'MXN'),
       lineTotal: Money.of(line.lineTotal, 'MXN'),
+      discountAmount: Money.of(line.discountAmount, 'MXN'),
     })),
+    promotion: promotionOf(row),
     // Written by PrismaOrderRepository from ShippingAddress, or null for an order handed over in the store.
     shippingAddress: row.shippingAddress as unknown as ShippingAddress | null,
   };
+}
+
+/** The promotion of the discount of an order; the database keeps its ID and name both or neither (ADR-0168). */
+function promotionOf(row: {
+  readonly promotionId: string | null;
+  readonly promotionName: string | null;
+}): AppliedPromotion | null {
+  return row.promotionId === null
+    ? null
+    : { id: toId<'Promotion'>(row.promotionId), name: row.promotionName! };
 }
 
 function toAdminSummaryView(row: AdminSummaryRow): AdminOrderSummaryView {
@@ -364,6 +379,7 @@ function toAdminOrderView(row: AdminOrderRow): AdminOrderView {
   return {
     ...toAdminSummaryView(row),
     lines: toOrderView(row).lines,
+    promotion: promotionOf(row),
     statusHistory: row.statusHistory.map((entry) => ({
       fromStatus: entry.fromStatus,
       toStatus: entry.toStatus,

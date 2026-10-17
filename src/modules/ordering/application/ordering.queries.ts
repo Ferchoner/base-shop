@@ -5,6 +5,7 @@ import type {
   SortOrder,
 } from '../../../shared-kernel/index.js';
 import type {
+  AppliedPromotion,
   CustomerId,
   OrderAddress,
   OrderChannel,
@@ -31,8 +32,11 @@ export interface OrderLineView {
   readonly unitPrice: Money;
   readonly quantity: number;
   readonly taxRateBp: number;
+  /** The VAT contained in the line total less its discount (ADR-0168). */
   readonly taxAmount: Money;
   readonly lineTotal: Money;
+  /** What the promotion of the order took off the line (ADR-0168). */
+  readonly discountAmount: Money;
 }
 
 /** An order without its lines nor its address, as a listing shows it. */
@@ -64,6 +68,8 @@ export interface OrderSummaryView {
 /** An order as its buyer sees it: never an anonymized one (ADR-0067). */
 export interface OrderView extends OrderSummaryView {
   readonly lines: readonly OrderLineView[];
+  /** The promotion of its discount, with the name the customer saw; `null` without one (ADR-0168). */
+  readonly promotion: AppliedPromotion | null;
   /** `null` for an order handed over in the store (ADR-0161). */
   readonly shippingAddress: ShippingAddress | null;
 }
@@ -109,6 +115,8 @@ export interface AdminOrderSummaryView extends OrderSummaryView {
 /** An order as the staff sees it (UC-ORD-06), with its lines and its status history, oldest first. */
 export interface AdminOrderView extends AdminOrderSummaryView {
   readonly lines: readonly OrderLineView[];
+  /** The promotion of its discount, with the name the customer saw; `null` without one (ADR-0168). */
+  readonly promotion: AppliedPromotion | null;
   readonly statusHistory: readonly StatusHistoryView[];
 }
 

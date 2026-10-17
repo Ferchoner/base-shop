@@ -20,6 +20,7 @@ import { AuditModule } from '../../audit/index.js';
 import { CreatePromotion } from '../application/create-promotion.use-case.js';
 import { EndPromotion } from '../application/end-promotion.use-case.js';
 import { PromotionCatalog } from '../application/promotion-ports.js';
+import { PromotionsFacade } from '../application/promotions.facade.js';
 import {
   type PromotionFilter,
   PromotionQueries,
@@ -102,8 +103,18 @@ describe('Promotions (T-200 part a)', () => {
     await prisma.auditLog.deleteMany({
       where: { action: { startsWith: 'promotions.' } },
     });
+    await prisma.productCategory.deleteMany({
+      where: { productId: { in: products } },
+    });
+    await prisma.productVariant.deleteMany({
+      where: { productId: { in: products } },
+    });
     await prisma.product.deleteMany({
       where: { id: { in: products.splice(0) } },
+    });
+    // The subcategories first: a category with children cannot go.
+    await prisma.category.deleteMany({
+      where: { id: { in: categories }, parentId: { not: null } },
     });
     await prisma.category.deleteMany({
       where: { id: { in: categories.splice(0) } },
@@ -136,11 +147,12 @@ describe('Promotions (T-200 part a)', () => {
 
   async function category(
     status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE',
+    name = `Camisas ${status}`,
   ): Promise<PromotionTarget> {
     const id = newId();
     categories.push(id);
     await prisma.category.create({
-      data: { id, name: `Camisas ${status}`, slug: `camisas-${id}`, status },
+      data: { id, name, slug: `camisas-${id}`, status },
     });
     return { type: 'CATEGORY', id };
   }
@@ -534,6 +546,142 @@ describe('Promotions (T-200 part a)', () => {
 
       expect(page.items.map(({ name }) => name)).toEqual(['Primera']);
       expect(page.totalItems).toBe(3);
+    });
+  });
+
+  describe('the promotions active now (T-200 part b)', () => {
+    it('are the ones that started and did not end, in the channel asked', async () => {
+      await create({ name: 'Programada' });
+      now = at(-5);
+      const online = await create({
+        name: 'En línea',
+        startsAt: null,
+        endsAt: at(1),
+        channels: ['ONLINE'],
+      });
+      const both = await create({
+        name: 'Sin fin',
+        startsAt: null,
+        endsAt: null,
+      });
+      const store = await create({
+        name: 'Tienda',
+        startsAt: null,
+        channels: ['STORE'],
+      });
+      await create({ name: 'Vencida', startsAt: null, endsAt: NOW });
+      const ended = await create({ name: 'Terminada', startsAt: null });
+      now = at(-1);
+      await run(() =>
+        moduleRef
+          .get(EndPromotion)
+          .execute({ id: ended, staffId: admin, version: 1 }),
+      );
+      now = NOW;
+
+      const idsOf = async (channel: 'ONLINE' | 'STORE') =>
+        (await repository.activeAt(NOW, channel)).map(({ id }) => id);
+
+      expect(await idsOf('ONLINE')).toEqual([online, both].sort());
+      expect(await idsOf('STORE')).toEqual([both, store].sort());
+    });
+  });
+
+  describe('the classification of variants (T-200 part b)', () => {
+    /** A variant of a new product, with this brand and these categories. */
+    async function variantOf(
+      brandId: string | null,
+      categoryIds: string[],
+    ): Promise<{ variantId: string; productId: string }> {
+      const productId = newId();
+      const variantId = newId();
+      products.push(productId);
+      await prisma.product.create({
+        data: {
+          id: productId,
+          title: 'Camisa',
+          slug: `camisa-${productId}`,
+          status: 'PUBLISHED',
+          brandId,
+          variants: {
+            create: {
+              id: variantId,
+              sku: `SKU-${variantId.slice(-12)}`.toUpperCase(),
+              options: {},
+              status: 'ACTIVE',
+            },
+          },
+          categories: {
+            create: categoryIds.map((categoryId) => ({ categoryId })),
+          },
+        },
+      });
+      return { variantId, productId };
+    }
+
+    /** Clothes, with shirts below it, and linen shirts below that. */
+    async function tree() {
+      const clothes = await category('ACTIVE', 'Ropa');
+      const shirts = await category('ACTIVE', 'Camisas');
+      const linen = await category('ACTIVE', 'Lino');
+      await prisma.category.update({
+        where: { id: shirts.id },
+        data: { parentId: clothes.id },
+      });
+      await prisma.category.update({
+        where: { id: linen.id },
+        data: { parentId: shirts.id, status: 'INACTIVE' },
+      });
+      return { clothes, shirts, linen };
+    }
+
+    it('gives each variant its product, its brand and its categories with every one above them', async () => {
+      const { clothes, shirts, linen } = await tree();
+      const lino = await brand();
+      const other = await category('ACTIVE', 'Ofertas');
+      const shirt = await variantOf(lino.id, [linen.id, other.id]);
+      const plain = await variantOf(null, []);
+
+      const found = await moduleRef
+        .get(PromotionCatalog)
+        .classify([shirt.variantId, plain.variantId, newId()]);
+
+      expect(
+        [...found].sort((a, b) => a.variantId.localeCompare(b.variantId)),
+      ).toEqual(
+        [
+          {
+            ...shirt,
+            brandId: lino.id,
+            categoryIds: [clothes.id, shirts.id, linen.id, other.id].sort(),
+          },
+          { ...plain, brandId: null, categoryIds: [] },
+        ].sort((a, b) => a.variantId.localeCompare(b.variantId)),
+      );
+    });
+
+    it('gives a promotion of a category to the products below it', async () => {
+      const { clothes, linen } = await tree();
+      const shirt = await variantOf(null, [linen.id]);
+      const promotionId = await create({
+        name: 'Ropa 20%',
+        discount: { type: 'PERCENTAGE', percentage: 20 },
+        targets: [clothes],
+        startsAt: null,
+      });
+
+      expect(
+        await moduleRef.get(PromotionsFacade).discountFor({
+          channel: 'ONLINE',
+          at: NOW,
+          lines: [
+            { variantId: shirt.variantId, lineTotal: Money.of(50_000, 'MXN') },
+          ],
+        }),
+      ).toEqual({
+        promotion: { id: promotionId, name: 'Ropa 20%' },
+        discounts: [Money.of(10_000, 'MXN')],
+      });
     });
   });
 

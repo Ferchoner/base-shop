@@ -23,6 +23,7 @@ import {
   CheckoutCatalog,
   CheckoutCustomers,
   CheckoutPrices,
+  CheckoutPromotions,
   CheckoutShipping,
   type CheckoutTarget,
   OrderStock,
@@ -72,6 +73,7 @@ export class Checkout {
     private readonly carts: CheckoutCarts,
     catalog: CheckoutCatalog,
     prices: CheckoutPrices,
+    promotions: CheckoutPromotions,
     private readonly stock: OrderStock,
     shipping: CheckoutShipping,
     customers: CheckoutCustomers,
@@ -85,6 +87,7 @@ export class Checkout {
     this.placement = new OrderPlacement(
       catalog,
       prices,
+      promotions,
       shipping,
       customers,
       locations,
@@ -146,7 +149,7 @@ export class Checkout {
         customerId,
         input.shippingAddress,
       );
-      const { items, priced } = await this.placement.assess(
+      const { items, priced, promotion } = await this.placement.assess(
         cart.lines,
         now,
         'ONLINE',
@@ -171,6 +174,7 @@ export class Checkout {
           publicCode,
           buyer,
           lines: priced,
+          promotion,
           shipping,
           shippingAddress,
           reservation,

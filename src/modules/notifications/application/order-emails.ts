@@ -102,7 +102,11 @@ export function orderPlacedEmail(
     `Envío: ${shipping}`,
     ...(totals.discountTotal.amount === 0
       ? []
-      : [`Descuento: -${inPesos(totals.discountTotal)}`]),
+      : [
+          order.promotionName === null
+            ? `Descuento: -${inPesos(totals.discountTotal)}`
+            : `Descuento (${order.promotionName}): -${inPesos(totals.discountTotal)}`,
+        ]),
     `Total: ${inPesos(totals.grandTotal)} (IVA incluido: ${inPesos(totals.taxTotal)})`,
     '',
     ...destination(order),

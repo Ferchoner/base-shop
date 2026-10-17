@@ -5,6 +5,7 @@ import type { PrismaTransactionAdapter } from '../../../platform/persistence/tra
 import { toId, VersionConflictError } from '../../../shared-kernel/index.js';
 import {
   Promotion,
+  type PromotionChannel,
   type PromotionId,
   type PromotionSnapshot,
 } from '../domain/promotion.js';
@@ -53,6 +54,20 @@ export class PrismaPromotionRepository extends PromotionRepository {
       include: TARGETS_IN_ORDER,
     });
     return row === null ? null : Promotion.restore(toSnapshot(row));
+  }
+
+  async activeAt(at: Date, channel: PromotionChannel): Promise<Promotion[]> {
+    const rows = await this.txHost.tx.promotion.findMany({
+      where: {
+        endedAt: null,
+        startsAt: { lte: at },
+        OR: [{ endsAt: null }, { endsAt: { gt: at } }],
+        ...(channel === 'ONLINE' ? { online: true } : { inStore: true }),
+      },
+      include: TARGETS_IN_ORDER,
+      orderBy: { id: 'asc' },
+    });
+    return rows.map((row) => Promotion.restore(toSnapshot(row)));
   }
 
   async save(promotion: Promotion, now: Date): Promise<void> {

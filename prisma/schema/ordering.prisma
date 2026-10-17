@@ -45,8 +45,13 @@ model Order {
   shippingCost            Int              @map("shipping_cost")
   shippingTaxAmount       Int              @map("shipping_tax_amount")
   shippingTaxRateBp       Int              @map("shipping_tax_rate_bp")
+  /// What the promotion takes off the lines, their discounts added up (ADR-0168).
   discountTotal           Int              @default(0) @map("discount_total")
   grandTotal              Int              @map("grand_total")
+  /// The promotion of the discount, as it was when the order was placed: a logical reference to Promotions and the
+  /// name the customer saw. Both with a discount, neither without one (CHECK in the migration, ADR-0168).
+  promotionId             String?          @map("promotion_id") @db.Uuid
+  promotionName           String?          @map("promotion_name")
   /// SHIPPING, or IN_STORE for an order handed over in the store, which has no address nor delivery time (ADR-0161).
   fulfillment             OrderFulfillment @default(SHIPPING)
   shippingAddress         Json?            @map("shipping_address") @db.JsonB
@@ -104,8 +109,11 @@ model OrderLine {
   unitPrice      Int    @map("unit_price")
   quantity       Int
   taxRateBp      Int    @map("tax_rate_bp")
+  /// The VAT contained in the line total less its discount (ADR-0168). CHECK: up to that (manual SQL).
   taxAmount      Int    @map("tax_amount")
   lineTotal      Int    @map("line_total")
+  /// What the promotion takes off the line (ADR-0168). CHECK: from 0 to the line total (manual SQL).
+  discountAmount Int    @default(0) @map("discount_amount")
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 

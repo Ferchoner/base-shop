@@ -33,6 +33,8 @@ export interface OrderNotice {
     readonly taxTotal: Money;
     readonly grandTotal: Money;
   };
+  /** The name of the promotion of its discount, as the customer saw it; `null` without one (ADR-0168). */
+  readonly promotionName: string | null;
   /** `null` for an order handed over in the store (ADR-0161). */
   readonly shippingAddress: {
     readonly recipientName: string;
@@ -184,6 +186,7 @@ export class OrderingFacade {
         taxTotal: totals.taxTotal,
         grandTotal: totals.grandTotal,
       },
+      promotionName: view.promotion?.name ?? null,
       shippingAddress:
         address === null
           ? null

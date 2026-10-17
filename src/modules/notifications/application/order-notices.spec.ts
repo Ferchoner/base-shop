@@ -33,6 +33,7 @@ const ORDER: NoticeOrder = {
     taxTotal: mxn(2_745),
     grandTotal: mxn(19_900),
   },
+  promotionName: null,
   shippingAddress: {
     recipientName: 'María López',
     street: 'Av. Madero',

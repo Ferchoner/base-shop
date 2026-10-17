@@ -1,7 +1,9 @@
 import type { Money } from '../../../shared-kernel/index.js';
 import type {
+  AppliedPromotion,
   CartId,
   CustomerId,
+  OrderChannel,
   OrderId,
   OrderShipping,
   ReservationId,
@@ -17,8 +19,8 @@ import type { LocationProblem } from '../domain/ordering-errors.js';
 
 // Ordering's application layer cannot import other modules (ADR-0103): each port states what the checkout needs,
 // and an adapter in Ordering's infrastructure answers it with the facade of the module that owns it (ADR-0005).
-// Ordering uses Shopping, Catalog, Pricing, Inventory, Shipping, Identity and Geo, and none of them uses
-// Ordering, so they never form a cycle (ADR-0132). Abstract classes rather than interfaces, so they can be the
+// Ordering uses Shopping, Catalog, Pricing, Promotions, Inventory, Shipping, Identity and Geo, and none of them uses
+// Ordering, so they never form a cycle (ADR-0132, ADR-0168). Abstract classes rather than interfaces, so they can be the
 // dependency injection tokens without depending on NestJS.
 
 /** Whose cart a checkout uses: a guest cart, by its ID, or the active cart of the signed-in customer. */
@@ -81,6 +83,29 @@ export abstract class CheckoutPrices {
     ids: readonly VariantId[],
     at: Date,
   ): Promise<ReadonlyMap<VariantId, Money>>;
+}
+
+/** The discount of an order, as Promotions gives it (ADR-0168). */
+export interface OrderDiscount {
+  readonly promotion: AppliedPromotion;
+  /** What it takes off each line, in the order of the lines given. */
+  readonly discounts: readonly Money[];
+}
+
+/** The promotions of Promotions, read without a cache (ADR-0028, ADR-0168). */
+export abstract class CheckoutPromotions {
+  /**
+   * The promotion these lines that can be sold get at `at` in this channel, with what it takes off each one; `null`
+   * when none takes anything off.
+   */
+  abstract discountFor(input: {
+    readonly channel: OrderChannel;
+    readonly at: Date;
+    readonly lines: readonly {
+      readonly variantId: VariantId;
+      readonly lineTotal: Money;
+    }[];
+  }): Promise<OrderDiscount | null>;
 }
 
 /** A reservation of the stock of an order, and when it ends. */

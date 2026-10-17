@@ -814,7 +814,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Siempre 0 en el MVP."
+            "description": "Lo que la promoción quitó a las líneas, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168)."
           },
           "estimatedDelivery": {
             "allOf": [
@@ -909,6 +909,16 @@
             "format": "uuid",
             "nullable": true,
             "type": "string"
+          },
+          "promotion": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppliedPromotionDto"
+              }
+            ],
+            "description": "La promoción de su descuento, con el nombre que vio el cliente, para el ticket; `null` sin descuento (ADR-0168).",
+            "nullable": true,
+            "type": "object"
           },
           "publicCode": {
             "description": "Código público: con él y el email, quien compra consulta su pedido.",
@@ -1041,6 +1051,7 @@
           "blockedAt",
           "shippingAddress",
           "lines",
+          "promotion",
           "fulfilledFrom",
           "statusHistory",
           "orderNumber",
@@ -1052,6 +1063,14 @@
       },
       "AdminOrderLineDto": {
         "properties": {
+          "discountAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo que la promoción de la orden quitó a la línea; 0 sin ella (ADR-0168)."
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -1067,7 +1086,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Precio por cantidad, con IVA."
+            "description": "Precio por cantidad, con IVA, antes del descuento."
           },
           "productName": {
             "description": "El nombre del producto al colocar la orden.",
@@ -1088,7 +1107,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "IVA contenido en `lineTotal`."
+            "description": "IVA contenido en `lineTotal` menos `discountAmount` (ADR-0168)."
           },
           "taxRateBp": {
             "description": "Tasa de IVA en puntos base.",
@@ -1119,6 +1138,7 @@
           "unitPrice",
           "taxAmount",
           "lineTotal",
+          "discountAmount",
           "id",
           "lineNumber",
           "sku",
@@ -1360,7 +1380,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Siempre 0 en el MVP."
+            "description": "Lo que la promoción quitó a las líneas, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168)."
           },
           "estimatedDelivery": {
             "allOf": [
@@ -2143,6 +2163,24 @@
         ],
         "type": "object"
       },
+      "AppliedPromotionDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "El nombre de la promoción, como lo ve el cliente.",
+            "example": "Buen Fin 10%",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "AuditEntryDto": {
         "properties": {
           "action": {
@@ -2752,7 +2790,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Siempre 0 en el MVP."
+            "description": "Lo que la promoción quita a las líneas vendibles, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168)."
           },
           "estimatedDelivery": {
             "allOf": [
@@ -2788,6 +2826,16 @@
               "$ref": "#/components/schemas/CheckoutQuoteLineDto"
             },
             "type": "array"
+          },
+          "promotion": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppliedPromotionDto"
+              }
+            ],
+            "description": "La promoción automática que más descuenta, en este canal y en este momento; `null` si ninguna quita algo (ADR-0168).",
+            "nullable": true,
+            "type": "object"
           },
           "readyToPlace": {
             "description": "Todas las líneas son vendibles y surtibles.",
@@ -2833,6 +2881,7 @@
           "shippingCost",
           "shippingTaxAmount",
           "discountTotal",
+          "promotion",
           "grandTotal",
           "freeShippingThreshold",
           "estimatedDelivery",
@@ -2846,13 +2895,23 @@
             "description": "Si la cantidad pedida puede surtirse, sin revelar existencias (ADR-0061).",
             "type": "boolean"
           },
+          "discountAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo que la promoción de la cotización quita a la línea, 0 sin ella (ADR-0168); `null` si la línea no es vendible.",
+            "nullable": true,
+            "type": "object"
+          },
           "lineTotal": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Precio por cantidad; `null` si la línea no es vendible, y entonces no suma.",
+            "description": "Precio por cantidad, antes del descuento; `null` si la línea no es vendible, y entonces no suma.",
             "nullable": true,
             "type": "object"
           },
@@ -2888,7 +2947,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "IVA contenido en `lineTotal`, redondeado por línea.",
+            "description": "IVA contenido en `lineTotal` menos `discountAmount`, redondeado por línea (ADR-0168).",
             "nullable": true,
             "type": "object"
           },
@@ -2918,6 +2977,7 @@
           "options",
           "unitPrice",
           "lineTotal",
+          "discountAmount",
           "taxRateBp",
           "taxAmount",
           "quantity",
@@ -4211,7 +4271,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Siempre 0 en el MVP."
+            "description": "Lo que la promoción quitó a las líneas, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168)."
           },
           "estimatedDelivery": {
             "allOf": [
@@ -4282,6 +4342,16 @@
             "description": "Cuándo se colocó.",
             "format": "date-time",
             "type": "string"
+          },
+          "promotion": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppliedPromotionDto"
+              }
+            ],
+            "description": "La promoción de su descuento, con el nombre que vio el cliente; `null` sin descuento (ADR-0168).",
+            "nullable": true,
+            "type": "object"
           },
           "publicCode": {
             "description": "Código público: con él y el email, quien compra consulta su pedido.",
@@ -4389,6 +4459,7 @@
           "payment",
           "shipment",
           "lines",
+          "promotion",
           "shippingAddress",
           "publicCode",
           "itemCount"
@@ -4397,6 +4468,14 @@
       },
       "OrderLineDto": {
         "properties": {
+          "discountAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo que la promoción de la orden quitó a la línea; 0 sin ella (ADR-0168)."
+          },
           "lineNumber": {
             "description": "Número de la línea en la orden, desde 1.",
             "example": 1,
@@ -4408,7 +4487,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Precio por cantidad, con IVA."
+            "description": "Precio por cantidad, con IVA, antes del descuento."
           },
           "productName": {
             "description": "El nombre del producto al colocar la orden.",
@@ -4429,7 +4508,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "IVA contenido en `lineTotal`."
+            "description": "IVA contenido en `lineTotal` menos `discountAmount` (ADR-0168)."
           },
           "taxRateBp": {
             "description": "Tasa de IVA en puntos base.",
@@ -4460,6 +4539,7 @@
           "unitPrice",
           "taxAmount",
           "lineTotal",
+          "discountAmount",
           "lineNumber",
           "sku",
           "productName",
@@ -4638,7 +4718,7 @@
                 "$ref": "#/components/schemas/MoneyDto"
               }
             ],
-            "description": "Siempre 0 en el MVP."
+            "description": "Lo que la promoción quitó a las líneas, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168)."
           },
           "estimatedDelivery": {
             "allOf": [

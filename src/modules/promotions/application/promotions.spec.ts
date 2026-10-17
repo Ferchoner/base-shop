@@ -74,6 +74,11 @@ class InMemoryPromotions extends PromotionRepository {
     );
   }
 
+  // The discount of an order, which these use cases never reach (promotions-facade.spec.ts).
+  activeAt(): Promise<Promotion[]> {
+    throw new Error('Not used here');
+  }
+
   save(promotion: Promotion): Promise<void> {
     const current = this.stored.get(promotion.id)!;
     if (current.version !== promotion.version) {
@@ -103,6 +108,9 @@ function setUp() {
           ),
         ),
       );
+    },
+    classify: () => {
+      throw new Error('Not used here');
     },
   };
   const inline = {

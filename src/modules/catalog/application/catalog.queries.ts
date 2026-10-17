@@ -156,6 +156,18 @@ export interface CatalogEntriesView {
   readonly brands: readonly CatalogEntryView<CatalogStatus>[];
 }
 
+/**
+ * What a variant is, for the promotions that target products, categories and brands (ADR-0168): its product, its
+ * brand, and the categories of its product with every one above them, active or not.
+ */
+export interface VariantClassificationView {
+  readonly variantId: VariantId;
+  readonly productId: ProductId;
+  readonly brandId: BrandId | null;
+  /** Each category once, by ID. */
+  readonly categoryIds: readonly CategoryId[];
+}
+
 export interface ProductFilter {
   /** Part of the title, of a SKU or of a GTIN, whatever its case. */
   readonly q?: string;
@@ -225,6 +237,11 @@ export abstract class CatalogQueries {
     readonly categoryIds: readonly CategoryId[];
     readonly brandIds: readonly BrandId[];
   }): Promise<CatalogEntriesView>;
+
+  /** The variants with these IDs, classified, ordered by ID; an ID that does not exist is left out. */
+  abstract classifyVariants(
+    ids: readonly VariantId[],
+  ): Promise<VariantClassificationView[]>;
 
   /** The images of these products, by position; the cart takes the main image of each variant from them. */
   abstract findImagesOfProducts(

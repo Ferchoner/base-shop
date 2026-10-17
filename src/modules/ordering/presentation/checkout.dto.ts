@@ -54,9 +54,17 @@ export class CheckoutQuoteLineDto {
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   unitPrice: MoneyDto | null;
 
-  /** Precio por cantidad; `null` si la línea no es vendible, y entonces no suma. */
+  /** Precio por cantidad, antes del descuento; `null` si la línea no es vendible, y entonces no suma. */
   @ApiProperty({ type: () => MoneyDto, nullable: true })
   lineTotal: MoneyDto | null;
+
+  @ApiProperty({
+    type: () => MoneyDto,
+    nullable: true,
+    description:
+      'Lo que la promoción de la cotización quita a la línea, 0 sin ella (ADR-0168); `null` si la línea no es vendible.',
+  })
+  discountAmount: MoneyDto | null;
 
   @ApiProperty({
     type: Number,
@@ -69,7 +77,8 @@ export class CheckoutQuoteLineDto {
   @ApiProperty({
     type: () => MoneyDto,
     nullable: true,
-    description: 'IVA contenido en `lineTotal`, redondeado por línea.',
+    description:
+      'IVA contenido en `lineTotal` menos `discountAmount`, redondeado por línea (ADR-0168).',
   })
   taxAmount: MoneyDto | null;
 
@@ -78,6 +87,15 @@ export class CheckoutQuoteLineDto {
 
   /** Si la cantidad pedida puede surtirse, sin revelar existencias (ADR-0061). */
   canFulfill: boolean;
+}
+
+/** The promotion of the discount of a quote or an order (ADR-0168), with the name the customer sees. */
+export class AppliedPromotionDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id: string;
+
+  /** El nombre de la promoción, como lo ve el cliente. @example 'Buen Fin 10%' */
+  name: string;
 }
 
 /** `CheckoutQuote` of API_SPEC.md §8.7. */
@@ -109,8 +127,20 @@ export class CheckoutQuoteDto {
   @ApiProperty({ type: () => MoneyDto })
   shippingTaxAmount: MoneyDto;
 
-  @ApiProperty({ type: () => MoneyDto, description: 'Siempre 0 en el MVP.' })
+  @ApiProperty({
+    type: () => MoneyDto,
+    description:
+      'Lo que la promoción quita a las líneas vendibles, la suma de sus `discountAmount`; 0 sin promoción (ADR-0168).',
+  })
   discountTotal: MoneyDto;
+
+  @ApiProperty({
+    type: () => AppliedPromotionDto,
+    nullable: true,
+    description:
+      'La promoción automática que más descuenta, en este canal y en este momento; `null` si ninguna quita algo (ADR-0168).',
+  })
+  promotion: AppliedPromotionDto | null;
 
   @ApiProperty({
     type: () => MoneyDto,

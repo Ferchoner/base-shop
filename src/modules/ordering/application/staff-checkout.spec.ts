@@ -28,6 +28,8 @@ import type {
   CheckoutCatalog,
   CheckoutCustomers,
   CheckoutPrices,
+  CheckoutPromotions,
+  OrderDiscount,
   CheckoutShipping,
   CheckoutVariant,
   OrderStock,
@@ -135,6 +137,8 @@ function setUp(
     activeWarehouse?: boolean;
     available?: ReadonlySet<VariantId>;
     contact?: { email: string; emailVerified: boolean } | null;
+    /** What Promotions answers for the lines that can be sold. */
+    discount?: OrderDiscount | null;
   } = {},
 ) {
   const calls: string[] = [];
@@ -172,6 +176,14 @@ function setUp(
             .map(([id, amount]) => [id, mxn(amount)]),
         ),
       ),
+  };
+  const promotionAsks: Parameters<CheckoutPromotions['discountFor']>[0][] = [];
+  const promotions: CheckoutPromotions = {
+    discountFor: (input) => {
+      calls.push('promotions');
+      promotionAsks.push(input);
+      return Promise.resolve(options.discount ?? null);
+    },
   };
   const stock: OrderStock = {
     canFulfill: (lines, warehouseId) => {
@@ -277,6 +289,7 @@ function setUp(
   const checkout = new StaffCheckout(
     catalog,
     prices,
+    promotions,
     stock,
     shipping,
     customers,
@@ -296,6 +309,7 @@ function setUp(
     orders,
     published,
     audited,
+    promotionAsks,
   };
 }
 
@@ -425,6 +439,7 @@ describe('StaffCheckout: place (UC-ORD-13, ADR-0161)', () => {
       'isActiveWarehouse store',
       'address',
       'variants',
+      'promotions',
       'shipping',
       'reserve',
       'audit',
@@ -575,6 +590,41 @@ describe('StaffCheckout: a sale handed over in the store (ADR-0161)', () => {
     });
   });
 
+  it('gets the promotions of the physical store, and a sale at 100% charges one peso (ADR-0168)', async () => {
+    const promotion = { id: newId<'Promotion'>(), name: 'Todo gratis' };
+    const { checkout, orders, promotionAsks } = setUp({
+      discount: { promotion, discounts: [mxn(119_700)] },
+    });
+
+    const quote = await checkout.quote({
+      lines: [{ variantId: shirt, quantity: 2 }],
+      warehouseId: store,
+      fulfillment: 'IN_STORE',
+    });
+    await checkout.place(counter({ expectedTotal: 100 }));
+
+    expect(promotionAsks).toEqual([
+      {
+        channel: 'STORE',
+        at: NOW,
+        lines: [{ variantId: shirt, lineTotal: mxn(119_800) }],
+      },
+      {
+        channel: 'STORE',
+        at: NOW,
+        lines: [{ variantId: shirt, lineTotal: mxn(119_800) }],
+      },
+    ]);
+    expect(quote).toMatchObject({
+      promotion,
+      totals: { discountTotal: mxn(119_700), grandTotal: mxn(100) },
+    });
+    expect(orders.saved[0].snapshot).toMatchObject({
+      promotion,
+      totals: { discountTotal: mxn(119_700), grandTotal: mxn(100) },
+    });
+  });
+
   it('places it without an address nor buyer data, and audits how it is delivered', async () => {
     const { checkout, calls, orders, audited } = setUp();
 
@@ -584,6 +634,7 @@ describe('StaffCheckout: a sale handed over in the store (ADR-0161)', () => {
       'transaction',
       'isActiveWarehouse store',
       'variants',
+      'promotions',
       'reserve',
       'audit',
     ]);
