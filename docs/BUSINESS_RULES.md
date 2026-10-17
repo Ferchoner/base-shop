@@ -127,7 +127,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-10. Un invitado consulta su pedido con email de contacto y el código público de la orden. Si perdió el código, pide con su email un enlace de acceso: llega a ese buzón solo si el email tiene órdenes de invitado, sirve una vez y muestra sus órdenes (ADR-0020, ADR-0148).
 - BR-ORD-11. La consulta de invitado responde con el mismo error si la orden no existe o el email no coincide, y tiene rate limiting obligatorio (ADR-0020). El mismo error vale para un código que no puede existir y para una orden de cliente (ADR-0138).
 - BR-ORD-12. Cada orden tiene un número interno consecutivo, visible solo para el staff, y un código público aleatorio (`XXXX-XXXX`, Base32 Crockford) que es el único que ven los clientes (ADR-0049).
-- BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío con su IVA y tasa, el plazo de entrega estimado (ADR-0083), el descuento (0 en el MVP) y, por línea, SKU, nombre, opciones, precio, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042, ADR-0079).
+- BR-ORD-13. Una orden guarda como snapshot la dirección de envío, el costo de envío con su IVA y tasa, el plazo de entrega estimado (ADR-0083), el descuento con la promoción que lo dio (ADR-0168) y, por línea, SKU, nombre, opciones, precio, descuento, tasa e importe de IVA (ADR-0018, ADR-0019, ADR-0027, ADR-0042, ADR-0079).
 - BR-ORD-14. Cuando una orden expira, sus líneas regresan al carrito del que salió (ADR-0054); las de una orden que el staff colocó en la tienda física no regresan a ninguno, porque no salió de un carrito (ADR-0161). Una orden cancelada nunca se reactiva (ADR-0055).
 - BR-ORD-15. Colocar orden e iniciar pago exigen `Idempotency-Key`, ligada a quien la envía y al endpoint; un reintento con la misma llave y el mismo contenido no repite la operación (ADR-0063).
 - BR-ORD-16. El total de la orden es subtotal + costo de envío − descuento; el IVA está contenido en el subtotal y en el costo de envío (precios y envío con IVA incluido, ADR-0008, ADR-0079). La base de datos verifica esta igualdad (ADR-0066).
@@ -170,11 +170,15 @@ Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio
 - BR-PRM-03. Aplica en línea, en la tienda física o en los dos, por defecto en los dos, con una compra mínima opcional sobre el subtotal con IVA de la orden.
 - BR-PRM-04. Está programada antes de su inicio, vigente desde él hasta su fin, que no se incluye, y terminada desde entonces o desde que se termina a mano. Un inicio que no es posterior al momento de crearla, o de editarla programada, es ese momento.
 - BR-PRM-05. Programada, se edita todo; vigente, solo su nombre y su fin, que debe ser posterior al momento actual; terminada, nada. Nunca se borra: las órdenes guardan cuál recibieron.
+- BR-PRM-06. Una cotización o una orden recibe una sola promoción: entre las automáticas vigentes en su canal cuya compra mínima alcanza el subtotal antes del descuento, la que más quita; a igual descuento, la que empezó antes, y luego la primera por ID. Una que no quita nada no aplica.
+- BR-PRM-07. Una promoción de productos, categorías o marcas aplica a las líneas cuyo producto nombra, cuya marca nombra, o cuyo producto está en una categoría que nombra o debajo de ella, aunque esté inactiva.
+- BR-PRM-08. El porcentaje se calcula por línea y se redondea como el IVA; el monto fijo, sin pasar de lo que suman sus líneas, se reparte en proporción a su importe, y los centavos del redondeo van a las líneas de mayor importe, la primera si empatan.
+- BR-PRM-09. Con un descuento, los productos pagan al menos un peso: si no, el descuento se reduce, primero en la línea con más descuento.
 
 ## Impuestos
 
 - BR-TAX-01. Cada lista de precios indica si sus precios incluyen impuesto; por defecto, incluido (ADR-0008).
-- BR-TAX-02. El impuesto se calcula y redondea por línea, al centavo y con las mitades hacia arriba (ADR-0094).
+- BR-TAX-02. El impuesto se calcula y redondea por línea, al centavo y con las mitades hacia arriba (ADR-0094); con un descuento, sobre el importe de la línea menos su descuento (ADR-0168).
 - BR-TAX-03. El país de operación es México. Todos los productos llevan IVA del 16%; la tasa es configurable (ADR-0026, ADR-0027).
 - BR-TAX-04. Cada línea de orden guarda la tasa aplicada y el monto de impuesto como snapshot.
 - BR-TAX-05. No se emiten facturas electrónicas (CFDI) por ahora (ADR-0027).

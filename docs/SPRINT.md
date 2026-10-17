@@ -52,6 +52,18 @@ T-200 parte a (ADR-0168).
 - **Cobertura de funciones:** 99.19%. Quedan sin llamar cuatro funciones de tipo del plugin de Swagger, en campos con `enum` o `type` explícito, como en los DTO de precios, órdenes y órdenes de trabajo; la de `startsAt` en la edición sí era un hueco, y una prueba end-to-end la cubre.
 - **Mutación:** 52 mutantes, todos muertos al final. Dos sobrevivieron a la primera corrida, los dos en el filtro de estado del listado: ninguna promoción empezaba justo en el momento de la consulta, y ninguna se había terminado a mano después de empezar. La prueba de integración suma los dos casos.
 
+### Resultado del paso 2
+
+T-200 parte b (ADR-0168).
+
+- **Una promoción por cotización y por orden:** las tres cotizaciones y las órdenes, en línea y en la tienda física, reciben la automática que más descuenta en su canal. Promotions la elige y reparte el descuento con su fachada nueva, y Ordering solo lo aplica.
+- **Las categorías, con sus superiores:** la fachada de Catalog clasifica cada variante con su marca y sus categorías, y con todas las de arriba, en una consulta recursiva; una promoción de una categoría alcanza a las subcategorías, también a las inactivas.
+- **El mínimo de un peso, en los productos:** el envío gratis depende del descuento, así que aplicarlo al total haría que cada uno dependiera del otro. Con un 100% y envío, la orden paga $1 más el envío.
+- **El descuento queda por línea:** cada línea guarda el suyo y el IVA de lo que queda, y la orden guarda la promoción con el nombre que vio el cliente. La base exige que las cuentas cuadren, con ocho restricciones nuevas que prueba la integración.
+- **Comparaciones completas, buscadas antes de correr:** la guía pide buscarlas en todas las suites; la búsqueda encontró las del checkout y las de los correos, y la corrida completa encontró una más, la de una línea que no se vende en la e2e del checkout.
+- **Memoria de la e2e con cobertura:** con la suite nueva, la corrida pasó los 4 GB que Node usa por defecto y se detuvo. `npm run test:e2e` sube el límite a 6 GB, también en la CI, y la guía lo registra.
+- **Mutación:** 49 mutantes, todos muertos en la primera corrida.
+
 ### Risks
 
 - **El IVA con descuento:** baja con el descuento; la validación con el contador lo incluye (P-69).

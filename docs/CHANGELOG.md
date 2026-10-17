@@ -9,6 +9,12 @@
   - Un porcentaje entero de 1 a 100, o un monto fijo una vez por orden; para toda la compra o para ciertos productos, categorías y marcas, que deben existir y estar en uso; en línea, en la tienda física o en los dos; con compra mínima, inicio y fin opcionales (BR-PRM-01 a 05).
   - El estado (`SCHEDULED`, `ACTIVE` o `ENDED`) se calcula al consultar. Ya iniciada, solo cambian el nombre y el fin; terminada, nada, y nunca se borra.
   - Todavía no descuentan: se aplican a las cotizaciones y las órdenes desde la parte b.
+- T-200 parte b (ADR-0168): las promociones se aplican.
+  - Las tres cotizaciones y las órdenes, en línea y en la tienda física, reciben la promoción automática que más descuenta en su canal, con su compra mínima cumplida; a igual descuento, la que empezó antes (BR-PRM-06).
+  - El descuento se reparte por línea: el porcentaje se redondea como el IVA, y el monto fijo se reparte en proporción al importe. Los productos pagan al menos $1 (BR-PRM-08 y 09).
+  - El IVA de cada línea se calcula sobre su importe con descuento (BR-TAX-02), y el envío gratis compara el subtotal menos el descuento.
+  - `CheckoutQuote`, `Order` y `AdminOrder` suman `promotion` y el `discountAmount` de cada línea; `discountTotal` deja de ser siempre 0. El correo de la orden recibida nombra la promoción.
+  - La migración `20261017120000_ordering_promotions` agrega las columnas y las restricciones del descuento.
 
 ## 1.6.0 (2026-10-16)
 

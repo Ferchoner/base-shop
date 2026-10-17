@@ -214,6 +214,7 @@ Tests (Jest):
   - Una línea sin cubrir se prueba si es lógica. Un `throw error` que relanza lo que no se esperaba, una invariante que solo existe para el compilador y la función de un decorador de DTO que solo corre cuando llega su campo pueden quedar sin cubrir.
   - Si la cobertura sube de forma estable, se suben los umbrales; nunca se bajan para que pase la CI.
   - Mientras corren `npm run test:cov` o las pruebas de mutación no se edita código: cada suite mide los archivos como estaban al cargarlos, y la unión de dos versiones de un archivo falla el umbral de funciones sin que falte una prueba (T-146 parte b).
+  - La suite end-to-end corre en un solo proceso, y su memoria crece con cada suite: Jest no libera los módulos ESM que carga. Con cobertura pasó los 4 GB que Node usa por defecto en T-200 parte b, así que `npm run test:e2e` sube el límite a 6 GB (`--max-old-space-size=6144`), también en la CI. Si vuelve a quedarse sin memoria (`JavaScript heap out of memory`), se mide con `--logHeapUsage` antes de subirlo otra vez.
   - Antes de lanzarlo se comprueba que Docker responde (`docker info`): sin él, las suites de integración y end-to-end no arrancan, y la corrida se repite (T-189 parte c2).
 
 - Integración y end-to-end contra PostgreSQL 18 real, sin mocks de base de datos (ADR-0033): Testcontainers levanta un contenedor temporal por ejecución, le aplica todas las migraciones y expone su URL en `DATABASE_URL` (ADR-0090, ADR-0091). La infraestructura común está en `test/integration/`. Los tests corren en serie.
