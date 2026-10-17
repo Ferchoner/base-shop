@@ -165,6 +165,12 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 
 Fuera del MVP (ADR-0018). La orden incluye un campo de descuento desde el inicio. Se construyen en la versión 1.7 (ADR-0168, T-200), y sus reglas se agregan con cada parte.
 
+- BR-PRM-01. Una promoción descuenta un porcentaje entero, de 1 a 100, de las líneas a las que aplica, o un monto fijo una vez por orden (ADR-0168).
+- BR-PRM-02. Aplica a toda la compra, o a ciertos productos, categorías, con sus subcategorías, y marcas, hasta 100 y mezclados. Al agregarlos deben existir y estar en uso: un producto no archivado, o una categoría o marca activa; los que ya tenía se quedan aunque dejen de estarlo.
+- BR-PRM-03. Aplica en línea, en la tienda física o en los dos, por defecto en los dos, con una compra mínima opcional sobre el subtotal con IVA de la orden.
+- BR-PRM-04. Está programada antes de su inicio, vigente desde él hasta su fin, que no se incluye, y terminada desde entonces o desde que se termina a mano. Un inicio que no es posterior al momento de crearla, o de editarla programada, es ese momento.
+- BR-PRM-05. Programada, se edita todo; vigente, solo su nombre y su fin, que debe ser posterior al momento actual; terminada, nada. Nunca se borra: las órdenes guardan cuál recibieron.
+
 ## Impuestos
 
 - BR-TAX-01. Cada lista de precios indica si sus precios incluyen impuesto; por defecto, incluido (ADR-0008).

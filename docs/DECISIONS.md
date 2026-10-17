@@ -5366,4 +5366,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambios compatibles en `/v1`: rutas, campos, permisos y un tipo de error nuevos. Por eso es una versión menor (ADR-0159).
   - Al implementarse, modifica ADR-0018 (las promociones dejan de estar fuera) y la regla BR-ORD-13 (el descuento deja de ser 0).
 - **Revisar si:** hace falta combinar promociones, ofrecer 2x1, 3x2, regalos o envío gratis como promoción, promociones para ciertos clientes, mostrarlas en la tienda pública, o devoluciones parciales.
-- **Estado:** Aceptada (decidida por el usuario el 2026-10-16, con las 21 recomendaciones del plan y sus ajustes: el porcentaje llega al 100%, y no se combinan). Se implementa en T-200, en la versión 1.7.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-16, con las 21 recomendaciones del plan y sus ajustes: el porcentaje llega al 100%, y no se combinan). Se implementa en T-200, en la versión 1.7. El plan de la parte a, aprobado el mismo día con sus 16 recomendaciones, precisa que una promoción mezcla productos, categorías y marcas, que los porcentajes son enteros, que el monto fijo se descuenta una vez por orden y que sus productos, categorías y marcas deben existir y estar en uso al agregarse. Parte a implementada:
+  - el módulo `promotions`, con las tablas `promotions` y `promotion_targets` (migración `20261016140000_promotions`) y los permisos de `20261016150000_identity_promotions_permissions`;
+  - el estado se calcula con las fechas y no se guarda; terminarla guarda `ended_at` y `ended_by`, y nada se borra;
+  - la fachada de Catalog suma `entries`, que da los productos, las categorías y las marcas por su ID, con su nombre y su estado;
+  - la misma lista de productos, categorías y marcas en otro orden no es un cambio, y una promoción vigente acepta sus demás términos si llegan iguales.

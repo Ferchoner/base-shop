@@ -17,6 +17,7 @@ Convención: los nombres de código (aggregates, eventos, casos de uso) van en i
 | Payments | Generic | Cobros vía proveedores, intentos, reembolsos, conciliación |
 | Shipping | Supporting | Cotización de envíos, envíos, rastreo |
 | Work Orders | Supporting | Órdenes de trabajo: el equipo que un cliente deja en la tienda física, su diagnóstico, el trabajo y su estado (ADR-0165, ADR-0166) |
+| Promotions | Supporting | Promociones: un porcentaje o un monto de toda la compra o de ciertos productos, categorías y marcas, por canal y con compra mínima (ADR-0168) |
 
 Capacidades transversales (no son contextos): auditoría técnica, notificaciones por correo (ADR-0074), privacidad (anonimización de clientes y compradores invitados, ADR-0145) y catálogo geográfico de estados y municipios del INEGI (dato de referencia de solo lectura, ADR-0057).
 
@@ -142,6 +143,20 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 
 ---
 
+## Promotions
+
+| Elemento | Detalle |
+|---|---|
+| Aggregates | `Promotion` (nombre, descuento en porcentaje entero o monto fijo, productos, categorías y marcas a los que se limita, canales, compra mínima, inicio, fin, y quién y cuándo la terminó; status calculado: Scheduled, Active, Ended) |
+| Reglas | Programada, se edita todo; vigente, solo el nombre y el fin; terminada, nada; nunca se borra (BR-PRM-01 a 05) |
+| Repositories | `PromotionRepository` |
+| Puertos | `PromotionCatalog` (Catalog), por su fachada |
+| Casos de uso | CreatePromotion (UC-PRM-01), PromotionReader (UC-PRM-02), UpdatePromotion y EndPromotion (UC-PRM-03) |
+| Eventos | Ninguno por ahora |
+| Implementado | T-200 parte a (ADR-0168): las promociones y su administración; se aplican a las órdenes desde la parte b |
+
+---
+
 ## Relaciones entre contextos
 
 | Upstream → Downstream | Qué fluye | Mecanismo |
@@ -152,6 +167,7 @@ Estados previstos para cuando exista integración con paqueterías (no implement
 | Ordering → Inventory | Reservar, confirmar, liberar; reintegrar con las líneas y lo vendido (P-73) | Comando síncrono en checkout; comandos por eventos (ADR-0132) |
 | Identity → Ordering | Contacto del cliente y direcciones guardadas | Fachada síncrona; Identity nunca usa a Ordering (ADR-0132) |
 | Identity, Inventory → Work Orders | Si un cliente o una cuenta de staff está activa; si un almacén está activo | Fachadas síncronas (ADR-0166) |
+| Catalog → Promotions | Nombre y estado de los productos, categorías y marcas de una promoción | Fachada síncrona `CatalogFacade.entries`; Catalog nunca usa Promotions (ADR-0168) |
 | Ordering → Work Orders | Las ventas de la tienda física, con si la tienda tiene su dinero | Fachada síncrona `OrderingFacade.storeSales`; Ordering nunca usa Work Orders (ADR-0167) |
 | Shopping ↔ Ordering | Contenido del carrito / líneas de órdenes expiradas o canceladas | Fachada síncrona; el checkout marca el carrito en su transacción (ADR-0019); Shopping reacciona a `OrderExpired` |
 | Ordering ↔ Payments | Iniciar pago y reembolso / resultado | Comando síncrono / eventos `PaymentCaptured`, `PaymentFailed`, `RefundCompleted` (lleva la orden a Refunded, ADR-0051). Ordering escucha `PaymentCaptured { orderId, paymentId, amount }` desde T-180 (ADR-0133). Ordering usa `PaymentsFacade` y Payments nunca usa a Ordering (ADR-0134). Ordering escucha `RefundCompleted` desde T-190 parte b (ADR-0135) |
