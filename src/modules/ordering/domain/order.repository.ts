@@ -1,3 +1,4 @@
+import type { Id } from '../../../shared-kernel/index.js';
 import type { CustomerId, Order, OrderId } from './order.js';
 import type { PublicCode } from './public-code.js';
 
@@ -39,6 +40,15 @@ export abstract class OrderRepository {
    * are not locked: whoever expires one locks it and looks again.
    */
   abstract dueForExpiry(at: Date, limit: number): Promise<OrderId[]>;
+
+  /**
+   * Whether an order with this contact email, in lowercase, used the coupon of this promotion and still counts its use:
+   * neither expired nor cancelled (ADR-0168).
+   */
+  abstract usedCoupon(
+    promotionId: Id<'Promotion'>,
+    contactEmail: string,
+  ): Promise<boolean>;
 
   /**
    * Up to `limit` orders that concluded at `cutoff` or before and are neither blocked nor anonymized, the oldest

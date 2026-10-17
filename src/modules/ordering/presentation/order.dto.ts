@@ -41,7 +41,11 @@ import {
   type OrderFulfillment,
   type OrderStatus,
 } from '../application/order-values.js';
-import { AppliedPromotionDto, EstimatedDeliveryDto } from './checkout.dto.js';
+import {
+  AppliedPromotionDto,
+  CouponCodeDto,
+  EstimatedDeliveryDto,
+} from './checkout.dto.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments;
 // fields holding other DTOs, lists, dates, enums, objects or null declare their type with @ApiProperty
@@ -54,7 +58,7 @@ export const toNormalizedEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 /** Request of `POST /v1/orders` (UC-ORD-02, API_SPEC.md §15.3). */
-export class PlaceGuestOrderDto {
+export class PlaceGuestOrderDto extends CouponCodeDto {
   /** El `cartId` del carrito de invitado; también es el alcance de `Idempotency-Key`. */
   @IsUUID('all')
   cartId: string;
@@ -173,7 +177,7 @@ export class ReorderDto {
  * Request of `POST /v1/me/orders` (UC-ORD-02, API_SPEC.md §15.3): exactly one of `addressId` and
  * `shippingAddress`, which the controller checks.
  */
-export class PlaceCustomerOrderDto {
+export class PlaceCustomerOrderDto extends CouponCodeDto {
   @ApiPropertyOptional({
     type: String,
     format: 'uuid',

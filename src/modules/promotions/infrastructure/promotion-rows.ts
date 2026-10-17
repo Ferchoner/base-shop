@@ -16,6 +16,9 @@ interface TermColumns {
   readonly minimumSubtotal: number | null;
   readonly startsAt: Date;
   readonly endsAt: Date | null;
+  readonly code: string | null;
+  readonly usageLimit: number | null;
+  readonly oncePerCustomer: boolean;
 }
 
 /** The targets of a promotion as they are read: products, then categories, then brands, each by ID. */
@@ -37,6 +40,9 @@ export function termsOf(terms: PromotionTerms): TermColumns {
     minimumSubtotal: terms.minimumSubtotal?.amount ?? null,
     startsAt: terms.startsAt,
     endsAt: terms.endsAt,
+    code: terms.code,
+    usageLimit: terms.usageLimit,
+    oncePerCustomer: terms.oncePerCustomer,
   };
 }
 
@@ -86,5 +92,8 @@ export function toTerms(
         : Money.of(row.minimumSubtotal, 'MXN'),
     startsAt: row.startsAt,
     endsAt: row.endsAt,
+    code: row.code,
+    usageLimit: row.usageLimit,
+    oncePerCustomer: row.oncePerCustomer,
   };
 }

@@ -190,6 +190,11 @@ export const PROBLEM_TYPES = {
     detail:
       'La venta venció, se canceló o se reembolsó, así que no paga la orden de trabajo.',
   },
+  'coupon-not-applicable': {
+    status: 409,
+    title: 'Cupón que no aplica',
+    detail: 'El cupón no aplica a esta compra; `reason` dice por qué.',
+  },
   'idempotency-key-mismatch': {
     status: 422,
     title: 'Llave de idempotencia reutilizada',

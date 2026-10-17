@@ -161,6 +161,8 @@ export interface AppliedPromotion {
   readonly id: Id<'Promotion'>;
   /** The name the customer saw. */
   readonly name: string;
+  /** The code of the coupon the customer used; `null` for an automatic promotion. */
+  readonly code: string | null;
 }
 
 /** The address an order ships to, with the names of its state and municipality (ADR-0057). */
@@ -540,6 +542,12 @@ export class Order {
 
   get version(): number {
     return this.state.version;
+  }
+
+  /** The promotion of its coupon, whose use it counts while it is neither expired nor cancelled; `null` without one. */
+  get coupon(): Id<'Promotion'> | null {
+    const { promotion } = this.state;
+    return promotion !== null && promotion.code !== null ? promotion.id : null;
   }
 
   get grandTotal(): Money {

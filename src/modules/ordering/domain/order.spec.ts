@@ -257,7 +257,11 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
   });
 
   it('keeps the promotion of its discount (ADR-0168)', () => {
-    const promotion = { id: newId<'Promotion'>(), name: 'Buen Fin 10%' };
+    const promotion = {
+      id: newId<'Promotion'>(),
+      name: 'Buen Fin 10%',
+      code: null,
+    };
 
     const order = place({
       lines: [discountLine(line(59_900, 2), mxn(11_980))],
@@ -269,8 +273,26 @@ describe('Order (UC-ORD-02, BR-ORD-01 to 03, ADR-0049)', () => {
     expect(place({ promotion: null }).snapshot.promotion).toBeNull();
   });
 
+  it('answers the coupon whose use it counts: never an automatic promotion (ADR-0168)', () => {
+    const coupon = { id: newId<'Promotion'>(), name: 'Cupón', code: 'HOLA-10' };
+    const lines = [discountLine(line(59_900, 2), mxn(5_990))];
+
+    const order = place({ lines, promotion: coupon });
+
+    expect(order.coupon).toBe(coupon.id);
+    expect(order.snapshot.promotion).toEqual(coupon);
+    expect(
+      place({ lines, promotion: { ...coupon, code: null } }).coupon,
+    ).toBeNull();
+    expect(place({ promotion: null }).coupon).toBeNull();
+  });
+
   it('takes a discount only with its promotion, and a promotion only with a discount (ADR-0168)', () => {
-    const promotion = { id: newId<'Promotion'>(), name: 'Buen Fin 10%' };
+    const promotion = {
+      id: newId<'Promotion'>(),
+      name: 'Buen Fin 10%',
+      code: null,
+    };
 
     expect(() =>
       place({ lines: [discountLine(line(59_900, 2), mxn(1))] }),

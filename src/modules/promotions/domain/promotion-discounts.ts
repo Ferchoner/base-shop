@@ -119,9 +119,10 @@ export function withMinimumPayment(
 }
 
 /**
- * The promotion an order gets (ADR-0168): among the ones active at `at` in its channel whose minimum purchase the
- * subtotal reaches, before any discount, the one that takes off the most once the products pay at least one peso; on
- * a tie, the one that started first, then the first by ID. `null` when none takes anything off.
+ * The automatic promotion an order gets (ADR-0168): among the ones active at `at` in its channel whose minimum
+ * purchase the subtotal reaches, before any discount, the one that takes off the most once the products pay at least
+ * one peso; on a tie, the one that started first, then the first by ID. A coupon never applies by itself. `null` when
+ * none takes anything off.
  */
 export function bestDiscount(
   promotions: readonly Promotion[],
@@ -134,6 +135,7 @@ export function bestDiscount(
   for (const promotion of promotions) {
     const terms = promotion.snapshot;
     if (
+      promotion.isCoupon ||
       promotion.statusAt(at) !== 'ACTIVE' ||
       !terms.channels.includes(channel) ||
       (terms.minimumSubtotal !== null &&
@@ -160,4 +162,44 @@ function beats(
   const other = best.discount.promotion.snapshot;
   const started = terms.startsAt.getTime() - other.startsAt.getTime();
   return started !== 0 ? started < 0 : terms.id < other.id;
+}
+
+/**
+ * Why a coupon does not apply (ADR-0168): it is not active in the channel of the order, which answers as an unknown
+ * code does (`unavailable`); it has no uses left (`exhausted`); the subtotal does not reach its minimum
+ * (`minimumNotMet`); or it takes nothing off the lines (`noEligibleLines`).
+ */
+export type CouponRefusal =
+  'unavailable' | 'exhausted' | 'minimumNotMet' | 'noEligibleLines';
+
+/**
+ * What a coupon takes off these lines at `at` in this channel, with the products still paying at least one peso, or
+ * why it does not apply (ADR-0168). The uses by each customer are counted where the orders are.
+ */
+export function couponDiscount(
+  coupon: Promotion,
+  lines: readonly DiscountableLine[],
+  channel: PromotionChannel,
+  at: Date,
+):
+  | { readonly discounts: readonly Money[] }
+  | { readonly refused: CouponRefusal } {
+  const terms = coupon.snapshot;
+  if (coupon.statusAt(at) !== 'ACTIVE' || !terms.channels.includes(channel)) {
+    return { refused: 'unavailable' };
+  }
+  if (terms.usageLimit !== null && terms.uses >= terms.usageLimit) {
+    return { refused: 'exhausted' };
+  }
+  const subtotal = lines.reduce((sum, line) => sum.add(line.lineTotal), ZERO);
+  if (
+    terms.minimumSubtotal !== null &&
+    subtotal.lessThan(terms.minimumSubtotal)
+  ) {
+    return { refused: 'minimumNotMet' };
+  }
+  const discounts = withMinimumPayment(discountsOf(terms, lines), lines);
+  return discounts.every((discount) => discount.isZero())
+    ? { refused: 'noEligibleLines' }
+    : { discounts };
 }

@@ -21,6 +21,7 @@ import {
   VersionConflictError,
 } from '../../../shared-kernel/index.js';
 import { AuditModule } from '../../audit/index.js';
+import { PromotionsFacade } from '../../promotions/index.js';
 import { Checkout } from '../application/checkout.use-case.js';
 import { OrderExpiry } from '../application/order-expiry.use-case.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
@@ -127,6 +128,7 @@ describe('Ordering: life of an order (T-180)', () => {
     await prisma.orderStatusHistory.deleteMany();
     await prisma.orderLine.deleteMany();
     await prisma.order.deleteMany();
+    await prisma.promotion.deleteMany();
     await prisma.reservation.deleteMany();
     await prisma.stockMovement.deleteMany();
     await prisma.cartLine.deleteMany();
@@ -188,8 +190,10 @@ describe('Ordering: life of an order (T-180)', () => {
     );
   }
 
+  /** With `couponCode`, the order takes the 10% of a coupon `HOLA-10`. */
   async function placedWith(
     lines: readonly { variantId: VariantId; quantity: number }[],
+    couponCode: string | null = null,
   ): Promise<OrderId> {
     const cartId = newId<'Cart'>();
     await prisma.cart.create({
@@ -208,13 +212,16 @@ describe('Ordering: life of an order (T-180)', () => {
       },
     });
     const units = lines.reduce((sum, { quantity }) => sum + quantity, 0);
+    const products = units * 10_000;
     return run(() =>
       moduleRef.get(Checkout).placeOrder({
         guestCartId: cartId,
         contactEmail: 'cliente@example.com',
         shippingAddress: ADDRESS,
         privacyNoticeVersion: '2026-09',
-        expectedTotal: units * 10_000 + 9_900,
+        expectedTotal:
+          (couponCode === null ? products : products * 0.9) + 9_900,
+        couponCode,
       }),
     );
   }
@@ -558,6 +565,103 @@ describe('Ordering: life of an order (T-180)', () => {
     ).toMatchObject({
       status: 'AWAITING_MANUAL_FULFILLMENT',
       paidAt: CAPTURED,
+    });
+  });
+
+  describe('the use of its coupon (T-200 part c, ADR-0168)', () => {
+    /** A coupon of 10% of the whole purchase, `HOLA-10`, of `usageLimit` uses, that started a day before. */
+    async function coupon(usageLimit: number | null = null): Promise<string> {
+      const id = newId();
+      await prisma.promotion.create({
+        data: {
+          id,
+          name: 'Bienvenida',
+          percentage: 10,
+          online: true,
+          inStore: true,
+          startsAt: new Date(START - 86_400_000),
+          createdBy: newId(),
+          updatedAt: new Date(START),
+          code: 'HOLA-10',
+          usageLimit,
+        },
+      });
+      return id;
+    }
+
+    const usesOf = async (id: string) =>
+      (await prisma.promotion.findUniqueOrThrow({ where: { id } })).uses;
+
+    it('is given back when the order expires, and counted again by a late payment even past the limit', async () => {
+      const couponId = await coupon(1);
+      const shirt = await variant(5);
+      const late = await placedWith(
+        [{ variantId: shirt, quantity: 1 }],
+        'hola-10',
+      );
+      expect(await usesOf(couponId)).toBe(1);
+
+      await expire(late);
+      expect(await usesOf(couponId)).toBe(0);
+      // Another order takes the use the expired one gave back.
+      await placedWith([{ variantId: shirt, quantity: 1 }], 'HOLA-10');
+      expect(await usesOf(couponId)).toBe(1);
+
+      expect(await pay(late, 18_900)).toBe('paid');
+      expect(await usesOf(couponId)).toBe(2);
+    });
+
+    it('is given back when the order is cancelled, paid or not, and never below none', async () => {
+      const couponId = await coupon();
+      const shirt = await variant(5);
+      const unpaid = await placedWith(
+        [{ variantId: shirt, quantity: 1 }],
+        'HOLA-10',
+      );
+      const paid = await placedWith(
+        [{ variantId: shirt, quantity: 1 }],
+        'HOLA-10',
+      );
+      expect(await pay(paid, 18_900)).toBe('paid');
+      expect(await usesOf(couponId)).toBe(2);
+      // Payments captured it: the refund of a cancellation needs it.
+      await prisma.payment.create({
+        data: {
+          id: newId(),
+          orderId: paid,
+          orderCode: 'K7M4Q9XA',
+          provider: 'MANUAL',
+          status: 'CAPTURED',
+          amount: 18_900,
+          capturedAmount: 18_900,
+          currency: 'MXN',
+          capturedAt: CAPTURED,
+        },
+      });
+
+      for (const [orderId, version] of [
+        [unpaid, 1],
+        [paid, 2],
+      ] as const) {
+        await run(() =>
+          lifecycle.cancel({
+            orderId,
+            actorId: newId<'User'>(),
+            reason: 'Duplicado',
+            restock: false,
+            version,
+          }),
+        );
+      }
+
+      expect(await usesOf(couponId)).toBe(0);
+      // A use given back by hand, or twice, never leaves it below none.
+      await run(() =>
+        moduleRef
+          .get(TransactionManager)
+          .run(() => moduleRef.get(PromotionsFacade).release(couponId)),
+      );
+      expect(await usesOf(couponId)).toBe(0);
     });
   });
 

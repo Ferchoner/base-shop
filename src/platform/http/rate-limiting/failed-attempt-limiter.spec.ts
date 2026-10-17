@@ -21,6 +21,7 @@ function createLimiter(clock: ManualClock): FailedAttemptLimiter {
   const values: Partial<EnvironmentVariables> = {
     RATE_LIMIT_LOGIN_IP: '5/15m',
     RATE_LIMIT_PASSWORD_CHANGE: '3/15m',
+    RATE_LIMIT_COUPON_ATTEMPTS: '10/15m',
   };
   const config = {
     get: (key: keyof EnvironmentVariables) => values[key],
@@ -91,6 +92,21 @@ describe('FailedAttemptLimiter (ADR-0102, ADR-0154)', () => {
     failTimes(3);
 
     expect(() => limiter.assertAllowed('login-ip', USER)).not.toThrow();
+    expect(() => limiter.assertAllowed('coupon', USER)).not.toThrow();
+  });
+
+  it('allows 10 coupon codes nobody has per IP in 15 minutes (ADR-0168)', () => {
+    const ip = 'ip:203.0.113.7';
+    for (let attempt = 0; attempt < 9; attempt++) {
+      limiter.recordFailure('coupon', ip);
+    }
+    expect(() => limiter.assertAllowed('coupon', ip)).not.toThrow();
+
+    limiter.recordFailure('coupon', ip);
+
+    expect(() => limiter.assertAllowed('coupon', ip)).toThrow(ProblemException);
+    clock.advance(15 * 60_000);
+    expect(() => limiter.assertAllowed('coupon', ip)).not.toThrow();
   });
 
   it('forgets the expired keys once it tracks too many, so memory stays bounded, and keeps the recent ones', () => {

@@ -89,6 +89,10 @@ class InMemoryOrders extends OrderRepository {
     super();
   }
 
+  usedCoupon(): Promise<boolean> {
+    throw new Error('Only placing an order asks the uses of a coupon');
+  }
+
   insert(): Promise<boolean> {
     throw new Error('Paying never places an order');
   }

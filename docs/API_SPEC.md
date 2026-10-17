@@ -299,13 +299,14 @@ Error de validación:
 | `empty-cart` | 409 | E-33 | Cotizar o colocar orden con carrito vacío (BR-ORD-01) | — |
 | `source-cart-unavailable` | 409 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe (ADR-0082) | — |
 | `sale-not-linkable` | 409 | E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | `saleStatus`: el estado de la venta |
+| `coupon-not-applicable` | 409 | E-38 | Un cupón que no aplica a la cotización o a la orden (ADR-0168) | `reason`: `unavailable`, `minimumNotMet`, `noEligibleLines`, `exhausted`, `alreadyUsed` o `buyerRequired` (§26.8) |
 | `idempotency-key-mismatch` | 422 | E-25 | Llave reutilizada con otro contenido | — |
 | `payload-too-large` | 413 | E-22 | Imagen de más de 5 MB | `maxBytes` |
 | `unsupported-media-type` | 415 | E-22 | Formato de imagen o `Content-Type` no admitido | — |
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 
-E-27 a E-37 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-38 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -333,6 +334,7 @@ Cada endpoint lista solo sus errores específicos.
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 5 por email de contacto por hora | `POST /v1/orders` (ADR-0154) |
 | 30 por cuenta de staff en 10 minutos | `POST /v1/admin/orders` (ADR-0161) |
+| 10 códigos de cupón que nadie tiene por IP en 15 minutos | Las tres cotizaciones y las tres rutas que colocan órdenes, con `couponCode` (ADR-0168) |
 | 100 por minuto por IP | Todos los endpoints, también los anteriores (ADR-0154) |
 
 Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`. Los webhooks quedan fuera del límite general (ADR-0071): los protege la verificación de firma.
@@ -340,12 +342,13 @@ Todos configurables por variables de entorno. Al exceder: 429 con `Retry-After`.
 Detalles del mecanismo (ADR-0102):
 
 - En el login solo cuentan los intentos **fallidos**, por IP; un login correcto no gasta el límite. No hay límite por email: dejaría a cualquiera impedir que el titular entre (ADR-0154). En el cambio de contraseña cuentan solo las contraseñas actuales incorrectas, por usuario.
+- En los cupones cuentan solo los códigos que responden `unavailable`, por IP: el que nadie tiene responde igual que uno que no está vigente o es de otro canal, para no confirmar códigos. Un cupón que aplica, o que no aplica por otro motivo, no gasta el límite. Alcanzado el límite, toda solicitud con `couponCode` responde 429, también con un código válido; sin cupón, la cotización o la orden sigue (ADR-0168).
 - Los límites propios se suman al general por IP, porque cuentan por claves que elige el cliente (ADR-0154).
 - Cada límite es un presupuesto por clave compartido por los endpoints que lo usan: la consulta, la recompra de invitado y el uso del enlace de acceso comparten el mismo contador por IP.
 - Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden); `contactEmail` (órdenes de invitado por email); cuenta de staff (órdenes en la tienda física). Cada orden del staff aparta stock, así que una cuenta tomada no puede apartarlo todo.
 - El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
 - Una ruta inexistente responde 404 sin gastar el límite general.
-- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL` y `RATE_LIMIT_ADMIN_PLACE_ORDER`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL`, `RATE_LIMIT_ADMIN_PLACE_ORDER` y `RATE_LIMIT_COUPON_ATTEMPTS`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
 
 ---
 
@@ -510,7 +513,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - `estimatedDelivery`: plazo de entrega estimado en días hábiles, contado desde la confirmación del pago; es un estimado, no una fecha comprometida (ADR-0083).
 - `shippingCost` incluye IVA; es 0 si el subtotal menos `discountTotal` es mayor o igual a `freeShippingThreshold` (ADR-0079).
 - **Promoción (desde T-200 parte b, ADR-0168, §26.7):**
-  - `promotion` es `{ "id", "name" }` de la promoción que más descuenta en el canal y en el momento de la cotización, o `null` si ninguna quita algo;
+  - `promotion` es `{ "id", "name", "code" }` de la promoción que más descuenta en el canal y en el momento de la cotización, o `null` si ninguna quita algo. `code` es `null` en una automática; con `couponCode`, es el cupón, que la reemplaza (§26.8);
   - `discountAmount` de cada línea es lo que le quita, y `discountTotal` su suma;
   - `lineTotal` y `subtotal` siguen siendo antes del descuento, y `taxAmount` es el IVA contenido en `lineTotal` menos `discountAmount`.
 - Una línea no vendible lleva `unitPrice`, `lineTotal`, `discountAmount`, `taxRateBp` y `taxAmount` en `null` y `canFulfill: false`; los totales suman solo las líneas vendibles (ADR-0132).
@@ -527,7 +530,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
   "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {}, "discountAmount": {} } ],
   "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
   "fulfillment": "SHIPPING",
-  "promotion": { "id": "0199a3e1-…", "name": "Buen Fin 10%" },
+  "promotion": { "id": "0199a3e1-…", "name": "Buen Fin 10%", "code": null },
   "shippingAddress": { "…": "Address" },
   "estimatedDelivery": { "minBusinessDays": 3, "maxBusinessDays": 7 },
   "payment": { "provider": "MANUAL", "status": "PENDING" },
@@ -1369,10 +1372,11 @@ Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicio
 
 ### 15.2 Cotizar (UC-ORD-01)
 
-- **`POST /v1/checkout/quote`** — Request `{ "cartId" }` (carrito de invitado activo).
-- **`POST /v1/me/checkout/quote`** — Sin cuerpo; usa el carrito activo del cliente.
-- Sin efectos secundarios y sin cache. Response 200: `CheckoutQuote`.
-- Errores: 404 (carrito inexistente o con dueño); 409 `cart-not-active`; 409 `empty-cart`; 403 `staff-cannot-purchase`.
+- **`POST /v1/checkout/quote`** — Request `{ "cartId", "couponCode" }` (carrito de invitado activo).
+- **`POST /v1/me/checkout/quote`** — Cuerpo opcional `{ "couponCode" }`; usa el carrito activo del cliente.
+- `couponCode`, opcional en las dos: el código de un cupón, sin distinguir mayúsculas, de 1 a 30 caracteres sin los espacios de los extremos; `null` o ausente, sin cupón (§26.8). La cotización del cliente le dice si ya usó un cupón de una vez por cliente; la del invitado no sabe quién compra, y se lo dice la orden.
+- Sin efectos secundarios y sin cache: no cuenta usos del cupón. Response 200: `CheckoutQuote`.
+- Errores: 404 (carrito inexistente o con dueño); 409 `cart-not-active`; 409 `empty-cart`; 409 `coupon-not-applicable` con `reason`; 403 `staff-cannot-purchase`; 429 con los códigos que nadie tiene (§7).
 
 Las líneas no vendibles o no surtibles no provocan error: se marcan en la cotización y `readyToPlace` queda en `false`.
 
@@ -1391,7 +1395,8 @@ Idempotency-Key: 5b1e9c2a-7d7f-4f55-9c6e-2f0e8a1d3b44
   "contactEmail": "cliente@example.com",
   "shippingAddress": { "…": "AddressInput" },
   "expectedTotal": 129700,
-  "privacyNoticeVersion": "2026-09"
+  "privacyNoticeVersion": "2026-09",
+  "couponCode": "BUENFIN"
 }
 ```
 
@@ -1403,11 +1408,11 @@ Idempotency-Key: 5b1e9c2a-7d7f-4f55-9c6e-2f0e8a1d3b44
 
 o bien `{ "shippingAddress": { … }, "expectedTotal": 129700 }` (una dirección sin guardarla; exactamente uno de `addressId` o `shippingAddress`).
 
-- **Validaciones:** `expectedTotal` entero ≥ 0; `contactEmail` con formato válido; `shippingAddress` según 8.2; `addressId` del propio cliente; `privacyNoticeVersion` obligatorio para invitados (ADR-0067). El cliente registrado debe tener email verificado (BR-USR-05) y el contacto de su orden es su email de cuenta.
-- **Proceso:** recalcula todo sin cache; si el total difiere de `expectedTotal` → 409; reserva todo el stock o nada; crea la orden en PENDING_PAYMENT con snapshots; marca el carrito CHECKED_OUT (una sola transacción).
+- **Validaciones:** `expectedTotal` entero ≥ 0; `couponCode` opcional, como en la cotización (§15.2), en las dos rutas; `contactEmail` con formato válido; `shippingAddress` según 8.2; `addressId` del propio cliente; `privacyNoticeVersion` obligatorio para invitados (ADR-0067). El cliente registrado debe tener email verificado (BR-USR-05) y el contacto de su orden es su email de cuenta.
+- **Proceso:** recalcula todo sin cache, también el cupón; si el total difiere de `expectedTotal` → 409; con cupón, cuenta su uso (§26.8); reserva todo el stock o nada; crea la orden en PENDING_PAYMENT con snapshots; marca el carrito CHECKED_OUT (una sola transacción).
 - **Response 201:** `Order` (vista de cliente) con `publicCode` y `paymentDueAt`. `Location: /v1/me/orders/{publicCode}` solo en la ruta de cliente.
-- **Errores:** 400 `idempotency-key-missing`; 403 `email-not-verified`; 403 `staff-cannot-purchase`; 404 (carrito o dirección); 409 `total-mismatch` (con `currentTotal`); 409 `insufficient-stock` (con `lines`); 409 `variant-not-sellable`, también por un producto que se vende solo en la tienda física (ADR-0165); 409 `cart-not-active`; 409 `empty-cart`; 409 `idempotency-request-in-progress`; 422 `idempotency-key-mismatch`.
-- **Rate limit:** 10 por usuario o carrito en 10 minutos; en `POST /v1/orders`, además, 5 por email de contacto por hora (ADR-0154).
+- **Errores:** 400 `idempotency-key-missing`; 403 `email-not-verified`; 403 `staff-cannot-purchase`; 404 (carrito o dirección); 409 `total-mismatch` (con `currentTotal`); 409 `insufficient-stock` (con `lines`); 409 `variant-not-sellable`, también por un producto que se vende solo en la tienda física (ADR-0165); 409 `coupon-not-applicable` con `reason` (§26.8); 409 `cart-not-active`; 409 `empty-cart`; 409 `idempotency-request-in-progress`; 422 `idempotency-key-mismatch`.
+- **Rate limit:** 10 por usuario o carrito en 10 minutos; en `POST /v1/orders`, además, 5 por email de contacto por hora (ADR-0154). Con `couponCode`, 10 códigos que nadie tiene por IP en 15 minutos (§7).
 
 ### 15.4 Consultas del cliente (UC-ORD-03)
 
@@ -1493,13 +1498,15 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 
 **`POST /v1/admin/orders/quote`** — `orders.place`. Cotiza un pedido en la tienda física (UC-ORD-12, ADR-0161).
 
-- Request: `{ "lines": [ { "variantId", "quantity" } ], "warehouseId", "fulfillment" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera. `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE`, la venta de mostrador, sin envío (§8.7).
+- Request: `{ "lines": [ { "variantId", "quantity" } ], "warehouseId", "fulfillment", "couponCode" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera. `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE`, la venta de mostrador, sin envío (§8.7).
+- `couponCode`, opcional, como en la cotización de un carrito (§15.2), con los cupones del canal `STORE`. La cotización no sabe quién compra: la orden revisa si el comprador ya usó un cupón de una vez por cliente.
 - 200 `CheckoutQuote` (§8.7), como la cotización de un carrito; `canFulfill` dice si cada línea cabe con las demás en el almacén `warehouseId`.
-- Errores: 404 si el almacén no existe o está inactivo, o si una variante no existe; 400 `validation-error`.
+- Errores: 404 si el almacén no existe o está inactivo, o si una variante no existe; 409 `coupon-not-applicable` con `reason`; 400 `validation-error`; 429 con los códigos que nadie tiene (§7).
 
 **`POST /v1/admin/orders`** — `orders.place`. Coloca una orden en la tienda física, a nombre de un cliente presente (UC-ORD-13, ADR-0161). Exige `Idempotency-Key`, con el alcance de la cuenta de staff. Hasta 30 por cuenta de staff cada 10 minutos.
 
-- Request: `{ "lines", "warehouseId", "fulfillment", "customerId" | "contactEmail" + "privacyNoticeVersion", "addressId" | "shippingAddress", "expectedTotal" }`.
+- Request: `{ "lines", "warehouseId", "fulfillment", "customerId" | "contactEmail" + "privacyNoticeVersion", "addressId" | "shippingAddress", "expectedTotal", "couponCode" }`.
+  - `couponCode`, opcional, como en la cotización. Una venta de mostrador sin datos del comprador no puede usar un cupón de una vez por cliente (`buyerRequired`, §26.8).
   - `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE` (ADR-0161). Una orden `IN_STORE` es una venta de mostrador: no lleva `addressId` ni `shippingAddress` (`onlyForShipping`), su envío cuesta 0, y el comprador puede no dar datos: ni `customerId` ni `contactEmail`, y entonces tampoco `privacyNoticeVersion` (`onlyForGuest`).
   - Exactamente uno de `customerId` y `contactEmail` (`exactlyOneBuyer`).
   - Un cliente registrado debe estar activo y con el email verificado; su contacto es el email de su cuenta, y no envía `privacyNoticeVersion` (`onlyForGuest`), porque aceptó el aviso al crear su cuenta.
@@ -1510,7 +1517,7 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - El pago tardío y el reintento de surtido reservan otra vez solo en ese almacén; si ya está inactivo, cuenta como falta de stock.
 - Una orden `IN_STORE` pagada no crea envío: el staff la entrega con `POST …/hand-over`.
 - 201 `AdminOrder`, con `Location: /v1/admin/orders/{orderId}`. Se audita como `orders.place`, solo con el estado, el canal y el almacén. Se publica `OrderPlaced`.
-- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable` (un producto que se vende solo en la tienda física sí se vende aquí, ADR-0165), `total-mismatch` con `currentTotal`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
+- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable` (un producto que se vende solo en la tienda física sí se vende aquí, ADR-0165), `total-mismatch` con `currentTotal`, `coupon-not-applicable` con `reason`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
 
 **`POST /v1/admin/orders/{orderId}/hand-over`** — `orders.place`. Entrega en la tienda física una orden `IN_STORE` pagada (UC-ORD-14, ADR-0161).
 
@@ -2137,7 +2144,7 @@ Desde T-189 parte c2, los datos del cliente de una orden de trabajo siguen el ci
 | PATCH | `/v1/admin/promotions/{promotionId}` | `promotions.manage` | UC-PRM-03 |
 | POST | `/v1/admin/promotions/{promotionId}/end` | `promotions.manage` | UC-PRM-03 |
 
-Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda la compra, o de ciertos productos, categorías y marcas, en línea, en la tienda física o en los dos. Las administra el rol Administrador, y el Vendedor las consulta para saber qué ofrecer en el mostrador. Desde la parte b, las automáticas se aplican a las cotizaciones y las órdenes (§26.7); con cupón, desde la parte c.
+Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda la compra, o de ciertos productos, categorías y marcas, en línea, en la tienda física o en los dos. Las administra el rol Administrador, y el Vendedor las consulta para saber qué ofrecer en el mostrador. Desde la parte b, las automáticas se aplican a las cotizaciones y las órdenes (§26.7); desde la parte c, una promoción con código es un cupón, que solo aplica a quien lo da (§26.8).
 
 ### 26.1 `Promotion`
 
@@ -2154,6 +2161,10 @@ Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda l
   "startsAt": "2026-11-13T06:00:00.000Z",
   "endsAt": "2026-11-17T06:00:00.000Z",
   "endedAt": null,
+  "code": "BUENFIN",
+  "usageLimit": 500,
+  "oncePerCustomer": true,
+  "uses": 12,
   "targets": [
     { "type": "PRODUCT", "id": "0199a2c0-…", "name": "Camisa de lino" },
     { "type": "BRAND", "id": "0199a2b1-…", "name": "Lino Fino" }
@@ -2175,6 +2186,12 @@ Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda l
 - `channels`: `ONLINE`, `STORE` o los dos.
 - `minimumSubtotal`: `Money`, la compra mínima sobre el subtotal con IVA de la orden, o `null` sin mínimo.
 - `endsAt`: `null`, sin fin. `endedBy`: la cuenta de staff que la terminó.
+- **Cupón (desde T-200 parte c, §26.8):**
+  - `code`: el código, en mayúsculas; `null` en una promoción automática, que se aplica sola;
+  - `usageLimit`: cuántas veces se puede usar en total, o `null` sin límite;
+  - `oncePerCustomer`: si cada cliente lo usa una sola vez;
+  - `uses`: las órdenes que cuentan un uso: colocadas, y ni vencidas ni canceladas. Un pago tardío puede pasar el límite.
+  - Una promoción automática tiene `code` y `usageLimit` en `null`, `oncePerCustomer` en `false` y `uses` en 0.
 
 ### 26.2 `POST /v1/admin/promotions` — Crear una promoción (UC-PRM-01)
 
@@ -2202,20 +2219,25 @@ Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda l
   - `targets`: hasta 100, cada uno una vez, con `type` (`PRODUCT`, `CATEGORY` o `BRAND`) y `id`; sin ellos, toda la compra;
   - `channels`: uno o los dos, sin repetir; por defecto, los dos;
   - `minimumSubtotal`: en centavos, de 1 a 2,147,483,647;
-  - `startsAt` y `endsAt`: fecha y hora con zona horaria, como un precio programado (§12). Sin `startsAt`, o con uno que no es posterior al momento actual, empieza ahora. `endsAt` debe ser posterior al inicio.
+  - `startsAt` y `endsAt`: fecha y hora con zona horaria, como un precio programado (§12). Sin `startsAt`, o con uno que no es posterior al momento actual, empieza ahora. `endsAt` debe ser posterior al inicio;
+  - `code`: de 4 a 30 letras, números o guiones, que se guarda en mayúsculas: con él, la promoción es un cupón. Único entre todas las promociones, también las terminadas;
+  - `usageLimit`: entero de 1 a 2,147,483,647, o `null` sin límite; y `oncePerCustomer`, por defecto `false`. Los dos, solo con `code`.
 - Cada producto, categoría o marca debe existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no.
 - **Response 201:** `Promotion`, con `Location`.
 - **Errores:** 400 `validation-error`:
   - en `amountOff` con código `exclusive` si llegan los dos descuentos, y en `percentage` con código `required` si no llega ninguno;
   - en `targets[i].id` con `unknownTarget` si no existe, o `unusableTarget` si no está en uso;
-  - en `endsAt` con `afterStart` si no es posterior al inicio.
-- Se audita como `promotions.create`, con todos sus términos.
+  - en `endsAt` con `afterStart` si no es posterior al inicio;
+  - en `code` si no tiene el formato, y sin campo si llegan `usageLimit` u `oncePerCustomer: true` sin `code`;
+  - 409 `duplicate-value` con `field: "code"` si otra promoción tiene el código, sin distinguir mayúsculas.
+- Se audita como `promotions.create`, con todos sus términos; con cupón, también el código y sus límites.
 
 ### 26.3 `GET /v1/admin/promotions` — Listar promociones (UC-PRM-02)
 
 - Paginado (sección 5). Cada elemento es `Promotion` sin `targets`, `endedBy`, `createdBy`, `createdAt`, `updatedAt` ni `version`.
 - **Filtros:**
-  - `q`: parte del nombre, sin distinguir mayúsculas;
+  - `q`: parte del nombre, o el código exacto de un cupón, sin distinguir mayúsculas;
+  - `kind`: `AUTOMATIC`, las que se aplican solas, o `COUPON`, las que tienen código;
   - `status`: uno o más, separados por comas, al momento de la consulta;
   - `channel`: las que aplican en `ONLINE` o en `STORE`;
   - `appliesTo`: `ORDER`, las de toda la compra, o `ITEMS`, las de ciertos productos, categorías o marcas.
@@ -2230,15 +2252,17 @@ Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda l
 - Request: los campos de §26.2 y `version`, obligatoria. Solo cambian los campos enviados:
   - `percentage` o `amountOff`, uno de los dos, reemplaza el descuento;
   - `targets` reemplaza la lista completa; vacía, toda la compra;
-  - `name`, `targets`, `channels` y `startsAt` no aceptan `null`; `null` quita `minimumSubtotal` o `endsAt`.
+  - `name`, `targets`, `channels`, `startsAt` y `oncePerCustomer` no aceptan `null`; `null` quita `minimumSubtotal`, `endsAt`, `code` o `usageLimit`. Quitar el código deja la promoción automática, sin límites.
 - **Antes de su inicio** se cambia todo; un `startsAt` que no es posterior al momento actual la hace empezar ahora.
-- **Ya iniciada**, solo `name` y `endsAt`, que debe ser posterior al momento actual. Los demás pueden llegar con el valor que ya tienen.
+- **Ya iniciada**, solo `name`, `endsAt`, que debe ser posterior al momento actual, y `usageLimit`. Los demás, también `code` y `oncePerCustomer`, pueden llegar con el valor que ya tienen.
+- `usageLimit` se cambia en cualquier momento antes del fin, nunca por debajo de `uses`.
 - **Terminada,** nada.
 - Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén.
 - **Response 200:** `Promotion`. Sin cambios, no se guarda ni se audita, y la versión sigue igual.
 - **Errores:**
-  - 400 `validation-error`, como en §26.2, y en `endsAt` con `inFuture` si, ya iniciada, no es posterior al momento actual;
+  - 400 `validation-error`, como en §26.2; en `endsAt` con `inFuture` si, ya iniciada, no es posterior al momento actual; y en `usageLimit` con `belowUses` si es menor que los usos que ya tiene;
   - 404 si no existe;
+  - 409 `duplicate-value` con `field: "code"`;
   - 409 `version-conflict` con `currentVersion`;
   - 409 `invalid-state-transition` con `currentStatus`, si cambia otro término de una iniciada, o cualquiera de una terminada.
 - Se audita como `promotions.update`, solo con lo que cambió.
@@ -2256,6 +2280,7 @@ Desde T-200 parte a. Una promoción descuenta un porcentaje o un monto de toda l
 Desde T-200 parte b. Las tres cotizaciones (§15.2, §15.7) y las órdenes que colocan, en línea y en la tienda física, reciben la promoción automática que más descuenta.
 
 - **Cuáles compiten:**
+  - las automáticas: un cupón nunca se aplica solo (§26.8);
   - las vigentes en el momento de la cotización o de la orden, en su canal: `ONLINE` en línea y `STORE` en la tienda física;
   - con su compra mínima cumplida por el subtotal de las líneas vendibles, antes del descuento.
 - **A qué líneas aplica:**
@@ -2270,3 +2295,25 @@ Desde T-200 parte b. Las tres cotizaciones (§15.2, §15.7) y las órdenes que c
 - **Envío gratis:** compara el subtotal menos el descuento (ADR-0079), así que un descuento puede dejar una compra sin envío gratis.
 - **`expectedTotal`:** incluye el descuento. Si la promoción cambia entre la cotización y la orden, se responde 409 `total-mismatch` con `currentTotal`, como cuando cambia un precio (§15.3).
 - **La orden guarda** la promoción, con el nombre que vio el cliente, y el descuento de cada línea. El correo de la orden recibida muestra el descuento con ese nombre. El carrito (§14) no muestra el descuento: lo da la cotización.
+
+### 26.8 Cupones (UC-PRM-05)
+
+Desde T-200 parte c. Una promoción con `code` es un cupón: no se aplica sola, sino a la cotización o la orden que trae su código en `couponCode` (§15.2, §15.3, §15.7), en cualquiera de las seis rutas.
+
+- **El código:** sin distinguir mayúsculas ni los espacios de los extremos. `promotion.code` lo muestra en mayúsculas.
+- **Reemplaza a la automática:** con un cupón que aplica, la cotización o la orden recibe solo el cupón, aunque descuente menos que una automática. El descuento se calcula como el de una automática (§26.7), con su compra mínima, sus productos, categorías y marcas, y el mínimo de un peso.
+- **Si no aplica,** responde 409 `coupon-not-applicable`, sin aplicar otra promoción, con `reason`:
+  - `unavailable`: ningún cupón tiene el código, o no está vigente, o no es de este canal. Responden igual, para no confirmar códigos, y cuentan para el límite por IP (§7);
+  - `minimumNotMet`: el subtotal de las líneas vendibles no alcanza su compra mínima;
+  - `noEligibleLines`: no quita nada a las líneas, porque ninguna es de sus productos, categorías o marcas, o porque ya pagan el mínimo de un peso;
+  - `exhausted`: sus usos llegaron a `usageLimit`;
+  - `alreadyUsed`: es de una vez por cliente, y el comprador ya lo usó;
+  - `buyerRequired`: es de una vez por cliente, y la venta de mostrador no tiene datos del comprador.
+- **Una vez por cliente:** se cuenta por el email de contacto, normalizado como la orden lo guarda, en sus órdenes con el cupón que no vencieron, no se cancelaron ni se reembolsaron. No guarda datos personales nuevos: una orden anonimizada, sin email, deja de contar. La cotización del cliente ya lo revisa; la del invitado y la del staff, no, porque no saben quién compra.
+- **Los usos:**
+  - cuentan al colocar la orden, en su transacción, después de revisar el total y antes de reservar. La fila del cupón queda bloqueada hasta que la orden termina, así que dos órdenes nunca toman su último uso: la segunda responde `exhausted`, y la de un mismo comprador, `alreadyUsed`;
+  - se devuelven cuando la orden vence o se cancela, pagada o no;
+  - un pago tardío de una orden vencida (§16) vuelve a contar el suyo, aunque pase el límite, porque el cliente ya pagó.
+- **`expectedTotal`:** incluye el descuento del cupón. Si el cupón deja de aplicar entre la cotización y la orden, la orden responde `coupon-not-applicable`; si cambia su descuento, `total-mismatch`.
+- **Lo que no lleva el cupón:** la recompra y la restauración del carrito de una orden vencida o cancelada; el cliente lo da otra vez al cotizar.
+- **La orden guarda** el código con la promoción, y `Order`, `AdminOrder` y la cotización lo muestran en `promotion.code`.

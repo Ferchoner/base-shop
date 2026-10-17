@@ -109,6 +109,10 @@ class SomeOrders extends OrderRepository {
     super();
   }
 
+  usedCoupon(): Promise<boolean> {
+    throw new Error('Only placing an order asks the uses of a coupon');
+  }
+
   insert(): Promise<boolean> {
     throw new Error('The retention never places orders');
   }

@@ -33,6 +33,25 @@ export class PromotionEndError extends DomainError {
   }
 }
 
+/** The usage limit of a coupon is below the uses it already has (ADR-0168). */
+export class UsageLimitError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+  declare readonly details: { readonly errors: readonly [PromotionFieldError] };
+
+  constructor(uses: number) {
+    super(`usageLimit: belowUses ${uses}`, {
+      errors: [
+        {
+          field: 'usageLimit',
+          code: 'belowUses',
+          message: `No puede ser menor que los usos que ya tiene: ${uses}.`,
+        },
+      ],
+    });
+  }
+}
+
 /**
  * Products, categories or brands a promotion cannot target (ADR-0168): one that does not exist (`unknownTarget`), or
  * that is not in use, an archived product or an inactive category or brand (`unusableTarget`). Each error names the

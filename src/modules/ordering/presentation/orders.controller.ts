@@ -4,6 +4,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { NoStaffPurchases } from '../../../platform/auth/no-staff-purchases.guar
 import { cartScope } from '../../../platform/http/idempotency/idempotency-scope.js';
 import { Idempotent } from '../../../platform/http/idempotency/idempotent.decorator.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
+import { FailedAttemptLimiter } from '../../../platform/http/rate-limiting/failed-attempt-limiter.js';
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NoStore } from '../../../platform/http/no-store.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
@@ -37,6 +39,7 @@ import {
   PlaceGuestOrderDto,
   ReorderDto,
 } from './order.dto.js';
+import { withCouponAttempts } from './coupon-attempts.js';
 import {
   toOrderAccessDto,
   toOrderDto,
@@ -56,6 +59,7 @@ export const PLACE_ORDER_PROBLEMS = [
   'empty-cart',
   'variant-not-sellable',
   'total-mismatch',
+  'coupon-not-applicable',
   'insufficient-stock',
 ] as const;
 
@@ -75,7 +79,7 @@ export const REORDER_RULES =
   'Solo órdenes `CANCELLED` o `REFUNDED`; la orden no cambia. Las líneas se suman con tope de 30 por línea, y las variantes que ya no se venden se omiten y se listan en `skippedVariantIds`. Responde el carrito que las recibió: se lee con las rutas del carrito, con precios y disponibilidad actuales.';
 
 export const PLACE_ORDER_DESCRIPTION =
-  'Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos.';
+  'Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Con `couponCode`, el cupón se vuelve a revisar y cuenta su uso en la misma transacción: si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos.';
 
 /**
  * The order of a guest (UC-ORD-02, 04 and 05, API_SPEC.md §15.3, §15.5 and §15.6). A staff account cannot place it
@@ -91,6 +95,7 @@ export class OrdersController {
     private readonly paymentRequests: OrderPaymentRequests,
     private readonly reorders: OrderReorders,
     private readonly accessLinks: OrderAccessLinks,
+    private readonly couponAttempts: FailedAttemptLimiter,
   ) {}
 
   @ApiOperation({
@@ -103,19 +108,29 @@ export class OrdersController {
   @RateLimit('place-order', 'place-order-email')
   @Idempotent(cartScope)
   @Post()
-  async place(@Body() body: PlaceGuestOrderDto): Promise<OrderDto> {
-    const id = await this.checkout.placeOrder({
-      guestCartId: toId<'Cart'>(body.cartId),
-      contactEmail: body.contactEmail,
-      shippingAddress: {
-        ...body.shippingAddress,
-        interiorNumber: body.shippingAddress.interiorNumber ?? null,
-        city: body.shippingAddress.city ?? null,
-        references: body.shippingAddress.references ?? null,
-      },
-      privacyNoticeVersion: body.privacyNoticeVersion,
-      expectedTotal: body.expectedTotal,
-    });
+  async place(
+    @Body() body: PlaceGuestOrderDto,
+    @Req() request: { ip?: string },
+  ): Promise<OrderDto> {
+    const id = await withCouponAttempts(
+      this.couponAttempts,
+      request,
+      body.couponCode,
+      () =>
+        this.checkout.placeOrder({
+          guestCartId: toId<'Cart'>(body.cartId),
+          contactEmail: body.contactEmail,
+          shippingAddress: {
+            ...body.shippingAddress,
+            interiorNumber: body.shippingAddress.interiorNumber ?? null,
+            city: body.shippingAddress.city ?? null,
+            references: body.shippingAddress.references ?? null,
+          },
+          privacyNoticeVersion: body.privacyNoticeVersion,
+          expectedTotal: body.expectedTotal,
+          couponCode: body.couponCode ?? null,
+        }),
+    );
     const order = await this.reader.order(id);
     // The transaction that created it already committed.
     if (order === null) throw new Error(`Order ${id} was not saved`);

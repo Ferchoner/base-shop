@@ -16,7 +16,7 @@ import {
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import type { PublicCode } from '../domain/public-code.js';
-import type { OrderStock } from './checkout-ports.js';
+import type { OrderCoupons, OrderStock } from './checkout-ports.js';
 import {
   EXPIRY_BATCH_SIZE,
   OrderExpiry,
@@ -102,6 +102,10 @@ class InMemoryOrders extends OrderRepository {
     for (const order of orders) this.orders.set(order.id, order);
   }
 
+  usedCoupon(): Promise<boolean> {
+    throw new Error('Only placing an order asks the uses of a coupon');
+  }
+
   insert(): Promise<boolean> {
     throw new Error('Expiring never places an order');
   }
@@ -154,6 +158,16 @@ function setUp(stored: Order[], due: OrderId[] = stored.map(({ id }) => id)) {
       return Promise.resolve(true);
     },
   } as unknown as OrderStock;
+  const released: string[] = [];
+  const coupons = {
+    release: (promotionId: string) => {
+      released.push(promotionId);
+      return Promise.resolve();
+    },
+    recount: () => {
+      throw new Error('Expiring never counts a use again');
+    },
+  } as unknown as OrderCoupons;
   let transactions = 0;
   const inline = {
     run: <T>(work: () => Promise<T>) => {
@@ -165,13 +179,14 @@ function setUp(stored: Order[], due: OrderId[] = stored.map(({ id }) => id)) {
   const events = {
     publish: (event: DomainEvent) => published.push(event),
   } as unknown as DomainEventPublisher;
-  const expiry = new OrderExpiry(orders, stock, inline, events, {
+  const expiry = new OrderExpiry(orders, stock, coupons, inline, events, {
     now: () => NOW,
   });
   return {
     expiry,
     orders,
     expiredReservations,
+    released,
     published,
     transactions: () => transactions,
   };
@@ -195,8 +210,14 @@ describe('OrderExpiry (UC-ORD-10, UC-INV-08, ADR-0136)', () => {
       customerId,
       contactEmail: 'ana@example.com',
     });
-    const { expiry, orders, expiredReservations, published, transactions } =
-      setUp([ofGuest, ofCustomer]);
+    const {
+      expiry,
+      orders,
+      expiredReservations,
+      released,
+      published,
+      transactions,
+    } = setUp([ofGuest, ofCustomer]);
 
     expect(await expiry.expireDue()).toEqual({ expired: 2, failed: 0 });
 
@@ -204,6 +225,8 @@ describe('OrderExpiry (UC-ORD-10, UC-INV-08, ADR-0136)', () => {
     expect(EXPIRY_BATCH_SIZE).toBe(100);
     expect(transactions()).toBe(2);
     expect(expiredReservations).toEqual([ofGuest.id, ofCustomer.id]);
+    // Without a coupon, no use to give back.
+    expect(released).toEqual([]);
     expect(orders.saved.map(({ id, status }) => [id, status])).toEqual([
       [ofGuest.id, 'EXPIRED'],
       [ofCustomer.id, 'EXPIRED'],
@@ -223,6 +246,23 @@ describe('OrderExpiry (UC-ORD-10, UC-INV-08, ADR-0136)', () => {
       })),
     );
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it('gives back the use of the coupon of an expired order, never of an automatic promotion (ADR-0168)', async () => {
+    const coupon = newId<'Promotion'>();
+    const withCoupon = Order.restore({
+      ...saved().snapshot,
+      promotion: { id: coupon, name: 'Cupón', code: 'HOLA-10' },
+    });
+    const automatic = Order.restore({
+      ...saved().snapshot,
+      promotion: { id: newId<'Promotion'>(), name: 'Buen Fin', code: null },
+    });
+    const { expiry, released } = setUp([withCoupon, automatic]);
+
+    expect(await expiry.expireDue()).toEqual({ expired: 2, failed: 0 });
+
+    expect(released).toEqual([coupon]);
   });
 
   it('announces an order the staff placed in the store without a cart, so none gets its lines (ADR-0161)', async () => {

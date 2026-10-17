@@ -2165,6 +2165,12 @@
       },
       "AppliedPromotionDto": {
         "properties": {
+          "code": {
+            "description": "El código del cupón, en mayúsculas; `null` en una promoción automática (ADR-0168).",
+            "example": "BUENFIN",
+            "nullable": true,
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -2177,6 +2183,7 @@
         },
         "required": [
           "id",
+          "code",
           "name"
         ],
         "type": "object"
@@ -3228,6 +3235,12 @@
             "type": "array",
             "uniqueItems": true
           },
+          "code": {
+            "description": "Código de 4 a 30 letras, números o guiones, que se guarda en mayúsculas: con él es un cupón, que solo aplica a quien lo da; sin él, la promoción se aplica sola. Único, también entre las promociones terminadas (ADR-0168).",
+            "example": "BUENFIN",
+            "nullable": true,
+            "type": "string"
+          },
           "endsAt": {
             "description": "Fin, excluido, fecha y hora con zona horaria, posterior al inicio; `null` o ausente, sin fin.",
             "example": "2026-11-17T06:00:00.000Z",
@@ -3250,6 +3263,10 @@
             "pattern": "\\S",
             "type": "string"
           },
+          "oncePerCustomer": {
+            "description": "Si cada cliente usa el cupón una sola vez, contado por el email de contacto de sus órdenes; por defecto `false`.\nSolo con `code`.",
+            "type": "boolean"
+          },
           "percentage": {
             "description": "Porcentaje entero de descuento, de 1 a 100, sobre las líneas a las que aplica. Exactamente uno de `percentage` y `amountOff`.",
             "maximum": 100,
@@ -3270,6 +3287,13 @@
             },
             "type": "array",
             "uniqueItems": true
+          },
+          "usageLimit": {
+            "description": "Cuántas veces se puede usar el cupón en total; `null` o ausente, sin límite. Solo con `code`.",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "nullable": true,
+            "type": "number"
           }
         },
         "required": [
@@ -3553,6 +3577,19 @@
           "data",
           "meta"
         ],
+        "type": "object"
+      },
+      "CustomerQuoteDto": {
+        "properties": {
+          "couponCode": {
+            "description": "El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.",
+            "example": "BUENFIN",
+            "maxLength": 30,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "DispatchShipmentDto": {
@@ -3868,6 +3905,14 @@
           "cartId": {
             "description": "El `cartId` del carrito de invitado.",
             "format": "uuid",
+            "type": "string"
+          },
+          "couponCode": {
+            "description": "El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.",
+            "example": "BUENFIN",
+            "maxLength": 30,
+            "minLength": 1,
+            "nullable": true,
             "type": "string"
           }
         },
@@ -5186,6 +5231,14 @@
             "format": "uuid",
             "type": "string"
           },
+          "couponCode": {
+            "description": "El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.",
+            "example": "BUENFIN",
+            "maxLength": 30,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
           "expectedTotal": {
             "description": "`grandTotal.amount` de la cotización aceptada, en centavos.",
             "example": 129700,
@@ -5219,6 +5272,14 @@
             "example": "cliente@example.com",
             "format": "email",
             "maxLength": 254,
+            "type": "string"
+          },
+          "couponCode": {
+            "description": "El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.",
+            "example": "BUENFIN",
+            "maxLength": 30,
+            "minLength": 1,
+            "nullable": true,
             "type": "string"
           },
           "expectedTotal": {
@@ -5266,6 +5327,14 @@
             "example": "cliente@example.com",
             "format": "email",
             "maxLength": 254,
+            "type": "string"
+          },
+          "couponCode": {
+            "description": "El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.",
+            "example": "BUENFIN",
+            "maxLength": 30,
+            "minLength": 1,
+            "nullable": true,
             "type": "string"
           },
           "customerId": {
@@ -5671,6 +5740,7 @@
               "/problems/empty-cart",
               "/problems/source-cart-unavailable",
               "/problems/sale-not-linkable",
+              "/problems/coupon-not-applicable",
               "/problems/idempotency-key-mismatch",
               "/problems/payload-too-large",
               "/problems/unsupported-media-type",
@@ -5961,6 +6031,11 @@
             },
             "type": "array"
           },
+          "code": {
+            "description": "El código del cupón, en mayúsculas; `null` en una promoción automática (ADR-0168).",
+            "nullable": true,
+            "type": "string"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -6006,6 +6081,10 @@
             "description": "Lo ve el cliente en su orden y en el ticket.",
             "type": "string"
           },
+          "oncePerCustomer": {
+            "description": "Si cada cliente usa el cupón una sola vez.",
+            "type": "boolean"
+          },
           "percentage": {
             "description": "Porcentaje entero de descuento; `null` con `amountOff`.",
             "nullable": true,
@@ -6039,6 +6118,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "usageLimit": {
+            "description": "Cuántas veces se puede usar el cupón; `null` sin límite.",
+            "nullable": true,
+            "type": "number"
+          },
+          "uses": {
+            "description": "Las órdenes que cuentan un uso del cupón: colocadas, y ni vencidas ni canceladas. Un pago tardío puede pasar el\nlímite.",
+            "type": "number"
+          },
           "version": {
             "description": "Para el bloqueo optimista.",
             "type": "number"
@@ -6054,6 +6142,8 @@
           "startsAt",
           "endsAt",
           "endedAt",
+          "code",
+          "usageLimit",
           "targets",
           "endedBy",
           "createdBy",
@@ -6061,7 +6151,9 @@
           "updatedAt",
           "version",
           "name",
-          "targetCount"
+          "targetCount",
+          "oncePerCustomer",
+          "uses"
         ],
         "type": "object"
       },
@@ -6105,6 +6197,11 @@
             },
             "type": "array"
           },
+          "code": {
+            "description": "El código del cupón, en mayúsculas; `null` en una promoción automática (ADR-0168).",
+            "nullable": true,
+            "type": "string"
+          },
           "endedAt": {
             "description": "Cuándo se terminó a mano.",
             "format": "date-time",
@@ -6135,6 +6232,10 @@
             "description": "Lo ve el cliente en su orden y en el ticket.",
             "type": "string"
           },
+          "oncePerCustomer": {
+            "description": "Si cada cliente usa el cupón una sola vez.",
+            "type": "boolean"
+          },
           "percentage": {
             "description": "Porcentaje entero de descuento; `null` con `amountOff`.",
             "nullable": true,
@@ -6156,6 +6257,15 @@
           "targetCount": {
             "description": "Cuántos productos, categorías y marcas tiene; 0 aplica a toda la compra.",
             "type": "number"
+          },
+          "usageLimit": {
+            "description": "Cuántas veces se puede usar el cupón; `null` sin límite.",
+            "nullable": true,
+            "type": "number"
+          },
+          "uses": {
+            "description": "Las órdenes que cuentan un uso del cupón: colocadas, y ni vencidas ni canceladas. Un pago tardío puede pasar el\nlímite.",
+            "type": "number"
           }
         },
         "required": [
@@ -6168,8 +6278,12 @@
           "startsAt",
           "endsAt",
           "endedAt",
+          "code",
+          "usageLimit",
           "name",
-          "targetCount"
+          "targetCount",
+          "oncePerCustomer",
+          "uses"
         ],
         "type": "object"
       },
@@ -7341,6 +7455,14 @@
       },
       "StaffQuoteDto": {
         "properties": {
+          "couponCode": {
+            "description": "El código de un cupón, sin distinguir mayúsculas (ADR-0168). Reemplaza a la promoción automática, aunque descuente menos; si no aplica, 409 `coupon-not-applicable` con `reason`, sin otra promoción. Los códigos que nadie tiene se limitan por IP.",
+            "example": "BUENFIN",
+            "maxLength": 30,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
           "fulfillment": {
             "description": "`SHIPPING` (por defecto): se envía a una dirección. `IN_STORE`: venta de mostrador, que el staff entrega en la tienda al pagarse, sin dirección ni costo de envío; el comprador puede no dar sus datos (ADR-0161).",
             "enum": [
@@ -8159,6 +8281,11 @@
             "type": "array",
             "uniqueItems": true
           },
+          "code": {
+            "description": "Código del cupón, de 4 a 30 letras, números o guiones; `null` lo quita y la promoción se aplica sola. Solo antes de su inicio.",
+            "nullable": true,
+            "type": "string"
+          },
           "endsAt": {
             "description": "Fin, excluido, posterior al inicio y, ya iniciada, al momento actual; `null` lo quita.",
             "format": "date-time",
@@ -8179,6 +8306,10 @@
             "pattern": "\\S",
             "type": "string"
           },
+          "oncePerCustomer": {
+            "description": "Si cada cliente usa el cupón una sola vez; solo antes de su inicio.",
+            "type": "boolean"
+          },
           "percentage": {
             "description": "Porcentaje entero de descuento, de 1 a 100, sobre las líneas a las que aplica. Exactamente uno de `percentage` y `amountOff`.",
             "maximum": 100,
@@ -8197,6 +8328,13 @@
             },
             "type": "array",
             "uniqueItems": true
+          },
+          "usageLimit": {
+            "description": "Usos en total del cupón, nunca menos de los que ya tiene; `null` lo quita. Se cambia también ya iniciada.",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "nullable": true,
+            "type": "number"
           },
           "version": {
             "description": "Versión leída (bloqueo optimista).",
@@ -16519,7 +16657,7 @@
         ]
       },
       "post": {
-        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como `orders.place`.",
+        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con `couponCode`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como `orders.place`.",
         "operationId": "AdminOrdersController_place_v1",
         "parameters": [
           {
@@ -16602,7 +16740,7 @@
                 }
               }
             },
-            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `insufficient-stock`: Stock insuficiente"
+            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `coupon-not-applicable`: Cupón que no aplica; `insufficient-stock`: Stock insuficiente"
           },
           "422": {
             "content": {
@@ -16651,7 +16789,7 @@
     },
     "/v1/admin/orders/quote": {
       "post": {
-        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404.",
+        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404.",
         "operationId": "AdminOrdersController_quote_v1",
         "parameters": [],
         "requestBody": {
@@ -16714,6 +16852,16 @@
               }
             },
             "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`coupon-not-applicable`: Cupón que no aplica"
           },
           "429": {
             "content": {
@@ -19000,7 +19148,20 @@
             }
           },
           {
-            "description": "Parte del nombre, sin distinguir mayúsculas.",
+            "description": "`AUTOMATIC`: las que se aplican solas. `COUPON`: los cupones, con su código.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "AUTOMATIC",
+                "COUPON"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Parte del nombre, o el código exacto de un cupón, sin distinguir mayúsculas.",
             "in": "query",
             "name": "q",
             "required": false,
@@ -19095,7 +19256,7 @@
         ]
       },
       "post": {
-        "description": "UC-PRM-01 (ADR-0168). Un porcentaje entero (`percentage`, de 1 a 100) o un monto fijo por orden (`amountOff`), exactamente uno; sobre toda la compra, o sobre los productos, categorías (con sus subcategorías) y marcas de `targets`, que deben existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no. En línea, en la tienda física o en los dos; con compra mínima opcional. Sin `startsAt`, o con uno que ya pasó, empieza ahora. Se audita como `promotions.create`.",
+        "description": "UC-PRM-01 (ADR-0168). Un porcentaje entero (`percentage`, de 1 a 100) o un monto fijo por orden (`amountOff`), exactamente uno; sobre toda la compra, o sobre los productos, categorías (con sus subcategorías) y marcas de `targets`, que deben existir y estar en uso: un producto archivado, o una categoría o marca inactiva, no. En línea, en la tienda física o en los dos; con compra mínima opcional. Sin `startsAt`, o con uno que ya pasó, empieza ahora. Con `code` es un cupón (ADR-0168): solo aplica a quien lo da, con sus límites opcionales `usageLimit` y `oncePerCustomer`; un código que ya tiene otra promoción, aunque haya terminado, responde 409 `duplicate-value`. Se audita como `promotions.create`.",
         "operationId": "AdminPromotionsController_create_v1",
         "parameters": [],
         "requestBody": {
@@ -19148,6 +19309,16 @@
               }
             },
             "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`duplicate-value`: Valor duplicado"
           },
           "429": {
             "content": {
@@ -19286,7 +19457,7 @@
         ]
       },
       "patch": {
-        "description": "UC-PRM-03 (ADR-0168). Solo cambian los campos enviados; `percentage` o `amountOff` reemplazan el descuento, y `targets`, la lista completa. Antes de su inicio se cambia todo; ya iniciada, solo `name` y `endsAt`, que debe ser posterior al momento actual: otro cambio responde 409 `invalid-state-transition`, igual que editar una terminada. Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén. Sin cambios, no se guarda ni se audita. Se audita como `promotions.update`.",
+        "description": "UC-PRM-03 (ADR-0168). Solo cambian los campos enviados; `percentage` o `amountOff` reemplazan el descuento, y `targets`, la lista completa. Antes de su inicio se cambia todo; ya iniciada, solo `name`, `endsAt`, que debe ser posterior al momento actual, y `usageLimit`, nunca por debajo de `uses`: otro cambio responde 409 `invalid-state-transition`, igual que editar una terminada. Un código que ya tiene otra promoción responde 409 `duplicate-value`. Un producto, categoría o marca nuevo debe existir y estar en uso; los que ya tenía se quedan aunque ya no lo estén. Sin cambios, no se guarda ni se audita. Se audita como `promotions.update`.",
         "operationId": "AdminPromotionsController_update_v1",
         "parameters": [
           {
@@ -19369,7 +19540,7 @@
                 }
               }
             },
-            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual"
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual; `duplicate-value`: Valor duplicado"
           },
           "429": {
             "content": {
@@ -23306,7 +23477,7 @@
     },
     "/v1/checkout/quote": {
       "post": {
-        "description": "Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles.",
+        "description": "Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos.",
         "operationId": "CheckoutController_quote_v1",
         "parameters": [],
         "requestBody": {
@@ -23368,7 +23539,7 @@
                 }
               }
             },
-            "description": "`cart-not-active`: Carrito no activo; `empty-cart`: Carrito vacío"
+            "description": "`cart-not-active`: Carrito no activo; `empty-cart`: Carrito vacío; `coupon-not-applicable`: Cupón que no aplica"
           },
           "429": {
             "content": {
@@ -24573,9 +24744,19 @@
     },
     "/v1/me/checkout/quote": {
       "post": {
-        "description": "Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Sin carrito activo, 409 `empty-cart`.",
+        "description": "Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Sin carrito activo, 409 `empty-cart`.",
         "operationId": "MeCheckoutController_quote_v1",
         "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerQuoteDto"
+              }
+            }
+          },
+          "required": false
+        },
         "responses": {
           "200": {
             "content": {
@@ -24625,7 +24806,7 @@
                 }
               }
             },
-            "description": "`empty-cart`: Carrito vacío"
+            "description": "`empty-cart`: Carrito vacío; `coupon-not-applicable`: Cupón que no aplica"
           },
           "429": {
             "content": {
@@ -24914,7 +25095,7 @@
         ]
       },
       "post": {
-        "description": "Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos. Usa el carrito activo del cliente, que necesita el email verificado; el contacto es el email de la cuenta. Exactamente uno de `addressId` y `shippingAddress`.",
+        "description": "Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Con `couponCode`, el cupón se vuelve a revisar y cuenta su uso en la misma transacción: si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos. Usa el carrito activo del cliente, que necesita el email verificado; el contacto es el email de la cuenta. Exactamente uno de `addressId` y `shippingAddress`.",
         "operationId": "MeOrdersController_place_v1",
         "parameters": [
           {
@@ -24997,7 +25178,7 @@
                 }
               }
             },
-            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`cart-not-active`: Carrito no activo; `empty-cart`: Carrito vacío; `variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `insufficient-stock`: Stock insuficiente"
+            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`cart-not-active`: Carrito no activo; `empty-cart`: Carrito vacío; `variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `coupon-not-applicable`: Cupón que no aplica; `insufficient-stock`: Stock insuficiente"
           },
           "422": {
             "content": {
@@ -25471,7 +25652,7 @@
     },
     "/v1/orders": {
       "post": {
-        "description": "Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos. Además, hasta 5 órdenes de invitado por email de contacto cada hora. El invitado consulta su pedido con el email de contacto y el código público.",
+        "description": "Exige `Idempotency-Key`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal` y no crea la orden. Con `couponCode`, el cupón se vuelve a revisar y cuenta su uso en la misma transacción: si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Reserva todo el stock o nada, crea la orden en `PENDING_PAYMENT` y deja el carrito `CHECKED_OUT`, en una sola transacción. Hasta 10 órdenes por usuario o carrito cada 10 minutos. Además, hasta 5 órdenes de invitado por email de contacto cada hora. El invitado consulta su pedido con el email de contacto y el código público.",
         "operationId": "OrdersController_place_v1",
         "parameters": [
           {
@@ -25544,7 +25725,7 @@
                 }
               }
             },
-            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`cart-not-active`: Carrito no activo; `empty-cart`: Carrito vacío; `variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `insufficient-stock`: Stock insuficiente"
+            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`cart-not-active`: Carrito no activo; `empty-cart`: Carrito vacío; `variant-not-sellable`: Producto no disponible; `total-mismatch`: El total cambió; `coupon-not-applicable`: Cupón que no aplica; `insufficient-stock`: Stock insuficiente"
           },
           "422": {
             "content": {

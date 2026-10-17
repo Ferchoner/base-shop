@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
 import {
@@ -27,6 +28,7 @@ import { ApiProblemResponses } from '../../../platform/http/problem-details/api-
 import { userScope } from '../../../platform/http/idempotency/idempotency-scope.js';
 import { Idempotent } from '../../../platform/http/idempotency/idempotent.decorator.js';
 import { ProblemException } from '../../../platform/http/problem-details/problem.exception.js';
+import { FailedAttemptLimiter } from '../../../platform/http/rate-limiting/failed-attempt-limiter.js';
 import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { NotFoundError, toId } from '../../../shared-kernel/index.js';
 import type {
@@ -58,6 +60,7 @@ import {
 } from './admin-order.dto.js';
 import { CheckoutQuoteDto } from './checkout.dto.js';
 import { QUOTE_DESCRIPTION } from './checkout.controller.js';
+import { withCouponAttempts } from './coupon-attempts.js';
 import { shippingAddressOf } from './me-orders.controller.js';
 import { ReorderDto } from './order.dto.js';
 import { PLACE_ORDER_PROBLEMS, REORDER_RULES } from './orders.controller.js';
@@ -89,6 +92,7 @@ export class AdminOrdersController {
     private readonly restocks: OrderRestocks,
     private readonly blockedData: BlockedOrderData,
     private readonly staffCheckout: StaffCheckout,
+    private readonly couponAttempts: FailedAttemptLimiter,
   ) {}
 
   @ApiOperation({
@@ -96,23 +100,37 @@ export class AdminOrdersController {
     description: `UC-ORD-12 (ADR-0161). ${QUOTE_DESCRIPTION} Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén \`warehouseId\`. Si el almacén no existe o está inactivo, o una variante no existe, 404.`,
   })
   @ApiOkResponse({ type: CheckoutQuoteDto })
-  @ApiProblemResponses('not-found')
+  @ApiProblemResponses(
+    'not-found',
+    'coupon-not-applicable',
+    'rate-limit-exceeded',
+  )
   @RequirePermissions('orders.place')
   @HttpCode(200)
   @Post('quote')
-  async quote(@Body() body: StaffQuoteDto): Promise<CheckoutQuoteDto> {
+  async quote(
+    @Body() body: StaffQuoteDto,
+    @Req() request: { ip?: string },
+  ): Promise<CheckoutQuoteDto> {
     return toCheckoutQuoteDto(
-      await this.staffCheckout.quote({
-        lines: linesOf(body),
-        warehouseId: toId<'Warehouse'>(body.warehouseId),
-        fulfillment: body.fulfillment ?? 'SHIPPING',
-      }),
+      await withCouponAttempts(
+        this.couponAttempts,
+        request,
+        body.couponCode,
+        () =>
+          this.staffCheckout.quote({
+            lines: linesOf(body),
+            warehouseId: toId<'Warehouse'>(body.warehouseId),
+            fulfillment: body.fulfillment ?? 'SHIPPING',
+            couponCode: body.couponCode ?? null,
+          }),
+      ),
     );
   }
 
   @ApiOperation({
     summary: 'Colocar un pedido en la tienda física a nombre de un cliente',
-    description: `UC-ORD-13 (ADR-0161). Exige \`Idempotency-Key\`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con \`contactEmail\` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de \`customerId\` y \`contactEmail\`, y uno de \`addressId\` y \`shippingAddress\`; \`addressId\` solo con \`customerId\`. Recalcula todo sin cache; si el total difiere de \`expectedTotal\` responde 409 \`total-mismatch\` con \`currentTotal\`. Reserva todo el stock en el almacén \`warehouseId\` o nada, y crea la orden \`STORE\` en \`PENDING_PAYMENT\`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como \`orders.place\`.`,
+    description: `UC-ORD-13 (ADR-0161). Exige \`Idempotency-Key\`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con \`contactEmail\` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de \`customerId\` y \`contactEmail\`, y uno de \`addressId\` y \`shippingAddress\`; \`addressId\` solo con \`customerId\`. Recalcula todo sin cache; si el total difiere de \`expectedTotal\` responde 409 \`total-mismatch\` con \`currentTotal\`. Reserva todo el stock en el almacén \`warehouseId\` o nada, y crea la orden \`STORE\` en \`PENDING_PAYMENT\`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con \`couponCode\`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 \`coupon-not-applicable\` con \`reason\`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como \`orders.place\`.`,
   })
   @ApiCreatedResponse({ type: AdminOrderDto })
   @ApiProblemResponses(
@@ -128,6 +146,7 @@ export class AdminOrdersController {
   async place(
     @CurrentUser() actor: AuthenticatedUser,
     @Body() body: PlaceStaffOrderDto,
+    @Req() request: { ip?: string },
     @Res({ passthrough: true })
     response: { setHeader(name: string, value: string): void },
   ): Promise<AdminOrderDto> {
@@ -146,15 +165,22 @@ export class AdminOrdersController {
         'Solo con `customerId`: un invitado escribe su dirección en `shippingAddress`.',
       );
     }
-    const id = await this.staffCheckout.place({
-      staffId: toId<'User'>(actor.id),
-      warehouseId: toId<'Warehouse'>(body.warehouseId),
-      fulfillment,
-      lines: linesOf(body),
-      buyer,
-      shippingAddress,
-      expectedTotal: body.expectedTotal,
-    });
+    const id = await withCouponAttempts(
+      this.couponAttempts,
+      request,
+      body.couponCode,
+      () =>
+        this.staffCheckout.place({
+          staffId: toId<'User'>(actor.id),
+          warehouseId: toId<'Warehouse'>(body.warehouseId),
+          fulfillment,
+          lines: linesOf(body),
+          buyer,
+          shippingAddress,
+          expectedTotal: body.expectedTotal,
+          couponCode: body.couponCode ?? null,
+        }),
+    );
     response.setHeader('Location', `/v1/admin/orders/${id}`);
     return this.read(id);
   }

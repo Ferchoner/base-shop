@@ -26,6 +26,12 @@ export interface PromotionSummaryView {
   readonly endsAt: Date | null;
   /** When it was ended by hand. */
   readonly endedAt: Date | null;
+  /** The code of a coupon; `null` for an automatic promotion (ADR-0168). */
+  readonly code: string | null;
+  readonly usageLimit: number | null;
+  readonly oncePerCustomer: boolean;
+  /** The orders that count a use of the coupon. */
+  readonly uses: number;
 }
 
 /** A promotion as the staff sees it (UC-PRM-02), with its targets. */
@@ -47,14 +53,23 @@ export type PromotionReach = 'ORDER' | 'ITEMS';
 
 export const PROMOTION_REACHES: readonly PromotionReach[] = ['ORDER', 'ITEMS'];
 
+/** Whether a promotion applies by itself, or is a coupon with its code (ADR-0168). */
+export type PromotionKind = 'AUTOMATIC' | 'COUPON';
+
+export const PROMOTION_KINDS: readonly PromotionKind[] = [
+  'AUTOMATIC',
+  'COUPON',
+];
+
 export interface PromotionFilter {
-  /** Part of the name, whatever its case. */
+  /** Part of the name, or the code of a coupon exactly, whatever their case. */
   readonly q?: string;
   /** Any of these, at the moment of the read. */
   readonly status?: readonly PromotionStatus[];
   /** The ones that apply in this channel. */
   readonly channel?: PromotionChannel;
   readonly appliesTo?: PromotionReach;
+  readonly kind?: PromotionKind;
 }
 
 export type PromotionSortField = 'startsAt' | 'name';

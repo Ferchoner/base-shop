@@ -3,6 +3,7 @@ import { TransactionHost } from '@nestjs-cls/transactional';
 import { Prisma } from '../../../platform/persistence/prisma/generated/client.js';
 import type { PrismaTransactionAdapter } from '../../../platform/persistence/transactional-plugin.js';
 import {
+  type Id,
   Money,
   newId,
   toId,
@@ -42,7 +43,7 @@ export class PrismaOrderRepository extends OrderRepository {
         id, public_code, customer_id, contact_email, status, currency,
         subtotal, tax_total, shipping_cost, shipping_tax_amount, shipping_tax_rate_bp,
         fulfillment, delivery_min_business_days, delivery_max_business_days, discount_total, grand_total,
-        promotion_id, promotion_name, shipping_address, reservation_id, channel, source_cart_id, placed_by, warehouse_id,
+        promotion_id, promotion_name, promotion_code, shipping_address, reservation_id, channel, source_cart_id, placed_by, warehouse_id,
         privacy_notice_version, placed_at, payment_due_at, created_at, updated_at)
       VALUES (
         ${o.id}::uuid, ${o.publicCode}, ${o.customerId}::uuid, ${o.contactEmail},
@@ -51,7 +52,7 @@ export class PrismaOrderRepository extends OrderRepository {
         ${totals.shippingTaxAmount.amount}, ${o.shippingTaxRateBp},
         ${o.fulfillment}::order_fulfillment, ${o.deliveryMinBusinessDays}, ${o.deliveryMaxBusinessDays},
         ${totals.discountTotal.amount}, ${totals.grandTotal.amount},
-        ${o.promotion?.id ?? null}::uuid, ${o.promotion?.name ?? null},
+        ${o.promotion?.id ?? null}::uuid, ${o.promotion?.name ?? null}, ${o.promotion?.code ?? null},
         ${o.shippingAddress === null ? null : JSON.stringify(o.shippingAddress)}::jsonb,
         ${o.reservationId}::uuid,
         ${o.channel}::order_channel, ${o.sourceCartId}::uuid, ${o.placedBy}::uuid,
@@ -101,6 +102,20 @@ export class PrismaOrderRepository extends OrderRepository {
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
     return Order.restore(toSnapshot(row));
+  }
+
+  async usedCoupon(
+    promotionId: Id<'Promotion'>,
+    contactEmail: string,
+  ): Promise<boolean> {
+    const used = await this.txHost.tx.order.count({
+      where: {
+        promotionId,
+        contactEmail,
+        status: { notIn: ['EXPIRED', 'CANCELLED', 'REFUNDED'] },
+      },
+    });
+    return used > 0;
   }
 
   async dueForExpiry(at: Date, limit: number): Promise<OrderId[]> {
@@ -250,7 +265,11 @@ function toSnapshot(row: OrderRow) {
     promotion:
       row.promotionId === null
         ? null
-        : { id: toId<'Promotion'>(row.promotionId), name: row.promotionName! },
+        : {
+            id: toId<'Promotion'>(row.promotionId),
+            name: row.promotionName!,
+            code: row.promotionCode,
+          },
     shippingTaxRateBp: row.shippingTaxRateBp,
     fulfillment: row.fulfillment,
     deliveryMinBusinessDays: row.deliveryMinBusinessDays,

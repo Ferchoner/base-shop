@@ -93,6 +93,10 @@ class BuyerOrders extends OrderRepository {
     super();
   }
 
+  usedCoupon(): Promise<boolean> {
+    throw new Error('Only placing an order asks the uses of a coupon');
+  }
+
   insert(): Promise<boolean> {
     throw new Error('Anonymizing never places orders');
   }

@@ -45,15 +45,35 @@ const promotion = (terms: Partial<NewPromotionTerms> = {}) =>
     at: new Date(NOW.getTime() - 3_600_000),
   });
 
-function facade(active: Promotion[], classified = [SHIRT]) {
-  const asked: { active: [Date, PromotionChannel][]; classify: string[][] } = {
-    active: [],
-    classify: [],
-  };
+function facade(
+  active: Promotion[],
+  classified = [SHIRT],
+  coupons: Promotion[] = [],
+) {
+  const asked: {
+    active: [Date, PromotionChannel][];
+    classify: string[][];
+    codes: string[];
+    uses: string[];
+  } = { active: [], classify: [], codes: [], uses: [] };
   const promotions = {
     activeAt: (at: Date, channel: PromotionChannel) => {
       asked.active.push([at, channel]);
       return Promise.resolve(active);
+    },
+    findByCode: (code: string) => {
+      asked.codes.push(code);
+      return Promise.resolve(
+        coupons.find((coupon) => coupon.snapshot.code === code) ?? null,
+      );
+    },
+    addUse: (id: PromotionId, options: { beyondLimit: boolean }) => {
+      asked.uses.push(`add ${id} ${options.beyondLimit}`);
+      return Promise.resolve(id === coupons[0]?.id);
+    },
+    removeUse: (id: PromotionId) => {
+      asked.uses.push(`remove ${id}`);
+      return Promise.resolve();
     },
   } as unknown as PromotionRepository;
   const catalog = {
@@ -86,10 +106,15 @@ describe('PromotionsFacade (T-200 part b, ADR-0168)', () => {
         lines: LINES,
       }),
     ).toEqual({
-      promotion: { id: byBrand.id, name: 'Lino 20%' },
+      promotion: {
+        id: byBrand.id,
+        name: 'Lino 20%',
+        code: null,
+        oncePerCustomer: false,
+      },
       discounts: [mxn(12_000), mxn(0)],
     });
-    expect(asked).toEqual({
+    expect(asked).toMatchObject({
       active: [[NOW, 'STORE']],
       classify: [[shirtVariant, capVariant]],
     });
@@ -109,7 +134,12 @@ describe('PromotionsFacade (T-200 part b, ADR-0168)', () => {
         lines: LINES,
       }),
     ).toEqual({
-      promotion: { id: whole.id, name: 'Buen Fin' },
+      promotion: {
+        id: whole.id,
+        name: 'Buen Fin',
+        code: null,
+        oncePerCustomer: false,
+      },
       discounts: [mxn(6_000), mxn(2_000)],
     });
   });
@@ -142,7 +172,108 @@ describe('PromotionsFacade (T-200 part b, ADR-0168)', () => {
         lines: LINES,
       }),
     ).toBeNull();
-    expect(empty.asked).toEqual({ active: [], classify: [] });
-    expect(none.asked).toEqual({ active: [[NOW, 'ONLINE']], classify: [] });
+    expect(empty.asked).toMatchObject({ active: [], classify: [] });
+    expect(none.asked).toMatchObject({
+      active: [[NOW, 'ONLINE']],
+      classify: [],
+    });
+  });
+});
+
+describe('PromotionsFacade: coupons (T-200 part c, ADR-0168)', () => {
+  const coupon = promotion({
+    name: 'Bienvenida',
+    code: 'HOLA-10',
+    oncePerCustomer: true,
+  });
+
+  it('gives what the coupon takes off, finding it by its code in uppercase, without the automatic promotions', async () => {
+    const { facade: promotions, asked } = facade(
+      [promotion({ discount: { type: 'PERCENTAGE', percentage: 50 } })],
+      [SHIRT],
+      [coupon],
+    );
+
+    expect(
+      await promotions.couponFor({
+        channel: 'ONLINE',
+        at: NOW,
+        lines: LINES,
+        code: ' hola-10 ',
+      }),
+    ).toEqual({
+      applied: {
+        promotion: {
+          id: coupon.id,
+          name: 'Bienvenida',
+          code: 'HOLA-10',
+          oncePerCustomer: true,
+        },
+        discounts: [mxn(6_000), mxn(2_000)],
+      },
+    });
+    expect(asked).toEqual({
+      active: [],
+      classify: [[shirtVariant, capVariant]],
+      codes: ['HOLA-10'],
+      uses: [],
+    });
+  });
+
+  it('answers a code nobody has as unavailable, without asking Catalog', async () => {
+    const { facade: promotions, asked } = facade([], [SHIRT], [coupon]);
+
+    expect(
+      await promotions.couponFor({
+        channel: 'ONLINE',
+        at: NOW,
+        lines: LINES,
+        code: 'OTRO',
+      }),
+    ).toEqual({ refused: 'unavailable' });
+    expect(asked.classify).toEqual([]);
+  });
+
+  it('answers why a coupon does not apply, and asks Catalog nothing for no lines', async () => {
+    const short = promotion({
+      code: 'MINIMO',
+      minimumSubtotal: mxn(100_000),
+    });
+    const { facade: promotions, asked } = facade([], [SHIRT], [short]);
+
+    expect(
+      await promotions.couponFor({
+        channel: 'STORE',
+        at: NOW,
+        lines: LINES,
+        code: 'minimo',
+      }),
+    ).toEqual({ refused: 'minimumNotMet' });
+    expect(
+      await promotions.couponFor({
+        channel: 'STORE',
+        at: NOW,
+        lines: [],
+        code: 'minimo',
+      }),
+    ).toEqual({ refused: 'minimumNotMet' });
+    expect(asked.classify).toEqual([[shirtVariant, capVariant]]);
+  });
+
+  it('counts a use within the limit, again beyond it, and gives one back', async () => {
+    const { facade: promotions, asked } = facade([], [SHIRT], [coupon]);
+    const other = newId<'Promotion'>();
+
+    expect(await promotions.redeem(coupon.id)).toBe(true);
+    expect(await promotions.redeem(other)).toBe(false);
+    await promotions.recount(coupon.id);
+    await promotions.release(coupon.id);
+
+    expect(asked.uses).toEqual([
+      `add ${coupon.id} false`,
+      `add ${other} false`,
+      `add ${coupon.id} true`,
+      `remove ${coupon.id}`,
+    ]);
   });
 });

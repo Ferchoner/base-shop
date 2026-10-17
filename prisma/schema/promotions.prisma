@@ -32,6 +32,15 @@ model Promotion {
   endedBy         String?   @map("ended_by") @db.Uuid
   /// The staff member who created it; a logical reference to Identity.
   createdBy       String    @map("created_by") @db.Uuid
+  /// The code of a coupon, in uppercase, unique for good; `null` for an automatic promotion (ADR-0168). CHECK: 4 to 30
+  /// letters, digits or dashes (manual SQL).
+  code            String?   @unique
+  /// How many times a coupon can be used; `null` without a limit. Only a coupon has limits (CHECK in the migration).
+  usageLimit      Int?      @map("usage_limit")
+  /// A coupon each customer uses once, counted by the contact email of their orders.
+  oncePerCustomer Boolean   @default(false) @map("once_per_customer")
+  /// The orders that count a use: placed, and neither expired nor cancelled. A late payment may take it past the limit.
+  uses            Int       @default(0)
   version         Int       @default(1)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)

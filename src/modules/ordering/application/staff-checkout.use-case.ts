@@ -54,6 +54,8 @@ export interface StaffQuoteInput {
   readonly warehouseId: WarehouseId;
   /** Shipped, or handed over in the store, without shipping (ADR-0161). */
   readonly fulfillment: OrderFulfillment;
+  /** The code of a coupon, whatever its case (ADR-0168); missing or `null` without one. */
+  readonly couponCode?: string | null;
 }
 
 /** UC-ORD-13: an order a staff member places on behalf of a customer who is in the store (ADR-0161). */
@@ -117,6 +119,7 @@ export class StaffCheckout {
       input.lines,
       this.clock.now(),
       'STORE',
+      input.couponCode ?? null,
     );
     const available = await this.stock.canFulfill(
       assessment.priced.map(({ variantId, quantity }) => ({
@@ -157,11 +160,13 @@ export class StaffCheckout {
               buyer.customerId,
               input.shippingAddress,
             );
-      const { items, priced, promotion } = await this.placement.assess(
+      const assessment = await this.placement.assess(
         input.lines,
         now,
         'STORE',
+        input.couponCode ?? null,
       );
+      const { items, priced, promotion } = assessment;
       const unsellable = items
         .filter((item) => item.priced === null)
         .map(({ variant }) => variant.id);
@@ -181,6 +186,7 @@ export class StaffCheckout {
       if (total.amount !== input.expectedTotal) {
         throw new TotalMismatchError(total);
       }
+      await this.placement.useCoupon(assessment, buyer.contactEmail);
       const id = newId<'Order'>();
       const reservation = await this.stock.reserve(
         id,
