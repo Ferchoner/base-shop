@@ -322,10 +322,18 @@ export class EnvironmentVariables {
   })
   MAIL_FROM: string = 'base-shop <no-reply@base-shop.test>';
 
-  /** Base URL of the frontend for the links in emails (ADR-0056, ADR-0110). Required in production, with https. */
+  /**
+   * Base URL of the public shop for the links in emails to customers and guests (ADR-0056, ADR-0110, ADR-0169).
+   * Required in production, with https.
+   */
   @Expose()
   @IsBaseUrl()
-  FRONTEND_BASE_URL: string = 'http://localhost:5173';
+  FRONTEND_BASE_URL: string = 'http://localhost:3002';
+
+  /** Base URL of the backoffice for the links in emails to the staff (ADR-0169). Required in production, with https. */
+  @Expose()
+  @IsBaseUrl()
+  BACKOFFICE_BASE_URL: string = 'http://localhost:3001';
 
   /**
    * Folder of the product images on the server's disk, absolute or relative to the working directory
@@ -549,6 +557,7 @@ export const REQUIRED_IN_PRODUCTION = [
   'SMTP_PORT',
   'MAIL_FROM',
   'FRONTEND_BASE_URL',
+  'BACKOFFICE_BASE_URL',
   'JWT_SECRET',
   'IMAGE_BASE_URL',
 ] as const;
@@ -629,15 +638,17 @@ function imageStorageProblems(environment: EnvironmentVariables): string[] {
 
 /**
  * The links of the emails carry tokens (verification, recovery, access to guest orders), so production builds them
- * only with https (T-310, ADR-0154). A value that is no URL already has its own problem.
+ * only with https, for the shop and the backoffice (T-310, ADR-0154, ADR-0169). A value that is no URL already has
+ * its own problem.
  */
 function frontendLinkProblems(environment: EnvironmentVariables): string[] {
-  return environment.NODE_ENV === 'production' &&
-    /^http:/i.test(environment.FRONTEND_BASE_URL)
-    ? [
-        '- FRONTEND_BASE_URL must use https when NODE_ENV is production, because the links in emails carry tokens',
-      ]
-    : [];
+  if (environment.NODE_ENV !== 'production') return [];
+  return (['FRONTEND_BASE_URL', 'BACKOFFICE_BASE_URL'] as const)
+    .filter((name) => /^http:/i.test(environment[name]))
+    .map(
+      (name) =>
+        `- ${name} must use https when NODE_ENV is production, because the links in emails carry tokens`,
+    );
 }
 
 /** Whether `folder` is `parent` or inside it. */

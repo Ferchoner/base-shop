@@ -259,7 +259,7 @@ describe('RATE_LIMIT_* (ADR-0065, ADR-0102)', () => {
   });
 });
 
-describe('Email and frontend links (ADR-0110)', () => {
+describe('Email and frontend links (ADR-0110, ADR-0169)', () => {
   /** Production with every variable it requires. */
   const PRODUCTION = {
     ...REQUIRED,
@@ -268,17 +268,19 @@ describe('Email and frontend links (ADR-0110)', () => {
     SMTP_PORT: '587',
     MAIL_FROM: 'Tienda <no-reply@example.com>',
     FRONTEND_BASE_URL: 'https://shop.example.com',
+    BACKOFFICE_BASE_URL: 'https://admin.example.com',
     JWT_SECRET: 'x'.repeat(32),
     IMAGE_BASE_URL: 'https://shop.example.com/media',
     STORE_NAME: 'Tienda Ejemplo',
   };
 
-  it('defaults to Mailpit and a local frontend in development and test', () => {
+  it('defaults to Mailpit and the local shop and backoffice in development and test', () => {
     expect(validateEnvironment(REQUIRED)).toMatchObject({
       SMTP_HOST: 'localhost',
       SMTP_PORT: 1025,
       MAIL_FROM: 'base-shop <no-reply@base-shop.test>',
-      FRONTEND_BASE_URL: 'http://localhost:5173',
+      FRONTEND_BASE_URL: 'http://localhost:3002',
+      BACKOFFICE_BASE_URL: 'http://localhost:3001',
     });
   });
 
@@ -287,6 +289,7 @@ describe('Email and frontend links (ADR-0110)', () => {
       SMTP_HOST: 'smtp.example.com',
       SMTP_PORT: 587,
       FRONTEND_BASE_URL: 'https://shop.example.com',
+      BACKOFFICE_BASE_URL: 'https://admin.example.com',
     });
   });
 
@@ -310,11 +313,38 @@ describe('Email and frontend links (ADR-0110)', () => {
     ).toBe(plain);
   });
 
+  it('requires https for the backoffice in production too (ADR-0169)', () => {
+    const plain = 'http://admin.example.com';
+
+    expect(() =>
+      validateEnvironment({ ...PRODUCTION, BACKOFFICE_BASE_URL: plain }),
+    ).toThrow(
+      'BACKOFFICE_BASE_URL must use https when NODE_ENV is production, because the links in emails carry tokens',
+    );
+    expect(() =>
+      validateEnvironment({ ...PRODUCTION, BACKOFFICE_BASE_URL: plain }),
+    ).not.toThrow('FRONTEND_BASE_URL');
+    expect(
+      validateEnvironment({ ...REQUIRED, BACKOFFICE_BASE_URL: plain })
+        .BACKOFFICE_BASE_URL,
+    ).toBe(plain);
+  });
+
+  it('rejects a backoffice URL with a trailing slash, like the shop one', () => {
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        BACKOFFICE_BASE_URL: 'https://admin.example.com/',
+      }),
+    ).toThrow('BACKOFFICE_BASE_URL');
+  });
+
   it.each([
     'SMTP_HOST',
     'SMTP_PORT',
     'MAIL_FROM',
     'FRONTEND_BASE_URL',
+    'BACKOFFICE_BASE_URL',
     'IMAGE_BASE_URL',
     'STORE_NAME',
   ])(

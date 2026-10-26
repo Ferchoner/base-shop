@@ -296,7 +296,7 @@ describe('Access link to the guest orders (e2e, T-186)', () => {
         to: 'cliente@example.com',
         subject: 'Consulta tus pedidos',
         text: expect.stringContaining(
-          'http://localhost:5173/order-access?token=',
+          'http://localhost:3002/order-access?token=',
         ),
       },
     ]);

@@ -2,19 +2,29 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   EmailSender,
   emailSafeText,
+  type Frontend,
   FrontendLinks,
   lifetimeInWords,
   newId,
   newLinkToken,
 } from '../../../shared-kernel/index.js';
 import { PasswordResetTokenRepository } from '../domain/password-reset.js';
-import type { UserId } from '../domain/user.js';
+import type { UserId, UserType } from '../domain/user.js';
 
 /** Seconds a recovery link lives (`PASSWORD_RESET_TTL`, BR-USR-16). */
 export const PASSWORD_RESET_TTL_SECONDS = Symbol('PASSWORD_RESET_TTL_SECONDS');
 
-/** Frontend page that reads the token and sends it with the new password (ADR-0117, ADR-0118). */
+/**
+ * Frontend page that reads the token and sends it with the new password (ADR-0117, ADR-0118): in the shop for
+ * customers, and in the backoffice for the staff (ADR-0169).
+ */
 export const RESET_PASSWORD_PAGE = '/reset-password';
+
+/** The frontend where each type of account signs in, and so where its recovery link goes (ADR-0169). */
+const FRONTEND_OF: Readonly<Record<UserType, Frontend>> = {
+  CUSTOMER: 'shop',
+  STAFF: 'backoffice',
+};
 
 /**
  * Password recovery links (ADR-0056, ADR-0118): issuing one inside a transaction, invalidating the pending
@@ -51,11 +61,11 @@ export class PasswordResets {
   }
 
   /**
-   * Sends the link, after the commit. A failure stays in the log, without the address, and is not retried
-   * (ADR-0110): the person can ask for another link.
+   * Sends the link to the frontend of the account, after the commit. A failure stays in the log, without the
+   * address, and is not retried (ADR-0110): the person can ask for another link.
    */
   async send(
-    account: { id: string; email: string; firstNames: string },
+    account: { id: string; email: string; firstNames: string; type: UserType },
     token: string,
   ): Promise<void> {
     try {
@@ -66,7 +76,9 @@ export class PasswordResets {
           `Hola, ${emailSafeText(account.firstNames)}:`,
           '',
           'Para elegir una contraseña nueva, abre este enlace:',
-          this.links.link(RESET_PASSWORD_PAGE, { token }),
+          this.links.link(FRONTEND_OF[account.type], RESET_PASSWORD_PAGE, {
+            token,
+          }),
           '',
           `El enlace vence en ${lifetimeInWords(this.ttlSeconds)} y sirve una sola vez. Si pides otro, este deja de funcionar.`,
           '',

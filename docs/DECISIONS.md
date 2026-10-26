@@ -186,6 +186,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0166 | Órdenes de trabajo: folio, cliente, estados y edición | Aceptada |
 | ADR-0167 | Órdenes de trabajo: ventas ligadas, nota de servicio y conservación de datos | Aceptada |
 | ADR-0168 | Promociones | Aceptada |
+| ADR-0169 | Una URL por frontend en los enlaces de los correos | Aceptada |
 
 ---
 
@@ -1171,7 +1172,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - **Cambio obligatorio del staff:** pide la contraseña temporal, igual que un cambio normal pide la contraseña actual.
 - **Alternativas consideradas:** Código de 6 dígitos por correo (más independiente del frontend, pero expuesto a fuerza bruta y menos cómodo); passkeys (más seguras, pero un cambio mayor; candidatas junto con el 2FA, ADR-0048).
 - **Consecuencias:** Los tokens de recuperación se guardan en su propia tabla; los vencidos o usados se eliminan en la limpieza diaria (ADR-0029).
-- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122). ADR-0117 fija la página de verificación (`/verify-email`) y reserva `/reset-password` para la recuperación. Recuperación implementada en ADR-0118: `/reset-password?token=…`, vigencia en `PASSWORD_RESET_TTL`, y el cambio de email invalida los enlaces pendientes.
+- **Estado:** Aceptada. La URL base del frontend y el armado de los enlaces se implementaron en ADR-0110 (T-122). ADR-0117 fija la página de verificación (`/verify-email`) y reserva `/reset-password` para la recuperación. Recuperación implementada en ADR-0118: `/reset-password?token=…`, vigencia en `PASSWORD_RESET_TTL`, y el cambio de email invalida los enlaces pendientes. ADR-0169: una URL base por frontend, y el enlace de recuperación del staff va al backoffice.
 
 ---
 
@@ -2598,7 +2599,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - T-121, T-123 y T-215 solo arman el mensaje; no conocen el mecanismo de envío.
   - Cambiar de proveedor (P-24) es otro adaptador de `EmailSender` y otras variables SMTP. Si el proveedor pide usuario y contraseña, se agregan como variables nuevas.
   - Los correos de desarrollo se leen en http://localhost:8025.
-- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28). Primer uso en ADR-0117: el token va en la query del enlace. ADR-0154: en producción el SMTP exige TLS con certificado verificado y `FRONTEND_BASE_URL` debe usar `https`; la autenticación SMTP queda para P-24.
+- **Estado:** Aceptada (plan de T-122 aprobado el 2026-09-28). Primer uso en ADR-0117: el token va en la query del enlace. ADR-0154: en producción el SMTP exige TLS con certificado verificado y `FRONTEND_BASE_URL` debe usar `https`; la autenticación SMTP queda para P-24. ADR-0169: `FRONTEND_BASE_URL` es la tienda pública, `BACKOFFICE_BASE_URL` el backoffice, con las mismas reglas, y `FrontendLinks.link` recibe el frontend.
 
 ---
 
@@ -5386,3 +5387,40 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - el vencimiento y la cancelación devuelven el uso en su transacción, y el pago tardío de una orden vencida lo vuelve a contar, por el puerto `OrderCoupons`;
   - **el límite de intentos:** 10 códigos que responden `unavailable` por IP en 15 minutos (`RATE_LIMIT_COUPON_ATTEMPTS`), con el mismo `FailedAttemptLimiter` del login, en las seis rutas; los demás motivos no cuentan, porque responden con un código que existe;
   - una promoción automática no audita `oncePerCustomer`, que solo tiene un cupón.
+
+---
+
+## ADR-0169 — Una URL por frontend en los enlaces de los correos
+
+- **Fecha:** 2026-10-26
+- **Contexto:** Octavo incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.8. La API tiene dos frontends en repositorios propios: el backoffice del staff (`Ferchoner/base-ecomm-admin`) y la tienda pública (`Ferchoner/base-shop-front`). Hoy:
+  - **Una sola URL:** los enlaces de los correos se arman con `FRONTEND_BASE_URL` (ADR-0056, ADR-0110), que el usuario apuntó al backoffice el 2026-10-05, porque era el único frontend y ya tenía `/reset-password` (G-01 y D-032 del backoffice);
+  - **Tres enlaces con token:** `/verify-email` (ADR-0117), `/reset-password` (ADR-0118), para clientes y staff, y `/order-access` (ADR-0148), para invitados;
+  - **El problema:** con la URL en el backoffice, los correos de los clientes y de los invitados llevan a un frontend sin esas páginas; con la URL en la tienda, el staff pierde su recuperación de contraseña (G-08 de la tienda).
+- **Decisión** (del usuario, el 2026-10-26, al pedir el cambio desde la tienda):
+  - **Dos variables:**
+    - `FRONTEND_BASE_URL` sigue siendo la URL de la tienda pública, la que ya esperaban sus enlaces; ahora por defecto es `http://localhost:3002`, el puerto local de la tienda (ADR-F010 de la tienda), en lugar de `http://localhost:5173`;
+    - `BACKOFFICE_BASE_URL`, nueva, es la URL del backoffice; por defecto `http://localhost:3001`, su puerto local.
+    - Las dos siguen las reglas de ADR-0110: `http` o `https`, con ruta opcional, sin query, fragmento, credenciales ni barra final. En producción las dos son obligatorias y deben usar `https` (ADR-0154).
+  - **Cada enlace a su frontend:**
+    - la verificación de email y el acceso a los pedidos de invitado van a la tienda: solo los clientes y los invitados los reciben;
+    - la recuperación de contraseña va al frontend del tipo de cuenta: `CUSTOMER` a la tienda y `STAFF` al backoffice. Las rutas no cambian.
+  - **El puerto `FrontendLinks`** recibe el frontend en cada enlace: `link('shop' | 'backoffice', ruta, parámetros)`. Es explícito para que ningún enlace nuevo vaya por omisión al frontend equivocado.
+  - **Implementación:** T-125, en una parte, precedida por un paso 0.
+- **Alternativas consideradas:**
+  - **Renombrar `FRONTEND_BASE_URL` a `SHOP_BASE_URL`:** más claro, pero rompe las configuraciones que ya existen, y la tienda ya documenta `FRONTEND_BASE_URL`.
+  - **Que la tienda atienda `/reset-password` para los dos tipos de cuenta:** el staff terminaría en la tienda, donde no puede iniciar sesión, y la tienda tendría que conocer al staff.
+  - **Una URL por enlace** (tres variables): más configuración sin un caso que la pida; el frontend depende del destinatario, no de la página.
+  - **Elegir el frontend por el origen de la solicitud** (`Origin` o `Referer`): un cliente de la API podría mandar los enlaces a otro sitio; los enlaces nunca se arman con datos de la solicitud (`SECURITY_AUDIT.md`).
+- **Consecuencias:**
+  - Los clientes y los invitados reciben enlaces a la tienda, y el staff recupera su contraseña en el backoffice, con los dos frontends en marcha a la vez.
+  - Quien tenía `FRONTEND_BASE_URL` apuntando al backoffice debe apuntarla a la tienda y poner la del backoffice en `BACKOFFICE_BASE_URL`. Sin `.env`, los valores por defecto ya apuntan a los puertos locales de cada frontend.
+  - Producción exige una variable más.
+  - Sin cambios en el contrato de `/v1`: ni rutas, ni campos, ni errores. Es una versión menor porque cambia la configuración y el comportamiento de los correos, no por el contrato (ADR-0159).
+  - Modifica ADR-0056 y ADR-0110.
+- **Revisar si:** aparece un tercer frontend, o un enlace que dependa de otra cosa que el destinatario.
+- **Estado:** Aceptada (decidida por el usuario el 2026-10-26, al aprobar el cambio pedido por la tienda). Implementada en T-125:
+  - `BACKOFFICE_BASE_URL` en `EnvironmentVariables`, en `REQUIRED_IN_PRODUCTION` y en la regla de `https` de producción, con `.env.example` y la prueba de las imágenes de producción;
+  - `FrontendLinks.link(frontend, ruta, parámetros)` y su adaptador `ConfigFrontendLinks`, con una URL base por frontend;
+  - `PasswordResets.send` recibe el tipo de cuenta y elige el frontend; la verificación de email y el acceso a pedidos de invitado piden la tienda.
+

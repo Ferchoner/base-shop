@@ -38,7 +38,7 @@ export {
   ImportRowErrors,
   MAX_IMPORT_ERRORS,
 } from './file-import.js';
-export { FrontendLinks } from './frontend-links.js';
+export { type Frontend, FrontendLinks } from './frontend-links.js';
 export { lifetimeInWords } from './lifetime-in-words.js';
 export { hashLinkToken, newLinkToken } from './link-tokens.js';
 export {

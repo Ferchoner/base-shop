@@ -6,6 +6,7 @@ import {
   type EmailMessage,
   type EmailSender,
   EmailDeliveryError,
+  type Frontend,
   type FrontendLinks,
   hashLinkToken,
   InvalidOrExpiredTokenError,
@@ -102,8 +103,8 @@ function setUp(options: { hasOrders?: boolean; emailFails?: boolean } = {}) {
     },
   } as unknown as OrderReader;
   const frontend = {
-    link: (path: string, params: Record<string, string>) =>
-      `https://tienda.example.com${path}?token=${params.token}`,
+    link: (frontend: Frontend, path: string, params: Record<string, string>) =>
+      `https://${frontend}.example.com${path}?token=${params.token}`,
   } as FrontendLinks;
   const sent: EmailMessage[] = [];
   const email = {
@@ -204,7 +205,7 @@ describe('OrderAccessLinks (UC-ORD-05, ADR-0148)', () => {
             'Hola:',
             '',
             'Para ver los pedidos que hiciste como invitado con este correo, abre este enlace:',
-            `https://tienda.example.com/order-access?token=${token}`,
+            `https://shop.example.com/order-access?token=${token}`,
             '',
             'El enlace vence en 30 minutos y sirve una sola vez. Si pides otro, este deja de funcionar.',
             '',

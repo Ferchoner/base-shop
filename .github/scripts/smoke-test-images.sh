@@ -54,6 +54,7 @@ docker run --detach --name "${NAME}-api" --network "$NAME" \
   --env SMTP_PORT=1025 \
   --env MAIL_FROM='base-shop <no-reply@shop.example.com>' \
   --env FRONTEND_BASE_URL=https://shop.example.com \
+  --env BACKOFFICE_BASE_URL=https://admin.example.com \
   --env IMAGE_BASE_URL=https://shop.example.com/media \
   --env STORE_NAME='Tienda Ejemplo' \
   "$API_IMAGE" >/dev/null
