@@ -647,7 +647,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 
 - **Validaciones:** `email` con formato válido, máximo 254 caracteres, se normaliza a minúsculas; `password` según ADR-0047; `firstNames` y `lastNames` de 1 a 100 caracteres; `privacyNoticeVersion` de 1 a 50 caracteres (ADR-0067).
 - **Response 201:** `Account`. Se envía el correo de verificación (ADR-0046). No inicia sesión: el cliente llama a login.
-- **Implementado en T-121 (ADR-0117):** la respuesta lleva `Cache-Control: no-store`. `password-policy-violation` indica la regla en el campo `password`. El enlace es `FRONTEND_BASE_URL/verify-email?token=…` y vence según `EMAIL_VERIFICATION_TTL` (24 horas por defecto).
+- **Implementado en T-121 (ADR-0117):** la respuesta lleva `Cache-Control: no-store`. `password-policy-violation` indica la regla en el campo `password`. El enlace es `FRONTEND_BASE_URL/verify-email?token=…`, en la tienda pública (ADR-0169), y vence según `EMAIL_VERIFICATION_TTL` (24 horas por defecto).
 - **Errores:** 400 `password-policy-violation`; 409 `duplicate-value` con `field: "email"` (el registro sí revela que el email existe, ADR-0062).
 
 ### 9.3 `POST /v1/auth/email-verification/confirm` — Verificar email (UC-IAM-02)
@@ -691,7 +691,7 @@ UC-IAM-12 (solicitudes ARCO), UC-IAM-20 y UC-IAM-21 no tienen API (ADR-0043, ADR
 - **Autenticación:** ninguna. **Rate limit:** 3 por email y 10 por IP por hora.
 - **Request:** `{ "email": "…" }`.
 - **Response 202** sin cuerpo, exista o no el email. No envía correo a cuentas suspendidas. Invalida enlaces anteriores (ADR-0056).
-- **Implementado en T-123 (ADR-0118):** el enlace es `FRONTEND_BASE_URL/reset-password?token=…` y vence según `PASSWORD_RESET_TTL` (30 minutos por defecto). Lo reciben clientes y staff activos. Cambiar el email invalida los enlaces pendientes.
+- **Implementado en T-123 (ADR-0118):** el enlace es `FRONTEND_BASE_URL/reset-password?token=…` para un cliente y `BACKOFFICE_BASE_URL/reset-password?token=…` para el staff (ADR-0169), y vence según `PASSWORD_RESET_TTL` (30 minutos por defecto). Lo reciben clientes y staff activos. Cambiar el email invalida los enlaces pendientes.
 - **Desde T-310 (ADR-0154):** responde en cuanto recibe la solicitud; el enlace se emite y se envía en segundo plano, así que tampoco el tiempo de la respuesta dice si la cuenta existe. El correo puede tardar unos segundos (sección 2.5).
 
 ### 9.9 `POST /v1/auth/password-reset/confirm` — Restablecer contraseña (UC-IAM-08)
@@ -1457,7 +1457,7 @@ Para el invitado que perdió el código de su pedido (ADR-0077). Implementado en
 
 - Response 202 sin cuerpo, siempre, en cuanto se recibe la solicitud: el enlace se emite y se envía después (§2.5). Ni la respuesta ni su tiempo dicen si el email tiene órdenes.
 - Solo se envía si el email, sin distinguir mayúsculas, minúsculas ni espacios alrededor, tiene órdenes de invitado. Una orden de cliente con ese email no cuenta.
-- El correo "Consulta tus pedidos" lleva `FRONTEND_BASE_URL/order-access?token=…`. El token vence según `ORDER_ACCESS_LINK_TTL` (30 minutos por defecto), sirve una vez, y pedir otro invalida los anteriores.
+- El correo "Consulta tus pedidos" lleva `FRONTEND_BASE_URL/order-access?token=…`, en la tienda pública (ADR-0169). El token vence según `ORDER_ACCESS_LINK_TTL` (30 minutos por defecto), sirve una vez, y pedir otro invalida los anteriores.
 - Errores: 400 `validation-error` sin email o con uno mal formado; 429 `rate-limit-exceeded`.
 - Rate limit: 3 por email y 10 por IP por hora.
 

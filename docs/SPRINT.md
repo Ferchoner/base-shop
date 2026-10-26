@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.7, promociones, se cerró el 2026-10-16 y se publica como la 1.7.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.8 — Una URL por frontend en los enlaces de los correos (ADR-0169), desde el 2026-10-26; su plan está en el historial. La versión 1.7, promociones, se cerró el 2026-10-16 y se publicó como la 1.7.0.
 
 ---
 
@@ -32,6 +32,36 @@ Ninguna. La versión 1.7, promociones, se cerró el 2026-10-16 y se publica como
 ---
 
 ## Historial
+
+### Versión 1.8 — Una URL por frontend en los enlaces de los correos (2026-10-26)
+
+**Goal:** Que la tienda pública y el backoffice funcionen a la vez con la misma API: los correos de los clientes y de los invitados llevan a la tienda, y la recuperación de contraseña del staff, al backoffice (ADR-0169). **Tareas:** T-125, en una parte, precedida por un paso 0.
+
+**Plan** (aprobado por el usuario el 2026-10-26, al pedir el cambio desde la tienda, G-08 de `base-shop-front`):
+
+- `FRONTEND_BASE_URL` sigue siendo la tienda, ahora con `http://localhost:3002` por defecto, y `BACKOFFICE_BASE_URL`, nueva, el backoffice, con `http://localhost:3001`; las dos obligatorias y con `https` en producción.
+- La verificación de email y el acceso a pedidos de invitado van a la tienda; la recuperación de contraseña, al frontend del tipo de cuenta.
+- Sin cambios en el contrato de `/v1`.
+- Consumidores: los tres correos con enlace atrapan el fallo del envío y lo registran sin la dirección (ADR-0110); el cambio no toca ese manejo, solo la URL.
+
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` encontró avisos nuevos desde la 1.7: altos en `body-parser`, `multer` y `undici` (de desarrollo), y moderados en `fast-uri` y `nodemailer`. La CI falla con los altos, así que se corrigen aquí:
+  - `body-parser` 2.4.0, `undici` 8.12.3 y `fast-uri` 3.1.9, solo en `package-lock.json`;
+  - `multer` 2.5.0 con un `override`, como los de ADR-0091, porque `@nestjs/platform-express` lo fija en 2.4.0 hasta en su última versión. Tiene 4 días publicada: es una actualización de seguridad, que no espera los 7 días (ADR-0106). Se quita cuando NestJS la incluya;
+  - `nodemailer` 10.1.7, que corrige los dos avisos y ya cumple los 7 días.
+
+  Con ellas, `npm audit` queda en 0 vulnerabilidades, también en las de desarrollo.
+- **Guías:** `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.7: revisar la corrida de `main` después de cada fusión, y la fecha de México en los documentos. La de la memoria de la corrida end-to-end ya estaba.
+
+#### Resultado del paso 1
+
+T-125 (ADR-0169).
+
+- **El puerto pide el frontend:** `FrontendLinks.link('shop' | 'backoffice', ruta, parámetros)`, sin valor por omisión, para que un enlace nuevo no vaya al frontend equivocado sin que se note.
+- **La recuperación, por tipo de cuenta:** `PasswordResets.send` recibe el tipo de la cuenta; `CUSTOMER` va a la tienda y `STAFF` al backoffice. La prueba end-to-end lo comprueba con un cliente y un miembro del staff.
+- **Configuración:** `BACKOFFICE_BASE_URL` en `.env.example`, en las obligatorias de producción y en la regla de `https`, y en la prueba de las imágenes de producción de la CI.
+- **Pruebas locales:** las unitarias pasan salvo cuatro suites que dependen de Node 24 (Argon2id de `node:crypto` y el formato de fechas de ICU), que fallan igual en `main` con el Node 22 del entorno de la sesión; las de integración y end-to-end corren en la CI, sin Docker en la sesión.
 
 ### Versión 1.7 — Promociones (2026-10-16)
 

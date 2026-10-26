@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Unreleased
+
+Una URL por frontend en los enlaces de los correos (ADR-0169).
+
+- Plan de la versión 1.8 (nuevo ADR-0169): la tienda pública y el backoffice tienen cada uno su URL para los enlaces de los correos.
+- Paso 0 de la versión 1.8: `body-parser` 2.4.0, `multer` 2.5.0 (con un `override`), `undici` 8.12.3, `fast-uri` 3.1.9 y `nodemailer` 10.1.7, por avisos de seguridad; `npm audit` sin vulnerabilidades. `DEVELOPMENT_GUIDE.md` suma las prácticas de la review de la versión 1.7.
+- T-125 (ADR-0169): una URL base por frontend.
+  - `FRONTEND_BASE_URL` es la tienda pública, ahora `http://localhost:3002` por defecto (antes `http://localhost:5173`).
+  - Variable nueva `BACKOFFICE_BASE_URL`, el backoffice, `http://localhost:3001` por defecto; obligatoria y con `https` en producción, como la de la tienda.
+  - La verificación de email y "Consulta tus pedidos" llevan a la tienda; "Restablece tu contraseña" lleva a la tienda a un cliente y al backoffice al staff.
+  - Sin cambios en el contrato de `/v1`. Quien tenía `FRONTEND_BASE_URL` en el backoffice debe apuntarla a la tienda y poner la del backoffice en `BACKOFFICE_BASE_URL`.
+
 ## 1.7.0 (2026-10-16)
 
 Promociones (ADR-0168).

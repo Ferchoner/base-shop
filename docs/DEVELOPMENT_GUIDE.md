@@ -146,11 +146,11 @@ Usar otro módulo (ADR-0005, ADR-0113):
 - El módulo del consumidor importa el módulo del otro (`imports: [GeoModule]`), que exporta su fachada.
 - Domain y application nunca importan otro módulo; `lint:boundaries` lo impide.
 
-Correos y enlaces al frontend (ADR-0045, ADR-0110):
+Correos y enlaces al frontend (ADR-0045, ADR-0110, ADR-0169):
 
 - **Cómo enviar:** el caso de uso inyecta `EmailSender` (shared kernel) y envía `{ to, subject, text, html? }`. Siempre fuera de la transacción: después del commit, normalmente desde un handler de eventos.
 - **Si falla:** `send` rechaza con `EmailDeliveryError`. Desde un handler de eventos, el error sube y la entrega del evento reintenta el correo (ADR-0150); fuera de uno, el que llama decide si el fallo cambia la respuesta, y no se reintenta.
-- **Enlaces:** se arman con `FrontendLinks.link('/ruta', { token })`, nunca concatenando `FRONTEND_BASE_URL` a mano, para que los parámetros vayan codificados.
+- **Enlaces:** se arman con `FrontendLinks.link(frontend, '/ruta', { token })`, nunca concatenando la URL base a mano, para que los parámetros vayan codificados. `frontend` es `'shop'`, la tienda pública en `FRONTEND_BASE_URL`, o `'backoffice'`, el del staff en `BACKOFFICE_BASE_URL`: un enlace va al frontend donde inicia sesión quien lo recibe (ADR-0169).
 - **Enlaces con token (ADR-0117):** el token sale de `newLinkToken()` y se guarda solo su hash. Las páginas son `/verify-email` y `/reset-password` (ADR-0118); `isUsableLink` decide si un enlace sirve. En local, el enlace se lee en Mailpit (`http://localhost:8025`) y su token se envía directamente a la API.
 - **Avisos de la cuenta:** los avisos de cambio (contraseña, email) atrapan el fallo del envío y lo registran sin la dirección, porque el cambio ya ocurrió.
 - **Qué no se registra:** el destinatario, el asunto y el cuerpo nunca van al log; el adaptador solo registra el identificador del mensaje.
@@ -195,6 +195,7 @@ Transacciones (ADR-0093):
 - Dentro de `run` no se llaman servicios externos (pagos, correo, almacenamiento), y el trabajo debe durar menos de 5 s o se revierte.
 - En tests unitarios de casos de uso, `TransactionManager` se reemplaza por un doble que solo ejecuta el trabajo: `{ run: (work) => work() }`.
 - Nombres de código en inglés; documentación en español; ramas, commits y pull requests en inglés (ADR-0084).
+- Los documentos usan la fecha de México; solo los nombres de las migraciones van en UTC. En la versión 1.7, ADR-0168 registró en UTC la fecha del plan de la parte b, un día después de la fecha local.
 - Montos como enteros en centavos con `Money`.
 - Las fechas las pone la aplicación con `Clock`. Cada plan decide si una operación lee el reloj una sola vez, para que sus fechas coincidan: en T-190 parte b, la cancelación y el inicio del reembolso lo leen por separado, y sus fechas difieren por milisegundos.
 - Sin abstracciones genéricas (`BaseRepository<T>`, `BaseEntity` con lógica).
@@ -264,6 +265,7 @@ Ramas e integración continua (ADR-0030):
 - Repositorio en GitHub con CI en GitHub Actions.
 - GitHub Flow: la rama principal siempre está en estado desplegable; cada tarea se trabaja en una rama corta y se integra mediante pull request.
 - La rama principal está protegida: no se fusiona un pull request si el pipeline no está en verde.
+- Después de cada fusión, antes de empezar la siguiente parte, se revisa que la corrida de `main` pasó: en la versión 1.7, la de #133 se quedó sin memoria y no se vio hasta el cierre.
 - El pipeline verifica, en orden: instalación, lint y formato, límites entre módulos, compilación, tests unitarios, tests de integración con PostgreSQL 18, migraciones, cobertura de toda la suite contra sus umbrales, auditoría de dependencias (falla con vulnerabilidades altas y críticas), detección de secretos y construcción de la imagen de Docker.
 - Dependabot abre actualizaciones de dependencias agrupadas cada semana. Mientras el MVP esté cerrado, solo las de seguridad (ADR-0158).
 
@@ -341,7 +343,7 @@ Versiones (ADR-0159):
 - Toda variable nueva se agrega a `.env.example` en el mismo cambio, con descripción y valor de ejemplo no real.
 - `DATABASE_URL` (obligatoria) apunta al PostgreSQL de Docker Compose desde el equipo (`localhost`) y la usan la API y el CLI de Prisma. El contenedor de la API recibe su propia URL, con host `postgres`, desde `docker-compose.yml`. La contraseña de PostgreSQL no debe llevar caracteres especiales de URL (`@`, `:`, `/`, `?`, `#`) o debe ir codificada en la URL.
 - El proyecto corre solo en local por ahora (ADR-0031).
-- Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` y `FRONTEND_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110).
+- Los correos que envía la API llegan a un capturador local en Docker Compose (Mailpit) y se revisan en su bandeja web, http://localhost:8025; no salen a internet (ADR-0045). `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM`, `FRONTEND_BASE_URL` y `BACKOFFICE_BASE_URL` tienen valores por defecto para desarrollo y son obligatorias en producción (ADR-0110). Las dos URL apuntan a los puertos locales de la tienda (`http://localhost:3002`) y del backoffice (`http://localhost:3001`), que corren en sus propios repositorios (ADR-0169).
 - La tasa de IVA es `VAT_RATE_BP` (1600, el 16%, por defecto); cambiarla exige reiniciar la API y no altera órdenes colocadas (ADR-0027, ADR-0122).
 - Los datos de la tienda para el ticket son `STORE_NAME` ("base-shop" en desarrollo), `STORE_ADDRESS`, `STORE_TAX_ID`, `STORE_PHONE` y `TICKET_FOOTER`; cambiarlos exige reiniciar la API (ADR-0163). La nota de servicio de una orden de trabajo usa los mismos, y sus condiciones vienen de `WORK_ORDER_FOOTER`, vacía por defecto; un salto de línea se escribe `\n` dentro de comillas dobles (ADR-0167).
 - Una reserva de stock dura `RESERVATION_TTL` (`20m` por defecto, de 5m a 2h, BR-INV-07, ADR-0128).
