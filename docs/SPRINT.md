@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Versión 1.8 — Una URL por frontend en los enlaces de los correos (ADR-0169), desde el 2026-10-26; su plan está en el historial. La versión 1.7, promociones, se cerró el 2026-10-16 y se publicó como la 1.7.0.
+Ninguna. La versión 1.8, una URL por frontend en los enlaces de los correos, se cerró el 2026-10-26 y se publica como la 1.8.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -36,6 +36,44 @@ Versión 1.8 — Una URL por frontend en los enlaces de los correos (ADR-0169), 
 ### Versión 1.8 — Una URL por frontend en los enlaces de los correos (2026-10-26)
 
 **Goal:** Que la tienda pública y el backoffice funcionen a la vez con la misma API: los correos de los clientes y de los invitados llevan a la tienda, y la recuperación de contraseña del staff, al backoffice (ADR-0169). **Tareas:** T-125, en una parte, precedida por un paso 0.
+
+**Fecha:** 2026-10-26. **Resultado:** objetivo cumplido. T-125 está en DONE, el pipeline de CI está en verde, y la versión se publica como la 1.8.0, con su tag y su GitHub Release (ADR-0159).
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0169; avisos de seguridad de cinco dependencias corregidos, 0 vulnerabilidades; prácticas de la review de la versión 1.7 en la guía | DONE | Paso 0, pull request #137 |
+| `BACKOFFICE_BASE_URL`, la recuperación de contraseña por tipo de cuenta y los demás enlaces en la tienda | DONE | T-125, pull request #137 |
+| Sin cambios en el contrato de `/v1`: las mismas 152 rutas, tablas, permisos y errores | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| Una variable nueva, obligatoria en producción | — | `.env.example` |
+| 169 ADR: 165 aceptados, 2 reemplazados y 2 reemplazados parcialmente; 1 nuevo en esta versión (ADR-0169) | — | `DECISIONS.md` |
+
+El trabajo se integró en un pull request (#137) y la publicación en otro. El pipeline de #137 falló en la primera corrida por una prueba de integración que esperaba el puerto anterior, y pasó con la corrección.
+
+#### Riesgos
+
+- **Resueltos en esta versión:**
+  - **Correos al frontend equivocado (G-08 de la tienda, G-01 del backoffice):** cada enlace va al frontend donde inicia sesión quien lo recibe.
+  - **Dependencias con avisos altos:** `body-parser`, `multer` y `undici`, más dos moderados; la auditoría de la CI habría fallado.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews anteriores, entre ellos la validación legal de los datos que captura el staff.
+- **Nuevos:**
+  - **Configuraciones existentes:** un `.env` con `FRONTEND_BASE_URL` en el backoffice manda los correos de los clientes allí hasta que se corrija; `CHANGELOG.md` lo indica.
+  - **El `override` de `multer`:** se mantiene hasta que `@nestjs/platform-express` dependa de una versión corregida.
+
+#### Qué funcionó
+
+- **Un puerto explícito:** `FrontendLinks.link` pide el frontend sin valor por omisión, así que el compilador señaló cada enlace que había que decidir.
+- **El paso 0 antes de la CI:** `npm audit` local encontró los avisos nuevos antes de que la auditoría de la CI fallara.
+
+#### Qué mejorar
+
+- **Los valores esperados en todas las suites:** el cambio del puerto por defecto se buscó en las pruebas unitarias y end-to-end, pero no en las de integración, y una falló en la CI. La guía ya pide buscar las comparaciones completas en las tres suites; aplica también a los literales de configuración.
+- **Pruebas en la sesión:** la sesión no tenía Node 24 ni Docker, así que las suites de integración y end-to-end solo corrieron en la CI.
+
+#### Siguiente versión
+
+Ninguna en curso ni prevista: la siguiente necesita un plan aprobado (ADR-0159).
 
 **Plan** (aprobado por el usuario el 2026-10-26, al pedir el cambio desde la tienda, G-08 de `base-shop-front`):
 

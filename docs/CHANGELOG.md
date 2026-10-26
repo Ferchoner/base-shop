@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## 1.8.0 (2026-10-26)
 
 Una URL por frontend en los enlaces de los correos (ADR-0169).
 
@@ -11,6 +11,7 @@ Una URL por frontend en los enlaces de los correos (ADR-0169).
   - Variable nueva `BACKOFFICE_BASE_URL`, el backoffice, `http://localhost:3001` por defecto; obligatoria y con `https` en producción, como la de la tienda.
   - La verificación de email y "Consulta tus pedidos" llevan a la tienda; "Restablece tu contraseña" lleva a la tienda a un cliente y al backoffice al staff.
   - Sin cambios en el contrato de `/v1`. Quien tenía `FRONTEND_BASE_URL` en el backoffice debe apuntarla a la tienda y poner la del backoffice en `BACKOFFICE_BASE_URL`.
+- Versión 1.8.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.8.0` y un GitHub Release.
 
 ## 1.7.0 (2026-10-16)
 
