@@ -130,7 +130,7 @@ describe('Email verification (e2e, T-121)', () => {
           to: 'maria@example.com',
           subject: 'Confirma tu correo',
           text: expect.stringContaining(
-            'http://localhost:5173/verify-email?token=',
+            'http://localhost:3002/verify-email?token=',
           ),
         }),
       ]);

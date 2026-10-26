@@ -4,6 +4,7 @@ import {
   EmailDeliveryError,
   type EmailMessage,
   EmailSender,
+  type Frontend,
   FrontendLinks,
 } from '../../../shared-kernel/index.js';
 import type { EmailVerificationTokenRepository } from '../domain/email-verification.js';
@@ -20,9 +21,14 @@ class RecordingEmailSender extends EmailSender {
   }
 }
 
-class ShopLinks extends FrontendLinks {
-  link(path: string, params: Readonly<Record<string, string>> = {}): string {
-    return `https://shop.example.com${path}?${new URLSearchParams(params)}`;
+class TwoFrontendLinks extends FrontendLinks {
+  link(
+    frontend: Frontend,
+    path: string,
+    params: Readonly<Record<string, string>> = {},
+  ): string {
+    const host = frontend === 'shop' ? 'shop' : 'admin';
+    return `https://${host}.example.com${path}?${new URLSearchParams(params)}`;
   }
 }
 
@@ -44,7 +50,7 @@ describe('EmailVerifications.send (ADR-0046, ADR-0117)', () => {
 
     await new EmailVerifications(
       UNUSED_TOKENS,
-      new ShopLinks(),
+      new TwoFrontendLinks(),
       email,
       86_400,
     ).send(ACCOUNT, 'token-123');
@@ -73,7 +79,7 @@ describe('EmailVerifications.send (ADR-0046, ADR-0117)', () => {
 
     await new EmailVerifications(
       UNUSED_TOKENS,
-      new ShopLinks(),
+      new TwoFrontendLinks(),
       email,
       seconds,
     ).send(ACCOUNT, 'token-123');
@@ -90,7 +96,7 @@ describe('EmailVerifications.send (ADR-0046, ADR-0117)', () => {
 
     await new EmailVerifications(
       UNUSED_TOKENS,
-      new ShopLinks(),
+      new TwoFrontendLinks(),
       email,
       86_400,
     ).send(ACCOUNT, 'token-123');
@@ -107,7 +113,7 @@ describe('EmailVerifications.send (ADR-0046, ADR-0117)', () => {
 
     await new EmailVerifications(
       UNUSED_TOKENS,
-      new ShopLinks(),
+      new TwoFrontendLinks(),
       email,
       86_400,
     ).send({ ...ACCOUNT, firstNames: TYPED_NAME }, 'token-123');

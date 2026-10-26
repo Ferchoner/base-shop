@@ -136,7 +136,7 @@ export class OrderAccessLinks {
           'Hola:',
           '',
           'Para ver los pedidos que hiciste como invitado con este correo, abre este enlace:',
-          this.links.link(ORDER_ACCESS_PAGE, { token }),
+          this.links.link('shop', ORDER_ACCESS_PAGE, { token }),
           '',
           `El enlace vence en ${lifetimeInWords(this.ttlSeconds)} y sirve una sola vez. Si pides otro, este deja de funcionar.`,
           '',

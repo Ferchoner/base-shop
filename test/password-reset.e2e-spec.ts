@@ -76,13 +76,15 @@ describe('Password recovery (e2e, T-123)', () => {
     }
   });
 
-  async function insertCustomer(): Promise<string> {
+  async function insertAccount(
+    type: 'CUSTOMER' | 'STAFF' = 'CUSTOMER',
+  ): Promise<string> {
     const id = newId();
     const email = `${id}@example.com`;
     await prisma.user.create({
       data: {
         id,
-        type: 'CUSTOMER',
+        type,
         email,
         firstNames: 'Ana',
         lastNames: 'Pérez',
@@ -110,7 +112,7 @@ describe('Password recovery (e2e, T-123)', () => {
   }
 
   it('answers a request the same whether the email exists or not', async () => {
-    const email = await insertCustomer();
+    const email = await insertAccount();
 
     const known = await requestReset(email).expect(202);
     const unknown = await requestReset('nadie@example.com').expect(202);
@@ -123,14 +125,32 @@ describe('Password recovery (e2e, T-123)', () => {
         to: email,
         subject: 'Restablece tu contraseña',
         text: expect.stringContaining(
-          'http://localhost:5173/reset-password?token=',
+          'http://localhost:3002/reset-password?token=',
         ),
       }),
     ]);
   });
 
+  it('sends the staff the link to the backoffice, and customers the link to the shop (ADR-0169)', async () => {
+    const customer = await insertAccount();
+    const staff = await insertAccount('STAFF');
+
+    await requestReset(customer).expect(202);
+    await requestReset(staff).expect(202);
+
+    await dispatcher.whenIdle();
+    const linkTo = (to: string) =>
+      /http\S+reset-password\?token=/.exec(
+        sent.find((email) => email.to === to)?.text ?? '',
+      )?.[0];
+    expect(linkTo(customer)).toBe(
+      'http://localhost:3002/reset-password?token=',
+    );
+    expect(linkTo(staff)).toBe('http://localhost:3001/reset-password?token=');
+  });
+
   it('answers before issuing and sending the link, so the time taken never tells whether the account exists (SA-16)', async () => {
-    const email = await insertCustomer();
+    const email = await insertAccount();
     let release = () => {};
     held = new Promise((resolve) => (release = resolve));
 
@@ -147,7 +167,7 @@ describe('Password recovery (e2e, T-123)', () => {
   });
 
   it('sets the new password with the link, once, and signs out every session', async () => {
-    const email = await insertCustomer();
+    const email = await insertAccount();
     const before = (await login(email, PASSWORD).expect(200)).body;
     await requestReset(email).expect(202);
     const token = await lastToken(email);
@@ -169,7 +189,7 @@ describe('Password recovery (e2e, T-123)', () => {
   });
 
   it('names the password rule that failed, and keeps the link', async () => {
-    const email = await insertCustomer();
+    const email = await insertAccount();
     await requestReset(email).expect(202);
     const token = await lastToken(email);
 

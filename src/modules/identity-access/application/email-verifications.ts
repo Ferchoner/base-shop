@@ -15,7 +15,7 @@ export const EMAIL_VERIFICATION_TTL_SECONDS = Symbol(
   'EMAIL_VERIFICATION_TTL_SECONDS',
 );
 
-/** Frontend page that reads the token and confirms it with the API (ADR-0056, ADR-0117). */
+/** Shop page that reads the token and confirms it with the API (ADR-0056, ADR-0117, ADR-0169). */
 export const VERIFY_EMAIL_PAGE = '/verify-email';
 
 /**
@@ -64,7 +64,7 @@ export class EmailVerifications {
           `Hola, ${emailSafeText(account.firstNames)}:`,
           '',
           'Confirma tu correo en este enlace:',
-          this.links.link(VERIFY_EMAIL_PAGE, { token }),
+          this.links.link('shop', VERIFY_EMAIL_PAGE, { token }),
           '',
           `El enlace vence en ${lifetimeInWords(this.ttlSeconds)} y sirve una sola vez. Si pides otro, este deja de funcionar.`,
           '',

@@ -55,6 +55,7 @@ export class RequestPasswordReset {
           id: user.id,
           email: email as string,
           firstNames: firstNames as string,
+          type: user.type,
         },
         token,
       };
