@@ -543,6 +543,18 @@ export class EnvironmentVariables {
   @Length(1, 100, { message: '$property must have 1 to 100 characters' })
   @Matches(/\S/, { message: '$property must not be blank' })
   SUPERADMIN_LAST_NAMES?: string;
+
+  /** Key of the Claude API for the product description drafts (ADR-0170). Optional: without it the endpoint answers 503. */
+  @Expose()
+  @Transform(trimmedOrUnset)
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_API_KEY?: string;
+
+  /** Claude model for the drafts (ADR-0170). */
+  @Expose()
+  @IsNotEmpty({ message: '$property must not be empty' })
+  ANTHROPIC_MODEL: string = 'claude-opus-5-5';
 }
 
 /**
