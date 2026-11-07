@@ -188,6 +188,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0168 | Promociones | Aceptada |
 | ADR-0169 | Una URL por frontend en los enlaces de los correos | Aceptada |
 | ADR-0170 | Borrador de descripción de producto con IA | Aceptada |
+| ADR-0171 | Operación diaria de la tienda física: servidor en red local, precio libre y corte de caja | Aceptada |
 
 ---
 
@@ -5446,3 +5447,50 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - puerto `ProductCopywriter` y caso de uso `DraftProductDescription` en `catalog/application`, que eligen los datos que salen hacia el modelo;
   - adaptador `AnthropicProductCopywriter` en `catalog/infrastructure`, con salida estructurada (Zod), esfuerzo `low` y el respaldo del servidor (`fallbacks: "default"`) cuando el modelo rechaza la solicitud;
   - problem type `ai-unavailable` (503, E-39) y el límite `ai-description-draft`, 20 por cuenta de staff por hora (`RATE_LIMIT_AI_DESCRIPTION_DRAFT`).
+
+## ADR-0171 — Operación diaria de la tienda física: servidor en red local, precio libre y corte de caja
+
+- **Fecha:** 2026-11-07
+- **Contexto:** Décimo incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.10. Una tienda de videojuegos con dos locales, el dueño y dos ayudantes, que nunca llevó inventario, va a migrar a base-shop con el backoffice base-ecomm-admin en seis semanas, una costumbre por semana. Las dos tiendas comparten la misma red; el despliegue en la nube sigue fuera (ADR-0158, T-330) mientras el dueño lo analiza. Para la primera semana, en la que toda venta pasa por el sistema, hoy falta:
+  - **un servidor para las dos tiendas:** `docker-compose.yml` levanta la API en modo desarrollo y publica todo solo en `127.0.0.1` (T-310), y la imagen `production` exige `https` en `FRONTEND_BASE_URL` y `BACKOFFICE_BASE_URL` (ADR-0154, ADR-0169);
+  - **cobrar lo que aún no está dado de alta:** cada línea de una orden es una variante con el precio de la lista de precios;
+  - **cerrar la caja:** la API guarda el almacén de cada orden y el método, la fecha y quien registró cada pago manual (ADR-0161), pero nada los junta por local y día, y nada guarda el efectivo contado.
+- **Decisión** (del usuario, el 2026-11-07, con las recomendaciones del plan):
+  - **Paso 0, servidor en red local (T-331):** un equipo de una de las tiendas corre todo, y la otra entra por la red.
+    - `docker-compose.server.yml`, aparte del de desarrollo: PostgreSQL sin publicar, la migración (`migrate`) antes de la API, la imagen `production` de la API, Mailpit como bandeja local (sin proveedor de correo, P-24), un respaldo diario y Caddy como único servicio publicado en la red;
+    - **HTTPS con una autoridad local:** Caddy emite el certificado del servidor con su CA interna (`tls internal`), para la IP fija o el nombre del equipo; cada equipo de las tiendas instala una vez el certificado raíz. No se relaja la regla de `https` de producción;
+    - **un solo origen:** Caddy envía `/v1` y `/docs` a la API y sirve el backoffice compilado en lo demás, así que el backoffice y la API comparten origen; `FRONTEND_BASE_URL` y `BACKOFFICE_BASE_URL` apuntan a esa dirección;
+    - **respaldo diario** con `pg_dump` a una carpeta del equipo, con los últimos 14 por defecto, y la restauración documentada y probada;
+    - **arranque automático** con `restart: unless-stopped`, y una guía para el dueño en `docs/LAN_SERVER.md`: IP fija, certificado raíz, respaldo, actualización a una versión nueva y qué hacer si el servidor no responde;
+    - **dos usuarios de PostgreSQL,** como recomienda `DATABASE.md` §13: la migración usa el dueño del esquema y la API un usuario que solo lee y escribe datos, creado al iniciar la base;
+    - **la IP de cada equipo:** detrás de Caddy, todas las peticiones llegarían desde el proxy y compartirían el límite por IP (ADR-0154). La variable nueva `TRUST_PROXY_HOPS` (de 0 a 3, 0 por defecto) le dice a la API cuántos proxies propios hay delante; el servidor usa 1, y la API toma la IP de `X-Forwarded-For` para los límites y la auditoría. Sin la variable nada cambia.
+  - **Precio libre (T-182):** para cobrar en el mostrador lo que aún no está en el catálogo.
+    - `openPrice` en el producto, para todas sus variantes, como `storeOnly` (ADR-0165); solo un producto `storeOnly` puede tenerlo, así que nunca se vende en línea. Su existencia se carga con un número alto, como los servicios;
+    - en la cotización y la orden del staff, una línea de una variante de precio libre lleva `unitPrice` (en centavos, con IVA, de 1 a 10,000,000) y `note` (de 1 a 200 caracteres, qué se vendió). Las dos son obligatorias en esa línea y se rechazan en las demás;
+    - la línea guarda la nota; el precio libre no recibe promociones ni cupones;
+    - permiso nuevo `orders.open-price`, que reciben el Vendedor y el Administrador; el dueño se lo quita al Vendedor cuando termine la carga del catálogo;
+    - `GET /v1/admin/orders/open-price-lines`, con `orders.read`: las líneas de precio libre por almacén y fechas, para saber qué dar de alta primero.
+  - **Corte de caja (T-183),** en Ordering, que conoce el almacén y el vendedor de cada orden, con la fachada de Payments para los cobros y los reembolsos:
+    - `GET /v1/admin/cash-closings/summary?warehouseId&date`: para un almacén y un día de la Ciudad de México, las órdenes de la tienda física, lo cobrado por método (efectivo, terminal, transferencia, sin método), los reembolsos manuales completados, las órdenes canceladas, las líneas de precio libre y el desglose por quien registró cada cobro. El efectivo esperado es lo cobrado en efectivo menos los reembolsos de pagos en efectivo;
+    - `POST /v1/admin/cash-closings`: un cierre por almacén y día, con el efectivo contado; guarda el resumen de ese momento, lo esperado, lo contado y la diferencia, quién y cuándo. La nota es obligatoria si hay diferencia. Un cierre no se edita ni se borra; lo que llegue después del cierre sale en el resumen del día como posterior al cierre;
+    - `GET /v1/admin/cash-closings` y `GET /v1/admin/cash-closings/{id}`, para consultar e imprimir;
+    - permisos nuevos `cash-closings.read` y `cash-closings.manage`, que reciben el Vendedor y el Administrador; la auditoría registra cada cierre.
+  - **Backoffice:** el local del equipo, la línea de precio libre en la venta de mostrador y la pantalla del corte van en base-ecomm-admin, con su propio registro. El local del equipo no cambia la API: se guarda en el navegador de cada equipo.
+- **Alternativas consideradas:**
+  - **Relajar `https` en producción para la red local:** más simple, pero debilita una regla de seguridad (ADR-0154) y deja las sesiones del staff sin cifrar en la red de la tienda.
+  - **mkcert en lugar de Caddy:** obliga a renovar y copiar certificados a mano; Caddy los emite y renueva solo.
+  - **Un producto genérico con precio de lista:** no deja cobrar lo que vale cada artículo.
+  - **Precio libre por línea en cualquier producto:** abre la puerta a cambiar precios del catálogo sin control; solo los productos marcados lo permiten.
+  - **Corte solo como reporte:** no deja constancia del efectivo contado ni de las diferencias.
+  - **Corte en Payments:** Payments no conoce el almacén ni el canal de la orden, y Ordering ya depende de Payments.
+  - **Un cierre por vendedor:** en estas tiendas la caja es una por local; el desglose por vendedor va en el resumen.
+- **Consecuencias:**
+  - Las dos tiendas dependen de un equipo; si se apaga, anotan en papel hasta que vuelva (guía del plan de migración). El respaldo diario limita la pérdida a un día.
+  - Cambios compatibles en `/v1`: rutas, campos, permisos y una tabla nueva. Por eso es una versión menor (ADR-0159).
+  - La migración que agrega `openPrice` y la nota de la línea no cambia los datos existentes.
+- **Revisar si:** el dueño decide el despliegue en la nube (entonces aplica T-330), la tienda necesita varias cajas por local o cortes por turno, o el precio libre se quiere para más que la carga inicial.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-07, con las recomendaciones del plan). Se implementa en la versión 1.10: paso 0 y T-331, T-182 y T-183. Paso 0, T-331, hecho:
+  - `docker-compose.server.yml` con `postgres`, `migrate`, `api` (imagen `production`), `mailpit` (solo en `127.0.0.1`), `caddy` y `backup`; `.env.server.example` con lo que se llena en el servidor;
+  - `deploy/lan/`: el `Caddyfile` (con `default_sni`, porque los navegadores no mandan nombre al abrir una IP, y la página del backoffice para las rutas que no son archivos), `Dockerfile.caddy`, que compila el backoffice con la URL del servidor, el script que crea el usuario de la API y el del respaldo;
+  - `TRUST_PROXY_HOPS` en la configuración y en `configureHttp`;
+  - probado de punta a punta en un equipo: HTTPS con el certificado raíz de Caddy, inicio de sesión, la IP del cliente en la auditoría, el usuario de la API sin permiso para cambiar tablas, y un respaldo restaurado con la API de vuelta.

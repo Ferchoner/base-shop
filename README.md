@@ -29,6 +29,8 @@ docker compose exec api npm run db:migrate:deploy
 
 La primera vez también hay que cargar el catálogo geográfico: `docker compose exec api node dist/scripts/import-geo-catalog.js data/inegi/municipios-2026-06.csv`. Y crear el primer superadministrador, que muestra su contraseña temporal una sola vez: `docker compose exec -e SUPERADMIN_EMAIL=… -e SUPERADMIN_FIRST_NAMES=… -e SUPERADMIN_LAST_NAMES=… api node dist/scripts/create-first-superadmin.js`.
 
+Para usar base-shop y el backoffice en la red local de una tienda, con HTTPS y respaldos, ver `docs/LAN_SERVER.md` (ADR-0171).
+
 Para correr la API fuera de Docker: `docker compose up -d postgres mailpit`, `npm ci`, `npm run db:migrate:deploy`, `npm run geo:import -- data/inegi/municipios-2026-06.csv` y `npm run start:dev`. Detalles en `docs/DEVELOPMENT_GUIDE.md`.
 
 | Script | Uso |

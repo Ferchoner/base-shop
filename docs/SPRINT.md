@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.9, borrador de descripción de producto con IA, se cerró el 2026-11-07 y se publica como la 1.9.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.10 — Operación diaria de la tienda física (ADR-0171), desde el 2026-11-07; su plan está en el historial. La versión 1.9, borrador de descripción de producto con IA, se cerró el 2026-11-07 y se publicó como la 1.9.0.
 
 ---
 
@@ -32,6 +32,30 @@ Ninguna. La versión 1.9, borrador de descripción de producto con IA, se cerró
 ---
 
 ## Historial
+
+### Versión 1.10 — Operación diaria de la tienda física (2026-11-07)
+
+**Goal:** Que una tienda de dos locales en la misma red migre a base-shop sin despliegue en la nube: un equipo de una tienda hace de servidor con HTTPS, el staff cobra en el mostrador lo que aún no está en el catálogo, y cada local cierra su caja al final del día con lo esperado, lo contado y la diferencia (ADR-0171). **Tareas:** paso 0 con T-331, T-182 y T-183, en ese orden.
+
+**Plan** (aprobado por el usuario el 2026-11-07, con sus siete recomendaciones):
+
+- **Paso 0:** revisión de `npm audit` (la review de la 1.9 dejó 25 avisos de desarrollo) y T-331, el servidor en red local: `docker-compose.server.yml` con Caddy como único servicio publicado, HTTPS con su CA interna, un solo origen para la API y el backoffice, respaldo diario de la base y la guía `docs/LAN_SERVER.md`. Sin cambios en `/v1`.
+- **Parte 1, T-182:** `openPrice` en los productos `storeOnly`; `unitPrice` y `note` en las líneas de precio libre de la cotización y la orden del staff; el permiso `orders.open-price`; y `GET /v1/admin/orders/open-price-lines`.
+- **Parte 2, T-183:** el resumen del corte de caja por almacén y día, y el cierre registrado con el efectivo contado, inmutable; los permisos `cash-closings.read` y `cash-closings.manage`, con auditoría.
+- **Backoffice:** el local de cada equipo, la línea de precio libre y la pantalla del corte, en base-ecomm-admin.
+- **Siguiente, fuera de esta versión:** los traslados entre locales (T-163) en la 1.11. Los dos locales están en el mismo centro comercial, así que el traslado será de un paso, con préstamos para mostrar.
+
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo (`jest`, `glob`, `minimatch`, `testcontainers` y `@nestjs/cli`) y bajo el umbral de la CI; 0 en producción. Su corrección pide versiones mayores de herramientas de prueba, así que se queda para cuando termine la pausa de Dependabot (ADR-0158).
+- **T-331, servidor en red local:**
+  - `docker-compose.server.yml`, aparte del de desarrollo, con Caddy como único servicio publicado; la base nunca se publica y Mailpit solo en el servidor;
+  - HTTPS con la CA interna de Caddy y un solo origen para el backoffice y la API; `default_sni` para los navegadores que abren la IP sin nombre;
+  - dos usuarios de PostgreSQL, como pide `DATABASE.md` §13: el de la API no puede cambiar tablas (comprobado con un `DROP TABLE` rechazado);
+  - `TRUST_PROXY_HOPS`, variable nueva, para que los límites por IP y la auditoría vean cada equipo y no a Caddy; una prueba end-to-end lo comprueba;
+  - respaldo diario con `pg_dump`, el primero al arrancar después de la migración; la restauración de la guía se probó con la API detenida y de vuelta;
+  - guía para el dueño en `docs/LAN_SERVER.md`.
+- **Pruebas locales:** se levantó todo el servidor en la sesión, con Docker y Node 24; para construir las imágenes detrás del proxy de la sesión se usó una copia de los `Dockerfile` con su certificado, que no se incluye.
 
 ### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
 

@@ -1,0 +1,27 @@
+# Local network server (T-331, ADR-0171). SERVER_ADDRESS is the fixed IP or the name of this computer.
+{
+	# Nothing reloads the configuration at run time.
+	admin off
+	# Browsers send no server name when they open an IP address; this one answers them.
+	default_sni {$SERVER_ADDRESS}
+}
+
+{$SERVER_ADDRESS}, localhost {
+	# A certificate from the local authority of Caddy: each computer of the store trusts its root once.
+	tls internal
+	encode zstd gzip
+
+	@api path /v1/* /media/*
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	# The backoffice is a single page application: unknown paths load it.
+	handle {
+		root * /srv/backoffice
+		try_files {path} {path}/index.html /200.html
+		file_server
+	}
+
+	header Strict-Transport-Security "max-age=31536000"
+}

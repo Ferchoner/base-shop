@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.10 (nuevo ADR-0171): servidor en red local, precio libre en la venta de mostrador y corte de caja.
+- Paso 0 de la versión 1.10: `npm audit` sin cambios desde la 1.9 (0 avisos en producción).
+- T-331 (ADR-0171): servidor en red local para una tienda, sin despliegue en la nube.
+  - `docker-compose.server.yml` y `deploy/lan/`: Caddy con HTTPS de su CA interna, el backoffice y la API en un solo origen, la migración antes de la API, dos usuarios de la base y un respaldo diario con `pg_dump`.
+  - `.env.server.example` y la guía `docs/LAN_SERVER.md`.
+  - Variable nueva `TRUST_PROXY_HOPS` (0 por defecto): cuántos proxies propios hay delante de la API, para tomar la IP del cliente de `X-Forwarded-For`.
+
 ## 1.9.0 (2026-11-07)
 
 Borrador de descripción de producto con IA (ADR-0170).
