@@ -224,6 +224,11 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
 
   // Staff: orders, with the permissions of the catalog in code (ADR-0111). In the physical store, the staff places
   // orders on behalf of a customer, limited per staff member (ADR-0161).
+  // The cash closing of each store (ADR-0171).
+  'GET /v1/admin/cash-closings': { access: ['cash-closings.read'] },
+  'POST /v1/admin/cash-closings': { access: ['cash-closings.manage'] },
+  'GET /v1/admin/cash-closings/summary': { access: ['cash-closings.read'] },
+  'GET /v1/admin/cash-closings/:closingId': { access: ['cash-closings.read'] },
   'GET /v1/admin/orders': { access: ['orders.read'] },
   // The lines sold at an open price, to know what to add to the catalog (ADR-0171).
   'GET /v1/admin/orders/open-price-lines': { access: ['orders.read'] },

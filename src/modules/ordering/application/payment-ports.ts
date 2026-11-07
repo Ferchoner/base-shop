@@ -58,6 +58,25 @@ export interface PaymentStart {
   readonly started: boolean;
 }
 
+/** A payment captured, as the cash closing counts it (ADR-0171). */
+export interface CaptureMovement {
+  readonly orderId: OrderId;
+  readonly method: PaymentMethod | null;
+  readonly amount: Money;
+  readonly capturedAt: Date;
+  /** `null` for a provider. */
+  readonly registeredBy: StaffId | null;
+}
+
+/** A refund completed, with how its payment was collected (ADR-0171). */
+export interface RefundMovement {
+  readonly orderId: OrderId;
+  readonly amount: Money;
+  readonly completedAt: Date;
+  readonly registeredBy: StaffId | null;
+  readonly paymentMethod: PaymentMethod | null;
+}
+
 /** The payments of Payments. */
 export abstract class OrderPayments {
   /** @throws ManualPaymentsDisabledError when the staff cannot register payments made in the store. */
@@ -105,4 +124,16 @@ export abstract class OrderPayments {
   abstract paymentsOf(
     orderIds: readonly OrderId[],
   ): Promise<ReadonlyMap<OrderId, OrderPayment>>;
+
+  /**
+   * The payments captured and the refunds completed from `from`, included, to `to`, excluded, of every order,
+   * oldest first (ADR-0171).
+   */
+  abstract movementsBetween(
+    from: Date,
+    to: Date,
+  ): Promise<{
+    readonly captures: readonly CaptureMovement[];
+    readonly refunds: readonly RefundMovement[];
+  }>;
 }

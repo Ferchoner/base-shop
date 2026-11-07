@@ -159,3 +159,29 @@ model OrderAccessToken {
   @@index([contactEmail])
   @@map("order_access_tokens")
 }
+
+/// The closing of the cash of a warehouse for a day of central Mexico (ADR-0171): inserted once, never changed.
+model CashClosing {
+  id           String   @id @db.Uuid
+  /// Logical reference to Inventory.
+  warehouseId  String   @map("warehouse_id") @db.Uuid
+  /// The day of central Mexico it closes.
+  businessDate DateTime @map("business_date") @db.Date
+  /// Cash collected less cash given back, in cents; may be negative.
+  expectedCash Int      @map("expected_cash")
+  /// CHECK: 0 or more (manual SQL).
+  countedCash  Int      @map("counted_cash")
+  /// CHECK: counted_cash - expected_cash (manual SQL).
+  difference   Int
+  /// CHECK: 1 to 500 characters, and present when difference is not 0 (manual SQL).
+  note         String?
+  /// The figures of the day when it was closed.
+  summary      Json     @db.JsonB
+  /// Staff who closed it; no foreign key.
+  closedBy     String   @map("closed_by") @db.Uuid
+  closedAt     DateTime @map("closed_at") @db.Timestamptz(3)
+
+  @@unique([warehouseId, businessDate])
+  @@index([businessDate])
+  @@map("cash_closings")
+}

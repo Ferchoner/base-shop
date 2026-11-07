@@ -213,6 +213,26 @@ export abstract class OrderingQueries {
     ids: readonly OrderId[],
   ): Promise<readonly AdminOrderSummaryView[]>;
 
+  /**
+   * The store orders of the warehouse placed or cancelled from `from`, included, to `to`, excluded, oldest first: the
+   * orders of a day of its cash closing (ADR-0171).
+   */
+  abstract storeDayOrders(
+    warehouseId: WarehouseId,
+    from: Date,
+    to: Date,
+  ): Promise<readonly AdminOrderSummaryView[]>;
+
+  /**
+   * How many lines were sold at an open price, and their total in cents, in the store orders of the warehouse placed
+   * from `from` to `to`, excluded, that were not cancelled, refunded nor expired (ADR-0171).
+   */
+  abstract openPriceTotals(
+    warehouseId: WarehouseId,
+    from: Date,
+    to: Date,
+  ): Promise<{ readonly count: number; readonly amount: number }>;
+
   /** The newest `limit` guest orders of the email, newest first; ties are broken by ID (UC-ORD-05, ADR-0148). */
   abstract listGuestOrders(
     contactEmail: string,

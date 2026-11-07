@@ -66,6 +66,34 @@ export interface PaymentFilter {
 
 export type PaymentSortField = 'createdAt' | 'amount';
 
+/** A payment captured in a span of time, as the cash closing counts it (ADR-0171). */
+export interface CaptureMovement {
+  readonly orderId: OrderId;
+  readonly provider: PaymentProvider;
+  /** How the store collected a manual payment; `null` for a provider, or when the staff did not say. */
+  readonly method: PaymentMethod | null;
+  readonly amount: Money;
+  readonly capturedAt: Date;
+  /** The staff member who registered a manual payment; `null` for a provider. */
+  readonly registeredBy: string | null;
+}
+
+/** A refund completed in a span of time, with how its payment was collected (ADR-0171). */
+export interface RefundMovement {
+  readonly orderId: OrderId;
+  readonly amount: Money;
+  readonly completedAt: Date;
+  readonly registeredBy: string | null;
+  /** How the store collected the payment it gives back; `null` for a provider, or when the staff did not say. */
+  readonly paymentMethod: PaymentMethod | null;
+}
+
+/** The money that came in and went out in a span of time, oldest first (ADR-0171). */
+export interface PaymentMovements {
+  readonly captures: readonly CaptureMovement[];
+  readonly refunds: readonly RefundMovement[];
+}
+
 /** `PaymentSettings` of API_SPEC.md §16.6 (ADR-0162). */
 export interface PaymentSettingsView {
   readonly manualPaymentsEnabled: boolean;
@@ -91,6 +119,12 @@ export abstract class PaymentsQueries {
     sort: readonly SortOrder<PaymentSortField>[],
     page: PageRequest,
   ): Promise<Page<AdminPaymentView>>;
+
+  /**
+   * The payments captured and the refunds completed from `from`, included, to `to`, excluded, of every order
+   * (ADR-0171).
+   */
+  abstract movementsBetween(from: Date, to: Date): Promise<PaymentMovements>;
 
   /** The only row of the settings, which its migration creates (ADR-0162). */
   abstract findSettings(): Promise<PaymentSettingsView>;

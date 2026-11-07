@@ -53,7 +53,12 @@ export {
   deleteInBatches,
   monthsBefore,
 } from './cleanup.js';
-export { inMexicoTime } from './mexico-time.js';
+export {
+  inMexicoTime,
+  isCalendarDate,
+  mexicoDateOf,
+  mexicoDayBounds,
+} from './mexico-time.js';
 export { type Id, newCredentialId, newId, toId } from './id.js';
 export { type Currency, MAX_MONEY_AMOUNT, Money } from './money.js';
 export {

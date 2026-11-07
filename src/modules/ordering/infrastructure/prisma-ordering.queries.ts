@@ -31,6 +31,7 @@ import {
   type OrderId,
   type ShippingAddress,
   type VariantOptions,
+  type WarehouseId,
   withoutIdentifyingFields,
 } from '../domain/order.js';
 import { parsePublicCode, type PublicCode } from '../domain/public-code.js';
@@ -165,6 +166,47 @@ export class PrismaOrderingQueries extends OrderingQueries {
       orderBy: [{ placedAt: 'asc' }, { id: 'asc' }],
     });
     return rows.map(toAdminSummaryView);
+  }
+
+  async storeDayOrders(
+    warehouseId: WarehouseId,
+    from: Date,
+    to: Date,
+  ): Promise<readonly AdminOrderSummaryView[]> {
+    const rows = await this.txHost.tx.order.findMany({
+      select: ADMIN_SUMMARY_FIELDS,
+      where: {
+        channel: 'STORE',
+        warehouseId,
+        OR: [
+          { placedAt: { gte: from, lt: to } },
+          { cancelledAt: { gte: from, lt: to } },
+        ],
+      },
+      orderBy: [{ placedAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map(toAdminSummaryView);
+  }
+
+  async openPriceTotals(
+    warehouseId: WarehouseId,
+    from: Date,
+    to: Date,
+  ): Promise<{ readonly count: number; readonly amount: number }> {
+    const totals = await this.txHost.tx.orderLine.aggregate({
+      where: {
+        note: { not: null },
+        order: {
+          channel: 'STORE',
+          warehouseId,
+          placedAt: { gte: from, lt: to },
+          status: { notIn: ['CANCELLED', 'EXPIRED', 'REFUNDED'] },
+        },
+      },
+      _count: { _all: true },
+      _sum: { lineTotal: true },
+    });
+    return { count: totals._count._all, amount: totals._sum.lineTotal ?? 0 };
   }
 
   async listGuestOrders(

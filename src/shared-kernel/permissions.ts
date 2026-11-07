@@ -24,6 +24,9 @@ export const PERMISSIONS = {
   'orders.place': 'Colocar pedidos a nombre de un cliente en la tienda física',
   'orders.open-price':
     'Vender a precio libre en la tienda física lo que aún no está en el catálogo',
+  'cash-closings.read': 'Ver el corte de caja de cada local y sus cierres',
+  'cash-closings.manage':
+    'Cerrar la caja de un local al final del día con el efectivo contado',
   // Work Orders
   'work-orders.read': 'Ver órdenes de trabajo',
   'work-orders.manage':
