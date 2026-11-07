@@ -187,6 +187,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0167 | Órdenes de trabajo: ventas ligadas, nota de servicio y conservación de datos | Aceptada |
 | ADR-0168 | Promociones | Aceptada |
 | ADR-0169 | Una URL por frontend en los enlaces de los correos | Aceptada |
+| ADR-0170 | Borrador de descripción de producto con IA | Aceptada |
 
 ---
 

@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Versión 1.9 — Borrador de descripción de producto con IA (ADR-0170), desde el 2026-11-05; su plan está en el historial. La versión 1.8, una URL por frontend en los enlaces de los correos, se cerró el 2026-10-26 y se publicó como la 1.8.0.
+Ninguna. La versión 1.9, borrador de descripción de producto con IA, se cerró el 2026-11-07 y se publica como la 1.9.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -36,6 +36,47 @@ Versión 1.9 — Borrador de descripción de producto con IA (ADR-0170), desde e
 ### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
 
 **Goal:** Que el staff pida a la IA un primer texto de título, descripción y puntos destacados de un producto, a partir de los datos que el producto ya tiene, y lo revise antes de guardarlo; sin enviar datos personales al proveedor (ADR-0170). **Tareas:** T-147, en una parte, sin paso 0.
+
+**Fecha:** 2026-11-07. **Resultado:** objetivo cumplido. T-147 está en DONE, el pipeline de CI está en verde, el endpoint se probó con una key real, y la versión se publica como la 1.9.0, con su tag y su GitHub Release (ADR-0159).
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0170 | DONE | Pull request #139 |
+| `POST /v1/admin/catalog/products/{productId}/description-draft`: puerto `ProductCopywriter`, caso de uso `DraftProductDescription` y adaptador `AnthropicProductCopywriter`, con salida estructurada | DONE | T-147, pull request #139 |
+| Contrato de `/v1`: 153 rutas, una nueva; el problem type `ai-unavailable` (503, E-39) y el límite `ai-description-draft` | — | `API_SPEC.md`, `docs/openapi/v1.json` |
+| Tres variables nuevas, todas opcionales: `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` y `RATE_LIMIT_AI_DESCRIPTION_DRAFT`; dos dependencias de producción nuevas, `@anthropic-ai/sdk` y `zod` | — | `.env.example`, `package.json` |
+| 170 ADR: 166 aceptados, 2 reemplazados y 2 reemplazados parcialmente; 1 nuevo en esta versión (ADR-0170) | — | `DECISIONS.md` |
+
+El trabajo se integró en un pull request (#139) y la publicación en otro. En #139, `Commit messages` falló por un título y un commit con scope (`feat(catalog):`), que el patrón no acepta; y la suite end-to-end, en la máquina del usuario, encontró campos del cuerpo sin descripción y el OpenAPI sin regenerar. Las tres cosas se corrigieron antes de fusionar.
+
+#### Riesgos
+
+- **Resueltos en esta versión:** ninguno de los heredados; la versión agrega una función.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews anteriores, entre ellos la validación legal de los datos que captura el staff.
+- **Nuevos:**
+  - **Costo y disponibilidad de un proveedor externo:** cada borrador se cobra; lo acotan el límite de 20 por cuenta de staff por hora y los tokens que registra el log. Sin key, o si la API falla, el endpoint responde 503 y el resto de la API sigue igual.
+  - **Texto del modelo:** puede equivocarse o agregar datos que el producto no tiene; por eso es solo un borrador, que el staff revisa antes de guardarlo, y las instrucciones piden usar solo los datos dados.
+  - **Inyección de instrucciones en los datos del producto:** los datos van aparte de las instrucciones y marcados como información; solo el staff con `catalog.write` escribe esos datos y pide el borrador.
+  - **Un `ANTHROPIC_MODEL` mal escrito:** el endpoint responde 503 y el log muestra el HTTP 404 con el modelo; así se encontró en la prueba con la key real.
+  - **`npm audit`:** 25 avisos (24 moderados y 1 bajo), todos en dependencias de desarrollo (`jest`, `glob`, `minimatch`, `deepmerge`, `testcontainers` y `@nestjs/cli`), bajo el umbral de la CI (`high`); 0 en las de producción. Se revisan en el paso 0 de la siguiente versión.
+
+#### Qué funcionó
+
+- **Un puerto como el de las imágenes:** el caso de uso elige los datos que salen y no conoce el SDK; cambiar de proveedor es cambiar el adaptador y una línea del módulo.
+- **Un servidor local en lugar de la API:** el SDK lee `ANTHROPIC_BASE_URL`, así que las pruebas del adaptador cubren la respuesta buena, la falta de key, un error y un rechazo sin red ni costo.
+- **La causa en el log y no en la respuesta:** el cliente recibe solo `ai-unavailable`, y el log con el modelo y el error de la API bastó para encontrar el nombre mal escrito.
+
+#### Qué mejorar
+
+- **Descripciones en los cuerpos:** la prueba de contrato exige una descripción en cada campo que valida el pipe; un DTO nuevo la lleva desde el principio, y `npm run openapi:update` se corre antes de abrir el pull request.
+- **El índice de `DECISIONS.md`:** ADR-0170 quedó fuera de la tabla del índice y se agregó al publicar; un ADR nuevo va en la tabla y en el cuerpo en el mismo commit.
+- **Pruebas en la sesión:** la sesión no tenía Docker y su Node era otro, así que las suites end-to-end y de contrato solo corrieron en la máquina del usuario y en la CI, y tres pruebas de correos fallaron allí solo por el formato de fechas de esa versión de Node.
+
+#### Siguiente versión
+
+Ninguna en curso ni prevista: la siguiente necesita un plan aprobado (ADR-0159).
 
 ### Versión 1.8 — Una URL por frontend en los enlaces de los correos (2026-10-26)
 
