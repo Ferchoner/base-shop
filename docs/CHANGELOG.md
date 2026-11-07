@@ -1,14 +1,16 @@
 # CHANGELOG
 
-## Sin publicar (1.9.0)
+## 1.9.0 (2026-11-07)
 
 Borrador de descripción de producto con IA (ADR-0170).
 
+- Plan de la versión 1.9 (nuevo ADR-0170): el staff pide a Claude un primer texto de un producto, y solo salen datos del producto.
 - T-147 (ADR-0170): `POST /v1/admin/catalog/products/{productId}/description-draft` pide a Claude un borrador de título, descripción y puntos destacados con los datos del producto, sin guardar nada.
   - Variables nuevas `ANTHROPIC_API_KEY` (opcional: sin ella el endpoint responde 503) y `ANTHROPIC_MODEL` (`claude-opus-5-5` por defecto).
   - Límite nuevo `RATE_LIMIT_AI_DESCRIPTION_DRAFT`, 20 por cuenta de staff por hora.
   - Problem type nuevo `ai-unavailable` (503).
   - Dependencias nuevas `@anthropic-ai/sdk` y `zod`.
+- Versión 1.9.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.9.0` y un GitHub Release.
 
 ## 1.8.0 (2026-10-26)
 
