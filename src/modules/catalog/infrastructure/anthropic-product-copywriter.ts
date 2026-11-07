@@ -59,6 +59,7 @@ export class AnthropicProductCopywriter extends ProductCopywriter {
 
   async draft(request: CopyRequest): Promise<CopyDraft> {
     if (this.client === null) {
+      this.logger.warn('ANTHROPIC_API_KEY is not set: no draft was asked for');
       throw new ProblemException('ai-unavailable');
     }
     let response;
