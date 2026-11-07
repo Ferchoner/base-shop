@@ -225,6 +225,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | published_at, archived_at | timestamptz(3) | Sí | `published_at` alimenta el orden "más recientes" (ADR-0060) |
 | first_published_at | timestamptz(3) | Sí | Se fija en la primera publicación y no cambia; mientras es `NULL`, SKU y opciones de sus variantes son editables (ADR-0068) |
 | store_only | boolean | No | Default `false`. Se vende solo en la tienda física, como un servicio, y nunca en línea (BR-PRD-20, ADR-0165) |
+| open_price | boolean | No | Default `false`. Se vende a precio libre en la tienda física (BR-PRD-21, ADR-0171); `CHECK (NOT open_price OR store_only)` (`products_open_price_store_only_check`) |
 | search_vector | tsvector | Sí | Título (peso A), marca (B) y categorías visibles (C) (ADR-0080); configuración `spanish` sobre el texto sin acentos (`unaccent`); lo recalcula la aplicación en la misma transacción al cambiar esos datos, incluida la visibilidad de sus categorías (ADR-0123) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
@@ -529,6 +530,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
   - la primera entrada de `order_status_history` lleva como actor a la cuenta de staff en una orden `STORE`.
 - **Implementado en T-200 parte b (ADR-0168):** la migración `20261017120000_ordering_promotions` agrega `promotion_id`, `promotion_name` y `order_lines.discount_amount`, con 0 y sin promoción para las órdenes existentes. `orders_amounts_check` limita ahora el IVA al total con el descuento, y el descuento al subtotal; `orders_discount_minimum_check` exige que con un descuento los productos sumen al menos $1 (`subtotal - discount_total >= 100`); `orders_promotion_check` exige la promoción con su nombre si y solo si hay descuento.
 - **Implementado en T-200 parte c (ADR-0168):** la migración `20261017150000_ordering_coupons` agrega `promotion_code`, con `orders_promotion_code_check`: el código solo con una promoción, y el índice parcial `orders_promotion_contact_idx`, con el que una orden cuenta si su email de contacto ya usó un cupón de una vez por cliente, entre sus órdenes que no están en `EXPIRED`, `CANCELLED` ni `REFUNDED`.
+- **Implementado en T-182 (ADR-0171):** la migración `20261107130000_ordering_order_line_note` agrega `order_lines.note`, en `NULL` para las órdenes existentes, con `order_lines_note_length_check`; la de Catalog, `20261107120000_catalog_product_open_price`, agrega `products.open_price` en `false` con `products_open_price_store_only_check`, y `20261107140000_identity_open_price_permission` da `orders.open-price` al Administrador y al Vendedor.
 - **Implementado en T-187 parte b (ADR-0161):** la migración `20261006170000_ordering_in_store_delivery` crea `order_fulfillment`, agrega `fulfillment` con `SHIPPING` para las órdenes existentes, deja opcionales la dirección y los días de entrega, agrega `orders_fulfillment_check` y reemplaza las restricciones del email y del aviso de privacidad.
 
 ### 8.2 `order_lines` (order_items)
@@ -548,6 +550,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 | tax_amount | integer | IVA contenido en la línea menos su descuento, redondeado por línea (ADR-0008, ADR-0168); `CHECK (tax_amount BETWEEN 0 AND line_total - discount_amount)` |
 | line_total | integer | `CHECK (line_total = unit_price * quantity)`; antes del descuento |
 | discount_amount | integer | Default 0; lo que la promoción quita a la línea (ADR-0168); `CHECK (discount_amount BETWEEN 0 AND line_total)` |
+| note | text | Nullable. Qué se vendió en una línea de precio libre (BR-ORD-22, ADR-0171); `NULL` en las demás; `CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 200)` (`order_lines_note_length_check`) |
 
 - **Integridad:** inmutables tras colocar la orden (BR-ORD-03); `grand_total` y `subtotal` se validan contra la suma de líneas en la aplicación (sin trigger, para no duplicar la lógica del aggregate).
 

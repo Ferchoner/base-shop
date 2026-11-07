@@ -8,6 +8,12 @@
   - `docker-compose.server.yml` y `deploy/lan/`: Caddy con HTTPS de su CA interna, el backoffice y la API en un solo origen, la migración antes de la API, dos usuarios de la base y un respaldo diario con `pg_dump`.
   - `.env.server.example` y la guía `docs/LAN_SERVER.md`.
   - Variable nueva `TRUST_PROXY_HOPS` (0 por defecto): cuántos proxies propios hay delante de la API, para tomar la IP del cliente de `X-Forwarded-For`.
+- T-182 (ADR-0171): precio libre en la venta de mostrador, para cobrar lo que aún no está en el catálogo.
+  - `openPrice` en los productos, solo con `storeOnly`: en el alta, la edición, la vista y el filtro del listado.
+  - En la cotización y la orden del staff, las líneas de precio libre llevan `unitPrice` y `note`, que las demás no llevan; esas líneas no reciben promociones ni cupones.
+  - `note` en las líneas de la cotización, de la orden y del correo de la orden recibida.
+  - Permiso nuevo `orders.open-price`, para el Vendedor y el Administrador.
+  - `GET /v1/admin/orders/open-price-lines`: las líneas de precio libre por almacén y fechas.
 
 ## 1.9.0 (2026-11-07)
 

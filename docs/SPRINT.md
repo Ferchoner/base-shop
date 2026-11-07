@@ -57,6 +57,13 @@ Versión 1.10 — Operación diaria de la tienda física (ADR-0171), desde el 20
   - guía para el dueño en `docs/LAN_SERVER.md`.
 - **Pruebas locales:** se levantó todo el servidor en la sesión, con Docker y Node 24; para construir las imágenes detrás del proxy de la sesión se usó una copia de los `Dockerfile` con su certificado, que no se incluye.
 
+#### Resultado de la parte 1 (T-182)
+
+- `openPrice` en los productos `storeOnly`, con su `CHECK` en la base; la línea de precio libre lleva su precio y su nota en la cotización y la orden del staff, sin promociones ni cupones; la nota queda en la línea, en las vistas y en el correo de la orden recibida.
+- Permiso `orders.open-price` para el Vendedor y el Administrador, revisado en el caso de uso; `GET /v1/admin/orders/open-price-lines` por almacén y fechas.
+- Decisión de implementación (ADR-0171, Estado): cada variante sigue una vez por orden, así que el producto de precio libre lleva una variante por tipo de artículo.
+- Pruebas: unitarias del dominio, del checkout del staff y del correo; `test/open-price.e2e-spec.ts` de punta a punta.
+
 ### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
 
 **Goal:** Que el staff pida a la IA un primer texto de título, descripción y puntos destacados de un producto, a partir de los datos que el producto ya tiene, y lo revise antes de guardarlo; sin enviar datos personales al proveedor (ADR-0170). **Tareas:** T-147, en una parte, sin paso 0.

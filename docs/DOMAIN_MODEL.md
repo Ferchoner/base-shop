@@ -42,12 +42,12 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Product` (título, descripción, brandId, categoryIds, status, si se vende solo en la tienda física (`storeOnly`, ADR-0165); contiene `ProductVariant`, con peso y dimensiones opcionales y el código de barras de su fabricante, GTIN (ADR-0163), y `ProductImage`); `Category` (árbol por parentId); `Brand` |
+| Aggregates | `Product` (título, descripción, brandId, categoryIds, status, si se vende solo en la tienda física (`storeOnly`, ADR-0165) y si se vende a precio libre (`openPrice`, solo con `storeOnly`, ADR-0171); contiene `ProductVariant`, con peso y dimensiones opcionales y el código de barras de su fabricante, GTIN (ADR-0163), y `ProductImage`); `Category` (árbol por parentId); `Brand` |
 | Value Objects | `Sku`, `Gtin` (con su dígito verificador y su llave de 14 dígitos), `Slug`, `VariantOptions` |
 | Eventos | `ProductPublished`, `ProductArchived`, `VariantDiscontinued`, `ProductStoreOnlyChanged` (ADR-0165) |
 | Repositories | `ProductRepository`, `CategoryRepository`, `BrandRepository`; `CatalogQueryService` (lectura) |
 | Casos de uso | CreateProduct, UpdateProductDetails, AddVariant, DiscontinueVariant, ReactivateVariant, PublishProduct, ArchiveProduct, ReactivateProduct (ADR-0076), AttachImage, ReorderImages, ManageCategories, ManageBrands; consultas ListProducts, GetProductBySlug y LookUpVariants, por SKU o GTIN (UC-CAT-15) |
-| Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado, y si su producto se vende solo en la tienda física (ADR-0165); fachada `CatalogFacade.variants` (ADR-0125) |
+| Exporta | Snapshot de variante: SKU, nombre, opciones, peso y dimensiones (opcionales, ADR-0058), estado, si su producto se vende solo en la tienda física (ADR-0165) y si se vende a precio libre (ADR-0171); fachada `CatalogFacade.variants` (ADR-0125) |
 
 ## Pricing
 
@@ -88,7 +88,7 @@ Autenticación: ADR-0022, ADR-0023 y ADR-0114. La política de contraseñas (ADR
 
 | Elemento | Detalle |
 |---|---|
-| Aggregates | `Order` (número interno consecutivo, código público aleatorio, customerId opcional, email de contacto, líneas `OrderLine` con snapshot, dirección snapshot, envío snapshot, descuento por línea con la promoción que lo dio (ADR-0168), impuestos, totales, status, reservationId, canal `ONLINE` o `STORE` con la cuenta de staff y el almacén de una orden de la tienda física, modo de entrega `SHIPPING` o `IN_STORE` (ADR-0161), historial de estados) |
+| Aggregates | `Order` (número interno consecutivo, código público aleatorio, customerId opcional, email de contacto, líneas `OrderLine` con snapshot y, a precio libre, la nota de qué se vendió (ADR-0171), dirección snapshot, envío snapshot, descuento por línea con la promoción que lo dio (ADR-0168), impuestos, totales, status, reservationId, canal `ONLINE` o `STORE` con la cuenta de staff y el almacén de una orden de la tienda física, modo de entrega `SHIPPING` o `IN_STORE` (ADR-0161), historial de estados) |
 | Value Objects | `Money`, `Address`, `OrderNumber` (interno), `OrderCode` (público, formato `XXXX-XXXX`) |
 | Eventos | `OrderPlaced`, `OrderPaid`, `OrderCancelled`, `OrderExpired`, `OrderShipped`, `OrderDelivered`; se publican los cuatro primeros, los que tienen consumidor (ADR-0136, ADR-0143). `OrderAccessRequested` es interno: Ordering lo atiende en segundo plano para emitir el enlace de acceso (ADR-0148) |
 | Repositories | `OrderRepository`, `OrderAccessTokenRepository` (ADR-0148); puertos `OrderNumberGenerator` (secuencia) y `OrderCodeGenerator` (aleatorio, ADR-0049) |

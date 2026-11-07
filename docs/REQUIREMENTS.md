@@ -327,8 +327,8 @@ Criterios de aceptación:
 | UC-ORD-09 | Marcar orden pagada | Sistema (`PaymentCaptured`) | BR-ORD-08, BR-ORD-09 |
 | UC-ORD-10 | Expirar órdenes impagas | Sistema (job cada minuto) | BR-ORD-07 |
 | UC-ORD-11 | Consultar los datos bloqueados de un pedido | Staff (`orders.read-blocked`) | BR-PRIV-05, ADR-0070, ADR-0152 |
-| UC-ORD-12 | Cotizar un pedido en la tienda física | Staff (`orders.place`) | BR-ORD-19, ADR-0161 |
-| UC-ORD-13 | Colocar un pedido en la tienda física a nombre de un cliente | Staff (`orders.place`) | BR-ORD-01 a BR-ORD-06, BR-ORD-19, BR-ORD-20, BR-USR-05, ADR-0161 |
+| UC-ORD-12 | Cotizar un pedido en la tienda física | Staff (`orders.place`) | BR-ORD-19, BR-ORD-22, ADR-0161, ADR-0171 |
+| UC-ORD-13 | Colocar un pedido en la tienda física a nombre de un cliente | Staff (`orders.place`) | BR-ORD-01 a BR-ORD-06, BR-ORD-19, BR-ORD-20, BR-ORD-22, BR-USR-05, ADR-0161, ADR-0171 |
 | UC-ORD-14 | Entregar en la tienda una venta de mostrador | Staff (`orders.place`) | BR-ORD-20, ADR-0161 |
 | UC-ORD-15 | Consultar los datos de la tienda para el ticket | Staff (`orders.read`) | BR-ORD-21, ADR-0163 |
 
@@ -357,7 +357,8 @@ Criterios de aceptación:
   - la orden es de un cliente registrado con el email verificado, con una de sus direcciones o una escrita, o de un invitado con su email y la versión del aviso de privacidad que el staff le presentó;
   - colocarla revisa, en este orden, al comprador, el almacén, la dirección, que todo sea vendible, el total y el stock, y exige `Idempotency-Key`;
   - la orden queda en el canal `STORE`, con la cuenta de staff que la colocó y su almacén; se audita como `orders.place`, y la primera fila del historial lleva al staff;
-  - una venta de mostrador (`IN_STORE`) no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos.
+  - una venta de mostrador (`IN_STORE`) no tiene dirección, costo de envío ni plazo, y su comprador puede no dar datos;
+  - desde T-182 (ADR-0171), una línea de una variante de precio libre lleva el precio y la nota que escribe el staff, con `orders.open-price`, y no recibe promociones ni cupones; `GET /v1/admin/orders/open-price-lines` lista esas líneas por almacén y fechas (BR-PRD-21, BR-ORD-22).
 - **UC-ORD-14 (ADR-0161):** solo una orden `IN_STORE` en Paid; pasa a Delivered sin envío, con el staff en el historial; se audita como `orders.hand-over`; exige `version`.
 - **UC-ORD-15 (ADR-0163):** responde el nombre, la dirección, el RFC, el teléfono y la leyenda de la tienda, de su configuración; los opcionales sin valor salen `null`, y la leyenda nunca falta. El detalle de la orden del staff dice de qué almacén salieron sus productos.
 - **UC-ORD-01 a 03 (implementación, ADR-0132):**

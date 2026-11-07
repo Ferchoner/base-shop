@@ -188,6 +188,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
 - [ ] Versión 1.10: operación diaria de la tienda física (paso 0 con T-331, T-182 y T-183), en curso; plan en `SPRINT.md`
+- [x] T-182: precio libre en la venta de mostrador: `openPrice` en los productos `storeOnly`, `unitPrice` y `note` en sus líneas de la cotización y la orden del staff, sin promociones; permiso `orders.open-price` para el Vendedor y el Administrador; `GET /v1/admin/orders/open-price-lines` (ADR-0171)
 - [x] Paso 0 de la versión 1.10 y T-331: `npm audit` sin cambios desde la 1.9 (0 en producción); servidor en red local con `docker-compose.server.yml`, Caddy con HTTPS de su CA interna, dos usuarios de la base, respaldo diario y `TRUST_PROXY_HOPS`; guía en `docs/LAN_SERVER.md` (ADR-0171)
 - [x] Versión 1.9.0: borrador de descripción de producto con IA (T-147), cerrada el 2026-11-07; review en `SPRINT.md`
 - [x] T-147: `POST /v1/admin/catalog/products/{productId}/description-draft` pide a Claude un borrador de título, descripción y puntos destacados con los datos del producto, sin guardar nada; 503 `ai-unavailable` sin key o si el modelo no responde, y 20 por cuenta de staff por hora (ADR-0170)

@@ -48,6 +48,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-PRD-18. La imagen en posición 1 de la galería es la principal del producto, y la primera imagen de una variante es la suya; el staff las elige reordenando la galería (ADR-0124, ADR-0131).
 - BR-PRD-19. El GTIN de una variante es el código de barras de su fabricante, un EAN o un UPC: opcional, de 8, 12, 13 o 14 dígitos y con su dígito verificador. Dos variantes activas, de cualquier producto, no tienen el mismo; se comparan completados con ceros a 14 dígitos, así que un UPC y el mismo código como EAN-13 con un 0 al frente son uno. Una variante descontinuada deja libre el suyo (ADR-0163).
 - BR-PRD-20. Un producto marcado como solo de tienda (`storeOnly`), como un servicio, nunca se vende en línea: la tienda pública no lo muestra, y el carrito, el checkout en línea y la recompra no lo aceptan. En la tienda física se vende como cualquier otro: en la venta de mostrador y en los pedidos del staff (ADR-0165).
+- BR-PRD-21. Solo un producto que se vende solo en la tienda física puede venderse a precio libre (`openPrice`), y no deja de venderse solo ahí mientras lo tenga. Sirve para cobrar en el mostrador lo que aún no está en el catálogo (ADR-0171).
 
 ## Precios
 
@@ -136,6 +137,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-ORD-19. El staff con `orders.place` coloca órdenes a nombre de un cliente presente en la tienda física: de un cliente registrado con el email verificado, o de un invitado con su email y la versión del aviso de privacidad que el staff le presentó. La orden queda en el canal `STORE`, con la cuenta de staff que la colocó y el almacén que eligió, del único que sale su stock, también cuando se reserva otra vez (ADR-0161).
 - BR-ORD-20. Una venta de mostrador (`fulfillment` `IN_STORE`) se entrega en la tienda física: la coloca el staff, sin dirección, sin costo de envío y sin plazo de entrega, y no crea envío al pagarse. El staff con `orders.place` la entrega una vez pagada, y pasa de Paid a Delivered. Su comprador puede no dar datos: entonces no tiene email ni aviso de privacidad, no recibe correos ni la consulta como invitado (ADR-0161).
 - BR-ORD-21. El ticket de una orden lo imprime el cliente de la API, con los datos de la tienda, iguales para todas, y el almacén del que salieron los productos. No es un comprobante fiscal, y su leyenda lo dice siempre (ADR-0163).
+- BR-ORD-22. En la tienda física, una línea de una variante de precio libre (BR-PRD-21) lleva el precio con IVA que escribe el staff, de $0.01 a $100,000.00, y qué se vendió, de 1 a 200 caracteres; las demás líneas no los llevan. La línea guarda la nota, no recibe promociones ni cupones, y no cuenta para su compra mínima. Venderla exige el permiso `orders.open-price` (ADR-0171).
 
 ## Pagos
 
