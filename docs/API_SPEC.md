@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, y `orders.open-price` de ADR-0171). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, y `orders.open-price`, `cash-closings.read` y `cash-closings.manage` de ADR-0171). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -1382,8 +1382,12 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 | POST | `/v1/admin/orders/{orderId}/blocked-data` | `orders.read-blocked` | UC-ORD-11 (ADR-0152) |
 | GET | `/v1/admin/store-profile` | `orders.read` | UC-ORD-15 (ADR-0163) |
+| GET | `/v1/admin/cash-closings/summary` | `cash-closings.read` | UC-ORD-16 (ADR-0171) |
+| POST | `/v1/admin/cash-closings` | `cash-closings.manage` | UC-ORD-17 (ADR-0171) |
+| GET | `/v1/admin/cash-closings` | `cash-closings.read` | UC-ORD-17 (ADR-0171) |
+| GET | `/v1/admin/cash-closings/{closingId}` | `cash-closings.read` | UC-ORD-17 (ADR-0171) |
 
-Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es). Los datos de la tienda para el ticket viven en `/v1/admin/store-profile` (§15.8).
+Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es). Los datos de la tienda para el ticket viven en `/v1/admin/store-profile` (§15.8), y el corte de caja en `/v1/admin/cash-closings` (§15.9).
 
 ### 15.2 Cotizar (UC-ORD-01)
 
@@ -1616,6 +1620,35 @@ Implementado en T-180 parte b (ADR-0133):
 - **`name`:** de 1 a 100 caracteres; obligatorio en producción, y "base-shop" en desarrollo.
 - **`address`, `taxId` y `phone`:** opcionales, `null` si no se configuraron. La dirección es una línea de hasta 300 caracteres; el RFC tiene 12 o 13 caracteres y sale en mayúsculas; el teléfono, hasta 30.
 - **`ticketFooter`:** hasta 500 caracteres. Por defecto, y si la variable queda vacía, "Este ticket no es un comprobante fiscal.": el ticket no tiene fines legales, y la factura CFDI sigue fuera (ADR-0027).
+
+### 15.9 Corte de caja (UC-ORD-16 y 17, ADR-0171)
+
+Una caja por local: el corte es de un almacén y un día de la Ciudad de México (`date`, `AAAA-MM-DD`, que debe existir en el calendario; si no, 400 en `date` con `isDate`). Los montos son `Money` en centavos; `expectedCash` y `difference` pueden ser negativos.
+
+**Qué cuenta el día** (BR-ORD-23):
+
+- las órdenes del canal `STORE` del almacén colocadas ese día (`placedCount`, `placedAmount` con su total y `pendingPaymentCount`, las que siguen sin pago) y las canceladas ese día (`cancelledCount`), cuando sea que se colocaron;
+- los cobros capturados ese día de las órdenes de la tienda física del almacén, aunque la orden sea de otro día, en `payments`: siempre cuatro grupos y en este orden, `CASH`, `CARD_TERMINAL`, `TRANSFER` y `null` (sin método: de un proveedor o sin que el staff lo dijera), cada uno con `count` y `amount`; `paymentAmount` es el total;
+- los reembolsos completados ese día de esas órdenes (`refundCount`, `refundAmount`) y, de ellos, los de pagos en efectivo (`cashRefundAmount`);
+- `expectedCash`: lo cobrado en efectivo menos lo reembolsado de pagos en efectivo;
+- `byStaff`: por la cuenta de staff que registró cada cobro o reembolso, `{ staffId, paymentCount, paymentAmount, cashAmount, refundAmount }`, en el orden en que aparecen; los que no registró nadie (`staffId` `null`) van al final;
+- `openPriceLineCount` y `openPriceAmount`: las líneas de precio libre (BR-ORD-22) de las órdenes colocadas ese día, sin las canceladas, reembolsadas o vencidas.
+
+Las órdenes en línea pagadas en la tienda no tienen almacén, así que no entran al corte de ningún local.
+
+**`GET /v1/admin/cash-closings/summary?warehouseId&date`** — `cash-closings.read`. Response 200 `CashSummary`: las cifras del día, calculadas al consultar, con `warehouseId`, `date`, `from` y `to` (el inicio y el fin del día, sin incluirlo), `closing` (el cierre del día o `null`) y `afterClosing`: lo que llegó después del cierre, que ya va en las cifras, `{ paymentCount, paymentAmount, cashAmount, refundCount, refundAmount, cashRefundAmount }`, o `null` sin cierre. 404 `not-found` si el almacén no existe.
+
+**`POST /v1/admin/cash-closings`** — `cash-closings.manage`. Request `{ "warehouseId", "date", "countedCash", "note" }`:
+
+- `countedCash`: el efectivo contado, en centavos, de 0 a 2,147,483,647 (el máximo de `Money`);
+- `note`: de 1 a 500 caracteres; obligatoria si lo contado no es lo esperado (400 en `note` con `requiredWithDifference`);
+- `date`: hoy o un día anterior; un día por venir es 400 en `date` con `notFuture`.
+
+Guarda las cifras del día en ese momento (`summary`), `expectedCash`, `countedCash`, `difference` (contado menos esperado: negativa si falta efectivo), `note`, `closedBy` y `closedAt`. Response 201 `CashClosing` con `Location`. Un cierre por almacén y día: el segundo, también si llegan a la vez, es 409 `duplicate-value` en `date`. Un cierre no se edita ni se borra. 404 `not-found` si el almacén no existe. Se audita `cash-closings.close` con el almacén, el día y los montos, sin la nota, que es texto libre del staff.
+
+**`GET /v1/admin/cash-closings`** — `cash-closings.read`. Paginado, del día más reciente al más antiguo. Filtros: `warehouseId`, `dateFrom` y `dateTo` (días incluidos).
+
+**`GET /v1/admin/cash-closings/{closingId}`** — `cash-closings.read`. El cierre, con las cifras del día como estaban al cerrar; 404 `not-found`.
 
 ---
 

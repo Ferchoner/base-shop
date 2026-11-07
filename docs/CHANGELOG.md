@@ -14,6 +14,11 @@
   - `note` en las líneas de la cotización, de la orden y del correo de la orden recibida.
   - Permiso nuevo `orders.open-price`, para el Vendedor y el Administrador.
   - `GET /v1/admin/orders/open-price-lines`: las líneas de precio libre por almacén y fechas.
+- T-183 (ADR-0171): corte de caja por local y día.
+  - `GET /v1/admin/cash-closings/summary`: las ventas de la tienda física, lo cobrado por método y por quien lo registró, los reembolsos, el efectivo esperado y el precio libre del día.
+  - `POST /v1/admin/cash-closings`: el cierre del día con el efectivo contado y la diferencia, una vez por local y día, con nota obligatoria si no cuadra; `GET /v1/admin/cash-closings` y `GET /v1/admin/cash-closings/{closingId}`.
+  - Tabla nueva `cash_closings`.
+  - Permisos nuevos `cash-closings.read` y `cash-closings.manage`, para el Vendedor y el Administrador.
 
 ## 1.9.0 (2026-11-07)
 

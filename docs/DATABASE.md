@@ -46,7 +46,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Pricing | `price_lists`, `variant_prices`, `price_periods` |
 | Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports` |
 | Shopping | `carts`, `cart_lines` |
-| Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
+| Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens`, `cash_closings` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
 | Work Orders | `work_orders`, `work_order_status_history`, `work_order_sales` |
@@ -585,6 +585,27 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 - **Índices:** `UNIQUE (token_hash)`; `(contact_email)`.
 - **Concurrencia:** emitir un enlace y anonimizar al invitado toman primero `pg_advisory_xact_lock` de la clase `ORDA` (`0x4F524441`) con el `hashtext` del email.
 - **Retención:** la limpieza diaria borra los vencidos, usados o reemplazados; la anonimización del invitado borra los de su email.
+
+### 8.5 `cash_closings`
+
+El cierre de caja de un almacén en un día de la Ciudad de México (UC-ORD-17, BR-ORD-23, ADR-0171). Se inserta una vez y nunca se actualiza ni se borra.
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK |
+| warehouse_id | uuid | No | Referencia lógica a Inventory |
+| business_date | date | No | El día que cierra |
+| expected_cash | integer | No | Centavos: lo cobrado en efectivo menos lo reembolsado de pagos en efectivo; puede ser negativo |
+| counted_cash | integer | No | Centavos; `CHECK (counted_cash >= 0)` (`cash_closings_counted_cash_check`) |
+| difference | integer | No | `CHECK (difference = counted_cash - expected_cash)` (`cash_closings_difference_check`) |
+| note | text | Sí | De 1 a 500 caracteres, obligatoria si `difference` no es 0 (`cash_closings_note_check`) |
+| summary | jsonb | No | Las cifras del día al cerrar, como las responde `CashClosing.summary` en centavos |
+| closed_by | uuid | No | Cuenta de staff; sin FK |
+| closed_at | timestamptz(3) | No | — |
+
+- **Índices:** `UNIQUE (warehouse_id, business_date)`; `(business_date)`.
+- **Concurrencia:** el cierre se inserta con `ON CONFLICT (warehouse_id, business_date) DO NOTHING`; si no inserta, el día ya estaba cerrado y responde 409.
+- **Implementado en T-183 (ADR-0171):** la migración `20261108120000_ordering_cash_closings` crea la tabla con sus `CHECK`, y `20261108130000_identity_cash_closings_permissions` da `cash-closings.read` y `cash-closings.manage` al Administrador y al Vendedor. Las cifras del día se calculan al consultar, de `orders`, `order_lines` y de los pagos y reembolsos que da la fachada de Payments.
 
 ---
 
