@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.8, una URL por frontend en los enlaces de los correos, se cerró el 2026-10-26 y se publica como la 1.8.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.9 — Borrador de descripción de producto con IA (ADR-0170), desde el 2026-11-05; su plan está en el historial. La versión 1.8, una URL por frontend en los enlaces de los correos, se cerró el 2026-10-26 y se publicó como la 1.8.0.
 
 ---
 
@@ -32,6 +32,10 @@ Ninguna. La versión 1.8, una URL por frontend en los enlaces de los correos, se
 ---
 
 ## Historial
+
+### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
+
+**Goal:** Que el staff pida a la IA un primer texto de título, descripción y puntos destacados de un producto, a partir de los datos que el producto ya tiene, y lo revise antes de guardarlo; sin enviar datos personales al proveedor (ADR-0170). **Tareas:** T-147, en una parte, sin paso 0.
 
 ### Versión 1.8 — Una URL por frontend en los enlaces de los correos (2026-10-26)
 
