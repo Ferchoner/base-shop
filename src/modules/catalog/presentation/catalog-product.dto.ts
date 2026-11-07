@@ -666,13 +666,18 @@ export class UpdateVariantDto {
 
 /** What the staff asks of the description draft with AI (T-147, ADR-0170). */
 export class DescriptionDraftRequestDto {
-  @ApiProperty({ enum: COPY_LANGUAGES, example: 'es' })
+  @ApiProperty({
+    enum: COPY_LANGUAGES,
+    example: 'es',
+    description: 'Idioma del borrador: `es` (español) o `en` (inglés).',
+  })
   @IsIn(COPY_LANGUAGES)
   language: CopyLanguage;
 
   @ApiPropertyOptional({
     enum: COPY_TONES,
     default: 'neutral',
+    description: 'Tono del texto: `neutral`, `friendly` (cercano) o `formal`.',
     example: 'friendly',
   })
   @IsOptional()
@@ -688,6 +693,10 @@ export class DescriptionDraftDto {
   /** Texto plano, sin Markdown. @example 'Una camisa ligera de lino para los días de calor.' */
   description: string;
 
-  @ApiProperty({ type: [String], example: ['Lino', 'Tallas M y L'] })
+  @ApiProperty({
+    type: [String],
+    example: ['Lino', 'Tallas M y L'],
+    description: 'De 3 a 5 puntos destacados del producto.',
+  })
   highlights: string[];
 }
