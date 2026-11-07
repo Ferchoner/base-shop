@@ -45,6 +45,7 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -1088,6 +1089,11 @@
             ],
             "description": "Precio por cantidad, con IVA, antes del descuento."
           },
+          "note": {
+            "description": "Qué se vendió, en una línea de precio libre de la tienda física (ADR-0171); `null` en las demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "productName": {
             "description": "El nombre del producto al colocar la orden.",
             "example": "Camisa de lino",
@@ -1139,6 +1145,7 @@
           "taxAmount",
           "lineTotal",
           "discountAmount",
+          "note",
           "id",
           "lineNumber",
           "sku",
@@ -1785,6 +1792,10 @@
             },
             "type": "array"
           },
+          "openPrice": {
+            "description": "Si se vende a precio libre: el staff escribe el precio y qué se vendió en cada línea de la venta de mostrador, en\nlugar de la lista de precios (ADR-0171). Solo un producto `storeOnly`.",
+            "type": "boolean"
+          },
           "publishedAt": {
             "description": "Desde cuándo está publicado; `null` si no lo está.",
             "format": "date-time",
@@ -1853,6 +1864,7 @@
           "title",
           "slug",
           "storeOnly",
+          "openPrice",
           "version"
         ],
         "type": "object"
@@ -2922,6 +2934,11 @@
             "nullable": true,
             "type": "object"
           },
+          "note": {
+            "description": "Qué se vende, en una línea de precio libre de la tienda física (ADR-0171): `unitPrice` es entonces el que escribió el staff. `null` en las demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "options": {
             "additionalProperties": {
               "type": "string"
@@ -2987,6 +3004,7 @@
           "discountAmount",
           "taxRateBp",
           "taxAmount",
+          "note",
           "quantity",
           "sku",
           "productTitle",
@@ -3189,6 +3207,10 @@
             "nullable": true,
             "type": "string"
           },
+          "openPrice": {
+            "description": "Si se vende a precio libre en la tienda física (ADR-0171); `false` por defecto. Exige `storeOnly`: si no, 400 en\n`openPrice` con código `openPriceStoreOnly`.",
+            "type": "boolean"
+          },
           "slug": {
             "description": "Único y nunca reutilizado. Sin él, se genera del título y, si ya existe, se numera: `camisa-lino-2`.",
             "example": "camisa-lino",
@@ -3337,6 +3359,7 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -4298,6 +4321,138 @@
         ],
         "type": "object"
       },
+      "OpenPriceLineDto": {
+        "properties": {
+          "lineNumber": {
+            "description": "Desde 1.",
+            "type": "number"
+          },
+          "lineTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio por cantidad, con IVA."
+          },
+          "note": {
+            "description": "Qué se vendió, como lo escribió el staff.",
+            "example": "Juego usado de carreras",
+            "type": "string"
+          },
+          "orderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "orderNumber": {
+            "description": "Número interno consecutivo (ADR-0049).",
+            "example": 1042,
+            "type": "number"
+          },
+          "placedAt": {
+            "description": "Cuándo se colocó la orden.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "placedBy": {
+            "description": "La cuenta de staff que colocó la venta.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "productName": {
+            "description": "El producto de precio libre.",
+            "example": "Artículo sin registrar",
+            "type": "string"
+          },
+          "publicCode": {
+            "example": "K7M4-Q9XA",
+            "type": "string"
+          },
+          "quantity": {
+            "example": 1,
+            "type": "number"
+          },
+          "sku": {
+            "example": "VARIOS-JUEGO",
+            "type": "string"
+          },
+          "status": {
+            "description": "El estado de la orden ahora: la lista incluye las canceladas y las vencidas.",
+            "enum": [
+              "PENDING_PAYMENT",
+              "PAID",
+              "AWAITING_MANUAL_FULFILLMENT",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELLED",
+              "EXPIRED",
+              "REFUNDED"
+            ],
+            "type": "string"
+          },
+          "unitPrice": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El precio que escribió el staff, con IVA."
+          },
+          "variantOptions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Los valores de las opciones de la variante, por nombre.",
+            "example": {
+              "tipo": "Juego"
+            },
+            "type": "object"
+          },
+          "warehouseId": {
+            "description": "El almacén de la venta.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "orderId",
+          "status",
+          "warehouseId",
+          "placedBy",
+          "placedAt",
+          "variantOptions",
+          "unitPrice",
+          "lineTotal",
+          "publicCode",
+          "orderNumber",
+          "lineNumber",
+          "sku",
+          "productName",
+          "quantity",
+          "note"
+        ],
+        "type": "object"
+      },
+      "OpenPriceLineListDto": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OpenPriceLineDto"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "type": "object"
+      },
       "OrderAccessDto": {
         "properties": {
           "contactEmail": {
@@ -4592,6 +4747,11 @@
             ],
             "description": "Precio por cantidad, con IVA, antes del descuento."
           },
+          "note": {
+            "description": "Qué se vendió, en una línea de precio libre de la tienda física (ADR-0171); `null` en las demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "productName": {
             "description": "El nombre del producto al colocar la orden.",
             "example": "Camisa de lino",
@@ -4643,6 +4803,7 @@
           "taxAmount",
           "lineTotal",
           "discountAmount",
+          "note",
           "lineNumber",
           "sku",
           "productName",
@@ -7123,6 +7284,7 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -7493,10 +7655,24 @@
       },
       "StaffOrderLineDto": {
         "properties": {
+          "note": {
+            "description": "Qué se vendió, de 1 a 200 caracteres: solo y siempre en una variante de precio libre (ADR-0171). La orden la\nguarda en la línea.",
+            "example": "Juego usado: carreras para consola portátil",
+            "maxLength": 200,
+            "pattern": "\\S",
+            "type": "string"
+          },
           "quantity": {
             "description": "Unidades, de 1 a 30, como una línea del carrito (BR-CRT-02).",
             "example": 2,
             "maximum": 30,
+            "minimum": 1,
+            "type": "number"
+          },
+          "unitPrice": {
+            "description": "Precio unitario con IVA, en centavos, de 1 a 10,000,000: solo y siempre en una variante de precio libre, que lo\ncobra en lugar de la lista de precios (ADR-0171). Exige `orders.open-price`.",
+            "example": 35000,
+            "maximum": 10000000,
             "minimum": 1,
             "type": "number"
           },
@@ -8291,6 +8467,10 @@
             "nullable": true,
             "type": "string"
           },
+          "openPrice": {
+            "description": "A precio libre, o al de la lista de precios (ADR-0171); se cambia también publicado. Exige que el producto quede\n`storeOnly`, y un producto de precio libre no deja de ser `storeOnly` sin quitárselo: si no, 400 en `openPrice` con\ncódigo `openPriceStoreOnly`. En la misma solicitud, `storeOnly: false` con `openPrice: false` sí se acepta.",
+            "type": "boolean"
+          },
           "slug": {
             "description": "Solo mientras el producto nunca se ha publicado (ADR-0068).",
             "maxLength": 200,
@@ -8436,6 +8616,7 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -11009,6 +11190,15 @@
             "description": "`true`: solo los productos que se venden solo en la tienda física; `false`: solo los que se venden también en línea.",
             "in": "query",
             "name": "storeOnly",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`true`: solo los productos de precio libre (ADR-0171); `false`: solo los de precio de lista.",
+            "in": "query",
+            "name": "openPrice",
             "required": false,
             "schema": {
               "type": "boolean"
@@ -16838,7 +17028,7 @@
         ]
       },
       "post": {
-        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con `couponCode`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como `orders.place`.",
+        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con `couponCode`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Una línea de una variante de precio libre (ADR-0171) lleva `unitPrice` y `note`, y las demás no: si no, 400 en `lines[i].unitPrice` o `lines[i].note`. Esa línea se cobra al precio escrito, guarda la nota y no recibe promociones ni cupones, ni cuenta para su mínimo. Vender una variante de precio libre exige `orders.open-price`: sin él, 403. Se audita como `orders.place`.",
         "operationId": "AdminOrdersController_place_v1",
         "parameters": [
           {
@@ -16968,9 +17158,147 @@
         ]
       }
     },
+    "/v1/admin/orders/open-price-lines": {
+      "get": {
+        "description": "Las líneas de las ventas de la tienda física cobradas a precio libre (ADR-0171), con su nota y su orden, la más reciente primero y por número de línea, en cualquier estado de la orden: lo que se vende sin estar en el catálogo, para saber qué dar de alta primero. Por almacén y por fecha de la orden.",
+        "operationId": "AdminOrdersController_openPriceLines_v1",
+        "parameters": [
+          {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Solo las ventas de este almacén.",
+            "in": "query",
+            "name": "warehouseId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601 de la orden; incluida.",
+            "in": "query",
+            "name": "placedFrom",
+            "required": false,
+            "schema": {
+              "example": "2026-11-01",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601 de la orden; incluida (una fecha sola incluye todo el día).",
+            "in": "query",
+            "name": "placedTo",
+            "required": false,
+            "schema": {
+              "example": "2026-11-30",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPriceLineListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar las líneas vendidas a precio libre",
+        "tags": [
+          "Administración: pedidos"
+        ],
+        "x-required-permissions": [
+          "orders.read"
+        ]
+      }
+    },
     "/v1/admin/orders/quote": {
       "post": {
-        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404.",
+        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404. Una línea de una variante de precio libre (ADR-0171) lleva `unitPrice` y `note`, y las demás no: si no, 400 en `lines[i].unitPrice` o `lines[i].note`. Esa línea se cobra al precio escrito, guarda la nota y no recibe promociones ni cupones, ni cuenta para su mínimo. Vender una variante de precio libre exige `orders.open-price`: sin él, 403.",
         "operationId": "AdminOrdersController_quote_v1",
         "parameters": [],
         "requestBody": {

@@ -37,6 +37,8 @@ export interface OrderLineView {
   readonly lineTotal: Money;
   /** What the promotion of the order took off the line (ADR-0168). */
   readonly discountAmount: Money;
+  /** What was sold, for a line at the price the staff typed (ADR-0171); `null` otherwise. */
+  readonly note: string | null;
 }
 
 /** An order without its lines nor its address, as a listing shows it. */
@@ -139,6 +141,31 @@ export interface OrderFilter {
 
 export type OrderSortField = 'placedAt' | 'orderNumber' | 'grandTotal';
 
+/** A line sold at an open price in the physical store (ADR-0171), with its order, to know what to add to the catalog. */
+export interface OpenPriceLineView {
+  readonly orderId: OrderId;
+  readonly publicCode: PublicCode;
+  readonly orderNumber: number;
+  readonly status: OrderStatus;
+  readonly warehouseId: WarehouseId | null;
+  readonly placedBy: StaffId | null;
+  readonly placedAt: Date;
+  readonly lineNumber: number;
+  readonly sku: string;
+  readonly productName: string;
+  readonly variantOptions: VariantOptions;
+  readonly unitPrice: Money;
+  readonly quantity: number;
+  readonly lineTotal: Money;
+  readonly note: string;
+}
+
+export interface OpenPriceLineFilter {
+  readonly warehouseId?: WarehouseId;
+  readonly placedFrom?: Date;
+  readonly placedTo?: Date;
+}
+
 /**
  * Read models of Ordering, straight from its tables. An abstract class rather than an interface, so it can be
  * the dependency injection token without depending on NestJS.
@@ -194,6 +221,15 @@ export abstract class OrderingQueries {
 
   /** An order for the staff (UC-ORD-06); `null` if it does not exist. */
   abstract findAdminOrder(id: OrderId): Promise<AdminOrderView | null>;
+
+  /**
+   * The lines sold at an open price (ADR-0171), newest order first and by line number, whatever the status of the
+   * order.
+   */
+  abstract listOpenPriceLines(
+    filter: OpenPriceLineFilter,
+    page: PageRequest,
+  ): Promise<Page<OpenPriceLineView>>;
 
   /** Every order, for the staff (UC-ORD-06); ties are broken by ID. */
   abstract listOrders(

@@ -15,6 +15,8 @@ import {
   type AdminOrderView,
   type CustomerOrderFilter,
   type CustomerOrderSortField,
+  type OpenPriceLineFilter,
+  type OpenPriceLineView,
   type OrderFilter,
   type OrderLineView,
   OrderingQueries,
@@ -186,6 +188,73 @@ export class PrismaOrderingQueries extends OrderingQueries {
     return row === null ? null : toAdminOrderView(row);
   }
 
+  async listOpenPriceLines(
+    filter: OpenPriceLineFilter,
+    page: PageRequest,
+  ): Promise<Page<OpenPriceLineView>> {
+    const where: Prisma.OrderLineWhereInput = {
+      note: { not: null },
+      order: {
+        ...(filter.warehouseId === undefined
+          ? {}
+          : { warehouseId: filter.warehouseId }),
+        ...(filter.placedFrom === undefined && filter.placedTo === undefined
+          ? {}
+          : { placedAt: { gte: filter.placedFrom, lte: filter.placedTo } }),
+      },
+    };
+    const [rows, totalItems] = await Promise.all([
+      this.txHost.tx.orderLine.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              publicCode: true,
+              orderNumber: true,
+              status: true,
+              warehouseId: true,
+              placedBy: true,
+              placedAt: true,
+            },
+          },
+        },
+        orderBy: [
+          { order: { placedAt: 'desc' } },
+          { orderId: 'asc' },
+          { lineNumber: 'asc' },
+        ],
+        skip: pageOffset(page),
+        take: page.pageSize,
+      }),
+      this.txHost.tx.orderLine.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) => ({
+        orderId: toId<'Order'>(row.orderId),
+        publicCode: row.order.publicCode as PublicCode,
+        orderNumber: Number(row.order.orderNumber),
+        status: row.order.status,
+        warehouseId:
+          row.order.warehouseId === null
+            ? null
+            : toId<'Warehouse'>(row.order.warehouseId),
+        placedBy:
+          row.order.placedBy === null ? null : toId<'User'>(row.order.placedBy),
+        placedAt: row.order.placedAt,
+        lineNumber: row.lineNumber,
+        sku: row.sku,
+        productName: row.productName,
+        variantOptions: row.variantOptions as VariantOptions,
+        unitPrice: Money.of(row.unitPrice, 'MXN'),
+        quantity: row.quantity,
+        lineTotal: Money.of(row.lineTotal, 'MXN'),
+        // The query takes only the lines with a note.
+        note: row.note!,
+      })),
+      totalItems,
+    };
+  }
+
   async listOrders(
     filter: OrderFilter,
     sort: readonly SortOrder<OrderSortField>[],
@@ -338,6 +407,7 @@ function toOrderView(row: OrderRow): OrderView {
       taxAmount: Money.of(line.taxAmount, 'MXN'),
       lineTotal: Money.of(line.lineTotal, 'MXN'),
       discountAmount: Money.of(line.discountAmount, 'MXN'),
+      note: line.note,
     })),
     promotion: promotionOf(row),
     // Written by PrismaOrderRepository from ShippingAddress, or null for an order handed over in the store.

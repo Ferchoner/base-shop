@@ -22,6 +22,8 @@ import { OrderRepository } from '../domain/order.repository.js';
 import {
   CouponNotApplicableError,
   EmailNotVerifiedError,
+  OpenPriceLineError,
+  OpenPriceNotAllowedError,
   TotalMismatchError,
   VariantNotSellableError,
 } from '../domain/ordering-errors.js';
@@ -71,7 +73,8 @@ const SAVED: ShippingAddress = {
   country: 'MX',
 };
 
-const [shirt, cap, draft] = [
+const [shirt, cap, draft, misc] = [
+  newId<'Variant'>(),
   newId<'Variant'>(),
   newId<'Variant'>(),
   newId<'Variant'>(),
@@ -85,6 +88,7 @@ const variant = (
   id: VariantId,
   onSale = true,
   storeOnly = false,
+  openPrice = false,
 ): CheckoutVariant => ({
   id,
   sku: `SKU-${id.slice(-4)}`,
@@ -92,6 +96,7 @@ const variant = (
   options: { talla: 'M' },
   onSale,
   storeOnly,
+  openPrice,
 });
 
 /** Orders in memory; the contact emails in `couponUsers` used the coupon already. */
@@ -168,8 +173,14 @@ function setUp(
       calls.push('variants');
       return Promise.resolve(
         new Map(
-          // The cap is sold only in the store, which a sale in the store sells (ADR-0165).
-          [variant(shirt), variant(cap, true, true), variant(draft, false)]
+          // The cap is sold only in the store, which a sale in the store sells (ADR-0165); the miscellaneous article,
+          // without a price in the list, at an open price (ADR-0171).
+          [
+            variant(shirt),
+            variant(cap, true, true),
+            variant(draft, false),
+            variant(misc, true, true, true),
+          ]
             .filter(({ id }) => ids.includes(id))
             .map((v) => [v.id, v]),
         ),
@@ -219,7 +230,7 @@ function setUp(
         new Map(
           lines.map(({ variantId }) => [
             variantId,
-            (options.available ?? new Set([shirt, cap])).has(variantId),
+            (options.available ?? new Set([shirt, cap, misc])).has(variantId),
           ]),
         ),
       );
@@ -833,5 +844,144 @@ describe('StaffCheckout: coupons (T-200 part c, ADR-0168)', () => {
       new CouponNotApplicableError('alreadyUsed'),
     );
     expect(orders.couponAsks).toEqual([[COUPON.id, 'cliente@example.com']]);
+  });
+});
+
+describe('StaffCheckout: open price (T-182, ADR-0171)', () => {
+  const sold = {
+    variantId: misc,
+    quantity: 1,
+    unitPrice: 35_000,
+    note: '  Juego usado de carreras  ',
+  };
+  const counter = (changes: Partial<StaffOrderInput> = {}) =>
+    order({
+      fulfillment: 'IN_STORE',
+      buyer: null,
+      shippingAddress: null,
+      openPriceAllowed: true,
+      ...changes,
+    });
+
+  it('quotes and places a line at the price the staff typed, with its note, without a promotion', async () => {
+    const promotion = { id: newId<'Promotion'>(), name: 'Diez', code: null };
+    const { checkout, orders, promotionAsks } = setUp({
+      discount: { promotion, oncePerCustomer: false, discounts: [mxn(5_990)] },
+    });
+    const lines = [{ variantId: shirt, quantity: 1 }, sold];
+
+    const quote = await checkout.quote({
+      lines,
+      warehouseId: store,
+      fulfillment: 'IN_STORE',
+      openPriceAllowed: true,
+    });
+    await checkout.place(counter({ lines, expectedTotal: 88_910 }));
+
+    // Only the shirt is offered to the promotions.
+    expect(promotionAsks.map(({ lines: asked }) => asked)).toEqual([
+      [{ variantId: shirt, lineTotal: mxn(59_900) }],
+      [{ variantId: shirt, lineTotal: mxn(59_900) }],
+    ]);
+    expect(quote.lines[1]).toMatchObject({
+      variantId: misc,
+      unitPrice: mxn(35_000),
+      lineTotal: mxn(35_000),
+      discountAmount: mxn(0),
+      taxAmount: mxn(4_828),
+      note: 'Juego usado de carreras',
+      sellable: true,
+    });
+    expect(quote.lines[0].note).toBeNull();
+    expect(quote.totals).toMatchObject({
+      discountTotal: mxn(5_990),
+      grandTotal: mxn(88_910),
+    });
+    expect(orders.saved[0].snapshot.lines).toEqual([
+      expect.objectContaining({ variantId: shirt, note: null }),
+      expect.objectContaining({
+        variantId: misc,
+        unitPrice: mxn(35_000),
+        note: 'Juego usado de carreras',
+      }),
+    ]);
+  });
+
+  it('asks the promotions for nothing when every line is at an open price', async () => {
+    const { checkout, promotionAsks } = setUp();
+
+    await checkout.place(counter({ lines: [sold], expectedTotal: 35_000 }));
+
+    expect(promotionAsks).toEqual([{ channel: 'STORE', at: NOW, lines: [] }]);
+  });
+
+  it('needs the price and the note on a line at an open price, and rejects them on the others', async () => {
+    const { checkout } = setUp();
+    const attempts = [
+      [{ ...sold, unitPrice: undefined }, 'unitPrice', 'openPriceRequired'],
+      [{ ...sold, note: undefined }, 'note', 'openPriceRequired'],
+      [{ ...sold, note: '   ' }, 'note', 'openPriceRequired'],
+      [
+        { variantId: shirt, quantity: 1, unitPrice: 100 },
+        'unitPrice',
+        'notOpenPrice',
+      ],
+      [{ variantId: shirt, quantity: 1, note: 'Otra' }, 'note', 'notOpenPrice'],
+    ] as const;
+
+    for (const [line, field, code] of attempts) {
+      const error: unknown = await checkout
+        .quote({
+          lines: [{ variantId: cap, quantity: 1 }, line],
+          warehouseId: store,
+          fulfillment: 'IN_STORE',
+          openPriceAllowed: true,
+        })
+        .catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(OpenPriceLineError);
+      expect((error as OpenPriceLineError).details).toEqual({
+        errors: [
+          { field: `lines[1].${field}`, code, message: expect.any(String) },
+        ],
+      });
+    }
+  });
+
+  it('rejects a price or a note out of their limits before reading anything', async () => {
+    const { checkout, calls } = setUp();
+
+    for (const line of [
+      { ...sold, unitPrice: 0 },
+      { ...sold, unitPrice: 10_000_001 },
+      { ...sold, unitPrice: 1.5 },
+      { ...sold, note: 'x'.repeat(201) },
+    ]) {
+      await expect(
+        checkout.place(counter({ lines: [line], expectedTotal: 1 })),
+      ).rejects.toThrow(InvalidValueError);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('needs orders.open-price, placing nothing without it', async () => {
+    const { checkout, calls } = setUp();
+
+    await expect(
+      checkout.quote({
+        lines: [sold],
+        warehouseId: store,
+        fulfillment: 'IN_STORE',
+      }),
+    ).rejects.toThrow(OpenPriceNotAllowedError);
+    await expect(
+      checkout.place(
+        counter({
+          lines: [sold],
+          expectedTotal: 35_000,
+          openPriceAllowed: false,
+        }),
+      ),
+    ).rejects.toThrow(OpenPriceNotAllowedError);
+    expect(calls).not.toContain('reserve');
   });
 });

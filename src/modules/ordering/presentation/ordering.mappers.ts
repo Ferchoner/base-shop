@@ -13,6 +13,7 @@ import {
 } from '../application/order-values.js';
 import type {
   AdminOrderSummaryView,
+  OpenPriceLineView,
   OrderLineView,
   OrderSummaryView,
   OrderView,
@@ -25,6 +26,7 @@ import type {
   AdminOrderDto,
   AdminOrderSummaryDto,
   BlockedOrderDataDto,
+  OpenPriceLineDto,
 } from './admin-order.dto.js';
 import type { CheckoutQuoteDto, EstimatedDeliveryDto } from './checkout.dto.js';
 import type {
@@ -58,6 +60,7 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
         line.discountAmount === null ? null : toMoneyDto(line.discountAmount),
       taxRateBp: line.taxRateBp,
       taxAmount: line.taxAmount === null ? null : toMoneyDto(line.taxAmount),
+      note: line.note,
       sellable: line.sellable,
       canFulfill: line.canFulfill,
     })),
@@ -275,6 +278,7 @@ function toLineDto(line: OrderLineView): OrderLineDto {
     taxAmount: toMoneyDto(line.taxAmount),
     lineTotal: toMoneyDto(line.lineTotal),
     discountAmount: toMoneyDto(line.discountAmount),
+    note: line.note,
   };
 }
 
@@ -282,5 +286,25 @@ export function toReorderDto(copy: CartCopy): ReorderDto {
   return {
     cartId: copy.cartId,
     skippedVariantIds: [...copy.skippedVariantIds],
+  };
+}
+
+export function toOpenPriceLineDto(view: OpenPriceLineView): OpenPriceLineDto {
+  return {
+    orderId: view.orderId,
+    publicCode: formatPublicCode(view.publicCode),
+    orderNumber: view.orderNumber,
+    status: view.status,
+    warehouseId: view.warehouseId,
+    placedBy: view.placedBy,
+    placedAt: view.placedAt,
+    lineNumber: view.lineNumber,
+    sku: view.sku,
+    productName: view.productName,
+    variantOptions: { ...view.variantOptions },
+    unitPrice: toMoneyDto(view.unitPrice),
+    quantity: view.quantity,
+    lineTotal: toMoneyDto(view.lineTotal),
+    note: view.note,
   };
 }

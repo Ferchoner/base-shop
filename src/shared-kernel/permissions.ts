@@ -22,6 +22,8 @@ export const PERMISSIONS = {
   'orders.read-blocked':
     'Consultar los datos personales bloqueados de un pedido, con motivo y auditado',
   'orders.place': 'Colocar pedidos a nombre de un cliente en la tienda física',
+  'orders.open-price':
+    'Vender a precio libre en la tienda física lo que aún no está en el catálogo',
   // Work Orders
   'work-orders.read': 'Ver órdenes de trabajo',
   'work-orders.manage':

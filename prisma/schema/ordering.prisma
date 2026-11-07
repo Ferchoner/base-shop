@@ -118,6 +118,8 @@ model OrderLine {
   lineTotal      Int    @map("line_total")
   /// What the promotion takes off the line (ADR-0168). CHECK: from 0 to the line total (manual SQL).
   discountAmount Int    @default(0) @map("discount_amount")
+  /// What was sold, for a line at the price the staff typed (ADR-0171). CHECK: 1 to 200 characters (manual SQL).
+  note           String?
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 

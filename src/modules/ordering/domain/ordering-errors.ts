@@ -185,3 +185,62 @@ export class InvalidShippingAddressError extends DomainError {
     });
   }
 }
+
+/** What is wrong with a line of a variant sold at an open price, or of one that is not (ADR-0171). */
+export type OpenPriceProblem =
+  | 'unitPriceRequired'
+  | 'noteRequired'
+  | 'unitPriceNotAllowed'
+  | 'noteNotAllowed';
+
+const OPEN_PRICE_ERRORS: Record<
+  OpenPriceProblem,
+  { field: 'unitPrice' | 'note'; code: string; message: string }
+> = {
+  unitPriceRequired: {
+    field: 'unitPrice',
+    code: 'openPriceRequired',
+    message: 'La variante se vende a precio libre: escribe su precio.',
+  },
+  noteRequired: {
+    field: 'note',
+    code: 'openPriceRequired',
+    message: 'La variante se vende a precio libre: escribe qué se vendió.',
+  },
+  unitPriceNotAllowed: {
+    field: 'unitPrice',
+    code: 'notOpenPrice',
+    message: 'La variante se vende al precio del catálogo.',
+  },
+  noteNotAllowed: {
+    field: 'note',
+    code: 'notOpenPrice',
+    message: 'Solo una línea de precio libre lleva nota.',
+  },
+};
+
+/**
+ * A line of a variant sold at an open price lacks its price or its note, or another line has one (ADR-0171). Answered
+ * as a validation error of `lines[index].unitPrice` or `lines[index].note`.
+ */
+export class OpenPriceLineError extends DomainError {
+  readonly code = 'validation-error';
+  readonly category = 'invalid';
+
+  constructor(index: number, problem: OpenPriceProblem) {
+    const { field, code, message } = OPEN_PRICE_ERRORS[problem];
+    super(`Line ${index}: ${problem}`, {
+      errors: [{ field: `lines[${index}].${field}`, code, message }],
+    });
+  }
+}
+
+/** The staff member sells a variant at an open price without `orders.open-price` (ADR-0171). Answered 403. */
+export class OpenPriceNotAllowedError extends DomainError {
+  readonly code = 'forbidden';
+  readonly category = 'forbidden';
+
+  constructor() {
+    super('Selling at an open price needs orders.open-price');
+  }
+}

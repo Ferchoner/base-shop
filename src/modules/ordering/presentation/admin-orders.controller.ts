@@ -52,6 +52,8 @@ import {
   BlockedOrderDataRequestDto,
   CancelOrderDto,
   HandOverDto,
+  OpenPriceLineListDto,
+  OpenPriceLineListQueryDto,
   PlaceStaffOrderDto,
   RestockDto,
   RestockOrderDto,
@@ -70,10 +72,15 @@ import {
   toAdminOrderSummaryDto,
   toBlockedOrderDataDto,
   toCheckoutQuoteDto,
+  toOpenPriceLineDto,
   toReorderDto,
 } from './ordering.mappers.js';
 
 const orderIdOf = (id: string) => pathId<'Order'>(id, 'Order');
+
+/** How a line of a variant sold at an open price is priced (ADR-0171), for both the quote and the order. */
+const OPEN_PRICE_RULES =
+  'Una línea de una variante de precio libre (ADR-0171) lleva `unitPrice` y `note`, y las demás no: si no, 400 en `lines[i].unitPrice` o `lines[i].note`. Esa línea se cobra al precio escrito, guarda la nota y no recibe promociones ni cupones, ni cuenta para su mínimo. Vender una variante de precio libre exige `orders.open-price`: sin él, 403.';
 
 /**
  * Orders for the staff (UC-ORD-06 to 08, 12 and 13, API_SPEC.md §15.7). Changes send the `version` read and lock the
@@ -97,7 +104,7 @@ export class AdminOrdersController {
 
   @ApiOperation({
     summary: 'Cotizar un pedido en la tienda física',
-    description: `UC-ORD-12 (ADR-0161). ${QUOTE_DESCRIPTION} Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén \`warehouseId\`. Si el almacén no existe o está inactivo, o una variante no existe, 404.`,
+    description: `UC-ORD-12 (ADR-0161). ${QUOTE_DESCRIPTION} Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén \`warehouseId\`. Si el almacén no existe o está inactivo, o una variante no existe, 404. ${OPEN_PRICE_RULES}`,
   })
   @ApiOkResponse({ type: CheckoutQuoteDto })
   @ApiProblemResponses(
@@ -109,6 +116,7 @@ export class AdminOrdersController {
   @HttpCode(200)
   @Post('quote')
   async quote(
+    @CurrentUser() actor: AuthenticatedUser,
     @Body() body: StaffQuoteDto,
     @Req() request: { ip?: string },
   ): Promise<CheckoutQuoteDto> {
@@ -123,6 +131,7 @@ export class AdminOrdersController {
             warehouseId: toId<'Warehouse'>(body.warehouseId),
             fulfillment: body.fulfillment ?? 'SHIPPING',
             couponCode: body.couponCode ?? null,
+            openPriceAllowed: actor.permissions.includes('orders.open-price'),
           }),
       ),
     );
@@ -130,7 +139,7 @@ export class AdminOrdersController {
 
   @ApiOperation({
     summary: 'Colocar un pedido en la tienda física a nombre de un cliente',
-    description: `UC-ORD-13 (ADR-0161). Exige \`Idempotency-Key\`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con \`contactEmail\` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de \`customerId\` y \`contactEmail\`, y uno de \`addressId\` y \`shippingAddress\`; \`addressId\` solo con \`customerId\`. Recalcula todo sin cache; si el total difiere de \`expectedTotal\` responde 409 \`total-mismatch\` con \`currentTotal\`. Reserva todo el stock en el almacén \`warehouseId\` o nada, y crea la orden \`STORE\` en \`PENDING_PAYMENT\`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con \`couponCode\`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 \`coupon-not-applicable\` con \`reason\`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como \`orders.place\`.`,
+    description: `UC-ORD-13 (ADR-0161). Exige \`Idempotency-Key\`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con \`contactEmail\` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de \`customerId\` y \`contactEmail\`, y uno de \`addressId\` y \`shippingAddress\`; \`addressId\` solo con \`customerId\`. Recalcula todo sin cache; si el total difiere de \`expectedTotal\` responde 409 \`total-mismatch\` con \`currentTotal\`. Reserva todo el stock en el almacén \`warehouseId\` o nada, y crea la orden \`STORE\` en \`PENDING_PAYMENT\`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con \`couponCode\`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 \`coupon-not-applicable\` con \`reason\`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. ${OPEN_PRICE_RULES} Se audita como \`orders.place\`.`,
   })
   @ApiCreatedResponse({ type: AdminOrderDto })
   @ApiProblemResponses(
@@ -179,6 +188,7 @@ export class AdminOrdersController {
           shippingAddress,
           expectedTotal: body.expectedTotal,
           couponCode: body.couponCode ?? null,
+          openPriceAllowed: actor.permissions.includes('orders.open-price'),
         }),
     );
     response.setHeader('Location', `/v1/admin/orders/${id}`);
@@ -200,6 +210,34 @@ export class AdminOrdersController {
   @Post(':orderId/reorder')
   async reorder(@Param('orderId') orderId: string): Promise<ReorderDto> {
     return toReorderDto(await this.reorders.forStaff(orderIdOf(orderId)));
+  }
+
+  @ApiOperation({
+    summary: 'Listar las líneas vendidas a precio libre',
+    description:
+      'Las líneas de las ventas de la tienda física cobradas a precio libre (ADR-0171), con su nota y su orden, la más reciente primero y por número de línea, en cualquier estado de la orden: lo que se vende sin estar en el catálogo, para saber qué dar de alta primero. Por almacén y por fecha de la orden.',
+  })
+  @ApiOkResponse({ type: OpenPriceLineListDto })
+  @RequirePermissions('orders.read')
+  @Get('open-price-lines')
+  async openPriceLines(
+    @Query() query: OpenPriceLineListQueryDto,
+  ): Promise<OpenPriceLineListDto> {
+    const page = await this.reader.openPriceLines(
+      {
+        warehouseId:
+          query.warehouseId === undefined
+            ? undefined
+            : toId<'Warehouse'>(query.warehouseId),
+        placedFrom:
+          query.placedFrom === undefined
+            ? undefined
+            : new Date(query.placedFrom),
+        placedTo: rangeEnd(query.placedTo),
+      },
+      query,
+    );
+    return toPageResponse(page, query, toOpenPriceLineDto);
   }
 
   @ApiOperation({
@@ -443,10 +481,13 @@ export class AdminOrdersController {
 }
 
 /** The lines of a staff order, as the use case takes them. */
+/** The lines of the request; a `null` price or note is no price or note (ADR-0171). */
 function linesOf(body: StaffQuoteDto) {
-  return body.lines.map(({ variantId, quantity }) => ({
+  return body.lines.map(({ variantId, quantity, unitPrice, note }) => ({
     variantId: toId<'Variant'>(variantId),
     quantity,
+    ...(unitPrice == null ? {} : { unitPrice }),
+    ...(note == null ? {} : { note }),
   }));
 }
 

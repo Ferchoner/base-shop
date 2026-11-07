@@ -25,6 +25,7 @@ import {
   AddressInputDto,
   PostalAddressDto,
 } from '../../../platform/http/address.dto.js';
+import { MoneyDto } from '../../../platform/http/money.dto.js';
 import {
   PageMetaDto,
   PageQueryDto,
@@ -45,6 +46,8 @@ import {
   type RestockReason,
 } from '../application/order-values.js';
 import {
+  MAX_OPEN_PRICE_NOTE_LENGTH,
+  MAX_OPEN_UNIT_PRICE,
   MAX_ORDER_LINE_QUANTITY,
   MAX_STAFF_ORDER_LINES,
 } from '../application/staff-order-limits.js';
@@ -300,6 +303,102 @@ export class AdminOrderListDto {
   meta: PageMetaDto;
 }
 
+/** A line sold at an open price, with its order (ADR-0171, API_SPEC.md §15.7). */
+export class OpenPriceLineDto {
+  @ApiProperty({ format: 'uuid' })
+  orderId: string;
+
+  /** @example 'K7M4-Q9XA' */
+  publicCode: string;
+
+  /** Número interno consecutivo (ADR-0049). @example 1042 */
+  orderNumber: number;
+
+  @ApiProperty({
+    enum: ORDER_STATUSES,
+    description:
+      'El estado de la orden ahora: la lista incluye las canceladas y las vencidas.',
+  })
+  status: OrderStatus;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'El almacén de la venta.',
+  })
+  warehouseId: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'La cuenta de staff que colocó la venta.',
+  })
+  placedBy: string | null;
+
+  /** Cuándo se colocó la orden. */
+  @ApiProperty({ type: String, format: 'date-time' })
+  placedAt: Date;
+
+  /** Desde 1. */
+  lineNumber: number;
+
+  /** @example 'VARIOS-JUEGO' */
+  sku: string;
+
+  /** El producto de precio libre. @example 'Artículo sin registrar' */
+  productName: string;
+
+  /** Los valores de las opciones de la variante, por nombre. */
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    example: { tipo: 'Juego' },
+  })
+  variantOptions: Record<string, string>;
+
+  /** El precio que escribió el staff, con IVA. */
+  @ApiProperty({ type: () => MoneyDto })
+  unitPrice: MoneyDto;
+
+  /** @example 1 */
+  quantity: number;
+
+  /** Precio por cantidad, con IVA. */
+  @ApiProperty({ type: () => MoneyDto })
+  lineTotal: MoneyDto;
+
+  /** Qué se vendió, como lo escribió el staff. @example 'Juego usado de carreras' */
+  note: string;
+}
+
+export class OpenPriceLineListDto {
+  @ApiProperty({ type: () => [OpenPriceLineDto] })
+  data: OpenPriceLineDto[];
+
+  @ApiProperty({ type: () => PageMetaDto })
+  meta: PageMetaDto;
+}
+
+/** Query of `GET /v1/admin/orders/open-price-lines` (ADR-0171). */
+export class OpenPriceLineListQueryDto extends PageQueryDto {
+  /** Solo las ventas de este almacén. */
+  @IsOptional()
+  @IsUUID('all')
+  warehouseId?: string;
+
+  /** Fecha o fecha y hora ISO 8601 de la orden; incluida. @example '2026-11-01' */
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  placedFrom?: string;
+
+  /** Fecha o fecha y hora ISO 8601 de la orden; incluida (una fecha sola incluye todo el día). @example '2026-11-30' */
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  placedTo?: string;
+}
+
 /** Query of `GET /v1/admin/orders` (UC-ORD-06, API_SPEC.md §15.7). */
 export class AdminOrderListQueryDto extends PageQueryDto {
   /**
@@ -386,6 +485,26 @@ export class StaffOrderLineDto {
   @Min(1)
   @Max(MAX_ORDER_LINE_QUANTITY)
   quantity: number;
+
+  /**
+   * Precio unitario con IVA, en centavos, de 1 a 10,000,000: solo y siempre en una variante de precio libre, que lo
+   * cobra en lugar de la lista de precios (ADR-0171). Exige `orders.open-price`. @example 35000
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(MAX_OPEN_UNIT_PRICE)
+  unitPrice?: number;
+
+  /**
+   * Qué se vendió, de 1 a 200 caracteres: solo y siempre en una variante de precio libre (ADR-0171). La orden la
+   * guarda en la línea. @example 'Juego usado: carreras para consola portátil'
+   */
+  @IsOptional()
+  @IsString()
+  @Matches(/\S/, NOT_BLANK)
+  @MaxLength(MAX_OPEN_PRICE_NOTE_LENGTH)
+  note?: string;
 }
 
 /** Request of `POST /v1/admin/orders/quote` (UC-ORD-12, API_SPEC.md §15.7). */

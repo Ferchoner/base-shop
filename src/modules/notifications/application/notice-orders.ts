@@ -14,6 +14,8 @@ export interface NoticeOrder {
     readonly variantOptions: Readonly<Record<string, string>>;
     readonly quantity: number;
     readonly lineTotal: Money;
+    /** What was sold, on a line at an open price (ADR-0171); `null` otherwise. */
+    readonly note: string | null;
   }[];
   readonly totals: {
     readonly subtotal: Money;

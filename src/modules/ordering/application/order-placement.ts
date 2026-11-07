@@ -20,6 +20,7 @@ import {
   CouponNotApplicableError,
   EmailNotVerifiedError,
   InvalidShippingAddressError,
+  OpenPriceLineError,
 } from '../domain/ordering-errors.js';
 import { newPublicCode, type PublicCode } from '../domain/public-code.js';
 import {
@@ -30,9 +31,9 @@ import {
   CheckoutShipping,
   type CheckoutVariant,
   type OrderDiscount,
+  type SaleLine,
   type ShippingCharge,
   ShippingLocations,
-  type StockLine,
 } from './checkout-ports.js';
 
 /** Times a new public code is drawn when the one drawn is taken (ADR-0049): a repeat is already rare. */
@@ -68,6 +69,8 @@ export interface QuoteLine {
   readonly discountAmount: Money | null;
   readonly taxRateBp: number | null;
   readonly taxAmount: Money | null;
+  /** What is sold, for a line at the price the staff typed (ADR-0171); `null` otherwise. */
+  readonly note: string | null;
   readonly sellable: boolean;
   /** Whether the line fits in the order with the others: false for the ones placing it would find short (ADR-0160). */
   readonly canFulfill: boolean;
@@ -141,13 +144,15 @@ export class OrderPlacement {
   /**
    * Each line with its variant and, when it can be sold now in the channel, its price, its discount and its VAT
    * (BR-PRD-11, BR-TAX-02): an online order never sells a product sold only in the store, which a sale in the store
-   * does (BR-PRD-20, ADR-0165). The lines that can be sold get the promotion that takes off the most in the channel
-   * (ADR-0168), and the VAT of each is the one left after its discount.
+   * does (BR-PRD-20, ADR-0165). In the store, a variant sold at an open price takes the price and the note of its line
+   * instead of the price list (ADR-0171). The other lines that can be sold get the promotion that takes off the most
+   * in the channel (ADR-0168), and the VAT of each is the one left after its discount.
    *
-   * @throws NotFoundError for a variant that does not exist.
+   * @throws NotFoundError for a variant that does not exist; OpenPriceLineError in the store for a line of a variant
+   *   sold at an open price without its price or its note, or another line with one of them.
    */
   async assess(
-    lines: readonly StockLine[],
+    lines: readonly SaleLine[],
     at: Date,
     channel: OrderChannel,
     couponCode: string | null,
@@ -155,10 +160,13 @@ export class OrderPlacement {
     const ids = lines.map(({ variantId }) => variantId);
     const variants = await this.catalog.variants(ids);
     const prices = await this.prices.current(ids, at);
-    const items = lines.map(({ variantId, quantity }) => {
+    const items = lines.map((line, index) => {
+      const { variantId, quantity } = line;
       const variant = variants.get(variantId);
       if (variant === undefined) throw new NotFoundError('Variant', variantId);
-      const unitPrice = prices.get(variantId);
+      const open =
+        channel === 'STORE' ? openPriceOf(line, variant, index) : null;
+      const unitPrice = open?.unitPrice ?? prices.get(variantId);
       const sellable =
         variant.onSale && (channel === 'STORE' || !variant.storeOnly);
       const priced =
@@ -171,6 +179,7 @@ export class OrderPlacement {
                 variantOptions: variant.options,
                 unitPrice,
                 quantity,
+                note: open?.note ?? null,
               },
               this.taxRateBp,
             )
@@ -180,7 +189,14 @@ export class OrderPlacement {
     const sellable = items.flatMap(({ priced }) =>
       priced === null ? [] : [priced],
     );
-    const discount = await this.discountOf(sellable, at, channel, couponCode);
+    // A line at an open price gets no promotion nor coupon, and does not count for their minimum (ADR-0171).
+    const discountable = sellable.filter(({ note }) => note == null);
+    const discount = await this.discountOf(
+      discountable,
+      at,
+      channel,
+      couponCode,
+    );
     if (discount === null) {
       return {
         items,
@@ -189,18 +205,22 @@ export class OrderPlacement {
         oncePerCustomer: false,
       };
     }
-    const discounted = new Map(
-      sellable.map((line, index) => [
+    const discounts = new Map(
+      discountable.map((line, index) => [
         line.variantId,
-        discountLine(line, discount.discounts[index]),
+        discount.discounts[index],
       ]),
     );
+    const discounted = (line: PricedLine): PricedLine => {
+      const amount = discounts.get(line.variantId);
+      return amount === undefined ? line : discountLine(line, amount);
+    };
     return {
       items: items.map((item) => ({
         ...item,
-        priced: item.priced && discounted.get(item.priced.variantId)!,
+        priced: item.priced && discounted(item.priced),
       })),
-      priced: [...discounted.values()],
+      priced: sellable.map(discounted),
       promotion: discount.promotion,
       oncePerCustomer: discount.oncePerCustomer,
     };
@@ -317,6 +337,7 @@ export class OrderPlacement {
         discountAmount: line?.discountAmount ?? null,
         taxRateBp: line?.taxRateBp ?? null,
         taxAmount: line?.taxAmount ?? null,
+        note: line?.note ?? null,
         sellable: line !== null,
         canFulfill: available.get(variant.id) === true,
       }),
@@ -409,4 +430,32 @@ export class OrderPlacement {
       }
     }
   }
+}
+
+/**
+ * The price and the note of a line of a sale in the store (ADR-0171): a variant sold at an open price takes both from
+ * its line, and any other takes neither. `null` for a line at the price of the catalog.
+ *
+ * @throws OpenPriceLineError otherwise.
+ */
+function openPriceOf(
+  line: SaleLine,
+  variant: CheckoutVariant,
+  index: number,
+): { readonly unitPrice: Money; readonly note: string } | null {
+  if (!variant.openPrice) {
+    if (line.unitPrice !== undefined) {
+      throw new OpenPriceLineError(index, 'unitPriceNotAllowed');
+    }
+    if (line.note !== undefined) {
+      throw new OpenPriceLineError(index, 'noteNotAllowed');
+    }
+    return null;
+  }
+  if (line.unitPrice === undefined) {
+    throw new OpenPriceLineError(index, 'unitPriceRequired');
+  }
+  const note = line.note?.trim() ?? '';
+  if (note === '') throw new OpenPriceLineError(index, 'noteRequired');
+  return { unitPrice: Money.of(line.unitPrice, 'MXN'), note };
 }

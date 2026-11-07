@@ -14,6 +14,8 @@ export interface OrderNoticeLine {
   readonly variantOptions: Readonly<Record<string, string>>;
   readonly quantity: number;
   readonly lineTotal: Money;
+  /** What was sold, on a line at an open price (ADR-0171); `null` otherwise. */
+  readonly note: string | null;
 }
 
 /**
@@ -178,6 +180,7 @@ export class OrderingFacade {
         variantOptions: { ...line.variantOptions },
         quantity: line.quantity,
         lineTotal: line.lineTotal,
+        note: line.note,
       })),
       totals: {
         subtotal: totals.subtotal,

@@ -20,6 +20,7 @@ import {
 } from '../domain/order.js';
 import { OrderRepository } from '../domain/order.repository.js';
 import {
+  OpenPriceNotAllowedError,
   TotalMismatchError,
   VariantNotSellableError,
 } from '../domain/ordering-errors.js';
@@ -30,18 +31,21 @@ import {
   CheckoutPromotions,
   CheckoutShipping,
   OrderStock,
+  type SaleLine,
   ShippingLocations,
-  type StockLine,
 } from './checkout-ports.js';
 import { orderPlaced } from './order-events.js';
 import {
   type AddressChoice,
+  type Assessment,
   type BuyerChoice,
   type CheckoutQuote,
   NO_SHIPPING,
   OrderPlacement,
 } from './order-placement.js';
 import {
+  MAX_OPEN_PRICE_NOTE_LENGTH,
+  MAX_OPEN_UNIT_PRICE,
   MAX_ORDER_LINE_QUANTITY,
   MAX_STAFF_ORDER_LINES,
 } from './staff-order-limits.js';
@@ -49,13 +53,18 @@ import { VAT_RATE_BP } from './vat-rate.js';
 
 /** UC-ORD-12: the lines the customer asks for in the store, and the warehouse they would come from. */
 export interface StaffQuoteInput {
-  /** From 1 to 100, each variant once with 1 to 30 units, in the order the order would number them. */
-  readonly lines: readonly StockLine[];
+  /**
+   * From 1 to 100, each variant once with 1 to 30 units, in the order the order would number them; a variant sold at
+   * an open price with its price and its note (ADR-0171).
+   */
+  readonly lines: readonly SaleLine[];
   readonly warehouseId: WarehouseId;
   /** Shipped, or handed over in the store, without shipping (ADR-0161). */
   readonly fulfillment: OrderFulfillment;
   /** The code of a coupon, whatever its case (ADR-0168); missing or `null` without one. */
   readonly couponCode?: string | null;
+  /** The staff member holds `orders.open-price`, to sell a variant at an open price (ADR-0171); missing: no. */
+  readonly openPriceAllowed?: boolean;
 }
 
 /** UC-ORD-13: an order a staff member places on behalf of a customer who is in the store (ADR-0161). */
@@ -110,7 +119,8 @@ export class StaffCheckout {
    * line can be fulfilled from the warehouse.
    *
    * @throws InvalidValueError for lines out of their limits or a variant twice; NotFoundError for a variant that
-   *   does not exist, or a warehouse that does not exist or is not active.
+   *   does not exist, or a warehouse that does not exist or is not active; OpenPriceLineError;
+   *   OpenPriceNotAllowedError.
    */
   async quote(input: StaffQuoteInput): Promise<CheckoutQuote> {
     assertLines(input.lines);
@@ -121,6 +131,7 @@ export class StaffCheckout {
       'STORE',
       input.couponCode ?? null,
     );
+    assertOpenPriceAllowed(assessment, input.openPriceAllowed === true);
     const available = await this.stock.canFulfill(
       assessment.priced.map(({ variantId, quantity }) => ({
         variantId,
@@ -143,7 +154,7 @@ export class StaffCheckout {
    * @throws InvalidValueError for lines out of their limits or a variant twice, an order to ship without a buyer or
    *   an address, or one handed over in the store with an address; EmailNotVerifiedError (BR-USR-05);
    *   NotFoundError for the customer, the warehouse, a saved address or a variant; InvalidShippingAddressError;
-   *   VariantNotSellableError; TotalMismatchError (BR-ORD-06); InsufficientStockError with what the warehouse leaves
+   *   OpenPriceLineError; OpenPriceNotAllowedError; VariantNotSellableError; TotalMismatchError (BR-ORD-06); InsufficientStockError with what the warehouse leaves
    *   out, reserving nothing (BR-INV-02).
    */
   async place(input: StaffOrderInput): Promise<OrderId> {
@@ -166,6 +177,7 @@ export class StaffCheckout {
         'STORE',
         input.couponCode ?? null,
       );
+      assertOpenPriceAllowed(assessment, input.openPriceAllowed === true);
       const { items, priced, promotion } = assessment;
       const unsellable = items
         .filter((item) => item.priced === null)
@@ -255,11 +267,19 @@ function assertDelivery(input: StaffOrderInput): void {
   }
 }
 
+/** @throws OpenPriceNotAllowedError when a line is of a variant sold at an open price and the staff cannot (ADR-0171). */
+function assertOpenPriceAllowed({ items }: Assessment, allowed: boolean): void {
+  if (!allowed && items.some(({ variant }) => variant.openPrice)) {
+    throw new OpenPriceNotAllowedError();
+  }
+}
+
 /**
- * @throws InvalidValueError for no lines or too many, a quantity out of 1 to 30, or a variant twice: each line is one
- *   variant of the order.
+ * @throws InvalidValueError for no lines or too many, a quantity out of 1 to 30, a variant twice (each line is one
+ *   variant of the order), an open price out of 1 to 10,000,000 cents or a note of more than 200 characters
+ *   (ADR-0171).
  */
-function assertLines(lines: readonly StockLine[]): void {
+function assertLines(lines: readonly SaleLine[]): void {
   if (lines.length === 0 || lines.length > MAX_STAFF_ORDER_LINES) {
     throw new InvalidValueError(
       `An order has from 1 to ${MAX_STAFF_ORDER_LINES} lines`,
@@ -273,6 +293,23 @@ function assertLines(lines: readonly StockLine[]): void {
     ) {
       throw new InvalidValueError(
         `A line has from 1 to ${MAX_ORDER_LINE_QUANTITY} units`,
+      );
+    }
+  }
+  for (const { unitPrice, note } of lines) {
+    if (
+      unitPrice !== undefined &&
+      (!Number.isInteger(unitPrice) ||
+        unitPrice < 1 ||
+        unitPrice > MAX_OPEN_UNIT_PRICE)
+    ) {
+      throw new InvalidValueError(
+        `An open price is from 1 to ${MAX_OPEN_UNIT_PRICE} cents`,
+      );
+    }
+    if (note !== undefined && note.length > MAX_OPEN_PRICE_NOTE_LENGTH) {
+      throw new InvalidValueError(
+        `A note has at most ${MAX_OPEN_PRICE_NOTE_LENGTH} characters`,
       );
     }
   }

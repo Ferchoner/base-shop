@@ -75,6 +75,7 @@ export class PrismaOrderRepository extends OrderRepository {
         taxAmount: line.taxAmount.amount,
         lineTotal: line.lineTotal.amount,
         discountAmount: line.discountAmount.amount,
+        note: line.note ?? null,
       })),
     });
     await this.txHost.tx.orderStatusHistory.create({
@@ -252,6 +253,7 @@ function toSnapshot(row: OrderRow) {
       taxAmount: money(line.taxAmount),
       lineTotal: money(line.lineTotal),
       discountAmount: money(line.discountAmount),
+      note: line.note,
     })),
     totals: {
       subtotal: money(row.subtotal),
