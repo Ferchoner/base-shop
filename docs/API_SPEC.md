@@ -335,6 +335,7 @@ Cada endpoint lista solo sus errores específicos.
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 5 por email de contacto por hora | `POST /v1/orders` (ADR-0154) |
 | 30 por cuenta de staff en 10 minutos | `POST /v1/admin/orders` (ADR-0161) |
+| 20 por cuenta de staff por hora | `POST /v1/admin/catalog/products/{productId}/description-draft` (ADR-0170) |
 | 10 códigos de cupón que nadie tiene por IP en 15 minutos | Las tres cotizaciones y las tres rutas que colocan órdenes, con `couponCode` (ADR-0168) |
 | 100 por minuto por IP | Todos los endpoints, también los anteriores (ADR-0154) |
 
@@ -349,7 +350,7 @@ Detalles del mecanismo (ADR-0102):
 - Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden); `contactEmail` (órdenes de invitado por email); cuenta de staff (órdenes en la tienda física). Cada orden del staff aparta stock, así que una cuenta tomada no puede apartarlo todo.
 - El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
 - Una ruta inexistente responde 404 sin gastar el límite general.
-- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL`, `RATE_LIMIT_ADMIN_PLACE_ORDER` y `RATE_LIMIT_COUPON_ATTEMPTS`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL`, `RATE_LIMIT_ADMIN_PLACE_ORDER`, `RATE_LIMIT_AI_DESCRIPTION_DRAFT` y `RATE_LIMIT_COUPON_ATTEMPTS`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
 
 ---
 

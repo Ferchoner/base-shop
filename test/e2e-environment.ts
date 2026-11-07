@@ -7,4 +7,6 @@ process.env.RATE_LIMIT_GUEST_ORDER ??= '1000/15m';
 process.env.RATE_LIMIT_PLACE_ORDER_EMAIL ??= '1000/1h';
 // The same for the orders of the staff in the store (30 per staff member in 10 minutes).
 process.env.RATE_LIMIT_ADMIN_PLACE_ORDER ??= '1000/10m';
+// The same for the description drafts with AI (20 per staff member per hour).
+process.env.RATE_LIMIT_AI_DESCRIPTION_DRAFT ??= '1000/1h';
 // Manual payments are turned on in the database before each file: see e2e-manual-payments.ts (ADR-0162).

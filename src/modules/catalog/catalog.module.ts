@@ -12,10 +12,12 @@ import { CreateProduct } from './application/create-product.use-case.js';
 import { DeactivateCategory } from './application/deactivate-category.use-case.js';
 import { DeleteBrand } from './application/delete-brand.use-case.js';
 import { DeleteCategory } from './application/delete-category.use-case.js';
+import { DraftProductDescription } from './application/draft-product-description.use-case.js';
 import {
   IMAGE_MAX_BYTES,
   ProductImageFiles,
 } from './application/product-image-files.js';
+import { ProductCopywriter } from './application/product-copywriter.js';
 import { ProductImageStorage } from './application/product-image-storage.js';
 import { ProductImages } from './application/product-images.use-case.js';
 import { ProductLifecycle } from './application/product-lifecycle.use-case.js';
@@ -31,6 +33,11 @@ import { BrandRepository } from './domain/brand.repository.js';
 import { CategoryRepository } from './domain/category.repository.js';
 import { ProductGalleryRepository } from './domain/product-gallery.repository.js';
 import { ProductRepository } from './domain/product.repository.js';
+import {
+  AnthropicProductCopywriter,
+  COPYWRITER_SETTINGS,
+  type CopywriterSettings,
+} from './infrastructure/anthropic-product-copywriter.js';
 import {
   IMAGE_STORAGE_SETTINGS,
   type ImageStorageSettings,
@@ -75,6 +82,19 @@ export const PRODUCT_IMAGE_PROVIDERS: Provider[] = [
   { provide: ProductImageStorage, useClass: LocalDiskProductImageStorage },
 ];
 
+/** Description drafts with AI (T-147, ADR-0170): the key and model of the Claude API and its adapter. */
+export const PRODUCT_COPYWRITER_PROVIDERS: Provider[] = [
+  {
+    provide: COPYWRITER_SETTINGS,
+    inject: [ConfigService],
+    useFactory: (config: Config): CopywriterSettings => ({
+      apiKey: config.get('ANTHROPIC_API_KEY', { infer: true }),
+      model: config.get('ANTHROPIC_MODEL', { infer: true }),
+    }),
+  },
+  { provide: ProductCopywriter, useClass: AnthropicProductCopywriter },
+];
+
 /** Multer for the image uploads of this module, cut at `IMAGE_MAX_BYTES` (ADR-0121). */
 export function imageUploads(): DynamicModule {
   return MulterModule.registerAsync({
@@ -114,6 +134,7 @@ export function imageUploads(): DynamicModule {
     ProductVariants,
     ProductImages,
     ImportProducts,
+    DraftProductDescription,
     Storefront,
     { provide: CategoryRepository, useClass: PrismaCategoryRepository },
     { provide: BrandRepository, useClass: PrismaBrandRepository },
@@ -126,6 +147,7 @@ export function imageUploads(): DynamicModule {
     { provide: CatalogQueries, useClass: PrismaCatalogQueries },
     { provide: StorefrontQueries, useClass: PrismaStorefrontQueries },
     ...PRODUCT_IMAGE_PROVIDERS,
+    ...PRODUCT_COPYWRITER_PROVIDERS,
   ],
   exports: [CatalogFacade],
 })

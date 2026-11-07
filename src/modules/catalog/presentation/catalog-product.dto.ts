@@ -41,6 +41,12 @@ import {
   SLUG_PATTERN,
   VARIANT_STATUSES,
 } from '../application/catalog-limits.js';
+import {
+  COPY_LANGUAGES,
+  COPY_TONES,
+  type CopyLanguage,
+  type CopyTone,
+} from '../application/product-copywriter.js';
 import { STORE_VISIBILITIES } from '../application/storefront.queries.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
@@ -656,4 +662,32 @@ export class UpdateVariantDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+/** What the staff asks of the description draft with AI (T-147, ADR-0170). */
+export class DescriptionDraftRequestDto {
+  @ApiProperty({ enum: COPY_LANGUAGES, example: 'es' })
+  @IsIn(COPY_LANGUAGES)
+  language: CopyLanguage;
+
+  @ApiPropertyOptional({
+    enum: COPY_TONES,
+    default: 'neutral',
+    example: 'friendly',
+  })
+  @IsOptional()
+  @IsIn(COPY_TONES)
+  tone?: CopyTone;
+}
+
+/** A draft written by AI from the data of the product. Nothing is saved: the product `PATCH` saves it (ADR-0170). */
+export class DescriptionDraftDto {
+  /** @example 'Camisa de lino fresca para el verano' */
+  title: string;
+
+  /** Texto plano, sin Markdown. @example 'Una camisa ligera de lino para los días de calor.' */
+  description: string;
+
+  @ApiProperty({ type: [String], example: ['Lino', 'Tallas M y L'] })
+  highlights: string[];
 }

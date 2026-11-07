@@ -66,7 +66,10 @@ function message(text: string, stopReason = 'end_turn') {
 const copywriter = (apiKey = 'sk-ant-test') =>
   new AnthropicProductCopywriter({ apiKey, model: 'claude-opus-5-5' });
 const withoutKey = () =>
-  new AnthropicProductCopywriter({ apiKey: undefined, model: 'claude-opus-5-5' });
+  new AnthropicProductCopywriter({
+    apiKey: undefined,
+    model: 'claude-opus-5-5',
+  });
 
 async function expectUnavailable(promise: Promise<unknown>) {
   const error: unknown = await promise.catch((caught: unknown) => caught);
