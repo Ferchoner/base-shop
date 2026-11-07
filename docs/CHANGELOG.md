@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.10 (nuevo ADR-0171): servidor en red local, precio libre en la venta de mostrador y corte de caja.
+
 ## 1.9.0 (2026-11-07)
 
 Borrador de descripción de producto con IA (ADR-0170).
