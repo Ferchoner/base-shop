@@ -595,6 +595,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-36 | Más de 100 variantes distintas en un carrito (ADR-0131) | 409 | UC-CRT-02 |
 | E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | 409 | UC-WRK-05 |
 | E-38 | Un cupón que no aplica: nadie tiene su código o no está vigente en el canal, no alcanza su compra mínima, no quita nada, no le quedan usos, el comprador ya lo usó, o es de una vez por cliente en una venta sin datos del comprador (ADR-0168) | 409 | UC-PRM-05 |
+| E-39 | El asistente de IA no está configurado o no respondió al pedir un borrador de descripción (ADR-0170) | 503 | UC-CAT-18 |
 
 ---
 

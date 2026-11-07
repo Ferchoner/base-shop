@@ -221,6 +221,12 @@ export const PROBLEM_TYPES = {
     detail:
       'Ocurrió un error inesperado. Si persiste, comparte el identificador de correlación con soporte.',
   },
+  'ai-unavailable': {
+    status: 503,
+    title: 'Asistente de IA no disponible',
+    detail:
+      'El asistente de IA no está configurado o no respondió. Intenta más tarde o escribe el texto a mano.',
+  },
 } as const satisfies Record<string, ProblemType>;
 
 export type ProblemCode = keyof typeof PROBLEM_TYPES;

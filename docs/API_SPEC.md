@@ -305,8 +305,9 @@ Error de validación:
 | `unsupported-media-type` | 415 | E-22 | Formato de imagen o `Content-Type` no admitido | — |
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
+| `ai-unavailable` | 503 | E-39 | Borrador de descripción con IA sin `ANTHROPIC_API_KEY`, o el modelo no respondió o rechazó la solicitud (ADR-0170) | — |
 
-E-27 a E-38 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-39 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
