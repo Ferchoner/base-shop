@@ -63,7 +63,7 @@ function message(text: string, stopReason = 'end_turn') {
   };
 }
 
-const copywriter = (apiKey = 'sk-ant-test') =>
+const copywriter = (apiKey = 'test-key') =>
   new AnthropicProductCopywriter({ apiKey, model: 'claude-opus-5-5' });
 const withoutKey = () =>
   new AnthropicProductCopywriter({

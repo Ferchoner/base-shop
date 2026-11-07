@@ -214,6 +214,7 @@ Criterios de aceptación:
 | UC-CAT-15 | Buscar una variante por su código (SKU o GTIN) | Staff (`catalog.read`) | BR-PRD-19, ADR-0163 |
 | UC-CAT-16 | Carga masiva de productos con sus variantes | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-09, BR-PRD-19, ADR-0164 |
 | UC-CAT-17 | Vender un producto solo en la tienda física | Staff (`catalog.write`) | BR-PRD-20, ADR-0165 |
+| UC-CAT-18 | Pedir a la IA un borrador de título y descripción de un producto | Staff (`catalog.write`) | ADR-0170 |
 
 Criterios de aceptación:
 

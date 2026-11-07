@@ -857,6 +857,7 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implem
 | GET | `/v1/catalog/brands` | Público | Filtro de marca (ADR-0060); llega con T-140 (ADR-0120) |
 | GET, POST | `/v1/admin/catalog/products` | `catalog.read` / `catalog.write` | UC-CAT-14, UC-CAT-04 |
 | GET, PATCH | `/v1/admin/catalog/products/{productId}` | `catalog.read` / `catalog.write` | UC-CAT-05 |
+| POST | `/v1/admin/catalog/products/{productId}/description-draft` | `catalog.write` | UC-CAT-18 (ADR-0170) |
 | POST | `/v1/admin/catalog/products/{productId}/publish` | `catalog.write` | UC-CAT-09 |
 | POST | `/v1/admin/catalog/products/{productId}/archive` | `catalog.write` | UC-CAT-10 |
 | POST | `/v1/admin/catalog/products/{productId}/reactivate` | `catalog.write` | UC-CAT-10 |
@@ -952,6 +953,7 @@ Representación `AdminProduct`:
 | `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [], "storeOnly" }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
 | `GET /v1/admin/catalog/products/{productId}` | `catalog.read`. 200 `AdminProduct` |
 | `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `storeOnly`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
+| `POST …/{productId}/description-draft` | `catalog.write` y 20 por cuenta de staff por hora. Request `{ "language": "es" \| "en", "tone"?: "neutral" \| "friendly" \| "formal" }` (`neutral` por defecto). Claude escribe un borrador con el título, la descripción actual y las opciones de las variantes; nunca datos personales. No guarda nada: el staff lo revisa y lo guarda con `PATCH`. 200 `{ "title", "description", "highlights": [string] }`. Errores: 404 `not-found`; 429 `rate-limit-exceeded`; 503 `ai-unavailable` sin `ANTHROPIC_API_KEY` o si el modelo no responde o rechaza la solicitud (ADR-0170) |
 | `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, archivado —se reactiva primero a DRAFT— o sin variante activa, con `detail` que lo explica) |
 | `POST …/{productId}/archive` | `catalog.write`. Request `{ "version" }`. Desde DRAFT o PUBLISHED. Invalida cache. 200. Errores: 409 `invalid-state-transition` |
 | `POST …/{productId}/reactivate` | `catalog.write`. Request `{ "version" }`. De ARCHIVED a DRAFT; conserva slug y `firstPublishedAt` (ADR-0076). 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |
