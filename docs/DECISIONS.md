@@ -5441,7 +5441,7 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Costo por llamada; límite de peticiones con `@RateLimit`.
   - Dependencia nueva y variables nuevas; contrato de `/v1`: una ruta nueva, versión menor.
 - **Revisar si:** el costo crece, se quiere cambiar de proveedor o guardar el texto sin revisión.
-- **Estado:** Aceptada (decidida por el usuario el 2026-11-05). En implementación en T-147:
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-05). Implementada en T-147, probada con una key real el 2026-11-07:
   - puerto `ProductCopywriter` y caso de uso `DraftProductDescription` en `catalog/application`, que eligen los datos que salen hacia el modelo;
   - adaptador `AnthropicProductCopywriter` en `catalog/infrastructure`, con salida estructurada (Zod), esfuerzo `low` y el respaldo del servidor (`fallbacks: "default"`) cuando el modelo rechaza la solicitud;
   - problem type `ai-unavailable` (503, E-39) y el límite `ai-description-draft`, 20 por cuenta de staff por hora (`RATE_LIMIT_AI_DESCRIPTION_DRAFT`).
