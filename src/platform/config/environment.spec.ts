@@ -672,6 +672,25 @@ describe('MAX_ADDRESSES_PER_CUSTOMER (BR-ADR-04, ADR-0113)', () => {
   });
 });
 
+describe('TRUST_PROXY_HOPS (ADR-0171)', () => {
+  it('defaults to 0, so X-Forwarded-For does not change the client IP', () => {
+    expect(validateEnvironment(REQUIRED).TRUST_PROXY_HOPS).toBe(0);
+  });
+
+  it('accepts a whole number from 0 to 3', () => {
+    expect(
+      validateEnvironment({ ...REQUIRED, TRUST_PROXY_HOPS: '1' })
+        .TRUST_PROXY_HOPS,
+    ).toBe(1);
+  });
+
+  it.each(['-1', '4', '1.5', 'true'])('rejects %p', (value) => {
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, TRUST_PROXY_HOPS: value }),
+    ).toThrow(/TRUST_PROXY_HOPS/);
+  });
+});
+
 describe('Sessions (ADR-0023, ADR-0114)', () => {
   const SECRET = 'x'.repeat(32);
 

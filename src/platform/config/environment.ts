@@ -196,6 +196,17 @@ export class EnvironmentVariables {
   @Max(100)
   MAX_ADDRESSES_PER_CUSTOMER: number = 10;
 
+  /**
+   * Reverse proxies in front of the API whose `X-Forwarded-For` it believes, for the client IP of the rate limits and
+   * the audit. 0, the default, ignores the header; the local network server puts Caddy in front and uses 1 (ADR-0171).
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  TRUST_PROXY_HOPS: number = 0;
+
   /** Requests per IP on every endpoint, also on those with specific limits. Format `<count>/<duration>` (ADR-0065, ADR-0102, ADR-0154). */
   @Expose()
   @Matches(RATE_LIMIT_PATTERN, {

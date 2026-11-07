@@ -58,6 +58,11 @@ export function buildCorsOptions(
 export function configureHttp(app: INestApplication): void {
   const config =
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+  // Off by default; behind the Caddy of the local network server, the client IP comes from X-Forwarded-For (ADR-0171).
+  const trustProxyHops = config.get('TRUST_PROXY_HOPS', { infer: true });
+  if (trustProxyHops > 0) {
+    (app as NestExpressApplication).set('trust proxy', trustProxyHops);
+  }
   // First, so every response, including body parser errors, carries X-Correlation-Id (ADR-0095).
   app.use(correlationIdMiddleware());
   // Inside the correlation context, so each request line carries its id (ADR-0097).
