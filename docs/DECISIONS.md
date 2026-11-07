@@ -5461,7 +5461,9 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
     - **HTTPS con una autoridad local:** Caddy emite el certificado del servidor con su CA interna (`tls internal`), para la IP fija o el nombre del equipo; cada equipo de las tiendas instala una vez el certificado raíz. No se relaja la regla de `https` de producción;
     - **un solo origen:** Caddy envía `/v1` y `/docs` a la API y sirve el backoffice compilado en lo demás, así que el backoffice y la API comparten origen; `FRONTEND_BASE_URL` y `BACKOFFICE_BASE_URL` apuntan a esa dirección;
     - **respaldo diario** con `pg_dump` a una carpeta del equipo, con los últimos 14 por defecto, y la restauración documentada y probada;
-    - **arranque automático** con `restart: unless-stopped`, y una guía para el dueño en `docs/LAN_SERVER.md`: IP fija, certificado raíz, respaldo, actualización a una versión nueva y qué hacer si el servidor no responde.
+    - **arranque automático** con `restart: unless-stopped`, y una guía para el dueño en `docs/LAN_SERVER.md`: IP fija, certificado raíz, respaldo, actualización a una versión nueva y qué hacer si el servidor no responde;
+    - **dos usuarios de PostgreSQL,** como recomienda `DATABASE.md` §13: la migración usa el dueño del esquema y la API un usuario que solo lee y escribe datos, creado al iniciar la base;
+    - **la IP de cada equipo:** detrás de Caddy, todas las peticiones llegarían desde el proxy y compartirían el límite por IP (ADR-0154). La variable nueva `TRUST_PROXY_HOPS` (de 0 a 3, 0 por defecto) le dice a la API cuántos proxies propios hay delante; el servidor usa 1, y la API toma la IP de `X-Forwarded-For` para los límites y la auditoría. Sin la variable nada cambia.
   - **Precio libre (T-182):** para cobrar en el mostrador lo que aún no está en el catálogo.
     - `openPrice` en el producto, para todas sus variantes, como `storeOnly` (ADR-0165); solo un producto `storeOnly` puede tenerlo, así que nunca se vende en línea. Su existencia se carga con un número alto, como los servicios;
     - en la cotización y la orden del staff, una línea de una variante de precio libre lleva `unitPrice` (en centavos, con IVA, de 1 a 10,000,000) y `note` (de 1 a 200 caracteres, qué se vendió). Las dos son obligatorias en esa línea y se rechazan en las demás;
@@ -5487,4 +5489,8 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Cambios compatibles en `/v1`: rutas, campos, permisos y una tabla nueva. Por eso es una versión menor (ADR-0159).
   - La migración que agrega `openPrice` y la nota de la línea no cambia los datos existentes.
 - **Revisar si:** el dueño decide el despliegue en la nube (entonces aplica T-330), la tienda necesita varias cajas por local o cortes por turno, o el precio libre se quiere para más que la carga inicial.
-- **Estado:** Aceptada (decidida por el usuario el 2026-11-07, con las recomendaciones del plan). Se implementa en la versión 1.10: paso 0 y T-331, T-182 y T-183.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-07, con las recomendaciones del plan). Se implementa en la versión 1.10: paso 0 y T-331, T-182 y T-183. Paso 0, T-331, hecho:
+  - `docker-compose.server.yml` con `postgres`, `migrate`, `api` (imagen `production`), `mailpit` (solo en `127.0.0.1`), `caddy` y `backup`; `.env.server.example` con lo que se llena en el servidor;
+  - `deploy/lan/`: el `Caddyfile` (con `default_sni`, porque los navegadores no mandan nombre al abrir una IP, y la página del backoffice para las rutas que no son archivos), `Dockerfile.caddy`, que compila el backoffice con la URL del servidor, el script que crea el usuario de la API y el del respaldo;
+  - `TRUST_PROXY_HOPS` en la configuración y en `configureHttp`;
+  - probado de punta a punta en un equipo: HTTPS con el certificado raíz de Caddy, inicio de sesión, la IP del cliente en la auditoría, el usuario de la API sin permiso para cambiar tablas, y un respaldo restaurado con la API de vuelta.

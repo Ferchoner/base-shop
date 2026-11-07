@@ -45,6 +45,18 @@ Versión 1.10 — Operación diaria de la tienda física (ADR-0171), desde el 20
 - **Backoffice:** el local de cada equipo, la línea de precio libre y la pantalla del corte, en base-ecomm-admin.
 - **Siguiente, fuera de esta versión:** los traslados entre locales (T-163) en la 1.11. Los dos locales están en el mismo centro comercial, así que el traslado será de un paso, con préstamos para mostrar.
 
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo (`jest`, `glob`, `minimatch`, `testcontainers` y `@nestjs/cli`) y bajo el umbral de la CI; 0 en producción. Su corrección pide versiones mayores de herramientas de prueba, así que se queda para cuando termine la pausa de Dependabot (ADR-0158).
+- **T-331, servidor en red local:**
+  - `docker-compose.server.yml`, aparte del de desarrollo, con Caddy como único servicio publicado; la base nunca se publica y Mailpit solo en el servidor;
+  - HTTPS con la CA interna de Caddy y un solo origen para el backoffice y la API; `default_sni` para los navegadores que abren la IP sin nombre;
+  - dos usuarios de PostgreSQL, como pide `DATABASE.md` §13: el de la API no puede cambiar tablas (comprobado con un `DROP TABLE` rechazado);
+  - `TRUST_PROXY_HOPS`, variable nueva, para que los límites por IP y la auditoría vean cada equipo y no a Caddy; una prueba end-to-end lo comprueba;
+  - respaldo diario con `pg_dump`, el primero al arrancar después de la migración; la restauración de la guía se probó con la API detenida y de vuelta;
+  - guía para el dueño en `docs/LAN_SERVER.md`.
+- **Pruebas locales:** se levantó todo el servidor en la sesión, con Docker y Node 24; para construir las imágenes detrás del proxy de la sesión se usó una copia de los `Dockerfile` con su certificado, que no se incluye.
+
 ### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
 
 **Goal:** Que el staff pida a la IA un primer texto de título, descripción y puntos destacados de un producto, a partir de los datos que el producto ya tiene, y lo revise antes de guardarlo; sin enviar datos personales al proveedor (ADR-0170). **Tareas:** T-147, en una parte, sin paso 0.
