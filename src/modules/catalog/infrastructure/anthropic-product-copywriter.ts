@@ -89,7 +89,7 @@ export class AnthropicProductCopywriter extends ProductCopywriter {
       });
     } catch (error) {
       this.logger.warn(
-        `The Claude API failed: ${error instanceof Anthropic.APIError ? `HTTP ${error.status}` : error instanceof Error ? error.name : 'unknown error'}`,
+        `The Claude API failed with model ${this.settings.model}: ${error instanceof Anthropic.APIError ? error.message : error instanceof Error ? error.name : 'unknown error'}`,
       );
       throw new ProblemException('ai-unavailable');
     }
