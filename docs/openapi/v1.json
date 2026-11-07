@@ -3592,6 +3592,64 @@
         },
         "type": "object"
       },
+      "DescriptionDraftDto": {
+        "properties": {
+          "description": {
+            "description": "Texto plano, sin Markdown.",
+            "example": "Una camisa ligera de lino para los días de calor.",
+            "type": "string"
+          },
+          "highlights": {
+            "description": "De 3 a 5 puntos destacados del producto.",
+            "example": [
+              "Lino",
+              "Tallas M y L"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "example": "Camisa de lino fresca para el verano",
+            "type": "string"
+          }
+        },
+        "required": [
+          "highlights",
+          "title",
+          "description"
+        ],
+        "type": "object"
+      },
+      "DescriptionDraftRequestDto": {
+        "properties": {
+          "language": {
+            "description": "Idioma del borrador: `es` (español) o `en` (inglés).",
+            "enum": [
+              "es",
+              "en"
+            ],
+            "example": "es",
+            "type": "string"
+          },
+          "tone": {
+            "default": "neutral",
+            "description": "Tono del texto: `neutral`, `friendly` (cercano) o `formal`.",
+            "enum": [
+              "neutral",
+              "friendly",
+              "formal"
+            ],
+            "example": "friendly",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "type": "object"
+      },
       "DispatchShipmentDto": {
         "properties": {
           "ownDelivery": {
@@ -5745,7 +5803,8 @@
               "/problems/payload-too-large",
               "/problems/unsupported-media-type",
               "/problems/rate-limit-exceeded",
-              "/problems/internal-error"
+              "/problems/internal-error",
+              "/problems/ai-unavailable"
             ],
             "example": "/problems/not-found",
             "type": "string"
@@ -11507,6 +11566,128 @@
           }
         ],
         "summary": "Archivar un producto",
+        "tags": [
+          "Administración: catálogo"
+        ],
+        "x-required-permissions": [
+          "catalog.write"
+        ]
+      }
+    },
+    "/v1/admin/catalog/products/{productId}/description-draft": {
+      "post": {
+        "description": "Lo escribe Claude con los datos del producto: título, descripción actual y opciones de las variantes; nunca datos personales. No guarda nada: el borrador se revisa y se guarda con `PATCH`. 503 `ai-unavailable` sin `ANTHROPIC_API_KEY` o si el modelo no responde (ADR-0170).",
+        "operationId": "AdminProductsController_descriptionDraft_v1",
+        "parameters": [
+          {
+            "description": "ID del producto.",
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DescriptionDraftRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DescriptionDraftDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`ai-unavailable`: Asistente de IA no disponible"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pedir a la IA un borrador de título y descripción",
         "tags": [
           "Administración: catálogo"
         ],
