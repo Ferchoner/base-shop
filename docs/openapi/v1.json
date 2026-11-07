@@ -10545,10 +10545,12 @@
         "operationId": "AdminCashClosingsController_get_v1",
         "parameters": [
           {
+            "description": "ID del cierre de caja.",
             "in": "path",
             "name": "closingId",
             "required": true,
             "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
