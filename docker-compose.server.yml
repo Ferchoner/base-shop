@@ -1,0 +1,121 @@
+# Local network server (T-331, ADR-0171): one computer of the store runs the API, the database and the backoffice,
+# and every computer of the store opens it over HTTPS. Not the cloud deployment of T-330. Guide: docs/LAN_SERVER.md.
+#   docker compose -f docker-compose.server.yml --env-file .env.server up -d --build
+# Only Caddy is published on the network (80 and 443); the database never is, and Mailpit only on this computer.
+name: base-shop-server
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      # The owner of the schema: only the migration uses it (DATABASE.md §13).
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.server}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.server}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.server}
+      # The API connects with this user, which only reads and writes data (created on the first start).
+      APP_DB_USER: ${APP_DB_USER:?Set APP_DB_USER in .env.server}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env.server}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./deploy/lan/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Applies the pending migrations as the owner of the schema and ends; the API waits for it (DATABASE.md §13).
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    env_file: .env.server
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Caddy is the only proxy in front of the API (ADR-0171).
+      TRUST_PROXY_HOPS: 1
+      # One origin for the backoffice and the API, served by Caddy.
+      FRONTEND_BASE_URL: https://${SERVER_ADDRESS:?Set SERVER_ADDRESS in .env.server}
+      BACKOFFICE_BASE_URL: https://${SERVER_ADDRESS}
+      CORS_ALLOWED_ORIGINS: https://${SERVER_ADDRESS}
+      IMAGE_BASE_URL: https://${SERVER_ADDRESS}/media
+      # No email provider yet (P-24): emails stay in the Mailpit of this computer.
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    volumes:
+      - api-storage:/app/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:v1
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8025:8025'
+
+  # HTTPS with its own local certificate authority, the backoffice and the reverse proxy to the API.
+  caddy:
+    build:
+      context: ./deploy/lan
+      dockerfile: Dockerfile.caddy
+      additional_contexts:
+        backoffice: ${BACKOFFICE_DIR:-../base-ecomm-admin}
+      args:
+        API_BASE_URL: https://${SERVER_ADDRESS}
+        PRIVACY_NOTICE_VERSION: ${PRIVACY_NOTICE_VERSION:-}
+    restart: unless-stopped
+    environment:
+      SERVER_ADDRESS: ${SERVER_ADDRESS}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+
+  # A pg_dump of the database every day, keeping the last BACKUP_KEEP_DAYS days (ADR-0171).
+  backup:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_HOUR: ${BACKUP_HOUR:-23}
+      TZ: America/Mexico_City
+    entrypoint: ['sh', '/backup.sh']
+    volumes:
+      - ./deploy/lan/backup.sh:/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      # After the migrations, so the first backup holds the whole schema.
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  api-storage:
+  caddy-data:
+  caddy-config:
