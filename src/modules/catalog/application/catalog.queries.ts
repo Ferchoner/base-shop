@@ -86,6 +86,8 @@ export interface AdminProductView {
   readonly status: ProductStatus;
   /** Sold only in the physical store (ADR-0165). */
   readonly storeOnly: boolean;
+  /** Sold at the price the staff types on each line (ADR-0171). */
+  readonly openPrice: boolean;
   /** Oldest first. */
   readonly variants: readonly AdminVariantView[];
   /** By position. */
@@ -110,6 +112,8 @@ export interface VariantSnapshot {
   readonly productStatus: ProductStatus;
   /** Its product is sold only in the physical store, never online (ADR-0165). */
   readonly storeOnly: boolean;
+  /** Its product is sold at the price the staff types on each line (ADR-0171). */
+  readonly openPrice: boolean;
   readonly sku: string;
   readonly options: VariantOptions;
   readonly status: VariantStatus;
@@ -177,6 +181,8 @@ export interface ProductFilter {
   readonly categoryId?: CategoryId;
   /** Products sold only in the store, or online too (ADR-0165). */
   readonly storeOnly?: boolean;
+  /** Products sold at an open price, or at the price of the list (ADR-0171). */
+  readonly openPrice?: boolean;
 }
 
 export type ProductSortField =

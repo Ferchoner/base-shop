@@ -319,6 +319,7 @@ describe('ImportProducts (UC-CAT-16, ADR-0164)', () => {
       archivedAt: null,
       firstPublishedAt: null,
       storeOnly: false,
+      openPrice: false,
       version: 1,
       variants: [
         {

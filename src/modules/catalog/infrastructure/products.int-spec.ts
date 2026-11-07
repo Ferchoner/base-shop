@@ -219,6 +219,7 @@ describe('Products and variants (T-140 part a)', () => {
             categoryIds: { from: null, to: [] },
             status: { from: null, to: 'DRAFT' },
             storeOnly: { from: null, to: false },
+            openPrice: { from: null, to: false },
           },
         },
       ]);

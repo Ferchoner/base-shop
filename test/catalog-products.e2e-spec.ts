@@ -151,6 +151,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       status: 'DRAFT',
       storeVisibility: 'NOT_PUBLISHED',
       storeOnly: false,
+      openPrice: false,
       variants: [],
       images: [],
       publishedAt: null,
