@@ -5424,3 +5424,24 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - `FrontendLinks.link(frontend, ruta, parámetros)` y su adaptador `ConfigFrontendLinks`, con una URL base por frontend;
   - `PasswordResets.send` recibe el tipo de cuenta y elige el frontend; la verificación de email y el acceso a pedidos de invitado piden la tienda.
 
+## ADR-0170 — Borrador de descripción de producto con IA
+
+- **Fecha:** 2026-11-05
+- **Contexto:** Noveno incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.9. El staff escribe a mano el título y la descripción de cada producto (UC-CAT-05). Un modelo de lenguaje puede proponer un primer texto a partir de los datos que el producto ya tiene. Es la primera integración del proyecto con un servicio externo por HTTP.
+- **Decisión** (del usuario, el 2026-11-05):
+  - **Proveedor:** la API de Claude (Anthropic), con el SDK oficial `@anthropic-ai/sdk`. La key se crea en la Claude Console y se configura en `ANTHROPIC_API_KEY`; el modelo, en `ANTHROPIC_MODEL`.
+  - **Solo un borrador:** `POST /v1/admin/catalog/products/{productId}/description-draft` devuelve el texto y no guarda nada. El staff lo revisa y lo guarda con el `PATCH` del producto, con su `version`.
+  - **Datos enviados:** solo datos del producto (título, descripción actual y opciones de las variantes); nunca datos personales de clientes, staff u órdenes.
+  - **Arquitectura:** puerto `ProductCopywriter` en `catalog/application` y adaptador `AnthropicProductCopywriter` en `catalog/infrastructure`, como `ProductImageStorage` (ADR-0121).
+  - **Sin key:** la API arranca igual y el endpoint responde 503, para que la CI y los tests no necesiten la key.
+  - **Implementación:** T-147.
+- **Alternativas consideradas:**
+  - OpenAI, Gemini
+- **Consecuencias:**
+  - Costo por llamada; límite de peticiones con `@RateLimit`.
+  - Dependencia nueva y variables nuevas; contrato de `/v1`: una ruta nueva, versión menor.
+- **Revisar si:** el costo crece, se quiere cambiar de proveedor o guardar el texto sin revisión.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-05). Implementada en T-147, probada con una key real el 2026-11-07:
+  - puerto `ProductCopywriter` y caso de uso `DraftProductDescription` en `catalog/application`, que eligen los datos que salen hacia el modelo;
+  - adaptador `AnthropicProductCopywriter` en `catalog/infrastructure`, con salida estructurada (Zod), esfuerzo `low` y el respaldo del servidor (`fallbacks: "default"`) cuando el modelo rechaza la solicitud;
+  - problem type `ai-unavailable` (503, E-39) y el límite `ai-description-draft`, 20 por cuenta de staff por hora (`RATE_LIMIT_AI_DESCRIPTION_DRAFT`).

@@ -128,6 +128,11 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/catalog/products': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products/:productId': { access: ['catalog.read'] },
   'PATCH /v1/admin/catalog/products/:productId': { access: ['catalog.write'] },
+  // Each draft is a paid call to the Claude API, limited per staff member (ADR-0170).
+  'POST /v1/admin/catalog/products/:productId/description-draft': {
+    access: ['catalog.write'],
+    limits: ['ai-description-draft'],
+  },
   'POST /v1/admin/catalog/products/:productId/archive': {
     access: ['catalog.write'],
   },

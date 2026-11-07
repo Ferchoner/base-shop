@@ -21,6 +21,7 @@ import {
   toSortOrders,
 } from '../../../platform/http/pagination/pagination.js';
 import { pathId } from '../../../platform/http/path-id.js';
+import { RateLimit } from '../../../platform/http/rate-limiting/rate-limit.decorator.js';
 import { ApiProblemResponses } from '../../../platform/http/problem-details/api-problem-responses.decorator.js';
 import { type Id, NotFoundError, toId } from '../../../shared-kernel/index.js';
 import type { ProductStatus } from '../application/catalog-limits.js';
@@ -29,6 +30,7 @@ import {
   type ProductSortField,
 } from '../application/catalog.queries.js';
 import { CreateProduct } from '../application/create-product.use-case.js';
+import { DraftProductDescription } from '../application/draft-product-description.use-case.js';
 import { ProductImageStorage } from '../application/product-image-storage.js';
 import { ProductLifecycle } from '../application/product-lifecycle.use-case.js';
 import { ProductVariants } from '../application/product-variants.use-case.js';
@@ -40,6 +42,8 @@ import {
   AdminProductListQueryDto,
   CreateProductDto,
   CreateVariantDto,
+  DescriptionDraftDto,
+  DescriptionDraftRequestDto,
   ProductVersionDto,
   UpdateProductDto,
   UpdateVariantDto,
@@ -80,6 +84,7 @@ export class AdminProductsController {
     private readonly lifecycle: ProductLifecycle,
     private readonly variants: ProductVariants,
     private readonly storefront: Storefront,
+    private readonly draftDescription: DraftProductDescription,
   ) {}
 
   @ApiOperation({
@@ -187,6 +192,32 @@ export class AdminProductsController {
       version: body.version,
     });
     return this.read(id);
+  }
+
+  @ApiOperation({
+    summary: 'Pedir a la IA un borrador de título y descripción',
+    description:
+      'Lo escribe Claude con los datos del producto: título, descripción actual y opciones de las variantes; nunca datos personales. No guarda nada: el borrador se revisa y se guarda con `PATCH`. 503 `ai-unavailable` sin `ANTHROPIC_API_KEY` o si el modelo no responde (ADR-0170).',
+  })
+  @ApiOkResponse({ type: DescriptionDraftDto })
+  @ApiProblemResponses('not-found', 'rate-limit-exceeded', 'ai-unavailable')
+  @RequirePermissions('catalog.write')
+  @RateLimit('ai-description-draft')
+  @HttpCode(200)
+  @Post(':productId/description-draft')
+  async descriptionDraft(
+    @Param('productId') productId: string,
+    @Body() body: DescriptionDraftRequestDto,
+  ): Promise<DescriptionDraftDto> {
+    const draft = await this.draftDescription.execute(product(productId), {
+      language: body.language,
+      tone: body.tone ?? 'neutral',
+    });
+    return {
+      title: draft.title,
+      description: draft.description,
+      highlights: [...draft.highlights],
+    };
   }
 
   @ApiOperation({

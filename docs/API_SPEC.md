@@ -305,8 +305,9 @@ Error de validación:
 | `unsupported-media-type` | 415 | E-22 | Formato de imagen o `Content-Type` no admitido | — |
 | `rate-limit-exceeded` | 429 | E-26 | Límite de frecuencia excedido | — |
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
+| `ai-unavailable` | 503 | E-39 | Borrador de descripción con IA sin `ANTHROPIC_API_KEY`, o el modelo no respondió o rechazó la solicitud (ADR-0170) | — |
 
-E-27 a E-38 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-39 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -334,6 +335,7 @@ Cada endpoint lista solo sus errores específicos.
 | 10 por usuario o carrito en 10 minutos | `POST /v1/orders`, `POST /v1/me/orders` |
 | 5 por email de contacto por hora | `POST /v1/orders` (ADR-0154) |
 | 30 por cuenta de staff en 10 minutos | `POST /v1/admin/orders` (ADR-0161) |
+| 20 por cuenta de staff por hora | `POST /v1/admin/catalog/products/{productId}/description-draft` (ADR-0170) |
 | 10 códigos de cupón que nadie tiene por IP en 15 minutos | Las tres cotizaciones y las tres rutas que colocan órdenes, con `couponCode` (ADR-0168) |
 | 100 por minuto por IP | Todos los endpoints, también los anteriores (ADR-0154) |
 
@@ -348,7 +350,7 @@ Detalles del mecanismo (ADR-0102):
 - Claves: IP; correo (por su huella, nunca el correo: el `email` del cuerpo, o el `contactEmail` al pedir el enlace de acceso); usuario autenticado o, si no hay, el correo (reenvío de verificación y cambio de email); usuario autenticado o carrito (colocar orden); `contactEmail` (órdenes de invitado por email); cuenta de staff (órdenes en la tienda física). Cada orden del staff aparta stock, así que una cuenta tomada no puede apartarlo todo.
 - El 429 es `rate-limit-exceeded` con `Retry-After` en segundos, sin encabezados `X-RateLimit-*`.
 - Una ruta inexistente responde 404 sin gastar el límite general.
-- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL`, `RATE_LIMIT_ADMIN_PLACE_ORDER` y `RATE_LIMIT_COUPON_ATTEMPTS`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
+- Variables: `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_LOGIN_IP`, `RATE_LIMIT_PASSWORD_CHANGE`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_PASSWORD_RESET_EMAIL`, `RATE_LIMIT_PASSWORD_RESET_IP`, `RATE_LIMIT_EMAIL_VERIFICATION`, `RATE_LIMIT_GUEST_ORDER`, `RATE_LIMIT_ORDER_ACCESS_EMAIL`, `RATE_LIMIT_ORDER_ACCESS_IP`, `RATE_LIMIT_PLACE_ORDER`, `RATE_LIMIT_PLACE_ORDER_EMAIL`, `RATE_LIMIT_ADMIN_PLACE_ORDER`, `RATE_LIMIT_AI_DESCRIPTION_DRAFT` y `RATE_LIMIT_COUPON_ATTEMPTS`, con el formato `<cantidad>/<duración>` (por ejemplo, `5/15m`).
 
 ---
 
@@ -855,6 +857,7 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implem
 | GET | `/v1/catalog/brands` | Público | Filtro de marca (ADR-0060); llega con T-140 (ADR-0120) |
 | GET, POST | `/v1/admin/catalog/products` | `catalog.read` / `catalog.write` | UC-CAT-14, UC-CAT-04 |
 | GET, PATCH | `/v1/admin/catalog/products/{productId}` | `catalog.read` / `catalog.write` | UC-CAT-05 |
+| POST | `/v1/admin/catalog/products/{productId}/description-draft` | `catalog.write` | UC-CAT-18 (ADR-0170) |
 | POST | `/v1/admin/catalog/products/{productId}/publish` | `catalog.write` | UC-CAT-09 |
 | POST | `/v1/admin/catalog/products/{productId}/archive` | `catalog.write` | UC-CAT-10 |
 | POST | `/v1/admin/catalog/products/{productId}/reactivate` | `catalog.write` | UC-CAT-10 |
@@ -950,6 +953,7 @@ Representación `AdminProduct`:
 | `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [], "storeOnly" }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
 | `GET /v1/admin/catalog/products/{productId}` | `catalog.read`. 200 `AdminProduct` |
 | `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `storeOnly`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
+| `POST …/{productId}/description-draft` | `catalog.write` y 20 por cuenta de staff por hora. Request `{ "language": "es" \| "en", "tone"?: "neutral" \| "friendly" \| "formal" }` (`neutral` por defecto). Claude escribe un borrador con el título, la descripción actual y las opciones de las variantes; nunca datos personales. No guarda nada: el staff lo revisa y lo guarda con `PATCH`. 200 `{ "title", "description", "highlights": [string] }`. Errores: 404 `not-found`; 429 `rate-limit-exceeded`; 503 `ai-unavailable` sin `ANTHROPIC_API_KEY` o si el modelo no responde o rechaza la solicitud (ADR-0170) |
 | `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, archivado —se reactiva primero a DRAFT— o sin variante activa, con `detail` que lo explica) |
 | `POST …/{productId}/archive` | `catalog.write`. Request `{ "version" }`. Desde DRAFT o PUBLISHED. Invalida cache. 200. Errores: 409 `invalid-state-transition` |
 | `POST …/{productId}/reactivate` | `catalog.write`. Request `{ "version" }`. De ARCHIVED a DRAFT; conserva slug y `firstPublishedAt` (ADR-0076). 200 `AdminProduct`. Errores: 409 `invalid-state-transition` |

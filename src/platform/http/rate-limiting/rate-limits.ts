@@ -33,6 +33,11 @@ export const RATE_LIMITS = {
     variable: 'RATE_LIMIT_ADMIN_PLACE_ORDER',
     key: 'user-or-cart',
   },
+  // Each draft is a paid call to the Claude API, counted per staff member (ADR-0170).
+  'ai-description-draft': {
+    variable: 'RATE_LIMIT_AI_DESCRIPTION_DRAFT',
+    key: 'user-or-cart',
+  },
 } as const satisfies Record<
   string,
   { variable: keyof EnvironmentVariables; key: RateLimitKey }

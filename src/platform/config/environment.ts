@@ -297,6 +297,16 @@ export class EnvironmentVariables {
   })
   RATE_LIMIT_ADMIN_PLACE_ORDER: string = '30/10m';
 
+  /**
+   * Description drafts with AI a staff member asks for: each one is a paid call to the Claude API (ADR-0170).
+   * Format `<count>/<duration>`.
+   */
+  @Expose()
+  @Matches(RATE_LIMIT_PATTERN, {
+    message: '$property must look like 5/15m (count / duration in s, m or h)',
+  })
+  RATE_LIMIT_AI_DESCRIPTION_DRAFT: string = '20/1h';
+
   /** Host name or IP of the SMTP server (ADR-0045, ADR-0110): Mailpit in development. Required in production. */
   @Expose()
   @IsNotEmpty()
@@ -543,6 +553,18 @@ export class EnvironmentVariables {
   @Length(1, 100, { message: '$property must have 1 to 100 characters' })
   @Matches(/\S/, { message: '$property must not be blank' })
   SUPERADMIN_LAST_NAMES?: string;
+
+  /** Key of the Claude API for the product description drafts (ADR-0170). Optional: without it the endpoint answers 503. */
+  @Expose()
+  @Transform(trimmedOrUnset)
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_API_KEY?: string;
+
+  /** Claude model for the drafts (ADR-0170). */
+  @Expose()
+  @IsNotEmpty({ message: '$property must not be empty' })
+  ANTHROPIC_MODEL: string = 'claude-opus-5-5';
 }
 
 /**

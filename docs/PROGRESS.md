@@ -187,6 +187,8 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.4.0: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
+- [ ] Versión 1.9: borrador de descripción de producto con IA (T-147), en curso; plan en `SPRINT.md`
+- [x] T-147: `POST /v1/admin/catalog/products/{productId}/description-draft` pide a Claude un borrador de título, descripción y puntos destacados con los datos del producto, sin guardar nada; 503 `ai-unavailable` sin key o si el modelo no responde, y 20 por cuenta de staff por hora (ADR-0170)
 - [x] Versión 1.8.0: una URL por frontend en los enlaces de los correos (paso 0 y T-125), cerrada el 2026-10-26; review en `SPRINT.md`
 - [x] T-125: `BACKOFFICE_BASE_URL` para el backoffice y `FRONTEND_BASE_URL` para la tienda pública; la verificación de email y el acceso a pedidos de invitado van a la tienda, y la recuperación de contraseña al frontend del tipo de cuenta (ADR-0169)
 - [x] Versión 1.7.0: promociones (paso 0 y T-200, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`

@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Sin publicar (1.9.0)
+
+Borrador de descripción de producto con IA (ADR-0170).
+
+- T-147 (ADR-0170): `POST /v1/admin/catalog/products/{productId}/description-draft` pide a Claude un borrador de título, descripción y puntos destacados con los datos del producto, sin guardar nada.
+  - Variables nuevas `ANTHROPIC_API_KEY` (opcional: sin ella el endpoint responde 503) y `ANTHROPIC_MODEL` (`claude-opus-5-5` por defecto).
+  - Límite nuevo `RATE_LIMIT_AI_DESCRIPTION_DRAFT`, 20 por cuenta de staff por hora.
+  - Problem type nuevo `ai-unavailable` (503).
+  - Dependencias nuevas `@anthropic-ai/sdk` y `zod`.
+
 ## 1.8.0 (2026-10-26)
 
 Una URL por frontend en los enlaces de los correos (ADR-0169).
