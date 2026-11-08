@@ -5542,4 +5542,4 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - El valor `TRANSFER` del enum de movimientos llega en una migración aparte de la que lo usa, como `WAREHOUSE_TRANSFER` (ADR-0160).
   - Los ajustes con `WAREHOUSE_TRANSFER` que ya existen no se convierten en traslados.
 - **Revisar si:** la tienda abre un local lejos de los otros (entonces hace falta el traslado de dos pasos), quiere permisos por almacén, o los préstamos vencidos se vuelven frecuentes.
-- **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Se implementa en la versión 1.11: paso 0, T-163 y T-164.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Implementada en la versión 1.11.0: paso 0, T-163 y T-164.
