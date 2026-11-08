@@ -29,6 +29,7 @@ describe('readProductFile (UC-CAT-16, ADR-0164)', () => {
         widthCm: '20.5',
         heightCm: '3',
         storeOnly: '',
+        countClass: '',
         options: { talla: 'M', color: 'Azul' },
       },
       {
@@ -46,6 +47,7 @@ describe('readProductFile (UC-CAT-16, ADR-0164)', () => {
         widthCm: '',
         heightCm: '',
         storeOnly: '',
+        countClass: '',
         options: { talla: 'G', color: '' },
       },
     ]);

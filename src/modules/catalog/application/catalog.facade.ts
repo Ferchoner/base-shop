@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { toId } from '../../../shared-kernel/index.js';
+import type { CountClass } from '../domain/product.js';
 import type { VariantId } from '../domain/variant.js';
 import {
   type CatalogEntriesView,
@@ -9,6 +10,7 @@ import {
 } from './catalog.queries.js';
 import { ProductImageStorage } from './product-image-storage.js';
 
+export type { CountClass } from '../domain/product.js';
 export type {
   CatalogEntriesView as CatalogEntries,
   CatalogEntryView as CatalogEntry,
@@ -135,6 +137,23 @@ export class CatalogFacade {
     return unique.length === 0
       ? Promise.resolve([])
       : this.queries.classifyVariants(unique);
+  }
+
+  /**
+   * The variants of the products directly in a category, of a count class, or both, in any status and ordered by SKU;
+   * a product without a class counts as C (ADR-0173). Inventory opens a count sheet by category or class with it.
+   */
+  variantsToCount(filter: {
+    readonly categoryId?: string;
+    readonly countClass?: CountClass;
+  }): Promise<VariantSnapshot[]> {
+    return this.queries.variantsToCount({
+      categoryId:
+        filter.categoryId === undefined
+          ? undefined
+          : toId<'Category'>(filter.categoryId),
+      countClass: filter.countClass,
+    });
   }
 
   /**

@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -17,6 +18,7 @@ import {
   MaxLength,
   Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import {
   PageMetaDto,
@@ -27,6 +29,8 @@ import {
   IsSortOf,
 } from '../../../platform/http/pagination/pagination.js';
 import {
+  COUNT_CLASSES,
+  type CountClass,
   GTIN_PATTERN,
   MAX_ALT_TEXT_LENGTH,
   MAX_CATEGORIES_PER_PRODUCT,
@@ -47,6 +51,7 @@ import {
   type CopyLanguage,
   type CopyTone,
 } from '../application/product-copywriter.js';
+import { MAX_COUNT_CLASS_ITEMS } from '../application/set-count-classes.use-case.js';
 import { STORE_VISIBILITIES } from '../application/storefront.queries.js';
 
 // Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
@@ -251,6 +256,14 @@ export class AdminProductDto {
    */
   openPrice: boolean;
 
+  @ApiProperty({
+    enum: COUNT_CLASSES,
+    nullable: true,
+    description:
+      'Cada cuándo se cuenta (ADR-0173): `A` cada semana, `B` cada mes, `C` cada trimestre; `null` sin clase, que se cuenta como `C`.',
+  })
+  countClass: string | null;
+
   @ApiProperty({ type: () => [AdminVariantDto] })
   variants: AdminVariantDto[];
 
@@ -348,6 +361,23 @@ export class AdminProductListQueryDto extends PageQueryDto {
   @IsBoolean()
   openPrice?: boolean;
 
+  @ApiPropertyOptional({
+    enum: COUNT_CLASSES,
+    description: 'Solo los productos de esta clase de conteo (ADR-0173).',
+  })
+  @IsOptional()
+  @IsIn(COUNT_CLASSES)
+  countClass?: CountClass;
+
+  /** `true`: solo los productos con clase de conteo; `false`: solo los que no tienen (ADR-0173). */
+  @ApiPropertyOptional({ type: Boolean })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  hasCountClass?: boolean;
+
   /**
    * `updatedAt`, `title`, `createdAt` o `publishedAt`, con `-` para orden descendente; `-updatedAt` por
    * defecto.
@@ -418,6 +448,17 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   openPrice?: boolean;
+
+  @ApiPropertyOptional({
+    enum: COUNT_CLASSES,
+    nullable: true,
+    description:
+      'Cada cuándo se cuenta (ADR-0173); sin ella, o con `null`, el producto queda sin clase y se cuenta como `C`.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsIn(COUNT_CLASSES)
+  countClass?: CountClass | null;
 }
 
 export class UpdateProductDto {
@@ -478,6 +519,16 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   openPrice?: boolean;
+
+  @ApiPropertyOptional({
+    enum: COUNT_CLASSES,
+    nullable: true,
+    description: 'Cada cuándo se cuenta (ADR-0173); `null` la quita.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsIn(COUNT_CLASSES)
+  countClass?: CountClass | null;
 
   /** Versión leída del producto (bloqueo optimista). */
   @IsInt()
@@ -731,4 +782,39 @@ export class DescriptionDraftDto {
     description: 'De 3 a 5 puntos destacados del producto.',
   })
   highlights: string[];
+}
+
+/** One product of `PUT /v1/admin/catalog/count-classes` (ADR-0173). */
+export class CountClassItemDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  productId: string;
+
+  @ApiProperty({
+    enum: COUNT_CLASSES,
+    nullable: true,
+    description: '`null` le quita la clase.',
+  })
+  @ValidateIf((_, value) => value !== null)
+  @IsIn(COUNT_CLASSES)
+  countClass: CountClass | null;
+}
+
+/** `PUT /v1/admin/catalog/count-classes` (ADR-0173): the count class of several products at once. */
+export class CountClassesDto {
+  @ApiProperty({
+    type: () => [CountClassItemDto],
+    description: 'De 1 a 500 productos, cada uno una vez.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_COUNT_CLASS_ITEMS)
+  @ValidateNested({ each: true })
+  @Type(() => CountClassItemDto)
+  items: CountClassItemDto[];
+}
+
+export class CountClassesResultDto {
+  /** Productos cuya clase cambió; los que ya la tenían no cuentan. @example 12 */
+  updated: number;
 }

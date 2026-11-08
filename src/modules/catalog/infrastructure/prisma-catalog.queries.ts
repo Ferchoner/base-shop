@@ -26,6 +26,7 @@ import {
 } from '../application/catalog.queries.js';
 import type { BrandId } from '../domain/brand.js';
 import type { CategoryId } from '../domain/category.js';
+import type { CountClass } from '../domain/product.js';
 import type { ProductId } from '../domain/product-id.js';
 import {
   gtinKeyOf,
@@ -67,6 +68,7 @@ const PRODUCT_FIELDS = {
   status: true,
   storeOnly: true,
   openPrice: true,
+  countClass: true,
   variants: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
   images: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
   publishedAt: true,
@@ -180,6 +182,12 @@ export class PrismaCatalogQueries extends CatalogQueries {
       ...(filter.openPrice === undefined
         ? {}
         : { openPrice: filter.openPrice }),
+      ...(filter.countClass === undefined
+        ? {}
+        : { countClass: filter.countClass }),
+      ...(filter.hasCountClass === undefined
+        ? {}
+        : { countClass: filter.hasCountClass ? { not: null } : null }),
     };
     const [rows, totalItems] = await Promise.all([
       this.txHost.tx.product.findMany({
@@ -224,6 +232,24 @@ export class PrismaCatalogQueries extends CatalogQueries {
         { sku: { contains: text.toUpperCase() } },
         { product: { title: { contains: text, mode: 'insensitive' } } },
       ],
+    });
+  }
+
+  variantsToCount(filter: {
+    readonly categoryId?: CategoryId;
+    readonly countClass?: CountClass;
+  }): Promise<VariantSnapshot[]> {
+    return this.variantsWhere({
+      product: {
+        ...(filter.categoryId === undefined
+          ? {}
+          : { categories: { some: { categoryId: filter.categoryId } } }),
+        ...(filter.countClass === undefined
+          ? {}
+          : filter.countClass === 'C'
+            ? { OR: [{ countClass: 'C' }, { countClass: null }] }
+            : { countClass: filter.countClass }),
+      },
     });
   }
 
@@ -373,6 +399,7 @@ export class PrismaCatalogQueries extends CatalogQueries {
             status: true,
             storeOnly: true,
             openPrice: true,
+            countClass: true,
           },
         },
       },
@@ -386,6 +413,7 @@ export class PrismaCatalogQueries extends CatalogQueries {
       productStatus: row.product.status,
       storeOnly: row.product.storeOnly,
       openPrice: row.product.openPrice,
+      countClass: row.product.countClass,
       sku: row.sku,
       options: row.options as VariantOptions,
       status: row.status,
@@ -416,6 +444,7 @@ function toProductView(
     status: row.status,
     storeOnly: row.storeOnly,
     openPrice: row.openPrice,
+    countClass: row.countClass,
     variants: row.variants.map((variant) => ({
       id: toId<'Variant'>(variant.id),
       sku: variant.sku,

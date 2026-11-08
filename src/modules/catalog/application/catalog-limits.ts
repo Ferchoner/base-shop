@@ -10,6 +10,8 @@ export {
   MAX_IMAGES_PER_PRODUCT,
 } from '../domain/product-gallery.js';
 export {
+  COUNT_CLASSES,
+  type CountClass,
   MAX_CATEGORIES_PER_PRODUCT,
   MAX_DESCRIPTION_LENGTH,
   MAX_TITLE_LENGTH,

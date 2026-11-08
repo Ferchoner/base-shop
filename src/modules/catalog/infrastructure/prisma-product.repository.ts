@@ -88,10 +88,10 @@ export class PrismaProductRepository extends ProductRepository {
     try {
       try {
         await tx.$executeRaw`
-          INSERT INTO products (id, title, slug, description, brand_id, status, store_only, open_price, version,
-                                created_at, updated_at)
+          INSERT INTO products (id, title, slug, description, brand_id, status, store_only, open_price, count_class,
+                                version, created_at, updated_at)
           SELECT row.id, row.title, row.slug, row.description, row.brand_id, row.status, row.store_only,
-                 row.open_price, row.version, ${now}, ${now}
+                 row.open_price, row.count_class, row.version, ${now}, ${now}
             FROM unnest(
                    ${states.map(({ id }) => id)}::uuid[],
                    ${states.map(({ title }) => title)}::text[],
@@ -101,8 +101,10 @@ export class PrismaProductRepository extends ProductRepository {
                    ${states.map(({ status }) => status)}::product_status[],
                    ${states.map(({ storeOnly }) => storeOnly)}::boolean[],
                    ${states.map(({ openPrice }) => openPrice)}::boolean[],
+                   ${states.map(({ countClass }) => countClass)}::product_count_class[],
                    ${states.map(({ version }) => version)}::integer[]
-                 ) AS row(id, title, slug, description, brand_id, status, store_only, open_price, version)`;
+                 ) AS row(id, title, slug, description, brand_id, status, store_only, open_price, count_class,
+                          version)`;
       } catch (error) {
         // A brand was deleted after it was checked.
         if (isForeignKeyViolation(error)) {
@@ -195,6 +197,7 @@ export class PrismaProductRepository extends ProductRepository {
       firstPublishedAt: state.firstPublishedAt,
       storeOnly: state.storeOnly,
       openPrice: state.openPrice,
+      countClass: state.countClass,
     };
     let saved: number;
     try {
@@ -299,6 +302,7 @@ function toProduct(row: ProductRow): Product {
     firstPublishedAt: row.firstPublishedAt,
     storeOnly: row.storeOnly,
     openPrice: row.openPrice,
+    countClass: row.countClass,
     variants: row.variants.map(toVariant),
     version: row.version,
   });

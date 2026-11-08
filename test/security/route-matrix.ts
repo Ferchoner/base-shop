@@ -124,6 +124,8 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   },
   'GET /v1/admin/catalog/variants/lookup': { access: ['catalog.read'] },
   'POST /v1/admin/catalog/product-imports': { access: ['catalog.write'] },
+  // The count class of several products at once, as the sales suggest it (ADR-0173).
+  'PUT /v1/admin/catalog/count-classes': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products': { access: ['catalog.read'] },
   'POST /v1/admin/catalog/products': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products/:productId': { access: ['catalog.read'] },
@@ -249,6 +251,8 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'GET /v1/admin/cash-closings/:closingId': { access: ['cash-closings.read'] },
   'GET /v1/admin/orders': { access: ['orders.read'] },
   // The lines sold at an open price, to know what to add to the catalog (ADR-0171).
+  // The count class of each product by its sales of the last 90 days (ADR-0173).
+  'GET /v1/admin/orders/count-class-suggestions': { access: ['orders.read'] },
   'GET /v1/admin/orders/open-price-lines': { access: ['orders.read'] },
   'POST /v1/admin/orders': {
     access: ['orders.place'],

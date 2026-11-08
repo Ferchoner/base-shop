@@ -16,6 +16,7 @@ import type {
   OrderTotals,
   ShippingAddress,
   StaffId,
+  VariantId,
   VariantOptions,
   WarehouseId,
 } from '../domain/order.js';
@@ -232,6 +233,18 @@ export abstract class OrderingQueries {
     from: Date,
     to: Date,
   ): Promise<{ readonly count: number; readonly amount: number }>;
+
+  /**
+   * What each variant sold in the orders placed from `from`, included, to `to`, excluded, online and in the store,
+   * that were paid and not cancelled, expired nor refunded (ADR-0173): its units, and the totals of its lines less their
+   * discounts, in cents. A variant that sold nothing is left out.
+   */
+  abstract salesByVariant(
+    from: Date,
+    to: Date,
+  ): Promise<
+    readonly { variantId: VariantId; amount: number; units: number }[]
+  >;
 
   /** The newest `limit` guest orders of the email, newest first; ties are broken by ID (UC-ORD-05, ADR-0148). */
   abstract listGuestOrders(

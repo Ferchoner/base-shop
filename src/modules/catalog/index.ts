@@ -4,6 +4,7 @@ export {
   type CatalogEntries,
   type CatalogEntry,
   CatalogFacade,
+  type CountClass,
   type VariantClassification,
   type VariantImage,
   type VariantSnapshot,

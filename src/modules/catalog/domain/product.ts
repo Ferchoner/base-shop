@@ -38,6 +38,11 @@ export const PRODUCT_STATUSES: readonly ProductStatus[] = [
   'ARCHIVED',
 ];
 
+/** How often a product is counted (ADR-0173): A every week, B every month, C every quarter. */
+export type CountClass = 'A' | 'B' | 'C';
+
+export const COUNT_CLASSES: readonly CountClass[] = ['A', 'B', 'C'];
+
 /** Limits of API_SPEC.md §11.6 and ADR-0123. */
 export const MAX_TITLE_LENGTH = 200;
 export const MAX_DESCRIPTION_LENGTH = 10_000;
@@ -62,6 +67,8 @@ export interface ProductSnapshot {
    * the store has it (ADR-0171).
    */
   readonly openPrice: boolean;
+  /** How often it is counted (ADR-0173); `null` without one, which counts as C. */
+  readonly countClass: CountClass | null;
   readonly variants: readonly VariantSnapshot[];
   readonly version: number;
 }
@@ -114,6 +121,8 @@ export class Product {
     storeOnly?: boolean;
     /** At the price of the catalog unless said; only with `storeOnly` (ADR-0171). */
     openPrice?: boolean;
+    /** Without one unless said (ADR-0173). */
+    countClass?: CountClass | null;
   }): Product {
     const storeOnly = props.storeOnly ?? false;
     const openPrice = props.openPrice ?? false;
@@ -131,6 +140,7 @@ export class Product {
       firstPublishedAt: null,
       storeOnly,
       openPrice,
+      countClass: props.countClass ?? null,
       variants: [],
       version: 1,
     });
@@ -222,6 +232,14 @@ export class Product {
       throw new OpenPriceNeedsStoreOnlyError();
     }
     this.state = { ...this.state, openPrice };
+  }
+
+  /**
+   * Sets how often the product is counted, or clears it (ADR-0173). In any status, archived too: an archived product
+   * can still have units to count.
+   */
+  changeCountClass(countClass: CountClass | null): void {
+    this.state = { ...this.state, countClass };
   }
 
   /**

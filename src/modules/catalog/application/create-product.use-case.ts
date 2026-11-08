@@ -9,7 +9,7 @@ import type { BrandId } from '../domain/brand.js';
 import { BrandRepository } from '../domain/brand.repository.js';
 import type { CategoryId } from '../domain/category.js';
 import { CategoryRepository } from '../domain/category.repository.js';
-import { Product } from '../domain/product.js';
+import { type CountClass, Product } from '../domain/product.js';
 import type { ProductId } from '../domain/product-id.js';
 import { ProductRepository } from '../domain/product.repository.js';
 import { MAX_PRODUCT_SLUG_LENGTH } from '../domain/slug.js';
@@ -47,6 +47,8 @@ export class CreateProduct {
     storeOnly?: boolean;
     /** At the price the staff types on each line; only with `storeOnly` (ADR-0171). */
     openPrice?: boolean;
+    /** How often it is counted (ADR-0173); without one when missing. */
+    countClass?: CountClass | null;
   }): Promise<ProductId> {
     return retryingGeneratedSlug(input.slug, () =>
       this.transactions.run(async () => {
@@ -68,6 +70,7 @@ export class CreateProduct {
           categoryIds: input.categoryIds,
           storeOnly: input.storeOnly,
           openPrice: input.openPrice,
+          countClass: input.countClass,
         });
         await this.products.save(product);
         await this.searchIndex.refreshProducts([product.id]);

@@ -469,6 +469,23 @@ describe('Product (UC-CAT-04 to 10, ADR-0068, ADR-0076, ADR-0123)', () => {
     });
   });
 
+  describe('the count class (ADR-0173)', () => {
+    it('has none unless created with one, and changes in any status, archived too, without an event', () => {
+      expect(draft().snapshot().countClass).toBeNull();
+      expect(draft({ countClass: 'B' }).snapshot().countClass).toBe('B');
+      const { product } = published();
+      product.archive(NOW);
+      product.pullEvents();
+
+      product.changeCountClass('A');
+      expect(product.snapshot().countClass).toBe('A');
+      product.changeCountClass(null);
+
+      expect(product.snapshot().countClass).toBeNull();
+      expect(product.pullEvents()).toEqual([]);
+    });
+  });
+
   describe('sold at an open price (ADR-0171)', () => {
     it('is sold at the price of the catalog unless created otherwise, and only a product sold only in the store has it', () => {
       expect(draft().snapshot().openPrice).toBe(false);

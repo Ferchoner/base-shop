@@ -37,6 +37,10 @@ import type {
 } from '../application/order-placement.js';
 import type { OrderFulfillment } from '../application/order-values.js';
 import { BlockedOrderData } from '../application/blocked-order-data.js';
+import {
+  COUNT_CLASS_DAYS,
+  CountClassSuggester,
+} from '../application/count-class-suggestions.js';
 import { OrderLifecycle } from '../application/order-lifecycle.use-case.js';
 import { OrderPaymentRequests } from '../application/order-payment-requests.use-case.js';
 import { OrderReader } from '../application/order-reader.js';
@@ -51,6 +55,7 @@ import {
   BlockedOrderDataDto,
   BlockedOrderDataRequestDto,
   CancelOrderDto,
+  CountClassSuggestionListDto,
   HandOverDto,
   OpenPriceLineListDto,
   OpenPriceLineListQueryDto,
@@ -100,7 +105,37 @@ export class AdminOrdersController {
     private readonly blockedData: BlockedOrderData,
     private readonly staffCheckout: StaffCheckout,
     private readonly couponAttempts: FailedAttemptLimiter,
+    private readonly countClasses: CountClassSuggester,
   ) {}
+
+  @ApiOperation({
+    summary: 'Sugerir la clase de conteo de cada producto por sus ventas',
+    description:
+      'ADR-0173. Lo vendido por producto en los últimos 90 días, en línea y en la tienda física: las líneas de las órdenes colocadas en ese tiempo que se pagaron y no se cancelaron, vencieron ni reembolsaron, cada una por su total menos su descuento. `A` para los productos que suman el primer 80 % de lo vendido (el que pasa del 80 % todavía es `A`), `B` para el siguiente 15 % y `C` para el resto; un empate va por ID del producto. Los productos que no vendieron nada no aparecen: son `C`. Sin paginación. La clase se aplica en Catálogo con `PUT /v1/admin/catalog/count-classes`.',
+  })
+  @ApiOkResponse({ type: CountClassSuggestionListDto })
+  @RequirePermissions('orders.read')
+  @Get('count-class-suggestions')
+  async countClassSuggestions(): Promise<CountClassSuggestionListDto> {
+    const found = await this.countClasses.suggest();
+    const money = (amount: number) => ({ amount, currency: 'MXN' });
+    return {
+      data: found.products.map((product) => ({
+        productId: product.productId,
+        productTitle: product.productTitle,
+        countClass: product.countClass,
+        sales: money(product.amount),
+        units: product.units,
+        suggestedClass: product.suggestedClass,
+      })),
+      meta: {
+        from: found.from,
+        to: found.to,
+        days: COUNT_CLASS_DAYS,
+        total: money(found.total),
+      },
+    };
+  }
 
   @ApiOperation({
     summary: 'Cotizar un pedido en la tienda física',

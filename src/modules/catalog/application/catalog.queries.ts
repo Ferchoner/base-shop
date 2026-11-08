@@ -6,7 +6,7 @@ import type {
 import type { BrandId } from '../domain/brand.js';
 import type { CatalogStatus } from '../domain/catalog-values.js';
 import type { CategoryId } from '../domain/category.js';
-import type { ProductStatus } from '../domain/product.js';
+import type { CountClass, ProductStatus } from '../domain/product.js';
 import type { ProductId } from '../domain/product-id.js';
 import type {
   VariantId,
@@ -88,6 +88,8 @@ export interface AdminProductView {
   readonly storeOnly: boolean;
   /** Sold at the price the staff types on each line (ADR-0171). */
   readonly openPrice: boolean;
+  /** How often it is counted (ADR-0173); `null` without one. */
+  readonly countClass: CountClass | null;
   /** Oldest first. */
   readonly variants: readonly AdminVariantView[];
   /** By position. */
@@ -114,6 +116,8 @@ export interface VariantSnapshot {
   readonly storeOnly: boolean;
   /** Its product is sold at the price the staff types on each line (ADR-0171). */
   readonly openPrice: boolean;
+  /** How often its product is counted (ADR-0173); `null` without one, which counts as C. */
+  readonly countClass: CountClass | null;
   readonly sku: string;
   readonly options: VariantOptions;
   readonly status: VariantStatus;
@@ -183,6 +187,10 @@ export interface ProductFilter {
   readonly storeOnly?: boolean;
   /** Products sold at an open price, or at the price of the list (ADR-0171). */
   readonly openPrice?: boolean;
+  /** Products of this count class (ADR-0173). */
+  readonly countClass?: CountClass;
+  /** Products with a count class, or without one. */
+  readonly hasCountClass?: boolean;
 }
 
 export type ProductSortField =
@@ -227,6 +235,15 @@ export abstract class CatalogQueries {
    * search as the product listing's `q`).
    */
   abstract searchVariants(text: string): Promise<VariantSnapshot[]>;
+
+  /**
+   * The variants of the products directly in this category and of this count class, as given; a product without a
+   * class counts as C (ADR-0173). Ordered by SKU.
+   */
+  abstract variantsToCount(filter: {
+    readonly categoryId?: CategoryId;
+    readonly countClass?: CountClass;
+  }): Promise<VariantSnapshot[]>;
 
   /**
    * The variants whose SKU is `code`, whatever its case, or whose GTIN is the same code completed to 14 digits

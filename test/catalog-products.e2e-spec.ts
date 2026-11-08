@@ -152,6 +152,7 @@ describe('Products and variants (e2e, T-140 part a)', () => {
       storeVisibility: 'NOT_PUBLISHED',
       storeOnly: false,
       openPrice: false,
+      countClass: null,
       variants: [],
       images: [],
       publishedAt: null,

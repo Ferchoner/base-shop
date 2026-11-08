@@ -55,6 +55,8 @@ import { AdminBrandsController } from './presentation/admin-brands.controller.js
 import { AdminCategoriesController } from './presentation/admin-categories.controller.js';
 import { AdminProductImagesController } from './presentation/admin-product-images.controller.js';
 import { AdminProductsController } from './presentation/admin-products.controller.js';
+import { SetCountClasses } from './application/set-count-classes.use-case.js';
+import { AdminCountClassesController } from './presentation/admin-count-classes.controller.js';
 import { AdminProductImportsController } from './presentation/admin-product-imports.controller.js';
 import { AdminVariantsController } from './presentation/admin-variants.controller.js';
 import { CatalogController } from './presentation/catalog.controller.js';
@@ -115,6 +117,7 @@ export function imageUploads(): DynamicModule {
     AdminProductImagesController,
     AdminVariantsController,
     AdminProductImportsController,
+    AdminCountClassesController,
   ],
   providers: [
     CatalogFacade,
@@ -134,6 +137,7 @@ export function imageUploads(): DynamicModule {
     ProductVariants,
     ProductImages,
     ImportProducts,
+    SetCountClasses,
     DraftProductDescription,
     Storefront,
     { provide: CategoryRepository, useClass: PrismaCategoryRepository },
