@@ -16,6 +16,8 @@ export const PERMISSIONS = {
   // Inventory
   'inventory.read': 'Ver almacenes, existencias y movimientos',
   'inventory.write': 'Registrar entradas y ajustes, y gestionar almacenes',
+  'inventory.transfer':
+    'Trasladar existencias entre almacenes y cancelar el traslado en sus primeros minutos',
   // Ordering
   'orders.read': 'Ver pedidos',
   'orders.manage': 'Cancelar pedidos y resolver los que esperan surtido manual',

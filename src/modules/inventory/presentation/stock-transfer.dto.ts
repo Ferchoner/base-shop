@@ -1,0 +1,229 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import {
+  PageMetaDto,
+  PageQueryDto,
+} from '../../../platform/http/pagination/page-query.dto.js';
+import {
+  MAX_NOTE_LENGTH,
+  MAX_STOCK_QUANTITY,
+} from '../application/inventory-limits.js';
+import {
+  MAX_TRANSFER_LINES,
+  TRANSFER_REASONS,
+  TRANSFER_STATUSES,
+  type TransferReason,
+  type TransferStatus,
+} from '../application/stock-transfers.use-case.js';
+
+// Plain string, number and boolean fields are documented by the Swagger plugin from their types and comments.
+// Fields holding other DTOs, dates or null declare their type with @ApiProperty (DEVELOPMENT_GUIDE.md).
+
+const DATE_TIME = { type: String, format: 'date-time' } as const;
+const NULLABLE_TEXT = { type: String, nullable: true } as const;
+
+/** A line of a new transfer (ADR-0172). */
+export class TransferLineInputDto {
+  /** La variante que se traslada, en cualquier estado; una vez por traslado. */
+  @IsUUID()
+  variantId: string;
+
+  /** De 1 a 100,000 unidades disponibles en el origen. @example 2 */
+  @IsInt()
+  @Min(1)
+  @Max(MAX_STOCK_QUANTITY)
+  quantity: number;
+}
+
+/** Request of `POST /v1/admin/inventory/transfers` (ADR-0172). */
+export class CreateTransferDto {
+  /** El almacén de donde salen las unidades, en cualquier estado. */
+  @IsUUID()
+  fromWarehouseId: string;
+
+  /** El almacén al que llegan: activo y distinto del origen. */
+  @IsUUID()
+  toWarehouseId: string;
+
+  @ApiProperty({
+    enum: TRANSFER_REASONS,
+    description:
+      '`SALE` para venderlo en el destino, `RESTOCK` para surtirlo, `OTHER` con `note` obligatoria.',
+  })
+  @IsIn(TRANSFER_REASONS)
+  reason: TransferReason;
+
+  /** Hasta 500 caracteres; obligatoria con `OTHER`. */
+  @ApiPropertyOptional({
+    ...NULLABLE_TEXT,
+    example: 'Para enseñarlo a un cliente',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_NOTE_LENGTH)
+  note?: string | null;
+
+  @ApiProperty({
+    type: () => [TransferLineInputDto],
+    description: `De 1 a ${MAX_TRANSFER_LINES} líneas, cada variante una vez.`,
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_TRANSFER_LINES)
+  @ValidateNested({ each: true })
+  @Type(() => TransferLineInputDto)
+  lines: TransferLineInputDto[];
+}
+
+/** Request of `POST …/transfers/{transferId}/cancel` (ADR-0172). */
+export class CancelTransferDto {
+  /** Versión leída del traslado (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+/** A line of a transfer as the API answers it. */
+export class TransferLineDto {
+  @ApiProperty({ format: 'uuid' })
+  variantId: string;
+
+  /** @example 'JUE-ZELDA-SW' */
+  sku: string;
+
+  /** @example 'The Legend of Zelda' */
+  productTitle: string;
+
+  /** Unidades trasladadas. @example 2 */
+  quantity: number;
+}
+
+/** `StockTransfer` of API_SPEC.md §13 (ADR-0172). */
+export class TransferDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** El folio del traslado, consecutivo. @example 'T-000123' */
+  folio: string;
+
+  @ApiProperty({ format: 'uuid' })
+  fromWarehouseId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  toWarehouseId: string;
+
+  @ApiProperty({ enum: TRANSFER_REASONS })
+  reason: string;
+
+  /** Nota del staff; `null` sin ella. */
+  @ApiProperty(NULLABLE_TEXT)
+  note: string | null;
+
+  @ApiProperty({
+    enum: TRANSFER_STATUSES,
+    description:
+      '`COMPLETED` al registrarse; `CANCELLED` si se canceló en sus primeros 10 minutos.',
+  })
+  status: string;
+
+  @ApiProperty({
+    type: () => [TransferLineDto],
+    description: 'Por variante.',
+  })
+  lines: TransferLineDto[];
+
+  @ApiProperty({
+    format: 'uuid',
+    description: 'La cuenta de staff que lo registró.',
+  })
+  createdBy: string;
+
+  @ApiProperty(DATE_TIME)
+  createdAt: Date;
+
+  @ApiProperty({
+    ...DATE_TIME,
+    nullable: true,
+    description:
+      'Hasta cuándo se puede cancelar: 10 minutos después de registrarse; `null` si ya se canceló.',
+  })
+  cancellableUntil: Date | null;
+
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    format: 'uuid',
+    description: 'La cuenta de staff que lo canceló; `null` si no se canceló.',
+  })
+  cancelledBy: string | null;
+
+  @ApiProperty({ ...DATE_TIME, nullable: true })
+  cancelledAt: Date | null;
+
+  /** Versión para cancelarlo (bloqueo optimista). @example 1 */
+  version: number;
+}
+
+export class TransferListDto {
+  @ApiProperty({
+    type: () => [TransferDto],
+    description: 'Del más reciente al más antiguo.',
+  })
+  data: TransferDto[];
+
+  @ApiProperty({ type: () => PageMetaDto })
+  meta: PageMetaDto;
+}
+
+/** Query of `GET /v1/admin/inventory/transfers` (ADR-0172). */
+export class TransferListQueryDto extends PageQueryDto {
+  /** Los que salen de este almacén o llegan a él. */
+  @IsOptional()
+  @IsUUID('all')
+  warehouseId?: string;
+
+  /** Los que tienen una línea de esta variante. */
+  @IsOptional()
+  @IsUUID('all')
+  variantId?: string;
+
+  @ApiPropertyOptional({
+    enum: TRANSFER_REASONS,
+    description: 'Los traslados con este motivo.',
+  })
+  @IsOptional()
+  @IsIn(TRANSFER_REASONS)
+  reason?: TransferReason;
+
+  @ApiPropertyOptional({
+    enum: TRANSFER_STATUSES,
+    description: 'Los traslados en este estado.',
+  })
+  @IsOptional()
+  @IsIn(TRANSFER_STATUSES)
+  status?: TransferStatus;
+
+  /** Fecha o fecha y hora ISO 8601; incluida. @example '2026-11-01' */
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  from?: string;
+
+  /** Fecha o fecha y hora ISO 8601; incluida (una fecha sola incluye todo el día). @example '2026-11-30' */
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  to?: string;
+}

@@ -5,6 +5,8 @@ enum StockMovementType {
   ADJUSTMENT
   SALE
   RESTOCK
+  /// One side of a transfer between warehouses (ADR-0172): signed, linked to its transfer.
+  TRANSFER
 
   @@map("stock_movement_type")
 }
@@ -21,6 +23,23 @@ enum StockMovementReason {
   WAREHOUSE_TRANSFER
 
   @@map("stock_movement_reason")
+}
+
+/// Why stock goes to another warehouse (ADR-0172): to sell it there, to restock it, or another reason with a note.
+enum StockTransferReason {
+  SALE
+  RESTOCK
+  OTHER
+
+  @@map("stock_transfer_reason")
+}
+
+/// A transfer is done when it is recorded, and cancelled only in its first minutes (ADR-0172).
+enum StockTransferStatus {
+  COMPLETED
+  CANCELLED
+
+  @@map("stock_transfer_status")
 }
 
 enum ReservationStatus {
@@ -45,7 +64,9 @@ model Warehouse {
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  stockItems StockItem[]
+  stockItems   StockItem[]
+  transfersOut StockTransfer[] @relation("transfer_from")
+  transfersIn  StockTransfer[] @relation("transfer_to")
 
   @@map("warehouses")
 }
@@ -80,12 +101,16 @@ model StockMovement {
   /// Logical references to Ordering (SALE, RESTOCK).
   orderId     String?              @map("order_id") @db.Uuid
   orderLineId String?              @map("order_line_id") @db.Uuid
+  /// The transfer of a TRANSFER movement, and only of one (CHECK in the migration, ADR-0172).
+  transferId  String?              @map("transfer_id") @db.Uuid
   actorId     String?              @map("actor_id") @db.Uuid
   createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  stockItem StockItem      @relation(fields: [stockItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  transfer  StockTransfer? @relation(fields: [transferId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([stockItemId, createdAt])
+  @@index([transferId])
   @@index([orderLineId], map: "stock_movements_restock_by_order_line_idx", where: raw("type = 'RESTOCK'::stock_movement_type"))
   @@map("stock_movements")
 }
@@ -132,4 +157,52 @@ model StockReceiptImport {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@map("stock_receipt_imports")
+}
+
+/// Units moved from one warehouse to another in one step (ADR-0172): each line leaves the origin and enters the
+/// destination in the same transaction. Never edited; cancelled only in its first 10 minutes.
+model StockTransfer {
+  id              String              @id @db.Uuid
+  /// Consecutive number from a database sequence, shown as the folio `T-000123` (ADR-0172).
+  number          BigInt              @unique @default(autoincrement())
+  /// CHECK: not the destination (manual SQL).
+  fromWarehouseId String              @map("from_warehouse_id") @db.Uuid
+  toWarehouseId   String              @map("to_warehouse_id") @db.Uuid
+  reason          StockTransferReason
+  /// CHECK: 1 to 500 characters, and present with OTHER (manual SQL).
+  note            String?
+  status          StockTransferStatus
+  /// Logical references to Identity: who recorded it and who cancelled it.
+  createdBy       String              @map("created_by") @db.Uuid
+  createdAt       DateTime            @map("created_at") @db.Timestamptz(3)
+  /// CHECK: both present exactly when it is cancelled (manual SQL).
+  cancelledBy     String?             @map("cancelled_by") @db.Uuid
+  cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(3)
+  version         Int                 @default(1)
+  updatedAt       DateTime            @map("updated_at") @db.Timestamptz(3)
+
+  fromWarehouse Warehouse           @relation("transfer_from", fields: [fromWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  toWarehouse   Warehouse           @relation("transfer_to", fields: [toWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  lines         StockTransferLine[]
+  movements     StockMovement[]
+
+  @@index([createdAt])
+  @@index([fromWarehouseId, createdAt])
+  @@index([toWarehouseId, createdAt])
+  @@map("stock_transfers")
+}
+
+/// A variant of a transfer and its units, once per transfer.
+model StockTransferLine {
+  transferId String @map("transfer_id") @db.Uuid
+  /// Logical reference to Catalog; no foreign key (ADR-0005).
+  variantId  String @map("variant_id") @db.Uuid
+  /// CHECK: 1 to 100,000 (manual SQL).
+  quantity   Int
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+
+  @@id([transferId, variantId])
+  @@index([variantId])
+  @@map("stock_transfer_lines")
 }

@@ -325,6 +325,7 @@ describe('StockListing (UC-INV-04, ADR-0127)', () => {
       note: null,
       orderId: null,
       orderLineId: null,
+      transferId: null,
       actorId: null,
       createdAt: new Date(Date.UTC(2026, 9, 1, 12, 0, 60 - n)),
     });

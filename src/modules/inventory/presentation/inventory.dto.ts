@@ -241,7 +241,7 @@ export class StockMovementDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  /** `RECEIPT`, `ADJUSTMENT`, `SALE` o `RESTOCK`. */
+  /** `RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK` o `TRANSFER`, uno de los lados de un traslado (ADR-0172). */
   @ApiProperty({ enum: STOCK_MOVEMENT_TYPES })
   type: string;
 
@@ -270,6 +270,10 @@ export class StockMovementDto {
   @ApiProperty({ ...NULLABLE_TEXT, format: 'uuid' })
   orderLineId: string | null;
 
+  /** El traslado de un movimiento `TRANSFER` (ADR-0172); `null` en los demás. */
+  @ApiProperty({ ...NULLABLE_TEXT, format: 'uuid' })
+  transferId: string | null;
+
   @ApiProperty({
     ...NULLABLE_TEXT,
     format: 'uuid',
@@ -297,7 +301,7 @@ export class StockMovementQueryDto extends CursorQueryDto {
   @ApiPropertyOptional({
     type: String,
     description:
-      'Uno o más tipos separados por comas: `RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK`.',
+      'Uno o más tipos separados por comas: `RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK`, `TRANSFER`.',
     example: 'RECEIPT,ADJUSTMENT',
   })
   @IsOptional()
