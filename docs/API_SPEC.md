@@ -1323,7 +1323,7 @@ Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva t
 - Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` con `currentStatus: CANCELLED` si ya se canceló, o con `currentStatus: COMPLETED` y `reason: cancel-window-passed` pasados los 10 minutos; 409 `insufficient-stock` si el destino ya no tiene esas unidades disponibles, por ejemplo porque ya las vendió.
 - Se audita como `inventory.transfer-cancel`.
 
-**Bloqueos:** registrar y cancelar comparten el bloqueo de los dos almacenes, en orden de ID, así que ninguno se desactiva mientras las unidades se mueven (ADR-0160), y cambian las existencias en orden ascendente de ID (BR-INV-14), así que dos traslados en sentidos contrarios no se bloquean entre sí. Cancelar bloquea además el traslado, y dos cancelaciones a la vez dejan una sola.
+**Bloqueos:** registrar comparte el bloqueo de los dos almacenes, en orden de ID, así que el destino no se desactiva mientras las unidades llegan (ADR-0160). Registrar y cancelar cambian las existencias en orden ascendente de ID (BR-INV-14), así que dos traslados en sentidos contrarios no se bloquean entre sí. Cancelar bloquea el traslado, y dos cancelaciones a la vez dejan una sola; no bloquea los almacenes, porque las unidades vuelven a un origen que puede estar inactivo.
 
 ---
 
