@@ -57,6 +57,12 @@ Versión 1.11 — Traslados entre almacenes (ADR-0172), desde el 2026-11-08; su 
 - **Concurrencia:** registrar y cancelar comparten el bloqueo de los dos almacenes y cambian las existencias en orden de ID, así que dos traslados de las últimas unidades dejan pasar uno y dos en sentidos contrarios no se bloquean; las pruebas de integración lo comprueban contra PostgreSQL.
 - **Para la parte 2:** el filtro por tipo del listado llega con el préstamo, que es el segundo tipo.
 
+#### Resultado de la parte 2 (T-164)
+
+- **API:** `kind: LOAN` con `returnBy` en `POST /v1/admin/inventory/transfers`, folio `P-` de la misma secuencia; filtros `kind` y `overdue`; `POST …/{transferId}/close` con lo que regresó de cada línea (API_SPEC.md §13).
+- **Base de datos:** los valores nuevos de los enums en su propia migración; en `stock_transfers`, el tipo, la hora de regreso, quién cerró y cuándo, y el préstamo de un regreso, con sus `CHECK`; `returned` en las líneas (DATABASE.md §6.7 y §6.8).
+- **Regreso:** lo que regresó vuelve con un traslado `LOAN_RETURN` propio, ligado al préstamo, que no se cancela; si no regresa nada, no hay traslado.
+
 ### Versión 1.10 — Operación diaria de la tienda física (2026-11-07)
 
 **Goal:** Que una tienda de dos locales en la misma red migre a base-shop sin despliegue en la nube: un equipo de una tienda hace de servidor con HTTPS, el staff cobra en el mostrador lo que aún no está en el catálogo, y cada local cierra su caja al final del día con lo esperado, lo contado y la diferencia (ADR-0171). **Tareas:** paso 0 con T-331, T-182 y T-183, en ese orden.

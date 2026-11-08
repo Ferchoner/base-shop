@@ -82,6 +82,7 @@ Cada regla indica su fuente. Lo no definido se marca como PENDIENTE DE DEFINICI�
 - BR-INV-14. Las reservas actualizan cada stock item en orden ascendente de identificador, para evitar bloqueos mutuos entre transacciones concurrentes (ADR-0066).
 - BR-INV-15. Un archivo de entradas de mercancía se carga una sola vez: otro con los mismos bytes se rechaza, porque sumaría dos veces sus unidades (ADR-0164).
 - BR-INV-16. Un traslado entre almacenes mueve unidades disponibles de un almacén a otro activo y distinto en un solo paso: resta en el origen y suma en el destino en la misma transacción, o no pasa nada. Lleva un folio consecutivo y un motivo (vender, surtir u otro con nota). Se cancela solo en sus primeros 10 minutos, y la cancelación regresa las unidades con movimientos contrarios; después, un traslado no cambia y un error se corrige con otro traslado (ADR-0172).
+- BR-INV-17. Un préstamo para mostrar es un traslado con una hora de regreso, de 5 minutos a 24 horas después de registrarlo, que queda abierto hasta que se cierra. Al cerrarlo, el staff dice cuántas unidades de cada línea regresaron: esas vuelven al origen con un traslado de regreso, que no se cancela, y las demás se quedan donde están. Un préstamo abierto pasada su hora está vencido, sin cambiar la existencia (ADR-0172).
 
 ## Datos personales
 

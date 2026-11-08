@@ -1213,6 +1213,7 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | POST | `/v1/admin/inventory/transfers` | `inventory.transfer` + `Idempotency-Key` | UC-INV-13 (ADR-0172) |
 | GET | `/v1/admin/inventory/transfers/{transferId}` | `inventory.read` | UC-INV-13 (ADR-0172) |
 | POST | `/v1/admin/inventory/transfers/{transferId}/cancel` | `inventory.transfer` | UC-INV-14 (ADR-0172) |
+| POST | `/v1/admin/inventory/transfers/{transferId}/close` | `inventory.transfer` | UC-INV-16 (ADR-0172) |
 
 El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
@@ -1289,41 +1290,55 @@ UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 
 Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva todo o nada (`reserve`), confirma (`commit`) y libera (`release`) por orden, y responde por línea si una cantidad puede surtirse (`canFulfill`), sin revelar existencias. Desde T-162 parte a (ADR-0160), `reserve` usa un solo almacén por orden, el primero por prioridad que la tiene toda; `canFulfillTogether` responde si cada línea cabe junto con las demás, y `allocationOf` da los almacenes de la reserva confirmada. Una reserva dura `RESERVATION_TTL` (20 minutos por defecto). Se puede confirmar mientras esté activa, hasta que el job de T-230 la venza.
 
-**Traslados entre almacenes** (UC-INV-13 y 14, ADR-0172, versión 1.11). Unidades de una o más variantes salen de un almacén y entran a otro en un solo paso, con un folio. Implementado en T-163.
+**Traslados entre almacenes y préstamos para mostrar** (UC-INV-13 a 16, ADR-0172, versión 1.11). Unidades de una o más variantes salen de un almacén y entran a otro en un solo paso, con un folio. Un préstamo mueve las unidades igual, para enseñarlas en el otro almacén, con una hora de regreso, y se cierra con lo que regresó. Implementado en T-163 (traslados) y T-164 (préstamos).
 
-`StockTransfer { id, folio, fromWarehouseId, toWarehouseId, reason, note, status, lines: [{ variantId, sku, productTitle, quantity }], createdBy, createdAt, cancellableUntil, cancelledBy, cancelledAt, version }`.
+`StockTransfer { id, folio, kind, fromWarehouseId, toWarehouseId, reason, note, status, lines: [{ variantId, sku, productTitle, quantity, returned }], createdBy, createdAt, cancellableUntil, cancelledBy, cancelledAt, returnBy, overdue, closedBy, closedAt, loanId, returnTransferId, version }`.
 
-- `folio`: `T-` y al menos seis dígitos, consecutivo, de una secuencia de la base de datos; un traslado que falla puede dejar un hueco.
-- `reason`: `SALE` (para venderlo en el destino), `RESTOCK` (para surtirlo) u `OTHER`, con `note` obligatoria.
-- `status`: `COMPLETED` al registrarse; `CANCELLED` si se canceló.
-- `cancellableUntil`: 10 minutos después de `createdAt`; `null` si ya se canceló.
+- `kind`: `TRANSFER`, un traslado definitivo, o `LOAN`, un préstamo para mostrar (T-164).
+- `folio`: `T-` en un traslado y `P-` en un préstamo, y al menos seis dígitos, consecutivo, de una secuencia de la base de datos que comparten los dos; un traslado que falla puede dejar un hueco.
+- `reason`: en un traslado, `SALE` (para venderlo en el destino), `RESTOCK` (para surtirlo) u `OTHER`, con `note` obligatoria; en un préstamo, `SHOW`; `LOAN_RETURN` en el traslado que regresa lo de un préstamo al cerrarlo, que nadie registra a mano.
+- `status`: un traslado está `COMPLETED` al registrarse; un préstamo, `OPEN` hasta que se cierra (`CLOSED`); cualquiera, `CANCELLED` si se canceló.
+- `cancellableUntil`: 10 minutos después de `createdAt`; `null` si ya no se puede cancelar por su estado: cancelado, préstamo cerrado o regreso de un préstamo.
+- `returnBy`: en un préstamo, cuándo debe regresar; `overdue`, si está abierto y esa hora ya pasó, según el reloj de la API. En un traslado, `null` y `false`.
+- `closedBy` y `closedAt`: quién cerró el préstamo y cuándo; `lines[].returned`, lo que regresó de cada línea, `null` mientras no se cierra y siempre en un traslado.
+- `loanId`: en un regreso (`LOAN_RETURN`), el préstamo; `returnTransferId`: en un préstamo cerrado, su regreso, o `null` si no regresó nada.
 - `lines`: por variante, en orden de su ID.
 
 **`POST …/transfers`** — Registra un traslado y mueve sus unidades. Exige `Idempotency-Key`: un reintento con la misma clave responde lo mismo sin mover otra vez.
 
-- Request: `{ "fromWarehouseId", "toWarehouseId", "reason": "SALE", "note": "Para enseñarlo a un cliente", "lines": [{ "variantId", "quantity": 2 }] }`.
+- Request: `{ "kind": "TRANSFER", "fromWarehouseId", "toWarehouseId", "reason": "SALE", "note": "Para enseñarlo a un cliente", "lines": [{ "variantId", "quantity": 2 }] }`; `kind` es opcional, `TRANSFER` por defecto.
+- Un préstamo: `{ "kind": "LOAN", "reason": "SHOW", "returnBy": "2026-11-08T19:00:00.000Z", … }`. `returnBy` es obligatoria en un préstamo, de 5 minutos a 24 horas después de registrarlo, y no va en un traslado. El backoffice propone 1 hora.
 - `toWarehouseId` es un almacén activo y distinto del origen; `fromWarehouseId`, cualquier almacén, también uno inactivo, para vaciarlo.
 - De 1 a 100 líneas, cada variante una vez y en cualquier estado; de 1 a 100,000 unidades por línea; `note` hasta 500 caracteres, sin espacios alrededor; vacía, sin nota.
 - Cada línea deja dos movimientos `TRANSFER` con el `transferId` y la nota: uno negativo en el origen y uno positivo en el destino, que crea la existencia si no estaba. Todo en una transacción: si una línea no se puede, no se mueve nada.
 - Solo se mueven unidades disponibles (`onHand − reserved`): lo reservado sigue para su orden.
 - 201 `StockTransfer`, con `Location`.
-- Errores: 400 `validation-error` con `differentWarehouse` en `toWarehouseId`, `isNotEmpty` en `note` con `OTHER` sin nota y `duplicateVariant` en `lines[i].variantId`; 404 si la variante o el origen no existen, o si el destino no existe o está inactivo; 409 `insufficient-stock` con `lines: [{ variantId, canFulfill: false }]` de cada línea que no alcanza.
-- Se audita como `inventory.transfer`, sobre el recurso `stock-transfer`, con el folio, los almacenes, el motivo, la nota y las líneas.
+- Errores: 400 `validation-error` con `differentWarehouse` en `toWarehouseId`, `isNotEmpty` en `note` con `OTHER` sin nota, `duplicateVariant` en `lines[i].variantId`, `reasonKind` en `reason` si el motivo no va con el tipo, `loanRange` en `returnBy` fuera de los 5 minutos a 24 horas e `isEmpty` en `returnBy` en un traslado; 404 si la variante o el origen no existen, o si el destino no existe o está inactivo; 409 `insufficient-stock` con `lines: [{ variantId, canFulfill: false }]` de cada línea que no alcanza.
+- Se audita como `inventory.transfer`, sobre el recurso `stock-transfer`, con el folio, el tipo, los almacenes, el motivo, la nota, la hora de regreso y las líneas.
 
-**`GET …/transfers`** — Paginado, del más reciente al más antiguo. Filtros: `warehouseId` (los que salen de ese almacén o llegan a él), `variantId` (los que tienen una línea de esa variante), `reason`, `status`, `from` y `to` (fecha o fecha y hora ISO 8601 sobre `createdAt`, ambos incluidos; una fecha sola en `to` incluye todo el día). Responde `{ "data": [StockTransfer], "meta" }`.
+**`GET …/transfers`** — Paginado, del más reciente al más antiguo. Filtros: `kind`, `overdue` (`true`: los préstamos abiertos cuya hora de regreso ya pasó; `false`: todos los demás), `warehouseId` (los que salen de ese almacén o llegan a él), `variantId` (los que tienen una línea de esa variante), `reason`, `status`, `from` y `to` (fecha o fecha y hora ISO 8601 sobre `createdAt`, ambos incluidos; una fecha sola en `to` incluye todo el día). Responde `{ "data": [StockTransfer], "meta" }`.
 
 **`GET …/transfers/{transferId}`** — 200 `StockTransfer`; 404 si no existe.
 
-**`POST …/transfers/{transferId}/cancel`** — Deshace un traslado equivocado en sus primeros 10 minutos.
+**`POST …/transfers/{transferId}/cancel`** — Deshace un traslado equivocado, o un préstamo abierto, en sus primeros 10 minutos. El regreso de un préstamo no se cancela.
 
 - Request: `{ "version": 1 }`, la versión leída.
 - Regresa las unidades al origen con movimientos `TRANSFER` contrarios, ligados al mismo traslado, porque el historial de existencias nunca se borra; el traslado queda `CANCELLED`, con quién lo canceló y cuándo, y su `version` sube.
 - Lo cancela cualquiera con `inventory.transfer`, no solo quien lo registró.
 - 200 `StockTransfer`.
-- Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` con `currentStatus: CANCELLED` si ya se canceló, o con `currentStatus: COMPLETED` y `reason: cancel-window-passed` pasados los 10 minutos; 409 `insufficient-stock` si el destino ya no tiene esas unidades disponibles, por ejemplo porque ya las vendió.
+- Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` con `currentStatus: CANCELLED` si ya se canceló, `CLOSED` si es un préstamo cerrado o `COMPLETED` si es el regreso de un préstamo, o con su estado (`COMPLETED` u `OPEN`) y `reason: cancel-window-passed` pasados los 10 minutos; 409 `insufficient-stock` si el destino ya no tiene esas unidades disponibles, por ejemplo porque ya las vendió.
 - Se audita como `inventory.transfer-cancel`.
 
-**Bloqueos:** registrar comparte el bloqueo de los dos almacenes, en orden de ID, así que el destino no se desactiva mientras las unidades llegan (ADR-0160). Registrar y cancelar cambian las existencias en orden ascendente de ID (BR-INV-14), así que dos traslados en sentidos contrarios no se bloquean entre sí. Cancelar bloquea el traslado, y dos cancelaciones a la vez dejan una sola; no bloquea los almacenes, porque las unidades vuelven a un origen que puede estar inactivo.
+**`POST …/transfers/{transferId}/close`** — Cierra un préstamo abierto (UC-INV-16).
+
+- Request: `{ "version": 1, "lines": [{ "variantId", "returned": 1 }] }`: cada línea del préstamo una vez, con las unidades que regresaron, de 0 a las prestadas.
+- Lo que regresó vuelve al origen con un traslado `LOAN_RETURN`, ligado al préstamo, con sus movimientos `TRANSFER`, aunque el origen esté inactivo, como un reintegro (ADR-0160). Lo demás se queda en el destino, por ejemplo porque el cliente lo compró ahí. Si no regresó nada, no hay traslado de regreso.
+- Lo cierra cualquiera con `inventory.transfer`, no solo quien lo registró. Un préstamo vencido se cierra igual.
+- 200 `StockTransfer` del préstamo, `CLOSED`, con `returnTransferId`.
+- Errores: 400 `validation-error` con `loanLines` en `lines` si falta alguna línea del préstamo o en `lines[i].variantId` si una no es del préstamo o se repite, y `range` en `lines[i].returned`; 404; 409 `version-conflict`; 409 `invalid-state-transition` si no es un préstamo abierto; 409 `insufficient-stock` si el destino ya no tiene disponibles las unidades que regresaron.
+- Se audita como `inventory.loan-close`, con lo que regresó de cada línea y el folio del regreso.
+
+**Bloqueos:** registrar comparte el bloqueo de los dos almacenes, en orden de ID, así que el destino no se desactiva mientras las unidades llegan (ADR-0160). Registrar y cancelar cambian las existencias en orden ascendente de ID (BR-INV-14), así que dos traslados en sentidos contrarios no se bloquean entre sí. Cancelar y cerrar bloquean el traslado o el préstamo, y dos a la vez dejan uno solo; no bloquean los almacenes, porque las unidades vuelven a un origen que puede estar inactivo.
 
 ---
 

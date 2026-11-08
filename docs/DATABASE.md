@@ -433,27 +433,32 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 
 ### 6.7 `stock_transfers`
 
-Cada traslado de existencias entre dos almacenes (T-163, ADR-0172, BR-INV-16). Migración `20261108140100_inventory_stock_transfers`.
+Cada traslado de existencias entre dos almacenes (T-163, ADR-0172, BR-INV-16), y cada préstamo para mostrar (T-164, BR-INV-17). Migraciones `20261108140100_inventory_stock_transfers` y, para los préstamos, `20261108150000_inventory_loan_enum_values` (los valores nuevos de los enums, aparte de la que los usa) y `20261108150100_inventory_stock_loans`.
 
 | Campo | Tipo | Nulo | Notas |
 |---|---|---|---|
 | id | uuid | No | PK |
-| number | bigserial | No | `UNIQUE`; el número del folio `T-000123`, consecutivo; una transacción que falla deja un hueco |
+| number | bigserial | No | `UNIQUE`; el número del folio `T-000123`, o `P-000123` en un préstamo, consecutivo; una transacción que falla deja un hueco |
+| kind | enum `stock_transfer_kind` (TRANSFER, LOAN) | No | TRANSFER por defecto |
 | from_warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT`; el origen, en cualquier estado |
 | to_warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT`; el destino, activo al registrarse |
-| reason | enum `stock_transfer_reason` (SALE, RESTOCK, OTHER) | No | — |
+| reason | enum `stock_transfer_reason` (SALE, RESTOCK, OTHER, SHOW, LOAN_RETURN) | No | SHOW en un préstamo; LOAN_RETURN en el regreso de uno |
 | note | text | Sí | De 1 a 500 caracteres; obligatoria con OTHER |
-| status | enum `stock_transfer_status` (COMPLETED, CANCELLED) | No | COMPLETED al registrarse |
+| status | enum `stock_transfer_status` (COMPLETED, CANCELLED, OPEN, CLOSED) | No | COMPLETED al registrar un traslado; OPEN al registrar un préstamo, y CLOSED al cerrarlo |
 | created_by | uuid | No | Referencia lógica a `users` |
 | created_at | timestamptz(3) | No | Lo escribe el reloj de la API (ADR-0124); la cancelación se permite hasta 10 minutos después |
 | cancelled_by | uuid | Sí | Referencia lógica a `users` |
 | cancelled_at | timestamptz(3) | Sí | — |
-| version | integer | No | 1 al registrarse; sube al cancelar |
+| return_by | timestamptz(3) | Sí | Cuándo debe regresar un préstamo |
+| closed_by | uuid | Sí | Quién cerró el préstamo; referencia lógica a `users` |
+| closed_at | timestamptz(3) | Sí | — |
+| loan_id | uuid | Sí | `UNIQUE`; FK → `stock_transfers.id` `RESTRICT`; en el regreso de un préstamo, el préstamo |
+| version | integer | No | 1 al registrarse; sube al cancelar o cerrar |
 | updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `stock_transfers_warehouses_check`: `CHECK (from_warehouse_id <> to_warehouse_id)`; `stock_transfers_note_check`: `CHECK ((note IS NULL OR char_length(note) BETWEEN 1 AND 500) AND (reason <> 'OTHER' OR note IS NOT NULL))`; `stock_transfers_cancelled_check`: `CHECK ((status = 'CANCELLED') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))`; `stock_transfers_version_check`: `CHECK (version >= 1)`.
-- **Índices:** `(created_at)` para el listado; `(from_warehouse_id, created_at)` y `(to_warehouse_id, created_at)` para el filtro por almacén.
-- **Integridad:** nunca se borra. La cancelación bloquea la fila (`FOR UPDATE`) y la guarda solo sobre la versión leída; sus movimientos contrarios se suman a los del traslado, que no se tocan (BR-INV-13).
+- **Restricciones:** `stock_transfers_warehouses_check`: `CHECK (from_warehouse_id <> to_warehouse_id)`; `stock_transfers_note_check`: `CHECK ((note IS NULL OR char_length(note) BETWEEN 1 AND 500) AND (reason <> 'OTHER' OR note IS NOT NULL))`; `stock_transfers_cancelled_check`: `CHECK ((status = 'CANCELLED') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))`; `stock_transfers_version_check`: `CHECK (version >= 1)`; `stock_transfers_kind_check`: un préstamo, y solo él, tiene `return_by` y el motivo SHOW, de 5 minutos a 24 horas después de `created_at`, y los estados OPEN, CLOSED o CANCELLED, y un traslado COMPLETED o CANCELLED; `loan_id` va exactamente con LOAN_RETURN; `stock_transfers_closed_check`: `CHECK ((status = 'CLOSED') = (closed_at IS NOT NULL) AND (closed_at IS NULL) = (closed_by IS NULL))`.
+- **Índices:** `(created_at)` para el listado; `(from_warehouse_id, created_at)` y `(to_warehouse_id, created_at)` para el filtro por almacén; `(kind, status, return_by)` para los préstamos abiertos y vencidos.
+- **Integridad:** nunca se borra. La cancelación y el cierre bloquean la fila (`FOR UPDATE`) y la guardan solo sobre la versión leída; los movimientos contrarios de la cancelación y los del regreso se suman a los del traslado, que no se tocan (BR-INV-13).
 
 ### 6.8 `stock_transfer_lines`
 
@@ -462,6 +467,7 @@ Cada traslado de existencias entre dos almacenes (T-163, ADR-0172, BR-INV-16). M
 | transfer_id | uuid | PK compuesta; FK → `stock_transfers.id` `CASCADE` |
 | variant_id | uuid | PK compuesta; referencia lógica a Catalog; una variante una vez por traslado |
 | quantity | integer | `CHECK (quantity BETWEEN 1 AND 100000)` |
+| returned | integer | Lo que regresó de una línea de un préstamo al cerrarlo; `NULL` hasta entonces y en un traslado; `CHECK (returned IS NULL OR returned BETWEEN 0 AND quantity)` |
 
 - **Índices:** `(variant_id)`, para el filtro por variante.
 
@@ -872,7 +878,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 | Reintegro doble | Antes de reintegrar, se suma lo reintegrado por `order_line_id` en `stock_movements` y se compara con lo vendido. Ordering bloquea la orden (`FOR UPDATE`), así que dos reintegros de la misma orden se esperan y el segundo ve lo que escribió el primero (ADR-0142) | Índice parcial de RESTOCK por `order_line_id` |
 | Ajuste por debajo de lo reservado | Validación en el aggregate | `CHECK` de `stock_items` |
 | Traslado a medias o de lo reservado | Cada lado de cada línea en la misma transacción, en orden ascendente de `stock_item_id`; el lado que resta, con `UPDATE … WHERE on_hand - reserved >= q`; si alguno afecta 0 filas, se revierte todo. Comparte el bloqueo de los dos almacenes (ADR-0172) | `CHECK` de `stock_items`; `stock_movements_transfer_check` |
-| Cancelación doble de un traslado | Bloquea el traslado (`FOR UPDATE`) y lo guarda solo sobre la versión leída (ADR-0172) | `version` y `stock_transfers_cancelled_check` |
+| Cancelación o cierre doble de un traslado o un préstamo | Bloquea el traslado (`FOR UPDATE`) y lo guarda solo sobre la versión leída (ADR-0172) | `version` y `stock_transfers_cancelled_check` |
 | Descuadre del libro | Cada cambio de `on_hand` escribe un movimiento en la misma transacción con `on_hand_after` | Conciliación verificable: la suma de movimientos por `stock_item` debe igualar `on_hand` (consulta de verificación en los tests de integración) |
 
 **Otras reglas de concurrencia:**
@@ -981,6 +987,7 @@ erDiagram
     warehouses ||--o{ stock_transfers : "origen y destino"
     stock_transfers ||--o{ stock_transfer_lines : traslada
     stock_transfers ||--o{ stock_movements : mueve
+    stock_transfers |o--o| stock_transfers : "regreso de"
     product_variants ||..o{ stock_transfer_lines : "variante de"
     reservations ||--o{ reservation_lines : reserva
     stock_items ||--o{ reservation_lines : aparta

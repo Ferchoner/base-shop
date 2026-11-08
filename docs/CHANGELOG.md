@@ -5,6 +5,7 @@
 - Plan de la versión 1.11 (nuevo ADR-0172): traslados entre almacenes de un paso, con cancelación en los primeros 10 minutos, y préstamos para mostrar con hora de regreso.
 - Paso 0 de la versión 1.11: `npm audit` sin cambios desde la 1.10 (0 avisos en producción); `DEVELOPMENT_GUIDE.md` con las prácticas de la review de la 1.10.
 - T-163: traslados entre almacenes en un solo paso, con folio `T-`, motivo y líneas, que se cancelan en sus primeros 10 minutos (`/v1/admin/inventory/transfers`); movimiento `TRANSFER` con `transferId`; permiso nuevo `inventory.transfer` para el Vendedor y el Administrador (ADR-0172).
+- T-164: préstamos para mostrar (`kind: LOAN`), con folio `P-` y hora de regreso; filtros `kind` y `overdue`; `POST /v1/admin/inventory/transfers/{transferId}/close` con lo que regresó, que vuelve al origen con un traslado de regreso (ADR-0172).
 
 ## 1.10.0 (2026-11-08)
 

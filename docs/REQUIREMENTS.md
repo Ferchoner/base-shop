@@ -273,6 +273,8 @@ Criterios de aceptación:
 | UC-INV-12 | Carga masiva de entradas de mercancía | Staff (`inventory.write`) | BR-INV-08, BR-INV-13, BR-INV-15, ADR-0164 |
 | UC-INV-13 | Trasladar existencias entre almacenes | Staff (`inventory.transfer`; consultar con `inventory.read`) | BR-INV-01, BR-INV-13, BR-INV-14, BR-INV-16, ADR-0172 |
 | UC-INV-14 | Cancelar un traslado en sus primeros 10 minutos | Staff (`inventory.transfer`) | BR-INV-13, BR-INV-16, ADR-0172 |
+| UC-INV-15 | Prestar existencias a otro almacén para mostrarlas | Staff (`inventory.transfer`; consultar con `inventory.read`) | BR-INV-16, BR-INV-17, ADR-0172 |
+| UC-INV-16 | Cerrar un préstamo con lo que regresó | Staff (`inventory.transfer`) | BR-INV-13, BR-INV-17, ADR-0172 |
 
 Criterios de aceptación:
 
@@ -288,6 +290,8 @@ Criterios de aceptación:
 - **UC-INV-12 (implementación, ADR-0164):** cada fila deja su movimiento `RECEIPT`, en el orden del archivo, aunque el SKU se repita; un almacén desactivado mientras la carga espera, o una existencia que pasaría de 2,147,483,647 unidades, es un error de su fila; la carga suma sobre lo que dejó un cambio que terminó antes; el mismo archivo enviado dos veces a la vez se guarda una sola vez; 5,000 filas caben en una transacción; la plantilla `docs/templates/stock.csv` se importa sin errores después de la de productos.
 - **UC-INV-12 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, cada una una entrada de mercancía (UC-INV-02) por SKU y código de almacén activo; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un archivo idéntico a uno ya cargado se rechaza, con la fecha de la carga anterior.
 - **UC-INV-13 (ADR-0172, versión 1.11):** una o más variantes salen de un almacén y entran a otro activo y distinto en una sola transacción, o no se mueve nada; solo se mueven unidades disponibles, nunca reservadas; cada línea deja un movimiento `TRANSFER` en cada almacén, ligado al traslado; el traslado lleva un folio `T-` consecutivo, un motivo (vender, surtir u otro con nota) y quién lo registró; un reintento con la misma `Idempotency-Key` no mueve dos veces; dos traslados de las últimas unidades a la vez dejan pasar uno, y dos en sentidos contrarios no se bloquean; se audita.
+- **UC-INV-15 (ADR-0172, versión 1.11):** un traslado de tipo préstamo, con folio `P-`, motivo `SHOW` y una hora de regreso de 5 minutos a 24 horas después; las unidades pasan al otro almacén al registrarlo, así que una venta ahí sale de ellas sin otro paso; queda abierto hasta que se cierra; un préstamo abierto pasada su hora sale vencido en el listado, sin cambiar la existencia; se cancela como un traslado, en sus primeros 10 minutos y mientras siga abierto.
+- **UC-INV-16 (ADR-0172, versión 1.11):** con la versión leída y lo que regresó de cada línea del préstamo, todas una vez, de 0 a lo prestado; lo que regresó vuelve al origen con un traslado de regreso ligado al préstamo, que no se cancela, aunque el origen esté inactivo; lo demás se queda; se rechaza si el destino ya no tiene disponible lo que regresó; dos cierres a la vez dejan uno; lo cierra cualquiera con `inventory.transfer`; se audita.
 - **UC-INV-14 (ADR-0172, versión 1.11):** solo en los 10 minutos que siguen al registro y una vez; regresa las unidades al origen con movimientos contrarios, sin borrar los del traslado; se rechaza si el destino ya no tiene las unidades disponibles; exige la versión leída; lo cancela cualquiera con `inventory.transfer`; se audita.
 
 ### 5.5 Shopping
