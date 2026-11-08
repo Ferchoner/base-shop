@@ -14,6 +14,7 @@ import {
 import { InventoryQueries } from './application/inventory.queries.js';
 import { ImportReceipts } from './application/import-receipts.use-case.js';
 import { StockEntries } from './application/stock-entries.use-case.js';
+import { StockLocations } from './application/stock-locations.use-case.js';
 import { StockListing } from './application/stock-listing.js';
 import { StockTransfers } from './application/stock-transfers.use-case.js';
 import { TransferQueries } from './application/transfer.queries.js';
@@ -64,6 +65,7 @@ import { AdminWarehousesController } from './presentation/admin-warehouses.contr
     UpdateWarehouse,
     DeactivateWarehouse,
     StockEntries,
+    StockLocations,
     StockListing,
     StockTransfers,
     ImportReceipts,

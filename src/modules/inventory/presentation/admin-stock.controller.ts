@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -26,12 +26,15 @@ import type {
 } from '../application/inventory.queries.js';
 import { StockEntries } from '../application/stock-entries.use-case.js';
 import { StockListing } from '../application/stock-listing.js';
+import { StockLocations } from '../application/stock-locations.use-case.js';
 import {
   AdjustmentDto,
   ReceiptDto,
   StockEntryDto,
   StockItemListDto,
+  StockItemDto,
   StockItemQueryDto,
+  StockLocationDto,
   StockMovementListDto,
   StockMovementQueryDto,
 } from './inventory.dto.js';
@@ -55,8 +58,9 @@ function movementPosition(
 }
 
 /**
- * Stock of the staff (UC-INV-02 to 04, API_SPEC.md §13, ADR-0069, ADR-0127): the listing, the movements of a
- * stock item, receipts and adjustments. Reservations have no API: the checkout runs them (T-160 part b).
+ * Stock of the staff (UC-INV-02 to 04 and 17, API_SPEC.md §13, ADR-0069, ADR-0127, ADR-0173): the listing, the
+ * movements of a stock item, receipts, adjustments and the location of each product. Reservations have no API:
+ * the checkout runs them (T-160 part b).
  */
 @ApiTags('Administración: inventario')
 @ApiProblemResponses('unauthenticated', 'forbidden', 'password-change-required')
@@ -65,6 +69,7 @@ export class AdminStockController {
   constructor(
     private readonly listing: StockListing,
     private readonly entries: StockEntries,
+    private readonly locations: StockLocations,
   ) {}
 
   @ApiOperation({
@@ -90,6 +95,8 @@ export class AdminStockController {
             ? undefined
             : toId<'Warehouse'>(query.warehouseId),
         availableMax: query.availableMax,
+        location: query.location,
+        hasLocation: query.hasLocation,
       },
       toSortOrders<StockSortField>(query.sort, 'sku'),
       page,
@@ -182,5 +189,22 @@ export class AdminStockController {
       },
       actor.id,
     );
+  }
+
+  @ApiOperation({
+    summary: 'Cambiar la ubicación de un producto en un almacén',
+    description:
+      'ADR-0173. Por variante y almacén, aunque la variante todavía no tenga unidades ahí: crea su existencia en 0. `null` la quita; quitarla donde no hay existencia es 404. Se guarda sin espacios de sobra y en mayúsculas; vacía o de más de 20 caracteres es 400 `isLength`. La variante puede estar en cualquier estado y el almacén, inactivo. Un traslado no la cambia. Se audita como `inventory.location` cuando cambia.',
+  })
+  @ApiOkResponse({ type: StockItemDto })
+  @ApiProblemResponses('not-found')
+  @RequirePermissions('inventory.count')
+  @Put('locations')
+  setLocation(@Body() body: StockLocationDto): Promise<StockItemDto> {
+    return this.locations.set({
+      variantId: toId<'Variant'>(body.variantId),
+      warehouseId: toId<'Warehouse'>(body.warehouseId),
+      location: body.location,
+    });
   }
 }

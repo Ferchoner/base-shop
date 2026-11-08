@@ -4,6 +4,7 @@
 
 - Plan de la versión 1.12 (nuevo ADR-0173): la ubicación de cada producto en cada almacén, hojas de conteo que ajustan las diferencias de una vez, y la clase A, B o C de cada producto, con una sugerida por las ventas de 90 días.
 - Paso 0 de la versión 1.12: `npm audit` sin cambios desde la 1.11 (0 avisos en producción); `DEVELOPMENT_GUIDE.md` con las prácticas de la review de la 1.11.
+- T-165: la ubicación de cada producto en cada almacén (`location` en `StockItem`), con `PUT /v1/admin/inventory/locations` y los filtros `location` (exacta o por prefijo con `*`) y `hasLocation`; permiso nuevo `inventory.count` para el Vendedor y el Administrador (ADR-0173).
 
 ## 1.11.0 (2026-11-08)
 

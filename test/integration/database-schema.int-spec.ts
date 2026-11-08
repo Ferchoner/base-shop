@@ -75,6 +75,21 @@ describe('Database schema (T-110)', () => {
     ).rejects.toThrow(/stock_items_reserved_check/);
   });
 
+  it.each(['', ' A1', 'A1 ', 'X'.repeat(21)])(
+    'rejects the stock location %j: trimmed, 1 to 20 characters (ADR-0173)',
+    async (location) => {
+      const warehouseId = await insertWarehouse('INACTIVE');
+
+      await expect(
+        client.query(
+          `INSERT INTO stock_items (id, variant_id, warehouse_id, on_hand, reserved, location, updated_at)
+           VALUES ($1, $2, $3, 0, 0, $4, now())`,
+          [randomUUID(), randomUUID(), warehouseId, location],
+        ),
+      ).rejects.toThrow(/stock_items_location_check|value too long/);
+    },
+  );
+
   it('rejects an event delivery marked delivered without its date, or with fewer than zero attempts (ADR-0150)', async () => {
     const eventId = randomUUID();
     await client.query(

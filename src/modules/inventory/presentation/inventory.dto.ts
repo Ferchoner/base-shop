@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -36,6 +37,7 @@ import {
 import {
   ADJUSTMENT_REASONS,
   type AdjustmentReason,
+  MAX_LOCATION_LENGTH,
   MAX_NOTE_LENGTH,
   MAX_STOCK_QUANTITY,
   MAX_WAREHOUSE_NAME_LENGTH,
@@ -185,6 +187,15 @@ export class StockItemDto {
   /** `onHand − reserved`. @example 22 */
   available: number;
 
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    maxLength: MAX_LOCATION_LENGTH,
+    example: 'A1',
+    description:
+      'Dónde está en el almacén, en mayúsculas (ADR-0173); `null` sin ubicación.',
+  })
+  location: string | null;
+
   @ApiProperty(DATE_TIME)
   updatedAt: Date;
 }
@@ -229,6 +240,25 @@ export class StockItemQueryDto extends PageQueryDto {
   // The largest integer of PostgreSQL: a larger one is a validation error and not a 500 (T-310).
   @Max(2_147_483_647)
   availableMax?: number;
+
+  /**
+   * Ubicación exacta, sin distinguir mayúsculas, o con `*` al final las que empiezan así (ADR-0173); hasta 20
+   * caracteres antes del `*`.
+   * @example 'A*'
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_LOCATION_LENGTH + 1)
+  location?: string;
+
+  /** `true`, solo las existencias con ubicación; `false`, solo las que no tienen. */
+  @ApiPropertyOptional({ type: Boolean })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  hasLocation?: boolean;
 
   /** `sku`, `available` o `updatedAt`, con `-` para orden descendente; por defecto `sku`. */
   @IsOptional()
@@ -384,6 +414,29 @@ export class AdjustmentDto {
   @IsString()
   @MaxLength(MAX_NOTE_LENGTH)
   note?: string | null;
+}
+
+/** `PUT …/locations` (UC-INV-17, ADR-0173): where a variant is in a warehouse. */
+export class StockLocationDto {
+  /** La variante, en cualquier estado. */
+  @IsUUID()
+  variantId: string;
+
+  /** Cualquier almacén, también uno inactivo. */
+  @IsUUID()
+  warehouseId: string;
+
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    example: 'vitrina 1',
+    description:
+      'De 1 a 20 caracteres; se guarda sin espacios de sobra y en mayúsculas. `null` la quita.',
+  })
+  // Up to 100 before the spaces are trimmed; the domain checks the 20 that are kept.
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(100)
+  location: string | null;
 }
 
 /** A receipt or adjustment: the stock after it and its movement. */

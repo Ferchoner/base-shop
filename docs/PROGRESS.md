@@ -188,6 +188,7 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
 - [ ] Versión 1.12: ubicación de cada producto y hojas de conteo (paso 0, T-165 y T-166), en curso; plan en `SPRINT.md`
+- [x] T-165: ubicación opcional de cada existencia, de 1 a 20 caracteres en mayúsculas; `PUT /v1/admin/inventory/locations`, que la registra aunque no haya unidades y se audita; filtros `location` (exacto o con `*` por prefijo) y `hasLocation`; permiso `inventory.count` para el Vendedor y el Administrador (ADR-0173)
 - [x] Paso 0 de la versión 1.12: `npm audit` sin cambios desde la 1.11 (0 en producción); las prácticas de la review de la 1.11 en `DEVELOPMENT_GUIDE.md` (ADR-0173)
 - [x] Versión 1.11.0: traslados entre almacenes (paso 0, T-163 y T-164), cerrada el 2026-11-08; review en `SPRINT.md`
 - [x] T-164: préstamo para mostrar, un traslado con folio `P-` y hora de regreso de 5 minutos a 24 horas; vencidos en el listado (`overdue`); cierre con lo que regresó de cada línea, que vuelve al origen con un traslado de regreso, y lo demás se queda (ADR-0172)

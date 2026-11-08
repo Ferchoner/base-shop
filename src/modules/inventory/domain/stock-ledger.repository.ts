@@ -96,6 +96,17 @@ export abstract class StockLedgerRepository {
   ): Promise<void>;
 
   /**
+   * Sets where the stock of a variant is in a warehouse (ADR-0173), locking its stock item until the transaction
+   * ends. A location creates the stock item, with no units, when it does not exist; `null` clears it, and answers
+   * `null`, with nothing written, when there is no stock item. `updatedAt` only moves when the location changes.
+   */
+  abstract setLocation(
+    key: StockKey,
+    location: string | null,
+    at: Date,
+  ): Promise<{ stock: StockLevel; before: string | null } | null>;
+
+  /**
    * Applies an adjustment (UC-INV-03), creating the stock item if needed; `null`, with nothing written, when
    * it would leave `onHand` below `reserved` or zero (BR-INV-01).
    */

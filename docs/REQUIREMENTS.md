@@ -275,6 +275,7 @@ Criterios de aceptación:
 | UC-INV-14 | Cancelar un traslado en sus primeros 10 minutos | Staff (`inventory.transfer`) | BR-INV-13, BR-INV-16, ADR-0172 |
 | UC-INV-15 | Prestar existencias a otro almacén para mostrarlas | Staff (`inventory.transfer`; consultar con `inventory.read`) | BR-INV-16, BR-INV-17, ADR-0172 |
 | UC-INV-16 | Cerrar un préstamo con lo que regresó | Staff (`inventory.transfer`) | BR-INV-13, BR-INV-17, ADR-0172 |
+| UC-INV-17 | Registrar dónde está cada producto en cada almacén | Staff (`inventory.count`; consultar con `inventory.read`) | BR-INV-18, ADR-0173 |
 
 Criterios de aceptación:
 
@@ -293,6 +294,7 @@ Criterios de aceptación:
 - **UC-INV-15 (ADR-0172, versión 1.11):** un traslado de tipo préstamo, con folio `P-`, motivo `SHOW` y una hora de regreso de 5 minutos a 24 horas después; las unidades pasan al otro almacén al registrarlo, así que una venta ahí sale de ellas sin otro paso; queda abierto hasta que se cierra; un préstamo abierto pasada su hora sale vencido en el listado, sin cambiar la existencia; se cancela como un traslado, en sus primeros 10 minutos y mientras siga abierto.
 - **UC-INV-16 (ADR-0172, versión 1.11):** con la versión leída y lo que regresó de cada línea del préstamo, todas una vez, de 0 a lo prestado; lo que regresó vuelve al origen con un traslado de regreso ligado al préstamo, que no se cancela, aunque el origen esté inactivo; lo demás se queda; se rechaza si el destino ya no tiene disponible lo que regresó; dos cierres a la vez dejan uno; lo cierra cualquiera con `inventory.transfer`; se audita.
 - **UC-INV-14 (ADR-0172, versión 1.11):** solo en los 10 minutos que siguen al registro y una vez; regresa las unidades al origen con movimientos contrarios, sin borrar los del traslado; se rechaza si el destino ya no tiene las unidades disponibles; exige la versión leída; lo cancela cualquiera con `inventory.transfer`; se audita.
+- **UC-INV-17 (ADR-0173, versión 1.12):** una ubicación opcional por variante y almacén, de 1 a 20 caracteres, en mayúsculas; se registra aunque la variante no tenga unidades ahí, y se quita; el listado de existencias filtra por ubicación exacta, por prefijo y por tener o no ubicación; un traslado no la cambia; cada cambio se audita.
 
 ### 5.5 Shopping
 

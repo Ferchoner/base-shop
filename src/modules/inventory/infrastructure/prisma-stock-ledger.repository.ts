@@ -30,6 +30,7 @@ interface StockRow {
   warehouse_id: string;
   on_hand: number;
   reserved: number;
+  location: string | null;
   updated_at: Date;
 }
 
@@ -70,7 +71,7 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
       ON CONFLICT (variant_id, warehouse_id) DO NOTHING`;
     // In ascending ID order, like reservations (BR-INV-14), so they never wait for each other in a circle.
     const rows = await tx.$queryRaw<StockRow[]>`
-      SELECT item.id, item.variant_id, item.warehouse_id, item.on_hand, item.reserved, item.updated_at
+      SELECT item.id, item.variant_id, item.warehouse_id, item.on_hand, item.reserved, item.location, item.updated_at
         FROM stock_items AS item
         JOIN unnest(${variantIds}::uuid[], ${warehouseIds}::uuid[]) AS wanted(variant_id, warehouse_id)
           ON item.variant_id = wanted.variant_id AND item.warehouse_id = wanted.warehouse_id
@@ -108,6 +109,34 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
                ${receipts.map(({ note }) => note)}::text[],
                ${receipts.map(({ actorId }) => actorId)}::uuid[]
              ) AS row(id, stock_item_id, quantity, on_hand_after, note, actor_id)`;
+  }
+
+  async setLocation(
+    key: StockKey,
+    location: string | null,
+    at: Date,
+  ): Promise<{ stock: StockLevel; before: string | null } | null> {
+    const tx = this.txHost.tx;
+    if (location !== null) {
+      // Like a first receipt: two at the same time create the stock item once.
+      await tx.$executeRaw`
+        INSERT INTO stock_items (id, variant_id, warehouse_id, on_hand, reserved, created_at, updated_at)
+        VALUES (${newId<'StockItem'>()}::uuid, ${key.variantId}::uuid, ${key.warehouseId}::uuid, 0, 0, ${at}, ${at})
+        ON CONFLICT (variant_id, warehouse_id) DO NOTHING`;
+    }
+    const [current] = await tx.$queryRaw<{ location: string | null }[]>`
+      SELECT location FROM stock_items
+       WHERE variant_id = ${key.variantId}::uuid AND warehouse_id = ${key.warehouseId}::uuid
+         FOR UPDATE`;
+    if (current === undefined) return null;
+    const [row] = await tx.$queryRaw<StockRow[]>`
+      UPDATE stock_items
+         SET location = ${location}::varchar,
+             updated_at = CASE WHEN location IS DISTINCT FROM ${location}::varchar THEN ${at} ELSE updated_at END
+       WHERE variant_id = ${key.variantId}::uuid AND warehouse_id = ${key.warehouseId}::uuid
+   RETURNING id, variant_id, warehouse_id, on_hand, reserved, location, updated_at`;
+    if (row === undefined) throw new Error('A locked stock item is updated');
+    return { stock: toLevel(row), before: current.location };
   }
 
   async adjust(
@@ -243,12 +272,12 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
              SET on_hand = on_hand + ${entry.quantity}::int, updated_at = ${entry.at}
            WHERE variant_id = ${entry.variantId}::uuid AND warehouse_id = ${entry.warehouseId}::uuid
              AND on_hand + ${entry.quantity}::int >= reserved
-       RETURNING id, variant_id, warehouse_id, on_hand, reserved, updated_at`
+       RETURNING id, variant_id, warehouse_id, on_hand, reserved, location, updated_at`
       : await tx.$queryRaw<StockRow[]>`
           UPDATE stock_items
              SET on_hand = on_hand + ${entry.quantity}::int, updated_at = ${entry.at}
            WHERE variant_id = ${entry.variantId}::uuid AND warehouse_id = ${entry.warehouseId}::uuid
-       RETURNING id, variant_id, warehouse_id, on_hand, reserved, updated_at`;
+       RETURNING id, variant_id, warehouse_id, on_hand, reserved, location, updated_at`;
     const [row] = rows;
     return row === undefined ? null : toLevel(row);
   }
@@ -294,6 +323,7 @@ function toLevel(row: StockRow): StockLevel {
     warehouseId: toId<'Warehouse'>(row.warehouse_id),
     onHand: row.on_hand,
     reserved: row.reserved,
+    location: row.location,
     updatedAt: row.updated_at,
   };
 }

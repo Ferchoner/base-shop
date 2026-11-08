@@ -42,6 +42,7 @@
                 "inventory.read",
                 "inventory.write",
                 "inventory.transfer",
+                "inventory.count",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -3825,6 +3826,7 @@
                 "inventory.read",
                 "inventory.write",
                 "inventory.transfer",
+                "inventory.count",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -7863,6 +7865,7 @@
                 "inventory.read",
                 "inventory.write",
                 "inventory.transfer",
+                "inventory.count",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -8577,6 +8580,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "location": {
+            "description": "Dónde está en el almacén, en mayúsculas (ADR-0173); `null` sin ubicación.",
+            "example": "A1",
+            "maxLength": 20,
+            "nullable": true,
+            "type": "string"
+          },
           "onHand": {
             "description": "Unidades físicas en el almacén.",
             "example": 25,
@@ -8612,6 +8622,7 @@
           "id",
           "variantId",
           "warehouseId",
+          "location",
           "updatedAt",
           "sku",
           "productTitle",
@@ -8636,6 +8647,33 @@
         "required": [
           "data",
           "meta"
+        ],
+        "type": "object"
+      },
+      "StockLocationDto": {
+        "properties": {
+          "location": {
+            "description": "De 1 a 20 caracteres; se guarda sin espacios de sobra y en mayúsculas. `null` la quita.",
+            "example": "vitrina 1",
+            "maxLength": 100,
+            "nullable": true,
+            "type": "string"
+          },
+          "variantId": {
+            "description": "La variante, en cualquier estado.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "warehouseId": {
+            "description": "Cualquier almacén, también uno inactivo.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location",
+          "variantId",
+          "warehouseId"
         ],
         "type": "object"
       },
@@ -9475,6 +9513,7 @@
                 "inventory.read",
                 "inventory.write",
                 "inventory.transfer",
+                "inventory.count",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -17165,6 +17204,107 @@
         ]
       }
     },
+    "/v1/admin/inventory/locations": {
+      "put": {
+        "description": "ADR-0173. Por variante y almacén, aunque la variante todavía no tenga unidades ahí: crea su existencia en 0. `null` la quita; quitarla donde no hay existencia es 404. Se guarda sin espacios de sobra y en mayúsculas; vacía o de más de 20 caracteres es 400 `isLength`. La variante puede estar en cualquier estado y el almacén, inactivo. Un traslado no la cambia. Se audita como `inventory.location` cuando cambia.",
+        "operationId": "AdminStockController_setLocation_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockLocationDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockItemDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar la ubicación de un producto en un almacén",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.count"
+        ]
+      }
+    },
     "/v1/admin/inventory/receipt-imports": {
       "post": {
         "description": "CSV en UTF-8 con las columnas sku, warehouse (el código del almacén, activo) y quantity (de 1 a 100,000), obligatorias, y note, opcional, en cualquier orden. Cada fila suma sus unidades a la existencia de la variante en el almacén y deja su movimiento. Todo o nada: con un error en cualquier fila no se carga ninguna. Un archivo idéntico a uno ya cargado responde 409, para no sumar dos veces. Hasta 5,000 filas y 1 MB.",
@@ -17429,6 +17569,15 @@
             }
           },
           {
+            "description": "`true`, solo las existencias con ubicación; `false`, solo las que no tienen.",
+            "in": "query",
+            "name": "hasLocation",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Solo las existencias de esta variante.",
             "in": "query",
             "name": "variantId",
@@ -17478,6 +17627,17 @@
               "maximum": 2147483647,
               "minimum": 0,
               "type": "number"
+            }
+          },
+          {
+            "description": "Ubicación exacta, sin distinguir mayúsculas, o con `*` al final las que empiezan así (ADR-0173); hasta 20\ncaracteres antes del `*`.",
+            "in": "query",
+            "name": "location",
+            "required": false,
+            "schema": {
+              "example": "A*",
+              "maxLength": 21,
+              "type": "string"
             }
           },
           {

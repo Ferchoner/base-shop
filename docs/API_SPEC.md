@@ -1206,6 +1206,7 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | POST | `/v1/admin/inventory/warehouses/{warehouseId}/deactivate` | `inventory.write` | UC-INV-11 |
 | GET | `/v1/admin/inventory/stock-items` | `inventory.read` | UC-INV-04 |
 | GET | `/v1/admin/inventory/stock-items/{stockItemId}/movements` | `inventory.read` | UC-INV-04 |
+| PUT | `/v1/admin/inventory/locations` | `inventory.count` | UC-INV-17 (ADR-0173) |
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
 | POST | `/v1/admin/inventory/adjustments` | `inventory.write` | UC-INV-03 |
 | POST | `/v1/admin/inventory/receipt-imports` | `inventory.write` | UC-INV-12 (ADR-0164) |
@@ -1223,7 +1224,18 @@ El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo ati
 
 **`POST …/warehouses/{warehouseId}/deactivate`** (UC-INV-11, ADR-0076, ADR-0160) — Sin cuerpo. Para siempre: el almacén deja de vender, reservar y recibir mercancía, y conserva su stock. 200 `Warehouse`. Errores: 404; 409 `resource-in-use` si tiene unidades reservadas; 409 `invalid-state-transition` si ya está inactivo, o si es el último activo, con `reason: last-active-warehouse`. Se audita como `warehouses.deactivate`.
 
-**`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
+**`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, location, updatedAt }` (`available = onHand − reserved`; `location`, dónde está en el almacén, o `null`, desde la 1.12). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas), `location` y `hasLocation` (ADR-0173, abajo). Orden: `sku` (defecto), `available`, `updatedAt`.
+
+**Ubicación de cada producto** (UC-INV-17, ADR-0173, versión 1.12). Cada existencia, una variante en un almacén, tiene una ubicación opcional: un texto libre, sin catálogo de ubicaciones, como `A1`, `VITRINA 1` o `BODEGA`. Implementado en T-165.
+
+- **`PUT …/locations`** — `inventory.count`. Request `{ "variantId", "warehouseId", "location": "vitrina 1" }`; los tres obligatorios, y `location` puede ser `null`. 200 `StockItem`.
+  - `location` se guarda sin espacios alrededor, con un solo espacio entre palabras y en mayúsculas (`VITRINA 1`), y queda de 1 a 20 caracteres; vacía o más larga, 400 `validation-error` con `isLength` en `location`. `null` la quita.
+  - Sirve antes de la primera entrada: si la variante no tiene existencia en ese almacén, la crea con 0 unidades, sin movimiento. Quitar la ubicación donde no hay existencia es 404.
+  - La variante puede estar en cualquier estado y el almacén, inactivo, como en un ajuste; una variante o un almacén que no existe, 404.
+  - Una ubicación no es un movimiento: no cambia `onHand` ni deja historial de existencias. `updatedAt` cambia solo si la ubicación cambia.
+  - Un traslado no cambia la ubicación de ninguna de sus dos existencias; la que crea en el destino nace sin ubicación.
+  - Se audita como `inventory.location` sobre el `stock-item`, con la ubicación de antes y la de después, solo cuando cambia.
+- **Filtros del listado:** `location` exacta, sin distinguir mayúsculas y con los espacios normalizados como al guardarla; con `*` al final, las que empiezan así (`A*` trae `A1` y `A12`); hasta 20 caracteres antes del `*`, y nada antes del `*` es 400 `isLength`. `hasLocation=true` trae solo las existencias con ubicación, y `false`, solo las que no tienen.
 
 **`GET …/stock-items/{stockItemId}/movements`** — Paginación por cursor. `StockMovement { id, type, quantity, onHandAfter, reasonCode, note, orderId, orderLineId, transferId, actorId, createdAt }`; `transferId` liga un movimiento `TRANSFER` con su traslado (ADR-0172) y es `null` en los demás. Filtros: `type`, `from`, `to`. Orden fijo: más reciente primero.
 

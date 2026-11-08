@@ -50,6 +50,13 @@ Versión 1.12 — Ubicación de cada producto y hojas de conteo (ADR-0173), desd
 - **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo y bajo el umbral de la CI; 0 en producción. Siguen esperando a que termine la pausa de Dependabot (ADR-0158).
 - **Guía de desarrollo:** la práctica de la review de la 1.11 sobre los mensajes sin scope queda en `DEVELOPMENT_GUIDE.md`; la de `IdempotencyModule` ya estaba desde T-163.
 
+#### Resultado de la parte 1 (T-165)
+
+- **API:** `location` en `StockItem`, los filtros `location` y `hasLocation` del listado de existencias, y `PUT /v1/admin/inventory/locations`, que registra o quita la ubicación por variante y almacén, aunque no haya unidades (API_SPEC.md §13).
+- **Base de datos:** `location` en `stock_items`, con su `CHECK` y un índice por almacén y ubicación (DATABASE.md §6.2); el permiso `inventory.count` para el Vendedor y el Administrador, en otra migración. Sin tablas nuevas.
+- **Traslados:** no cambian la ubicación; la existencia que un traslado crea en el destino nace sin ubicación, y la prueba de integración lo comprueba.
+- **Para la parte 2:** el índice por almacén y ubicación es el que usará la hoja de conteo para tomar las existencias de una ubicación o de un prefijo.
+
 ### Versión 1.11 — Traslados entre almacenes (2026-11-08)
 
 **Goal:** Que mover producto entre los dos locales de la tienda sea una sola operación con folio, que no se pueda registrar a medias, y que lo que se lleva a enseñar al otro local tenga una hora de regreso y no se pierda de vista (ADR-0172). **Tareas:** paso 0, T-163 y T-164, en ese orden.

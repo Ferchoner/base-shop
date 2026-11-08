@@ -399,6 +399,7 @@ describe('Inventory (e2e, T-160 part a)', () => {
           onHand: 25,
           reserved: 0,
           available: 25,
+          location: null,
           updatedAt: expect.any(String),
         },
         movement: {
@@ -589,6 +590,97 @@ describe('Inventory (e2e, T-160 part a)', () => {
     });
   });
 
+  describe('locations (T-165, ADR-0173)', () => {
+    const counter = () => staffWith('inventory.read', 'inventory.count');
+    const locate = (
+      variantId: string,
+      location: unknown,
+      warehouseId: string = MAIN,
+    ) =>
+      http()
+        .put(`${INVENTORY}/locations`)
+        .set(counter())
+        .send({ variantId, warehouseId, location });
+
+    it('sets a location before any units, lists by it, keeps it on a receipt and clears it', async () => {
+      const [zelda, mario, kirby] = await createVariants(
+        'Juegos',
+        'ZELDA',
+        'MARIO',
+        'KIRBY',
+      );
+
+      const set = await locate(zelda, ' vitrina  1 ').expect(200);
+      await locate(mario, 'a12').expect(200);
+      await receive(kirby, 2).expect(201);
+      const received = await receive(zelda, 3).expect(201);
+      const list = async (query: string) =>
+        (
+          await http()
+            .get(`${INVENTORY}/stock-items${query}`)
+            .set(reader())
+            .expect(200)
+        ).body.data.map(({ sku }: { sku: string }) => sku);
+
+      expect(set.body).toEqual({
+        id: expect.any(String),
+        variantId: zelda,
+        sku: 'ZELDA',
+        productTitle: 'Juegos',
+        warehouseId: MAIN,
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        location: 'VITRINA 1',
+        updatedAt: expect.any(String),
+      });
+      expect(received.body.stockItem).toMatchObject({
+        onHand: 3,
+        location: 'VITRINA 1',
+      });
+      expect(await list('?location=vitrina%201')).toEqual(['ZELDA']);
+      expect(await list('?location=A*')).toEqual(['MARIO']);
+      expect(await list('?hasLocation=true')).toEqual(['MARIO', 'ZELDA']);
+      expect(await list('?hasLocation=false')).toEqual(['KIRBY']);
+
+      const cleared = await locate(zelda, null).expect(200);
+      expect(cleared.body).toMatchObject({ id: set.body.id, location: null });
+      expect(await list('?hasLocation=false')).toEqual(['KIRBY', 'ZELDA']);
+    });
+
+    it('answers 400 for a wrong location or filter, 404 for a missing variant, warehouse or stock to clear, and 403 without inventory.count', async () => {
+      const [zelda] = await createVariants('Juegos', 'ZELDA');
+
+      const blank = await locate(zelda, '   ').expect(400);
+      expect(blank.body.errors).toEqual([
+        expect.objectContaining({ field: 'location', code: 'isLength' }),
+      ]);
+      await locate(zelda, 'X'.repeat(21)).expect(400);
+      await locate(zelda, 12).expect(400);
+      await locate(zelda, undefined).expect(400);
+      await locate(newId(), 'A1').expect(404);
+      await locate(zelda, 'A1', newId()).expect(404);
+      await locate(zelda, null).expect(404);
+      await http()
+        .put(`${INVENTORY}/locations`)
+        .set(writer())
+        .send({ variantId: zelda, warehouseId: MAIN, location: 'A1' })
+        .expect(403);
+      for (const query of [
+        'location=*',
+        `location=${'X'.repeat(22)}`,
+        'hasLocation=si',
+      ]) {
+        await http()
+          .get(`${INVENTORY}/stock-items?${query}`)
+          .set(reader())
+          .expect(400);
+      }
+
+      expect(await prisma.stockItem.count()).toBe(0);
+    });
+  });
+
   it('documents the endpoints in OpenAPI, and the address fields Identity shares', async () => {
     const response = await http().get('/docs/v1/openapi.json').expect(200);
     const document = response.body as {
@@ -610,6 +702,10 @@ describe('Inventory (e2e, T-160 part a)', () => {
     for (const path of ['receipts', 'adjustments']) {
       expect(document.paths[`${INVENTORY}/${path}`].post).toBeDefined();
     }
+    expect(document.paths[`${INVENTORY}/locations`].put).toBeDefined();
+    expect(document.components.schemas.StockItemDto.properties).toHaveProperty(
+      'location',
+    );
     expect(
       Object.keys(document.components.schemas.CreateAddressDto.properties),
     ).toEqual(

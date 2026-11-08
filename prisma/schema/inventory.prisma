@@ -93,6 +93,8 @@ model StockItem {
   warehouseId String   @map("warehouse_id") @db.Uuid
   onHand      Int      @default(0) @map("on_hand")
   reserved    Int      @default(0)
+  /// Where it is in its warehouse (ADR-0173): 1 to 20 characters, upper case and trimmed; `null` without one.
+  location    String?  @db.VarChar(20)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -101,6 +103,7 @@ model StockItem {
   reservationLines ReservationLine[]
 
   @@unique([variantId, warehouseId])
+  @@index([warehouseId, location])
   @@map("stock_items")
 }
 

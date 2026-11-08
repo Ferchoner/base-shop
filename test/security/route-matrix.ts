@@ -210,6 +210,8 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/inventory/adjustments': { access: ['inventory.write'] },
   'POST /v1/admin/inventory/receipts': { access: ['inventory.write'] },
   'GET /v1/admin/inventory/stock-items': { access: ['inventory.read'] },
+  // Where each product is in a warehouse, set by those who put it on the shelves and count it (ADR-0173).
+  'PUT /v1/admin/inventory/locations': { access: ['inventory.count'] },
   'GET /v1/admin/inventory/stock-items/:stockItemId/movements': {
     access: ['inventory.read'],
   },

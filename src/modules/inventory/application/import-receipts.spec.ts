@@ -108,6 +108,7 @@ class InMemoryLedger extends StockLedgerRepository {
         variantId,
         warehouseId,
         onHand: this.onHand[`${variantId}/${warehouseId}`] ?? 0,
+        location: null,
         reserved: 0,
         updatedAt: at,
       })),
@@ -128,6 +129,10 @@ class InMemoryLedger extends StockLedgerRepository {
   }
 
   transfer(): never {
+    throw new Error('not used');
+  }
+
+  setLocation(): never {
     throw new Error('not used');
   }
 

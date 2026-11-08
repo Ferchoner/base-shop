@@ -363,10 +363,11 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT` |
 | on_hand | integer | No | Default 0 |
 | reserved | integer | No | Default 0 |
+| location | varchar(20) | Sí | Dónde está en el almacén (T-165, ADR-0173, BR-INV-18): de 1 a 20 caracteres, sin espacios alrededor; la API la guarda en mayúsculas. Migración `20261108160000_inventory_stock_location` |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01).
-- **Índices:** el único cubre la búsqueda por variante.
+- **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01); `stock_items_location_check`: `CHECK (location IS NULL OR (location = btrim(location) AND char_length(location) BETWEEN 1 AND 20))`. El `CHECK` no exige mayúsculas porque algunas letras no pasan igual a mayúsculas en JavaScript y en la base.
+- **Índices:** el único cubre la búsqueda por variante; `(warehouse_id, location)`, para las existencias de una ubicación en un almacén.
 - **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 12). La fila se crea en el primer cambio de la variante con `INSERT … ON CONFLICT DO NOTHING` (ADR-0127).
 
 ### 6.3 `stock_movements` (inventory_movements)
@@ -917,6 +918,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 - **Permisos de las órdenes de trabajo:** la migración `20261015150000_identity_work_orders_permissions` (T-189 parte b, ADR-0165) da `work-orders.read` y `work-orders.manage` a los roles Administrador y Vendedor, por su ID; `20261016130000_identity_work_orders_read_blocked_permission` (T-189 parte c2, ADR-0167) da `work-orders.read-blocked` al Administrador.
 - **Permisos de las promociones:** la migración `20261016150000_identity_promotions_permissions` (T-200 parte a, ADR-0168) da `promotions.read` y `promotions.manage` al Administrador, y `promotions.read` al Vendedor, por su ID.
 - **Permiso de los traslados:** la migración `20261108140200_identity_transfer_permission` (T-163, ADR-0172) da `inventory.transfer` al Administrador y al Vendedor, por su ID.
+- **Permiso de las ubicaciones y los conteos:** la migración `20261108160100_identity_count_permission` (T-165, ADR-0173) da `inventory.count` al Administrador y al Vendedor, por su ID.
 - **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043. La migración `20261006150000_identity_orders_place_permission` (T-187, ADR-0161) da `orders.place` al Administrador y crea el rol Vendedor, sin tocar un rol con ese nombre que ya exista.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).

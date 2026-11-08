@@ -207,6 +207,10 @@ class FakeLedger extends StockLedgerRepository {
     throw new Error('not used');
   }
 
+  setLocation(): never {
+    throw new Error('not used');
+  }
+
   restock(entries: readonly RestockEntry[]): Promise<StockMovement[]> {
     this.written.push(...entries);
     return Promise.resolve(
