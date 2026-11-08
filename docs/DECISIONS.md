@@ -5575,4 +5575,4 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Contar por categoría o por clase pide a Catalog, por su fachada, las variantes de esos productos.
   - El valor de la merma en pesos queda fuera: el sistema no guarda el costo de cada producto.
 - **Revisar si:** la tienda quiere un catálogo de ubicaciones, más de una ubicación por existencia, o el costo de los productos para medir la merma en pesos.
-- **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Se implementa en la versión 1.12: paso 0, T-165 y T-166.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Implementada en la versión 1.12.0: paso 0, T-165 y T-166.
