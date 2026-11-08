@@ -44,7 +44,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Identity & Access | `users`, `roles`, `user_roles`, `role_permissions`, `customer_addresses`, `refresh_tokens`, `email_verification_tokens`, `password_reset_tokens` |
 | Catalog | `brands`, `categories`, `products`, `product_categories`, `product_variants`, `product_images` |
 | Pricing | `price_lists`, `variant_prices`, `price_periods` |
-| Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports` |
+| Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports`, `stock_transfers`, `stock_transfer_lines` |
 | Shopping | `carts`, `cart_lines` |
 | Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens`, `cash_closings` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
@@ -377,18 +377,19 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 |---|---|---|---|
 | id | uuid | No | PK |
 | stock_item_id | uuid | No | FK → `stock_items.id` `RESTRICT` |
-| type | enum `stock_movement_type` (RECEIPT, ADJUSTMENT, SALE, RESTOCK) | No | SALE al confirmar reserva; RESTOCK al reintegrar (ADR-0052) |
+| type | enum `stock_movement_type` (RECEIPT, ADJUSTMENT, SALE, RESTOCK, TRANSFER) | No | SALE al confirmar reserva; RESTOCK al reintegrar (ADR-0052); TRANSFER en cada almacén de un traslado (ADR-0172) |
 | quantity | integer | No | Con signo; `CHECK (quantity <> 0)` |
 | on_hand_after | integer | No | `CHECK (on_hand_after >= 0)`; facilita la conciliación |
 | reason_code | enum `stock_movement_reason` (PHYSICAL_COUNT, DAMAGED, LOSS_OR_THEFT, INTERNAL_USE, DATA_ENTRY_ERROR, OTHER, ORDER_CANCELLED, SHIPMENT_RETURNED, WAREHOUSE_TRANSFER) | Sí | Obligatorio en ADJUSTMENT y RESTOCK; `NULL` en RECEIPT y SALE (ADR-0069) |
 | note | text | Sí | Opcional; obligatoria con OTHER |
 | order_id | uuid | Sí | Referencia lógica a Ordering (SALE, RESTOCK) |
 | order_line_id | uuid | Sí | Referencia lógica a Ordering (RESTOCK) |
+| transfer_id | uuid | Sí | FK → `stock_transfers.id` `RESTRICT`; solo en TRANSFER (ADR-0172) |
 | actor_id | uuid | Sí | Staff o `NULL` si es el sistema |
 | created_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER','WAREHOUSE_TRANSFER'))` (`WAREHOUSE_TRANSFER` desde las migraciones `20261006130000` y `20261006130100`, ADR-0160); `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`.
-- **Índices:** `(stock_item_id, created_at)`; `(order_line_id) WHERE type = 'RESTOCK'` (tope de reintegro, sección 12).
+- **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER','WAREHOUSE_TRANSFER'))` (`WAREHOUSE_TRANSFER` desde las migraciones `20261006130000` y `20261006130100`, ADR-0160); `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`; `stock_movements_transfer_check`: `CHECK ((type = 'TRANSFER') = (transfer_id IS NOT NULL) AND (type <> 'TRANSFER' OR quantity <> 0))` (ADR-0172). El valor `TRANSFER` llegó en la migración `20261108140000`, aparte de la que lo usa.
+- **Índices:** `(stock_item_id, created_at)`; `(order_line_id) WHERE type = 'RESTOCK'` (tope de reintegro, sección 12); `(transfer_id)`, para los movimientos de un traslado.
 - **Integridad:** nunca se modifica ni se borra (ADR-0038).
 - **Implementado en T-161 (ADR-0142):** un reintegro escribe un RESTOCK por línea con motivo, orden, línea, nota y actor. Antes suma los RESTOCK de cada `order_line_id`, con el índice parcial, y lo vendido cuenta solo si la orden tiene una reserva COMMITTED. Sin migración.
 
@@ -429,6 +430,46 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 
 - **Uso:** la carga inserta su fila antes que nada en su transacción. Si llega el mismo archivo a la vez, la segunda espera en el índice único y falla cuando la primera confirma; una carga con `dryRun` la deshace.
 - **Escrituras de la carga:** crea las existencias que faltan con `INSERT … ON CONFLICT DO NOTHING`, las bloquea en orden ascendente de ID (BR-INV-14), y escribe su `on_hand` y los movimientos con sentencias que reciben arreglos (`unnest`).
+
+### 6.7 `stock_transfers`
+
+Cada traslado de existencias entre dos almacenes (T-163, ADR-0172, BR-INV-16), y cada préstamo para mostrar (T-164, BR-INV-17). Migraciones `20261108140100_inventory_stock_transfers` y, para los préstamos, `20261108150000_inventory_loan_enum_values` (los valores nuevos de los enums, aparte de la que los usa) y `20261108150100_inventory_stock_loans`.
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK |
+| number | bigserial | No | `UNIQUE`; el número del folio `T-000123`, o `P-000123` en un préstamo, consecutivo; una transacción que falla deja un hueco |
+| kind | enum `stock_transfer_kind` (TRANSFER, LOAN) | No | TRANSFER por defecto |
+| from_warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT`; el origen, en cualquier estado |
+| to_warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT`; el destino, activo al registrarse |
+| reason | enum `stock_transfer_reason` (SALE, RESTOCK, OTHER, SHOW, LOAN_RETURN) | No | SHOW en un préstamo; LOAN_RETURN en el regreso de uno |
+| note | text | Sí | De 1 a 500 caracteres; obligatoria con OTHER |
+| status | enum `stock_transfer_status` (COMPLETED, CANCELLED, OPEN, CLOSED) | No | COMPLETED al registrar un traslado; OPEN al registrar un préstamo, y CLOSED al cerrarlo |
+| created_by | uuid | No | Referencia lógica a `users` |
+| created_at | timestamptz(3) | No | Lo escribe el reloj de la API (ADR-0124); la cancelación se permite hasta 10 minutos después |
+| cancelled_by | uuid | Sí | Referencia lógica a `users` |
+| cancelled_at | timestamptz(3) | Sí | — |
+| return_by | timestamptz(3) | Sí | Cuándo debe regresar un préstamo |
+| closed_by | uuid | Sí | Quién cerró el préstamo; referencia lógica a `users` |
+| closed_at | timestamptz(3) | Sí | — |
+| loan_id | uuid | Sí | `UNIQUE`; FK → `stock_transfers.id` `RESTRICT`; en el regreso de un préstamo, el préstamo |
+| version | integer | No | 1 al registrarse; sube al cancelar o cerrar |
+| updated_at | timestamptz(3) | No | — |
+
+- **Restricciones:** `stock_transfers_warehouses_check`: `CHECK (from_warehouse_id <> to_warehouse_id)`; `stock_transfers_note_check`: `CHECK ((note IS NULL OR char_length(note) BETWEEN 1 AND 500) AND (reason <> 'OTHER' OR note IS NOT NULL))`; `stock_transfers_cancelled_check`: `CHECK ((status = 'CANCELLED') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))`; `stock_transfers_version_check`: `CHECK (version >= 1)`; `stock_transfers_kind_check`: un préstamo, y solo él, tiene `return_by` y el motivo SHOW, de 5 minutos a 24 horas después de `created_at`, y los estados OPEN, CLOSED o CANCELLED, y un traslado COMPLETED o CANCELLED; `loan_id` va exactamente con LOAN_RETURN; `stock_transfers_closed_check`: `CHECK ((status = 'CLOSED') = (closed_at IS NOT NULL) AND (closed_at IS NULL) = (closed_by IS NULL))`.
+- **Índices:** `(created_at)` para el listado; `(from_warehouse_id, created_at)` y `(to_warehouse_id, created_at)` para el filtro por almacén; `(kind, status, return_by)` para los préstamos abiertos y vencidos.
+- **Integridad:** nunca se borra. La cancelación y el cierre bloquean la fila (`FOR UPDATE`) y la guardan solo sobre la versión leída; los movimientos contrarios de la cancelación y los del regreso se suman a los del traslado, que no se tocan (BR-INV-13).
+
+### 6.8 `stock_transfer_lines`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| transfer_id | uuid | PK compuesta; FK → `stock_transfers.id` `CASCADE` |
+| variant_id | uuid | PK compuesta; referencia lógica a Catalog; una variante una vez por traslado |
+| quantity | integer | `CHECK (quantity BETWEEN 1 AND 100000)` |
+| returned | integer | Lo que regresó de una línea de un préstamo al cerrarlo; `NULL` hasta entonces y en un traslado; `CHECK (returned IS NULL OR returned BETWEEN 0 AND quantity)` |
+
+- **Índices:** `(variant_id)`, para el filtro por variante.
 
 ---
 
@@ -836,11 +877,13 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 | Confirmación doble | Transición Active → Committed una sola vez; `UPDATE ... SET on_hand = on_hand - q, reserved = reserved - q` | `CHECK` de `stock_items`; `version` de `reservations` |
 | Reintegro doble | Antes de reintegrar, se suma lo reintegrado por `order_line_id` en `stock_movements` y se compara con lo vendido. Ordering bloquea la orden (`FOR UPDATE`), así que dos reintegros de la misma orden se esperan y el segundo ve lo que escribió el primero (ADR-0142) | Índice parcial de RESTOCK por `order_line_id` |
 | Ajuste por debajo de lo reservado | Validación en el aggregate | `CHECK` de `stock_items` |
+| Traslado a medias o de lo reservado | Cada lado de cada línea en la misma transacción, en orden ascendente de `stock_item_id`; el lado que resta, con `UPDATE … WHERE on_hand - reserved >= q`; si alguno afecta 0 filas, se revierte todo. Comparte el bloqueo de los dos almacenes (ADR-0172) | `CHECK` de `stock_items`; `stock_movements_transfer_check` |
+| Cancelación o cierre doble de un traslado o un préstamo | Bloquea el traslado (`FOR UPDATE`) y lo guarda solo sobre la versión leída (ADR-0172) | `version` y `stock_transfers_cancelled_check` |
 | Descuadre del libro | Cada cambio de `on_hand` escribe un movimiento en la misma transacción con `on_hand_after` | Conciliación verificable: la suma de movimientos por `stock_item` debe igualar `on_hand` (consulta de verificación en los tests de integración) |
 
 **Otras reglas de concurrencia:**
 
-- Bloqueo optimista con `version` en `users`, `roles`, `products`, `price_lists`, `variant_prices`, `reservations`, `carts`, `orders`, `payments`, `shipping_methods` y `shipments`; un conflicto responde 409 (ADR-0064).
+- Bloqueo optimista con `version` en `users`, `roles`, `products`, `price_lists`, `variant_prices`, `reservations`, `carts`, `orders`, `payments`, `shipping_methods`, `shipments` y `stock_transfers`; un conflicto responde 409 (ADR-0064).
 - Transacciones propagadas con `nestjs-cls` (ADR-0033, ADR-0093); aislamiento Read Committed; ninguna llamada externa dentro de una transacción; una transacción que dura más de 5 s se revierte.
 - Checkout en una transacción (ADR-0019): reserva, orden, líneas, historial y cambio de estado del carrito. Empieza bloqueando el carrito como sus cambios (ADR-0131, ADR-0132).
 - Auditoría en la misma transacción que el cambio (ADR-0037).
@@ -873,6 +916,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 - **Motivo en la auditoría:** la migración `20260928140000_audit_reason` (T-130, ADR-0112) agrega `audit_logs.reason`.
 - **Permisos de las órdenes de trabajo:** la migración `20261015150000_identity_work_orders_permissions` (T-189 parte b, ADR-0165) da `work-orders.read` y `work-orders.manage` a los roles Administrador y Vendedor, por su ID; `20261016130000_identity_work_orders_read_blocked_permission` (T-189 parte c2, ADR-0167) da `work-orders.read-blocked` al Administrador.
 - **Permisos de las promociones:** la migración `20261016150000_identity_promotions_permissions` (T-200 parte a, ADR-0168) da `promotions.read` y `promotions.manage` al Administrador, y `promotions.read` al Vendedor, por su ID.
+- **Permiso de los traslados:** la migración `20261108140200_identity_transfer_permission` (T-163, ADR-0172) da `inventory.transfer` al Administrador y al Vendedor, por su ID.
 - **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043. La migración `20261006150000_identity_orders_place_permission` (T-187, ADR-0161) da `orders.place` al Administrador y crea el rol Vendedor, sin tocar un rol con ese nombre que ya exista.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).
@@ -940,6 +984,11 @@ erDiagram
 
     warehouses ||--o{ stock_items : almacena
     stock_items ||--o{ stock_movements : registra
+    warehouses ||--o{ stock_transfers : "origen y destino"
+    stock_transfers ||--o{ stock_transfer_lines : traslada
+    stock_transfers ||--o{ stock_movements : mueve
+    stock_transfers |o--o| stock_transfers : "regreso de"
+    product_variants ||..o{ stock_transfer_lines : "variante de"
     reservations ||--o{ reservation_lines : reserva
     stock_items ||--o{ reservation_lines : aparta
     product_variants ||..o{ stock_items : "stock de"

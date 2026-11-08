@@ -8,6 +8,7 @@ import type {
   StockLevel,
   StockMovement,
   StockMovementType,
+  VariantId,
 } from '../domain/stock.js';
 import {
   type ComputedReceipt,
@@ -17,6 +18,7 @@ import {
   type StockEntry,
   type StockKey,
   StockLedgerRepository,
+  type TransferEntry,
 } from '../domain/stock-ledger.repository.js';
 
 /** Sorts after every UUID. */
@@ -117,7 +119,49 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
       : this.record(stock, entry, 'ADJUSTMENT', entry.reasonCode);
   }
 
+  async transfer(
+    entries: readonly TransferEntry[],
+  ): Promise<{ movements: StockMovement[]; short: VariantId[] }> {
+    const ordered = await this.inItemOrder(entries);
+    const movements: StockMovement[] = [];
+    const short: VariantId[] = [];
+    for (const entry of ordered) {
+      const stock = await this.change(entry, entry.quantity < 0);
+      if (stock === null) {
+        short.push(entry.variantId);
+        continue;
+      }
+      const { movement } = await this.record(stock, entry, 'TRANSFER', null, {
+        transferId: entry.transferId,
+      });
+      movements.push(movement);
+    }
+    return { movements, short };
+  }
+
   async restock(entries: readonly RestockEntry[]): Promise<StockMovement[]> {
+    if (entries.length === 0) return [];
+    const ordered = await this.inItemOrder(entries);
+    const movements: StockMovement[] = [];
+    for (const entry of ordered) {
+      const stock = await this.change(entry, false);
+      if (stock === null) throw new Error('A restock always applies');
+      const { movement } = await this.record(
+        stock,
+        entry,
+        'RESTOCK',
+        entry.reasonCode,
+        { orderId: entry.orderId, orderLineId: entry.orderLineId },
+      );
+      movements.push(movement);
+    }
+    return movements;
+  }
+
+  /** Entries in ascending ID order of their stock items (BR-INV-14); one whose item does not exist yet goes last. */
+  private async inItemOrder<T extends StockEntry>(
+    entries: readonly T[],
+  ): Promise<T[]> {
     if (entries.length === 0) return [];
     const items = await this.txHost.tx.stockItem.findMany({
       select: { id: true, variantId: true, warehouseId: true },
@@ -136,26 +180,11 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
         id,
       ]),
     );
-    const itemOfEntry = (entry: RestockEntry) =>
+    const itemOfEntry = (entry: T) =>
       itemOf.get(key(entry.variantId, entry.warehouseId)) ?? LAST;
-    // Stock items in ascending ID order (BR-INV-14); one that does not exist yet is created last.
-    const ordered = [...entries].sort((a, b) =>
+    return [...entries].sort((a, b) =>
       itemOfEntry(a).localeCompare(itemOfEntry(b)),
     );
-    const movements: StockMovement[] = [];
-    for (const entry of ordered) {
-      const stock = await this.change(entry, false);
-      if (stock === null) throw new Error('A restock always applies');
-      const { movement } = await this.record(
-        stock,
-        entry,
-        'RESTOCK',
-        entry.reasonCode,
-        { orderId: entry.orderId, orderLineId: entry.orderLineId },
-      );
-      movements.push(movement);
-    }
-    return movements;
   }
 
   async originsOf(orderId: string): Promise<RestockOrigin[]> {
@@ -224,45 +253,37 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
     return row === undefined ? null : toLevel(row);
   }
 
-  /** The movement of a change, in the same transaction (BR-INV-13); a restock names its order and line. */
+  /**
+   * The movement of a change, in the same transaction (BR-INV-13); a restock names its order and line, and a
+   * transfer movement its transfer.
+   */
   private async record(
     stock: StockLevel,
     entry: StockEntry,
     type: StockMovementType,
     reasonCode: AdjustmentReason | RestockReason | null,
-    order: { orderId: string; orderLineId: string } | null = null,
+    links: {
+      orderId?: string;
+      orderLineId?: string;
+      transferId?: string;
+    } = {},
   ): Promise<StockChange> {
-    await this.txHost.tx.stockMovement.create({
-      data: {
-        id: entry.movementId,
-        stockItemId: stock.id,
-        type,
-        quantity: entry.quantity,
-        onHandAfter: stock.onHand,
-        reasonCode,
-        note: entry.note,
-        orderId: order?.orderId ?? null,
-        orderLineId: order?.orderLineId ?? null,
-        actorId: entry.actorId,
-        createdAt: entry.at,
-      },
-    });
-    return {
-      stock,
-      movement: {
-        id: entry.movementId,
-        stockItemId: stock.id,
-        type,
-        quantity: entry.quantity,
-        onHandAfter: stock.onHand,
-        reasonCode,
-        note: entry.note,
-        orderId: order?.orderId ?? null,
-        orderLineId: order?.orderLineId ?? null,
-        actorId: entry.actorId,
-        createdAt: entry.at,
-      },
+    const movement: StockMovement = {
+      id: entry.movementId,
+      stockItemId: stock.id,
+      type,
+      quantity: entry.quantity,
+      onHandAfter: stock.onHand,
+      reasonCode,
+      note: entry.note,
+      orderId: links.orderId ?? null,
+      orderLineId: links.orderLineId ?? null,
+      transferId: links.transferId ?? null,
+      actorId: entry.actorId,
+      createdAt: entry.at,
     };
+    await this.txHost.tx.stockMovement.create({ data: { ...movement } });
+    return { stock, movement };
   }
 }
 

@@ -39,6 +39,11 @@ export interface RestockOrigin {
   readonly units: number;
 }
 
+/** One side of a transfer between warehouses (ADR-0172): a TRANSFER movement linked to it. */
+export interface TransferEntry extends StockEntry {
+  readonly transferId: string;
+}
+
 /** The stock of a variant in a warehouse. */
 export interface StockKey {
   readonly variantId: VariantId;
@@ -97,6 +102,17 @@ export abstract class StockLedgerRepository {
   abstract adjust(
     entry: StockEntry & { readonly reasonCode: AdjustmentReason },
   ): Promise<StockChange | null>;
+
+  /**
+   * Writes both sides of a transfer (ADR-0172): one TRANSFER movement per entry, in the warehouse of the entry,
+   * updating the stock items in ascending ID order, like reservations (BR-INV-14), so two transfers never wait
+   * for each other in a circle. An entry that takes units only applies while `onHand` stays at or above
+   * `reserved`; the variants of those that do not apply are answered, and the caller rolls the transaction back.
+   * An entry that adds units creates the stock item if needed.
+   */
+  abstract transfer(
+    entries: readonly TransferEntry[],
+  ): Promise<{ movements: StockMovement[]; short: VariantId[] }>;
 
   /**
    * Brings units of lines of an order back to the stock (UC-INV-09): one RESTOCK movement per entry, in the

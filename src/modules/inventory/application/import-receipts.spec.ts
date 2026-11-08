@@ -127,6 +127,10 @@ class InMemoryLedger extends StockLedgerRepository {
     throw new Error('not used');
   }
 
+  transfer(): never {
+    throw new Error('not used');
+  }
+
   restock(): never {
     throw new Error('not used');
   }

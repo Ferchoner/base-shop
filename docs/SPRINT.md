@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.10, operación diaria de la tienda física, se cerró el 2026-11-08 y se publica como la 1.10.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.11 — Traslados entre almacenes (ADR-0172), desde el 2026-11-08; su plan está en el historial. La versión 1.10, operación diaria de la tienda física, se cerró el 2026-11-08 y se publicó como la 1.10.0.
 
 ---
 
@@ -32,6 +32,36 @@ Ninguna. La versión 1.10, operación diaria de la tienda física, se cerró el 
 ---
 
 ## Historial
+
+### Versión 1.11 — Traslados entre almacenes (2026-11-08)
+
+**Goal:** Que mover producto entre los dos locales de la tienda sea una sola operación con folio, que no se pueda registrar a medias, y que lo que se lleva a enseñar al otro local tenga una hora de regreso y no se pierda de vista (ADR-0172). **Tareas:** paso 0, T-163 y T-164, en ese orden.
+
+**Plan** (aprobado por el usuario el 2026-11-08, con las recomendaciones salvo la de corregir un traslado, que se cancela en sus primeros 10 minutos):
+
+- **Paso 0:** revisión de `npm audit` y las prácticas de la review de la 1.10 en `DEVELOPMENT_GUIDE.md`. Sin cambios en `/v1`.
+- **Parte 1, T-163:** el traslado de un paso, con su folio, el movimiento `TRANSFER`, la cancelación en los primeros 10 minutos y el permiso `inventory.transfer`.
+- **Parte 2, T-164:** el préstamo para mostrar, con su hora de regreso, los vencidos y su cierre con lo que regresó.
+- **Backoffice:** la pantalla de traslados, los préstamos abiertos, "Traer del otro local" en la venta de mostrador y el aviso en el corte, en base-ecomm-admin.
+- **Siguiente, fuera de esta versión:** la ubicación por producto y la hoja de conteo en la 1.12.
+
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo y bajo el umbral de la CI; 0 en producción. Siguen esperando a que termine la pausa de Dependabot (ADR-0158).
+- **Guía de desarrollo:** las tres prácticas de la review de la 1.10 (un parámetro de ruta nuevo en `PATH_PARAMETERS`, los conteos de tablas y permisos en las pruebas, y la CI de los pull requests apilados) quedan en `DEVELOPMENT_GUIDE.md`.
+
+#### Resultado de la parte 1 (T-163)
+
+- **API:** `POST /v1/admin/inventory/transfers` con `Idempotency-Key`, `GET` paginado con filtros por almacén de cualquier lado, variante, motivo, estado y fechas, `GET …/{transferId}` y `POST …/{transferId}/cancel` con la `version` leída (API_SPEC.md §13).
+- **Base de datos:** el valor `TRANSFER` del enum de movimientos, en su propia migración; `stock_transfers` y `stock_transfer_lines` con sus `CHECK`, y `transfer_id` en `stock_movements` (DATABASE.md §6.7 y §6.8); el permiso `inventory.transfer` para el Vendedor y el Administrador, en otra migración.
+- **Concurrencia:** registrar y cancelar comparten el bloqueo de los dos almacenes y cambian las existencias en orden de ID, así que dos traslados de las últimas unidades dejan pasar uno y dos en sentidos contrarios no se bloquean; las pruebas de integración lo comprueban contra PostgreSQL.
+- **Para la parte 2:** el filtro por tipo del listado llega con el préstamo, que es el segundo tipo.
+
+#### Resultado de la parte 2 (T-164)
+
+- **API:** `kind: LOAN` con `returnBy` en `POST /v1/admin/inventory/transfers`, folio `P-` de la misma secuencia; filtros `kind` y `overdue`; `POST …/{transferId}/close` con lo que regresó de cada línea (API_SPEC.md §13).
+- **Base de datos:** los valores nuevos de los enums en su propia migración; en `stock_transfers`, el tipo, la hora de regreso, quién cerró y cuándo, y el préstamo de un regreso, con sus `CHECK`; `returned` en las líneas (DATABASE.md §6.7 y §6.8).
+- **Regreso:** lo que regresó vuelve con un traslado `LOAN_RETURN` propio, ligado al préstamo, que no se cancela; si no regresa nada, no hay traslado.
 
 ### Versión 1.10 — Operación diaria de la tienda física (2026-11-07)
 

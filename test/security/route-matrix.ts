@@ -213,6 +213,22 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'GET /v1/admin/inventory/stock-items/:stockItemId/movements': {
     access: ['inventory.read'],
   },
+  // Transfers between warehouses, in one step and cancellable in their first 10 minutes, and loans to show the units,
+  // closed with what came back (ADR-0172).
+  'GET /v1/admin/inventory/transfers': { access: ['inventory.read'] },
+  'POST /v1/admin/inventory/transfers': {
+    access: ['inventory.transfer'],
+    idempotent: 'user',
+  },
+  'GET /v1/admin/inventory/transfers/:transferId': {
+    access: ['inventory.read'],
+  },
+  'POST /v1/admin/inventory/transfers/:transferId/cancel': {
+    access: ['inventory.transfer'],
+  },
+  'POST /v1/admin/inventory/transfers/:transferId/close': {
+    access: ['inventory.transfer'],
+  },
   'GET /v1/admin/inventory/warehouses': { access: ['inventory.read'] },
   'POST /v1/admin/inventory/warehouses': { access: ['inventory.write'] },
   'PATCH /v1/admin/inventory/warehouses/:warehouseId': {

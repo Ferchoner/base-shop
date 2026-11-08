@@ -189,6 +189,7 @@ Estados posibles: Propuesta, Aceptada, Reemplazada, Rechazada.
 | ADR-0169 | Una URL por frontend en los enlaces de los correos | Aceptada |
 | ADR-0170 | Borrador de descripción de producto con IA | Aceptada |
 | ADR-0171 | Operación diaria de la tienda física: servidor en red local, precio libre y corte de caja | Aceptada |
+| ADR-0172 | Traslados entre almacenes y préstamos para mostrar | Aceptada |
 
 ---
 
@@ -5511,3 +5512,34 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - hoy o un día anterior: un día por venir no se cierra (400 `notFuture`); un día pasado sí, para cerrar el que se olvidó;
   - la auditoría `cash-closings.close` guarda el almacén, el día y los montos, sin la nota, que es texto libre del staff;
   - el Vendedor recibe los dos permisos: en estas tiendas los ayudantes cierran la caja de su local. El dueño revisa las diferencias en el listado de cierres.
+
+## ADR-0172 — Traslados entre almacenes y préstamos para mostrar
+
+- **Fecha:** 2026-11-08
+- **Contexto:** Undécimo incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.11. La tienda de ADR-0171 tiene dos locales, el 204 y el 206, en el mismo centro comercial: cruzar de uno a otro es inmediato, y mueven mucho producto entre ellos para venderlo o enseñarlo en el otro local, y a veces se olvida dónde quedó. Hoy un traslado son dos ajustes sueltos con `WAREHOUSE_TRANSFER` (ADR-0160): si alguien registra solo uno, el producto desaparece o se duplica, y nada dice que lo que se llevó a enseñar debe volver. Además, vender en un local con la existencia del otro deja el cobro en el corte del otro local (ADR-0171), aunque el dinero esté en esta caja.
+- **Decisión** (del usuario, el 2026-11-08, con las recomendaciones del plan salvo la tercera):
+  - **Traslado de un paso (T-163),** en Inventory: mueve una o más variantes de un almacén a otro en una sola transacción; cada línea resta en el origen y suma en el destino, o no pasa nada.
+    - datos: folio `T-` y seis dígitos, origen, destino, motivo (`SALE` para vender, `RESTOCK` para surtir u `OTHER` con nota obligatoria), nota opcional, líneas con variante y cantidad, quién lo registró y cuándo;
+    - reglas: origen y destino distintos; el destino activo y el origen en cualquier estado, para vaciar uno inactivo; de 1 a 100,000 unidades por línea, una variante una vez por traslado; solo se mueve lo disponible, nunca lo reservado (409 `insufficient-stock` con las líneas que no alcanzan);
+    - un tipo de movimiento nuevo, `TRANSFER`, con signo y ligado al traslado, así que el historial de cada almacén muestra el folio;
+    - `POST /v1/admin/inventory/transfers` exige `Idempotency-Key`, para que un reintento no mueva dos veces; `GET /v1/admin/inventory/transfers` filtra por almacén, variante, motivo, tipo, estado y fechas, y `GET /v1/admin/inventory/transfers/{transferId}` da el detalle;
+    - **cancelar en los primeros 10 minutos:** `POST …/{transferId}/cancel`, con la `version` leída, regresa la existencia al origen con movimientos `TRANSFER` contrarios, porque el historial de existencia nunca se borra, y el traslado queda `CANCELLED`. Si el destino ya no tiene las unidades disponibles, 409 `insufficient-stock`; pasados los 10 minutos, 409 `invalid-state-transition`. Después de ese plazo un traslado no cambia;
+    - permiso nuevo `inventory.transfer`, que reciben el Vendedor y el Administrador; se audita como `inventory.transfer` e `inventory.transfer-cancel`;
+    - el motivo de ajuste `WAREHOUSE_TRANSFER` se queda en la API para corregir datos viejos; el backoffice deja de ofrecerlo.
+  - **Préstamo para mostrar (T-164):** un traslado de tipo `LOAN`, con folio `P-` y una hora de regreso (`returnBy`) de 5 minutos a 24 horas después de registrarlo; el backoffice propone 1 hora.
+    - la existencia pasa al otro almacén al registrarlo, así que si el cliente compra ahí, la venta sale de esa existencia sin otro paso;
+    - un préstamo abierto pasada su hora de regreso está vencido: no cambia la existencia, solo sale marcado en el listado (`overdue=true`);
+    - se cierra con `POST …/{transferId}/close`, con la `version` leída y cuántas unidades de cada línea regresaron: esas vuelven al origen con un traslado de regreso ligado al préstamo, que no se cancela, y las demás se quedan donde están. Lo cierra quien tenga `inventory.transfer`, ayudantes incluidos, porque cerrar no hace desaparecer producto; se audita como `inventory.loan-close`;
+    - un préstamo se cancela como un traslado, en sus primeros 10 minutos y mientras siga abierto.
+  - **Backoffice:** la pantalla de traslados, los préstamos abiertos, "Traer del 204" en la venta de mostrador, que traslada primero y vende después para que el cobro quede en el corte de este local, y un aviso en el corte con los préstamos abiertos del local, que no impide cerrar. Van en base-ecomm-admin, con su propio registro.
+- **Alternativas consideradas:**
+  - **Traslado de dos pasos, con "en tránsito" y confirmación de quien recibe:** era el plan de ADR-0171; entre dos locales contiguos el paso intermedio sobra y deja traslados abiertos sin necesidad.
+  - **Corregir con un traslado contrario, sin cancelar:** deja rastro de los dos, pero el usuario prefiere que un error de los primeros minutos se pueda deshacer.
+  - **Préstamo sin mover la existencia hasta que se venda:** la venta en el otro local no encontraría la existencia, o la cobraría en el corte del origen.
+  - **Impedir el cierre de caja con préstamos abiertos:** traba la noche por un préstamo olvidado; el aviso basta y el conteo de la 1.12 revisa lo que falte.
+- **Consecuencias:**
+  - Cambios compatibles en `/v1`: rutas, un permiso, un tipo de movimiento y dos tablas nuevas (`stock_transfers` y `stock_transfer_lines`). Por eso es una versión menor (ADR-0159).
+  - El valor `TRANSFER` del enum de movimientos llega en una migración aparte de la que lo usa, como `WAREHOUSE_TRANSFER` (ADR-0160).
+  - Los ajustes con `WAREHOUSE_TRANSFER` que ya existen no se convierten en traslados.
+- **Revisar si:** la tienda abre un local lejos de los otros (entonces hace falta el traslado de dos pasos), quiere permisos por almacén, o los préstamos vencidos se vuelven frecuentes.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Se implementa en la versión 1.11: paso 0, T-163 y T-164.

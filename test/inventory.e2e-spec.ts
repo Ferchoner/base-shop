@@ -411,6 +411,7 @@ describe('Inventory (e2e, T-160 part a)', () => {
           note: 'Remisión 1234',
           orderId: null,
           orderLineId: null,
+          transferId: null,
           actorId: staffId,
           createdAt: expect.any(String),
         },

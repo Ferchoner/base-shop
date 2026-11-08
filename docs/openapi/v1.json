@@ -41,6 +41,7 @@
                 "pricing.write",
                 "inventory.read",
                 "inventory.write",
+                "inventory.transfer",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -2569,6 +2570,19 @@
         ],
         "type": "object"
       },
+      "CancelTransferDto": {
+        "properties": {
+          "version": {
+            "description": "Versión leída del traslado (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
       "CartDto": {
         "properties": {
           "id": {
@@ -3446,6 +3460,28 @@
         ],
         "type": "object"
       },
+      "CloseLoanDto": {
+        "properties": {
+          "lines": {
+            "description": "Cada línea del préstamo, una vez, con lo que regresó.",
+            "items": {
+              "$ref": "#/components/schemas/ReturnedLineInputDto"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "version": {
+            "description": "Versión leída del préstamo (bloqueo optimista).",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "lines",
+          "version"
+        ],
+        "type": "object"
+      },
       "ConfirmEmailDto": {
         "properties": {
           "token": {
@@ -3788,6 +3824,7 @@
                 "pricing.write",
                 "inventory.read",
                 "inventory.write",
+                "inventory.transfer",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -3862,6 +3899,67 @@
           "email",
           "firstNames",
           "lastNames"
+        ],
+        "type": "object"
+      },
+      "CreateTransferDto": {
+        "properties": {
+          "fromWarehouseId": {
+            "description": "El almacén de donde salen las unidades, en cualquier estado.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "default": "TRANSFER",
+            "description": "`TRANSFER`, un traslado definitivo, o `LOAN`, un préstamo para mostrar, con `returnBy` (T-164).",
+            "enum": [
+              "TRANSFER",
+              "LOAN"
+            ],
+            "type": "string"
+          },
+          "lines": {
+            "description": "De 1 a 100 líneas, cada variante una vez.",
+            "items": {
+              "$ref": "#/components/schemas/TransferLineInputDto"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "note": {
+            "description": "Hasta 500 caracteres; obligatoria con `OTHER`.",
+            "example": "Para enseñarlo a un cliente",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "reason": {
+            "description": "En un traslado, `SALE` para venderlo en el destino, `RESTOCK` para surtirlo u `OTHER` con `note` obligatoria; en un préstamo, `SHOW`.",
+            "enum": [
+              "SALE",
+              "RESTOCK",
+              "OTHER",
+              "SHOW"
+            ],
+            "type": "string"
+          },
+          "returnBy": {
+            "description": "Solo en un préstamo, y obligatoria: cuándo debe regresar, de 5 minutos a 24 horas después de registrarlo.",
+            "example": "2026-11-08T19:00:00.000Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "toWarehouseId": {
+            "description": "El almacén al que llegan: activo y distinto del origen.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "lines",
+          "fromWarehouseId",
+          "toWarehouseId"
         ],
         "type": "object"
       },
@@ -7706,6 +7804,27 @@
         ],
         "type": "object"
       },
+      "ReturnedLineInputDto": {
+        "properties": {
+          "returned": {
+            "description": "Unidades que regresaron, de 0 a las prestadas.",
+            "example": 1,
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "number"
+          },
+          "variantId": {
+            "description": "Una línea del préstamo, una vez.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "variantId",
+          "returned"
+        ],
+        "type": "object"
+      },
       "RoleDto": {
         "properties": {
           "createdAt": {
@@ -7743,6 +7862,7 @@
                 "pricing.write",
                 "inventory.read",
                 "inventory.write",
+                "inventory.transfer",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -8578,13 +8698,20 @@
             "nullable": true,
             "type": "string"
           },
+          "transferId": {
+            "description": "El traslado de un movimiento `TRANSFER` (ADR-0172); `null` en los demás.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
           "type": {
-            "description": "`RECEIPT`, `ADJUSTMENT`, `SALE` o `RESTOCK`.",
+            "description": "`RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK` o `TRANSFER`, uno de los lados de un traslado (ADR-0172).",
             "enum": [
               "RECEIPT",
               "ADJUSTMENT",
               "SALE",
-              "RESTOCK"
+              "RESTOCK",
+              "TRANSFER"
             ],
             "type": "string"
           }
@@ -8596,6 +8723,7 @@
           "note",
           "orderId",
           "orderLineId",
+          "transferId",
           "actorId",
           "createdAt",
           "quantity",
@@ -8771,6 +8899,228 @@
           "compareAtPrice",
           "sku",
           "available"
+        ],
+        "type": "object"
+      },
+      "TransferDto": {
+        "properties": {
+          "cancellableUntil": {
+            "description": "Hasta cuándo se puede cancelar: 10 minutos después de registrarse; `null` si ya no se puede por su estado (cancelado, préstamo cerrado o regreso de un préstamo).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelledBy": {
+            "description": "La cuenta de staff que lo canceló; `null` si no se canceló.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "closedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "closedBy": {
+            "description": "La cuenta de staff que cerró el préstamo; `null` si no se ha cerrado.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "description": "La cuenta de staff que lo registró.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "folio": {
+            "description": "El folio, consecutivo: `T-` en un traslado y `P-` en un préstamo.",
+            "example": "T-000123",
+            "type": "string"
+          },
+          "fromWarehouseId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "TRANSFER",
+              "LOAN"
+            ],
+            "type": "string"
+          },
+          "lines": {
+            "description": "Por variante.",
+            "items": {
+              "$ref": "#/components/schemas/TransferLineDto"
+            },
+            "type": "array"
+          },
+          "loanId": {
+            "description": "En el regreso de un préstamo (`LOAN_RETURN`), el préstamo.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "note": {
+            "description": "Nota del staff; `null` sin ella.",
+            "nullable": true,
+            "type": "string"
+          },
+          "overdue": {
+            "description": "Un préstamo abierto cuya hora de regreso ya pasó.",
+            "type": "boolean"
+          },
+          "reason": {
+            "enum": [
+              "SALE",
+              "RESTOCK",
+              "OTHER",
+              "SHOW",
+              "LOAN_RETURN"
+            ],
+            "type": "string"
+          },
+          "returnBy": {
+            "description": "En un préstamo, cuándo debe regresar; `null` en un traslado.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "returnTransferId": {
+            "description": "En un préstamo cerrado, el traslado que regresó sus unidades; `null` si no regresó ninguna o no se ha cerrado.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "Un traslado está `COMPLETED` al registrarse; un préstamo, `OPEN` hasta que se cierra (`CLOSED`). `CANCELLED` si se canceló en sus primeros 10 minutos.",
+            "enum": [
+              "COMPLETED",
+              "CANCELLED",
+              "OPEN",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "toWarehouseId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "description": "Versión para cancelarlo o cerrarlo (bloqueo optimista).",
+            "example": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "fromWarehouseId",
+          "toWarehouseId",
+          "reason",
+          "note",
+          "status",
+          "lines",
+          "createdBy",
+          "createdAt",
+          "cancellableUntil",
+          "cancelledBy",
+          "cancelledAt",
+          "returnBy",
+          "closedBy",
+          "closedAt",
+          "loanId",
+          "returnTransferId",
+          "folio",
+          "overdue",
+          "version"
+        ],
+        "type": "object"
+      },
+      "TransferLineDto": {
+        "properties": {
+          "productTitle": {
+            "example": "The Legend of Zelda",
+            "type": "string"
+          },
+          "quantity": {
+            "description": "Unidades trasladadas.",
+            "example": 2,
+            "type": "number"
+          },
+          "returned": {
+            "description": "En un préstamo cerrado, las unidades que regresaron; `null` mientras está abierto, y siempre en un traslado.",
+            "nullable": true,
+            "type": "number"
+          },
+          "sku": {
+            "example": "JUE-ZELDA-SW",
+            "type": "string"
+          },
+          "variantId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "variantId",
+          "returned",
+          "sku",
+          "productTitle",
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "TransferLineInputDto": {
+        "properties": {
+          "quantity": {
+            "description": "De 1 a 100,000 unidades disponibles en el origen.",
+            "example": 2,
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "number"
+          },
+          "variantId": {
+            "description": "La variante que se traslada, en cualquier estado; una vez por traslado.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "variantId",
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "TransferListDto": {
+        "properties": {
+          "data": {
+            "description": "Del más reciente al más antiguo.",
+            "items": {
+              "$ref": "#/components/schemas/TransferDto"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ],
         "type": "object"
       },
@@ -9124,6 +9474,7 @@
                 "pricing.write",
                 "inventory.read",
                 "inventory.write",
+                "inventory.transfer",
                 "orders.read",
                 "orders.manage",
                 "orders.read-blocked",
@@ -17244,7 +17595,7 @@
             }
           },
           {
-            "description": "Uno o más tipos separados por comas: `RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK`.",
+            "description": "Uno o más tipos separados por comas: `RECEIPT`, `ADJUSTMENT`, `SALE`, `RESTOCK`, `TRANSFER`.",
             "in": "query",
             "name": "type",
             "required": false,
@@ -17255,7 +17606,8 @@
                   "RECEIPT",
                   "ADJUSTMENT",
                   "SALE",
-                  "RESTOCK"
+                  "RESTOCK",
+                  "TRANSFER"
                 ],
                 "type": "string"
               },
@@ -17375,6 +17727,683 @@
         ],
         "x-required-permissions": [
           "inventory.read"
+        ]
+      }
+    },
+    "/v1/admin/inventory/transfers": {
+      "get": {
+        "description": "Del más reciente al más antiguo, con sus líneas. Por tipo, almacén, de origen o de destino, variante, motivo, estado, fechas y préstamos vencidos (`overdue`).",
+        "operationId": "AdminTransfersController_list_v1",
+        "parameters": [
+          {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Solo los traslados o solo los préstamos.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "TRANSFER",
+                "LOAN"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`, solo los préstamos abiertos cuya hora de regreso ya pasó; `false`, todos los demás.",
+            "in": "query",
+            "name": "overdue",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Los traslados con este motivo.",
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "enum": [
+                "SALE",
+                "RESTOCK",
+                "OTHER",
+                "SHOW",
+                "LOAN_RETURN"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Los traslados en este estado.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "COMPLETED",
+                "CANCELLED",
+                "OPEN",
+                "CLOSED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Los que salen de este almacén o llegan a él.",
+            "in": "query",
+            "name": "warehouseId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Los que tienen una línea de esta variante.",
+            "in": "query",
+            "name": "variantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601; incluida.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "example": "2026-11-01",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601; incluida (una fecha sola incluye todo el día).",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "example": "2026-11-30",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar los traslados",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.read"
+        ]
+      },
+      "post": {
+        "description": "ADR-0172. Exige `Idempotency-Key`. Con `kind: LOAN` es un préstamo para mostrar (T-164): folio `P-`, motivo `SHOW` y `returnBy` de 5 minutos a 24 horas después (400 `loanRange`); queda `OPEN` hasta que se cierra. Un motivo que no va con el tipo es 400 `reasonKind`, y `returnBy` en un traslado, 400 `isEmpty`. Cada línea sale del origen y entra al destino en una sola transacción, o no pasa nada; el historial de existencias de los dos almacenes la registra como `TRANSFER`. Solo se trasladan unidades disponibles (`onHand − reserved`): si alguna línea no alcanza, 409 `insufficient-stock` con esas líneas. El destino debe ser un almacén activo y distinto del origen (400 `differentWarehouse` en `toWarehouseId`); el origen, cualquiera. Una variante va una vez por traslado (400 `duplicateVariant`). Un almacén o una variante que no existe, o un destino inactivo, es 404. Se audita como `inventory.transfer`.",
+        "operationId": "AdminTransfersController_create_v1",
+        "parameters": [
+          {
+            "description": "Llave de idempotencia de 1 a 255 caracteres; se recomienda un UUID (API_SPEC.md, sección 4).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "example": "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransferDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-key-missing`: Falta la llave de idempotencia; `validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-request-in-progress`: Solicitud en proceso\n\n`insufficient-stock`: Stock insuficiente"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`idempotency-key-mismatch`: Llave de idempotencia reutilizada"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Trasladar o prestar existencias a otro almacén",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.transfer"
+        ]
+      }
+    },
+    "/v1/admin/inventory/transfers/{transferId}": {
+      "get": {
+        "description": "Con sus líneas y hasta cuándo se puede cancelar.",
+        "operationId": "AdminTransfersController_get_v1",
+        "parameters": [
+          {
+            "description": "ID del traslado entre almacenes.",
+            "in": "path",
+            "name": "transferId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar un traslado",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.read"
+        ]
+      }
+    },
+    "/v1/admin/inventory/transfers/{transferId}/cancel": {
+      "post": {
+        "description": "ADR-0172. Un traslado, o un préstamo abierto, solo en los 10 minutos que siguen a su registro (`cancellableUntil`); después, si ya se canceló, si es un préstamo cerrado o el regreso de uno, 409 `invalid-state-transition`, con `reason: cancel-window-passed` en el primer caso. Regresa las unidades al origen con movimientos `TRANSFER` contrarios, porque el historial de existencias nunca se borra. Si el destino ya no tiene esas unidades disponibles, 409 `insufficient-stock`. Exige la `version` leída. Se audita como `inventory.transfer-cancel`.",
+        "operationId": "AdminTransfersController_cancel_v1",
+        "parameters": [
+          {
+            "description": "ID del traslado entre almacenes.",
+            "in": "path",
+            "name": "transferId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelTransferDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual; `insufficient-stock`: Stock insuficiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancelar un traslado",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.transfer"
+        ]
+      }
+    },
+    "/v1/admin/inventory/transfers/{transferId}/close": {
+      "post": {
+        "description": "T-164, ADR-0172. Con la `version` leída y lo que regresó de cada línea del préstamo, todas una vez (400 `loanLines`), de 0 a lo prestado (400 `range` en `lines[i].returned`). Lo que regresó vuelve al origen con un traslado `LOAN_RETURN` ligado al préstamo (`returnTransferId`), que no se cancela, aunque el origen esté inactivo; lo demás se queda en el destino. Si el destino ya no tiene esas unidades disponibles, 409 `insufficient-stock`. Un préstamo que no está abierto, o un traslado, es 409 `invalid-state-transition`. Se audita como `inventory.loan-close`.",
+        "operationId": "AdminTransfersController_close_v1",
+        "parameters": [
+          {
+            "description": "ID del traslado entre almacenes.",
+            "in": "path",
+            "name": "transferId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseLoanDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version-conflict`: Versión desactualizada; `invalid-state-transition`: Acción no permitida en el estado actual; `insufficient-stock`: Stock insuficiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar un préstamo",
+        "tags": [
+          "Administración: inventario"
+        ],
+        "x-required-permissions": [
+          "inventory.transfer"
         ]
       }
     },
