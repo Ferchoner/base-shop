@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y se publica como la 1.11.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.12 — Ubicación de cada producto y hojas de conteo (ADR-0173), desde el 2026-11-08; su plan está en el historial. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y se publicó como la 1.11.0.
 
 ---
 
@@ -32,6 +32,23 @@ Ninguna. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y 
 ---
 
 ## Historial
+
+### Versión 1.12 — Ubicación de cada producto y hojas de conteo (2026-11-08)
+
+**Goal:** Que cada producto tenga su lugar registrado en cada local, y que el inventario se revise por partes, sin cerrar la tienda: una hoja de conteo que se cuenta a ciegas y ajusta todas las diferencias de una vez, con clases A, B y C para decidir qué contar y cuándo (ADR-0173). **Tareas:** paso 0, T-165 y T-166, en ese orden.
+
+**Plan** (aprobado por el usuario el 2026-11-08, con las recomendaciones y la clase sugerida por las ventas de 90 días):
+
+- **Paso 0:** revisión de `npm audit` y las prácticas de la review de la 1.11 en `DEVELOPMENT_GUIDE.md`. Sin cambios en `/v1`.
+- **Parte 1, T-165:** la ubicación de cada existencia, sus filtros, la ruta para cambiarla y el permiso `inventory.count`.
+- **Parte 2, T-166:** la hoja de conteo, la clase A, B o C del producto y la clase sugerida por las ventas.
+- **Backoffice:** la ubicación en Existencias, Traslados y Vender en tienda, las pantallas Conteos y Contar, la hoja impresa, las etiquetas y los avisos de Inicio, en base-ecomm-admin.
+- **Siguiente, fuera de esta versión:** apartados con anticipo, compra de usados y consignas, en la 1.13.
+
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo y bajo el umbral de la CI; 0 en producción. Siguen esperando a que termine la pausa de Dependabot (ADR-0158).
+- **Guía de desarrollo:** la práctica de la review de la 1.11 sobre los mensajes sin scope queda en `DEVELOPMENT_GUIDE.md`; la de `IdempotencyModule` ya estaba desde T-163.
 
 ### Versión 1.11 — Traslados entre almacenes (2026-11-08)
 

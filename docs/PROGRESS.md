@@ -187,6 +187,8 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.4.0: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
+- [ ] Versión 1.12: ubicación de cada producto y hojas de conteo (paso 0, T-165 y T-166), en curso; plan en `SPRINT.md`
+- [x] Paso 0 de la versión 1.12: `npm audit` sin cambios desde la 1.11 (0 en producción); las prácticas de la review de la 1.11 en `DEVELOPMENT_GUIDE.md` (ADR-0173)
 - [x] Versión 1.11.0: traslados entre almacenes (paso 0, T-163 y T-164), cerrada el 2026-11-08; review en `SPRINT.md`
 - [x] T-164: préstamo para mostrar, un traslado con folio `P-` y hora de regreso de 5 minutos a 24 horas; vencidos en el listado (`overdue`); cierre con lo que regresó de cada línea, que vuelve al origen con un traslado de regreso, y lo demás se queda (ADR-0172)
 - [x] T-163: traslado de un paso entre almacenes con folio `T-`, motivo y líneas, solo de lo disponible y con `Idempotency-Key`; movimiento `TRANSFER` ligado al traslado; listado y detalle; cancelación en los primeros 10 minutos con movimientos contrarios; permiso `inventory.transfer` para el Vendedor y el Administrador (ADR-0172)

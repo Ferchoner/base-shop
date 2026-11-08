@@ -321,7 +321,7 @@ Formato con Prettier (ADR-0084): `npm run format` escribe y `npm run format:chec
 Ramas y commits (ADR-0084), en inglés:
 
 - Ramas: `tipo/T-xxx-descripcion-corta`, en minúsculas y con guiones (por ejemplo, `feat/T-100-config-validation`). Sin tarea, el ID de la decisión (`chore/p-70-...`) o solo la descripción.
-- Commits: Conventional Commits, `tipo: descripción` en imperativo y en una línea corta (por ejemplo, `feat: validate environment variables at startup`). Cuerpo opcional; pie opcional con referencias (`Refs: T-100, ADR-0084`).
+- Commits: Conventional Commits, `tipo: descripción` en imperativo y en una línea corta (por ejemplo, `feat: validate environment variables at startup`). Cuerpo opcional; pie opcional con referencias (`Refs: T-100, ADR-0084`). Sin scope: `feat(inventory): …` no pasa `Commit messages`. Antes del primer push se revisan el título del pull request y los mensajes con `{ echo "<título>"; git log --no-merges --format=%s origin/main..HEAD; } | bash .github/scripts/check-commit-messages.sh`: en T-163, un commit con scope obligó a cerrar el pull request #146 y abrir el #147.
 - Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`.
 - Antes de cada commit, con Docker en marcha (ADR-0119):
   1. `git diff --cached --stat`: comprobar que lo preparado es solo lo de ese commit. Un archivo movido con `git mv` queda preparado aunque no se haya agregado después.

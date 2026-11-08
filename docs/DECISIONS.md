@@ -5543,3 +5543,36 @@ Reemplazada parcialmente por ADR-0002 y ADR-0013 (2026-09-24). Sigue vigente par
   - Los ajustes con `WAREHOUSE_TRANSFER` que ya existen no se convierten en traslados.
 - **Revisar si:** la tienda abre un local lejos de los otros (entonces hace falta el traslado de dos pasos), quiere permisos por almacén, o los préstamos vencidos se vuelven frecuentes.
 - **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Implementada en la versión 1.11.0: paso 0, T-163 y T-164.
+
+## ADR-0173 — Ubicación de cada producto y hojas de conteo
+
+- **Fecha:** 2026-11-08
+- **Contexto:** Duodécimo incremento de las versiones posteriores al MVP (ADR-0159): la versión 1.12. La tienda de ADR-0171 y ADR-0172 ya mueve el producto entre sus dos locales con traslados, pero el sistema no sabe en qué parte de cada local está, y para revisar el inventario solo existe el ajuste suelto con `PHYSICAL_COUNT`, uno por variante, en el que se escribe la diferencia a mano. La guía de inventario de la tienda pide ubicaciones fijas y conteos cíclicos por clase A, B y C (A cada semana, B cada mes, C cada trimestre), sin cerrar la tienda.
+- **Decisión** (del usuario, el 2026-11-08, con las recomendaciones del plan, y en la segunda con la clase sugerida por ventas):
+  - **Ubicación (T-165),** en Inventory: cada existencia (una variante en un almacén) tiene una ubicación opcional, un texto de 1 a 20 caracteres que se guarda en mayúsculas y sin espacios de sobra (`A1`, `VITRINA 1`, `BODEGA`), sin catálogo cerrado de ubicaciones.
+    - `location` en la existencia, y los filtros `location` (exacto o, con `*` al final, por prefijo) y `hasLocation` en `GET /v1/admin/inventory/stock-items`;
+    - una ruta para cambiarla por variante y almacén, aunque la variante todavía no tenga unidades ahí (crea la existencia en 0), con `null` para quitarla; se audita como `inventory.location`;
+    - un traslado no cambia la ubicación de ninguna de las dos existencias;
+    - permiso nuevo `inventory.count`, que reciben el Vendedor y el Administrador.
+  - **Hoja de conteo (T-166),** en Inventory: una lista de variantes de un almacén que se cuenta, se revisa y se ajusta de una vez, con folio `C-` y seis dígitos.
+    - se abre con `inventory.write` y un filtro: ubicación o prefijo, categoría, clase o una lista de variantes; toma las variantes con existencia o con ubicación en ese almacén, de 1 a 1,000 líneas, ordenadas por ubicación y SKU;
+    - una variante está en una sola hoja abierta por almacén; puede haber varias hojas abiertas en el mismo almacén;
+    - con `inventory.count` se captura lo contado por línea (de 0 a 100,000) y se agregan variantes que aparecieron; al capturar, la API guarda las físicas de ese momento, y la diferencia es lo contado menos ese número, así que las ventas antes o después del conteo no salen como faltantes;
+    - **a ciegas:** quien no tiene `inventory.write` no recibe lo esperado ni la diferencia;
+    - con `inventory.write` se revisa (esperado, contado y diferencia), se pide volver a contar una línea, se aplica o se cancela, con la `version` leída. Aplicar exige `Idempotency-Key` y crea un ajuste `PHYSICAL_COUNT` ligado a la hoja por cada línea con diferencia; lo no contado no se toca. Una línea que dejaría menos físicas que las apartadas no se aplica y se informa; las demás sí. Una hoja aplicada o cancelada ya no cambia;
+    - se audita como `inventory.count-open`, `inventory.count-apply` e `inventory.count-cancel`.
+  - **Clase A, B o C,** en Catalog: `countClass` opcional en el producto, en su alta, su edición, su vista, el filtro del listado y la carga masiva de productos; un producto sin clase se cuenta como C. Además, Ordering calcula una clase sugerida por producto con lo vendido en los últimos 90 días (A, los productos que suman el primer 80 % del importe; B, el siguiente 15 %; C, el resto y lo que no se vendió), y el staff con `catalog.write` la aplica a los productos que elija, por ejemplo a los que no tienen clase. Catalog no depende de Ordering: el backoffice lee la sugerencia y la aplica.
+  - **Backoffice:** la ubicación en Existencias, Traslados y Vender en tienda; las pantallas Conteos y Contar; la hoja impresa sin cantidades; la ubicación en las etiquetas y una etiqueta de estante; avisos en Inicio. Van en base-ecomm-admin, con su propio registro.
+- **Alternativas consideradas:**
+  - **Catálogo cerrado de ubicaciones por almacén:** evita `A1` y `A-1`, pero obliga a darlas de alta antes de usarlas; el backoffice sugiere las que ya existen mientras se escribe.
+  - **Comparar con las físicas al abrir la hoja:** más simple, pero obliga a no vender mientras se cuenta.
+  - **Tomar lo no contado como 0:** sirve en un inventario total, pero un descuido borra existencias.
+  - **Una sola hoja abierta por almacén:** impide contar dos zonas a la vez.
+  - **Mostrar lo esperado a quien cuenta:** más rápido, pero se cuenta lo que dice el sistema.
+  - **Solo la clase calculada por ventas:** la tienda empieza sin meses de ventas en el sistema; la clase manual sirve desde el primer día.
+- **Consecuencias:**
+  - Cambios compatibles en `/v1`: campos, filtros, rutas, un permiso y dos tablas nuevas (`stock_counts` y `stock_count_lines`), y `countId` en los movimientos. Por eso es una versión menor (ADR-0159).
+  - Contar por categoría o por clase pide a Catalog, por su fachada, las variantes de esos productos.
+  - El valor de la merma en pesos queda fuera: el sistema no guarda el costo de cada producto.
+- **Revisar si:** la tienda quiere un catálogo de ubicaciones, más de una ubicación por existencia, o el costo de los productos para medir la merma en pesos.
+- **Estado:** Aceptada (decidida por el usuario el 2026-11-08). Se implementa en la versión 1.12: paso 0, T-165 y T-166.
