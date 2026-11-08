@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.10, operación diaria de la tienda física, se cerró el 2026-11-08 y se publica como la 1.10.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.11 — Traslados entre almacenes (ADR-0172), desde el 2026-11-08; su plan está en el historial. La versión 1.10, operación diaria de la tienda física, se cerró el 2026-11-08 y se publicó como la 1.10.0.
 
 ---
 
@@ -32,6 +32,23 @@ Ninguna. La versión 1.10, operación diaria de la tienda física, se cerró el 
 ---
 
 ## Historial
+
+### Versión 1.11 — Traslados entre almacenes (2026-11-08)
+
+**Goal:** Que mover producto entre los dos locales de la tienda sea una sola operación con folio, que no se pueda registrar a medias, y que lo que se lleva a enseñar al otro local tenga una hora de regreso y no se pierda de vista (ADR-0172). **Tareas:** paso 0, T-163 y T-164, en ese orden.
+
+**Plan** (aprobado por el usuario el 2026-11-08, con las recomendaciones salvo la de corregir un traslado, que se cancela en sus primeros 10 minutos):
+
+- **Paso 0:** revisión de `npm audit` y las prácticas de la review de la 1.10 en `DEVELOPMENT_GUIDE.md`. Sin cambios en `/v1`.
+- **Parte 1, T-163:** el traslado de un paso, con su folio, el movimiento `TRANSFER`, la cancelación en los primeros 10 minutos y el permiso `inventory.transfer`.
+- **Parte 2, T-164:** el préstamo para mostrar, con su hora de regreso, los vencidos y su cierre con lo que regresó.
+- **Backoffice:** la pantalla de traslados, los préstamos abiertos, "Traer del otro local" en la venta de mostrador y el aviso en el corte, en base-ecomm-admin.
+- **Siguiente, fuera de esta versión:** la ubicación por producto y la hoja de conteo en la 1.12.
+
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo y bajo el umbral de la CI; 0 en producción. Siguen esperando a que termine la pausa de Dependabot (ADR-0158).
+- **Guía de desarrollo:** las tres prácticas de la review de la 1.10 (un parámetro de ruta nuevo en `PATH_PARAMETERS`, los conteos de tablas y permisos en las pruebas, y la CI de los pull requests apilados) quedan en `DEVELOPMENT_GUIDE.md`.
 
 ### Versión 1.10 — Operación diaria de la tienda física (2026-11-07)
 

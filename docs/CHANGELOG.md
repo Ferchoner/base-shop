@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+- Plan de la versión 1.11 (nuevo ADR-0172): traslados entre almacenes de un paso, con cancelación en los primeros 10 minutos, y préstamos para mostrar con hora de regreso.
+- Paso 0 de la versión 1.11: `npm audit` sin cambios desde la 1.10 (0 avisos en producción); `DEVELOPMENT_GUIDE.md` con las prácticas de la review de la 1.10.
+
 ## 1.10.0 (2026-11-08)
 
 - Plan de la versión 1.10 (nuevo ADR-0171): servidor en red local, precio libre en la venta de mostrador y corte de caja.
