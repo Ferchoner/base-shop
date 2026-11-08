@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Versión 1.11 — Traslados entre almacenes (ADR-0172), desde el 2026-11-08; su plan está en el historial. La versión 1.10, operación diaria de la tienda física, se cerró el 2026-11-08 y se publicó como la 1.10.0.
+Ninguna. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y se publica como la 1.11.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -62,6 +62,45 @@ Versión 1.11 — Traslados entre almacenes (ADR-0172), desde el 2026-11-08; su 
 - **API:** `kind: LOAN` con `returnBy` en `POST /v1/admin/inventory/transfers`, folio `P-` de la misma secuencia; filtros `kind` y `overdue`; `POST …/{transferId}/close` con lo que regresó de cada línea (API_SPEC.md §13).
 - **Base de datos:** los valores nuevos de los enums en su propia migración; en `stock_transfers`, el tipo, la hora de regreso, quién cerró y cuándo, y el préstamo de un regreso, con sus `CHECK`; `returned` en las líneas (DATABASE.md §6.7 y §6.8).
 - **Regreso:** lo que regresó vuelve con un traslado `LOAN_RETURN` propio, ligado al préstamo, que no se cancela; si no regresa nada, no hay traslado.
+
+**Fecha:** 2026-11-08. **Resultado:** objetivo cumplido. T-163 y T-164 están en DONE, el pipeline de CI está en verde en los dos pull requests y en `main`, el backoffice usa las dos partes, y la versión se publica como la 1.11.0, con su tag y su GitHub Release (ADR-0159).
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0172 y paso 0 | DONE | Pull request #147 |
+| Traslado de un paso: folio `T-`, motivo, líneas, movimiento `TRANSFER`, cancelación en los primeros 10 minutos y permiso `inventory.transfer` | DONE | T-163, pull request #147 |
+| Préstamo para mostrar: folio `P-`, hora de regreso de 5 minutos a 24 horas, vencidos y cierre con lo que regresó | DONE | T-164, pull request #148 |
+| Backoffice: trasladar y prestar desde Existencias, pestaña Traslados, "Traer del otro local" en Vender en tienda, aviso en el corte y vencidos en Inicio | DONE | base-ecomm-admin, pull request #30 |
+| Contrato de `/v1`: 163 rutas, cinco nuevas; un permiso nuevo, 28 en total; dos tablas nuevas, `stock_transfers` y `stock_transfer_lines`, 51 en total | — | `API_SPEC.md`, `docs/openapi/v1.json`, `DATABASE.md` |
+| 172 ADR: 168 aceptados, 2 reemplazados y 2 reemplazados parcialmente; 1 nuevo en esta versión (ADR-0172) | — | `DECISIONS.md` |
+
+El trabajo se integró en dos pull requests apilados (#147 y #148) y la publicación en otro. La CI de #148 se lanzó a mano sobre su rama mientras su base era la de #147, como pide `DEVELOPMENT_GUIDE.md`. #146, el primer intento de la parte 1, se cerró sin fusionar porque un commit no seguía el formato de los mensajes; #147 trae el mismo contenido.
+
+#### Riesgos
+
+- **Resueltos en esta versión:** el traslado a medias de dos ajustes `WAREHOUSE_TRANSFER`: ahora es una sola operación, y un mismo `Idempotency-Key` no traslada dos veces.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews anteriores, entre ellos el único servidor de la tienda y los 25 avisos de `npm audit` en dependencias de desarrollo.
+- **Nuevos:**
+  - **Un traslado equivocado después de 10 minutos** ya no se cancela: se corrige con otro traslado en sentido contrario. El usuario aceptó que esos no queden ligados.
+  - **Préstamos sin cerrar:** las existencias de cada local no cuadran hasta cerrarlos; el backoffice cuenta los vencidos en Inicio y el corte avisa de los abiertos, sin impedir el cierre.
+  - **Sin permisos por almacén:** quien tiene `inventory.transfer` traslada entre cualquier par de almacenes activos.
+
+#### Qué funcionó
+
+- **Cancelar en vez de corregir:** la decisión del usuario dejó el traslado en un solo sentido y simplificó la regla: 10 minutos para cancelar, y después queda.
+- **El préstamo como un tipo de traslado:** compartió la tabla, el folio, la cancelación y los bloqueos de T-163, y la parte 2 solo agregó la hora de regreso y el cierre.
+- **Concurrencia probada en la base:** las pruebas de integración contra PostgreSQL comprobaron los traslados de las últimas unidades y los de sentidos contrarios.
+
+#### Qué mejorar
+
+- **El mensaje de cada commit:** la CI revisa que no lleve scope (`feat: …`); un commit con `feat(inventory):` obligó a abrir #147 en lugar de #146. Se revisa con `.github/scripts/check-commit-messages.sh` antes de subir.
+- **La primera ruta idempotente de un módulo:** exige `IdempotencyModule` en todas las pruebas de integración que cargan ese módulo, también las de otros módulos que lo importan; ya está en `DEVELOPMENT_GUIDE.md`.
+
+#### Siguiente versión
+
+La 1.12, la ubicación de cada producto en el local y la hoja de conteo; necesita su plan aprobado (ADR-0159).
 
 ### Versión 1.10 — Operación diaria de la tienda física (2026-11-07)
 
