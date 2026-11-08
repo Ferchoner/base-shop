@@ -115,7 +115,7 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         .expect(200)
         .expect('Cache-Control', 'no-store');
 
-      expect(response.body.data).toHaveLength(27);
+      expect(response.body.data).toHaveLength(28);
       expect(response.body.data[0]).toEqual({
         code: 'catalog.read',
         description:
@@ -123,9 +123,16 @@ describe('Identity & Access administration (e2e, T-130)', () => {
         superadminOnly: false,
       });
       // The last one, of the platform (ADR-0150).
-      expect(response.body.data[26]).toEqual({
+      expect(response.body.data[27]).toEqual({
         code: 'events.manage',
         description: 'Ver y reintentar las entregas de eventos de dominio',
+        superadminOnly: false,
+      });
+      // For the transfers between warehouses (ADR-0172).
+      expect(response.body.data).toContainEqual({
+        code: 'inventory.transfer',
+        description:
+          'Trasladar existencias entre almacenes y cancelar el traslado en sus primeros minutos',
         superadminOnly: false,
       });
       // For the blocked data of an order (ADR-0152).

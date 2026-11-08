@@ -203,6 +203,10 @@ class FakeLedger extends StockLedgerRepository {
     throw new Error('not used');
   }
 
+  transfer(): never {
+    throw new Error('not used');
+  }
+
   restock(entries: readonly RestockEntry[]): Promise<StockMovement[]> {
     this.written.push(...entries);
     return Promise.resolve(
@@ -216,6 +220,7 @@ class FakeLedger extends StockLedgerRepository {
         note: entry.note,
         orderId: entry.orderId,
         orderLineId: entry.orderLineId,
+        transferId: null,
         actorId: entry.actorId,
         createdAt: entry.at,
       })),

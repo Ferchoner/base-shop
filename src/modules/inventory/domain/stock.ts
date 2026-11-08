@@ -16,18 +16,21 @@ export const MAX_STOCK_QUANTITY = 100_000;
 /** Longest note of a movement (API_SPEC.md §13). */
 export const MAX_NOTE_LENGTH = 500;
 
-export type StockMovementType = 'RECEIPT' | 'ADJUSTMENT' | 'SALE' | 'RESTOCK';
+/** `TRANSFER` is one side of a transfer between warehouses, signed and linked to it (ADR-0172). */
+export type StockMovementType =
+  'RECEIPT' | 'ADJUSTMENT' | 'SALE' | 'RESTOCK' | 'TRANSFER';
 
 export const STOCK_MOVEMENT_TYPES: readonly StockMovementType[] = [
   'RECEIPT',
   'ADJUSTMENT',
   'SALE',
   'RESTOCK',
+  'TRANSFER',
 ];
 
 /**
- * The reasons of an adjustment (ADR-0069). `WAREHOUSE_TRANSFER` moves units between warehouses, one adjustment in
- * each, until transfers are an operation of their own (ADR-0160, T-163).
+ * The reasons of an adjustment (ADR-0069). `WAREHOUSE_TRANSFER` moved units between warehouses, one adjustment in
+ * each, until transfers were an operation of their own (ADR-0160, ADR-0172); it stays to correct old data.
  */
 export type AdjustmentReason =
   | 'PHYSICAL_COUNT'
@@ -94,6 +97,8 @@ export interface StockMovement {
   readonly note: string | null;
   readonly orderId: string | null;
   readonly orderLineId: string | null;
+  /** The transfer of a TRANSFER movement (ADR-0172); `null` for the others. */
+  readonly transferId: string | null;
   /** The staff member who moved it, or `null` for the system. */
   readonly actorId: string | null;
   readonly createdAt: Date;

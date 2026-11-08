@@ -9,6 +9,7 @@ import { AppCacheModule } from '../../../platform/cache/app-cache.module.js';
 import { ClockModule } from '../../../platform/clock/clock.module.js';
 import { validateEnvironment } from '../../../platform/config/environment.js';
 import { EventsModule } from '../../../platform/events/events.module.js';
+import { IdempotencyModule } from '../../../platform/http/idempotency/idempotency.module.js';
 import { PersistenceModule } from '../../../platform/persistence/persistence.module.js';
 import { PrismaService } from '../../../platform/persistence/prisma.service.js';
 import {
@@ -102,6 +103,7 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
         ClockModule,
         EventsModule,
         AppCacheModule,
+        IdempotencyModule,
         AuditModule,
         InventoryModule,
       ],

@@ -56,6 +56,7 @@ export const PATH_PARAMETERS: Readonly<Record<string, PathParameter>> = {
     example: '16',
   },
   stockItemId: uuid('ID de las existencias de una variante en un almacén.'),
+  transferId: uuid('ID del traslado entre almacenes.'),
   userId: uuid('ID de la cuenta.'),
   variantId: uuid('ID de la variante.'),
   warehouseId: uuid('ID del almacén.'),
