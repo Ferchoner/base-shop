@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, y `orders.open-price`, `cash-closings.read` y `cash-closings.manage` de ADR-0171). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, `orders.open-price`, `cash-closings.read` y `cash-closings.manage` de ADR-0171, e `inventory.transfer` de ADR-0172). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -1209,6 +1209,10 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
 | POST | `/v1/admin/inventory/adjustments` | `inventory.write` | UC-INV-03 |
 | POST | `/v1/admin/inventory/receipt-imports` | `inventory.write` | UC-INV-12 (ADR-0164) |
+| GET | `/v1/admin/inventory/transfers` | `inventory.read` | UC-INV-13 (ADR-0172) |
+| POST | `/v1/admin/inventory/transfers` | `inventory.transfer` + `Idempotency-Key` | UC-INV-13 (ADR-0172) |
+| GET | `/v1/admin/inventory/transfers/{transferId}` | `inventory.read` | UC-INV-13 (ADR-0172) |
+| POST | `/v1/admin/inventory/transfers/{transferId}/cancel` | `inventory.transfer` | UC-INV-14 (ADR-0172) |
 
 El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
@@ -1220,7 +1224,7 @@ El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo ati
 
 **`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
 
-**`GET …/stock-items/{stockItemId}/movements`** — Paginación por cursor. `StockMovement { id, type, quantity, onHandAfter, reasonCode, note, orderId, orderLineId, actorId, createdAt }`. Filtros: `type`, `from`, `to`. Orden fijo: más reciente primero.
+**`GET …/stock-items/{stockItemId}/movements`** — Paginación por cursor. `StockMovement { id, type, quantity, onHandAfter, reasonCode, note, orderId, orderLineId, transferId, actorId, createdAt }`; `transferId` liga un movimiento `TRANSFER` con su traslado (ADR-0172) y es `null` en los demás. Filtros: `type`, `from`, `to`. Orden fijo: más reciente primero.
 
 **`POST …/receipts`** — Entrada de mercancía.
 
@@ -1231,7 +1235,7 @@ El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo ati
 **`POST …/adjustments`** — Ajuste (ADR-0069).
 
 - Request: `{ "variantId", "warehouseId", "quantity": -2, "reasonCode": "DAMAGED", "note": "…" }`.
-- `quantity` entero distinto de 0 con signo; `reasonCode` del catálogo de ajustes; DAMAGED, LOSS_OR_THEFT e INTERNAL_USE solo con cantidad negativa; `note` obligatoria con OTHER. WAREHOUSE_TRANSFER mueve unidades entre almacenes: un ajuste negativo en uno y uno positivo en el otro (ADR-0160).
+- `quantity` entero distinto de 0 con signo; `reasonCode` del catálogo de ajustes; DAMAGED, LOSS_OR_THEFT e INTERNAL_USE solo con cantidad negativa; `note` obligatoria con OTHER. WAREHOUSE_TRANSFER mueve unidades entre almacenes: un ajuste negativo en uno y uno positivo en el otro (ADR-0160); desde la 1.11 solo sirve para corregir datos viejos, porque un traslado se registra con `POST …/transfers` (ADR-0172).
 - 201 `{ "stockItem", "movement" }`.
 - Errores: 409 `insufficient-stock` si dejaría `onHand` por debajo de `reserved` o de cero (BR-INV-01).
 
@@ -1284,6 +1288,42 @@ UC-INV-05 a 08 no tienen API: los ejecutan el checkout, los eventos y los jobs.
 - **Auditoría:** una entrada `inventory.receipt-import`, sobre el recurso `stock-receipt-import`, con los conteos y la huella del archivo. Una carga con `dryRun` no se audita.
 
 Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva todo o nada (`reserve`), confirma (`commit`) y libera (`release`) por orden, y responde por línea si una cantidad puede surtirse (`canFulfill`), sin revelar existencias. Desde T-162 parte a (ADR-0160), `reserve` usa un solo almacén por orden, el primero por prioridad que la tiene toda; `canFulfillTogether` responde si cada línea cabe junto con las demás, y `allocationOf` da los almacenes de la reserva confirmada. Una reserva dura `RESERVATION_TTL` (20 minutos por defecto). Se puede confirmar mientras esté activa, hasta que el job de T-230 la venza.
+
+**Traslados entre almacenes** (UC-INV-13 y 14, ADR-0172, versión 1.11). Unidades de una o más variantes salen de un almacén y entran a otro en un solo paso, con un folio. Implementado en T-163.
+
+`StockTransfer { id, folio, fromWarehouseId, toWarehouseId, reason, note, status, lines: [{ variantId, sku, productTitle, quantity }], createdBy, createdAt, cancellableUntil, cancelledBy, cancelledAt, version }`.
+
+- `folio`: `T-` y al menos seis dígitos, consecutivo, de una secuencia de la base de datos; un traslado que falla puede dejar un hueco.
+- `reason`: `SALE` (para venderlo en el destino), `RESTOCK` (para surtirlo) u `OTHER`, con `note` obligatoria.
+- `status`: `COMPLETED` al registrarse; `CANCELLED` si se canceló.
+- `cancellableUntil`: 10 minutos después de `createdAt`; `null` si ya se canceló.
+- `lines`: por variante, en orden de su ID.
+
+**`POST …/transfers`** — Registra un traslado y mueve sus unidades. Exige `Idempotency-Key`: un reintento con la misma clave responde lo mismo sin mover otra vez.
+
+- Request: `{ "fromWarehouseId", "toWarehouseId", "reason": "SALE", "note": "Para enseñarlo a un cliente", "lines": [{ "variantId", "quantity": 2 }] }`.
+- `toWarehouseId` es un almacén activo y distinto del origen; `fromWarehouseId`, cualquier almacén, también uno inactivo, para vaciarlo.
+- De 1 a 100 líneas, cada variante una vez y en cualquier estado; de 1 a 100,000 unidades por línea; `note` hasta 500 caracteres, sin espacios alrededor; vacía, sin nota.
+- Cada línea deja dos movimientos `TRANSFER` con el `transferId` y la nota: uno negativo en el origen y uno positivo en el destino, que crea la existencia si no estaba. Todo en una transacción: si una línea no se puede, no se mueve nada.
+- Solo se mueven unidades disponibles (`onHand − reserved`): lo reservado sigue para su orden.
+- 201 `StockTransfer`, con `Location`.
+- Errores: 400 `validation-error` con `differentWarehouse` en `toWarehouseId`, `isNotEmpty` en `note` con `OTHER` sin nota y `duplicateVariant` en `lines[i].variantId`; 404 si la variante o el origen no existen, o si el destino no existe o está inactivo; 409 `insufficient-stock` con `lines: [{ variantId, canFulfill: false }]` de cada línea que no alcanza.
+- Se audita como `inventory.transfer`, sobre el recurso `stock-transfer`, con el folio, los almacenes, el motivo, la nota y las líneas.
+
+**`GET …/transfers`** — Paginado, del más reciente al más antiguo. Filtros: `warehouseId` (los que salen de ese almacén o llegan a él), `variantId` (los que tienen una línea de esa variante), `reason`, `status`, `from` y `to` (fecha o fecha y hora ISO 8601 sobre `createdAt`, ambos incluidos; una fecha sola en `to` incluye todo el día). Responde `{ "data": [StockTransfer], "meta" }`.
+
+**`GET …/transfers/{transferId}`** — 200 `StockTransfer`; 404 si no existe.
+
+**`POST …/transfers/{transferId}/cancel`** — Deshace un traslado equivocado en sus primeros 10 minutos.
+
+- Request: `{ "version": 1 }`, la versión leída.
+- Regresa las unidades al origen con movimientos `TRANSFER` contrarios, ligados al mismo traslado, porque el historial de existencias nunca se borra; el traslado queda `CANCELLED`, con quién lo canceló y cuándo, y su `version` sube.
+- Lo cancela cualquiera con `inventory.transfer`, no solo quien lo registró.
+- 200 `StockTransfer`.
+- Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` con `currentStatus: CANCELLED` si ya se canceló, o con `currentStatus: COMPLETED` y `reason: cancel-window-passed` pasados los 10 minutos; 409 `insufficient-stock` si el destino ya no tiene esas unidades disponibles, por ejemplo porque ya las vendió.
+- Se audita como `inventory.transfer-cancel`.
+
+**Bloqueos:** registrar y cancelar comparten el bloqueo de los dos almacenes, en orden de ID, así que ninguno se desactiva mientras las unidades se mueven (ADR-0160), y cambian las existencias en orden ascendente de ID (BR-INV-14), así que dos traslados en sentidos contrarios no se bloquean entre sí. Cancelar bloquea además el traslado, y dos cancelaciones a la vez dejan una sola.
 
 ---
 

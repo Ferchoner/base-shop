@@ -50,6 +50,13 @@ Versión 1.11 — Traslados entre almacenes (ADR-0172), desde el 2026-11-08; su 
 - **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo y bajo el umbral de la CI; 0 en producción. Siguen esperando a que termine la pausa de Dependabot (ADR-0158).
 - **Guía de desarrollo:** las tres prácticas de la review de la 1.10 (un parámetro de ruta nuevo en `PATH_PARAMETERS`, los conteos de tablas y permisos en las pruebas, y la CI de los pull requests apilados) quedan en `DEVELOPMENT_GUIDE.md`.
 
+#### Resultado de la parte 1 (T-163)
+
+- **API:** `POST /v1/admin/inventory/transfers` con `Idempotency-Key`, `GET` paginado con filtros por almacén de cualquier lado, variante, motivo, estado y fechas, `GET …/{transferId}` y `POST …/{transferId}/cancel` con la `version` leída (API_SPEC.md §13).
+- **Base de datos:** el valor `TRANSFER` del enum de movimientos, en su propia migración; `stock_transfers` y `stock_transfer_lines` con sus `CHECK`, y `transfer_id` en `stock_movements` (DATABASE.md §6.7 y §6.8); el permiso `inventory.transfer` para el Vendedor y el Administrador, en otra migración.
+- **Concurrencia:** registrar y cancelar comparten el bloqueo de los dos almacenes y cambian las existencias en orden de ID, así que dos traslados de las últimas unidades dejan pasar uno y dos en sentidos contrarios no se bloquean; las pruebas de integración lo comprueban contra PostgreSQL.
+- **Para la parte 2:** el filtro por tipo del listado llega con el préstamo, que es el segundo tipo.
+
 ### Versión 1.10 — Operación diaria de la tienda física (2026-11-07)
 
 **Goal:** Que una tienda de dos locales en la misma red migre a base-shop sin despliegue en la nube: un equipo de una tienda hace de servidor con HTTPS, el staff cobra en el mostrador lo que aún no está en el catálogo, y cada local cierra su caja al final del día con lo esperado, lo contado y la diferencia (ADR-0171). **Tareas:** paso 0 con T-331, T-182 y T-183, en ese orden.
