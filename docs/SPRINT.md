@@ -57,6 +57,15 @@ Versión 1.12 — Ubicación de cada producto y hojas de conteo (ADR-0173), desd
 - **Traslados:** no cambian la ubicación; la existencia que un traslado crea en el destino nace sin ubicación, y la prueba de integración lo comprueba.
 - **Para la parte 2:** el índice por almacén y ubicación es el que usará la hoja de conteo para tomar las existencias de una ubicación o de un prefijo.
 
+#### Resultado de la parte 2 (T-166)
+
+- **Clase del producto:** `countClass` A, B o C en el alta, la edición, la vista y el listado (`countClass` y `hasCountClass`), en cualquier estado del producto; la columna `countClass` de la carga masiva, y `PUT /v1/admin/catalog/count-classes` para hasta 500 productos a la vez, todo o nada (API_SPEC.md §11.6).
+- **Clase sugerida:** `GET /v1/admin/orders/count-class-suggestions` suma lo vendido por producto en los últimos 90 días, en línea y en la tienda, y sugiere A hasta el 80 % del importe, B hasta el 95 % y C el resto; la regla vive en el dominio de Ordering y Catalog no depende de Ordering (§15.7).
+- **Hojas de conteo:** `/v1/admin/inventory/counts` abre una hoja por ubicación o prefijo, categoría, clase o lista de variantes, de 1 a 1,000 líneas por ubicación y SKU; se captura a ciegas por línea con `inventory.count`, guardando las físicas de ese momento; se revisa, se recuenta, se aplica con `Idempotency-Key` o se cancela con `inventory.write` (§13).
+- **Base de datos:** el enum y la columna `products.count_class`; `stock_counts`, `stock_count_lines` y `stock_movements.count_id`, con sus `CHECK` y el índice único parcial que deja una variante en una sola hoja abierta por almacén (DATABASE.md §6.9 y §6.10). Ahora son 53 tablas.
+- **Problema nuevo:** `variant-in-open-count` (409, E-40), con las variantes y la hoja que ya las tiene.
+- **Decisiones de implementación:** la diferencia se aplica sobre las físicas de ahora, así que una venta entre la captura y la aplicación no se pierde; capturar no pide `version`, para que varias personas cuenten la misma hoja, pero cada captura sube la de la hoja, y aplicar exige la leída; la hoja a ciegas es una ayuda para contar, no un control de acceso (SECURITY.md).
+
 ### Versión 1.11 — Traslados entre almacenes (2026-11-08)
 
 **Goal:** Que mover producto entre los dos locales de la tienda sea una sola operación con folio, que no se pueda registrar a medias, y que lo que se lleva a enseñar al otro local tenga una hora de regreso y no se pierda de vista (ADR-0172). **Tareas:** paso 0, T-163 y T-164, en ese orden.

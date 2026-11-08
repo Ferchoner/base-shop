@@ -215,6 +215,7 @@ Criterios de aceptación:
 | UC-CAT-16 | Carga masiva de productos con sus variantes | Staff (`catalog.write`) | BR-PRD-02, BR-PRD-09, BR-PRD-19, ADR-0164 |
 | UC-CAT-17 | Vender un producto solo en la tienda física | Staff (`catalog.write`) | BR-PRD-20, ADR-0165 |
 | UC-CAT-18 | Pedir a la IA un borrador de título y descripción de un producto | Staff (`catalog.write`) | ADR-0170 |
+| UC-CAT-19 | Dar a cada producto su clase para contarlo (A, B o C) | Staff (`catalog.write`) | BR-PRD-22, ADR-0173 |
 
 Criterios de aceptación:
 
@@ -234,6 +235,7 @@ Criterios de aceptación:
 - **UC-CAT-17 (ADR-0165, versión 1.6):** un producto con `storeOnly` no aparece en la tienda pública, el carrito y el checkout en línea lo rechazan y la recompra lo omite; la venta de mostrador y los pedidos del staff lo aceptan; la marca se cambia en cualquier momento.
 - **UC-CAT-16 (implementación, ADR-0164):** cada error lleva su código en su celda, también los de las filas de un producto entre sí (`differsFromProduct`, `optionNames`), los del archivo (`repeated`) y los del catálogo (`taken`); un slug, SKU o GTIN que otro cambio toma entre la revisión y el guardado responde 409 sin guardar nada; 5,000 productos de 10 categorías caben en una transacción; las plantillas de `docs/templates/` se importan sin errores.
 - **UC-CAT-16 (ADR-0164, versión 1.5):** un CSV de hasta 5,000 filas, una por variante, crea productos nuevos en borrador con sus variantes, con la marca y las categorías por su slug; todo o nada, con los errores por línea y columna, y una simulación con `dryRun`; un slug que ya existe o un SKU ya usado es un error de su fila, así que repetir el archivo no cambia nada.
+- **UC-CAT-19 (ADR-0173, versión 1.12):** una clase opcional por producto, `A`, `B` o `C`, en el alta, la edición, el listado (con filtros por clase y por tener o no clase) y la carga masiva; se cambia en cualquier estado del producto; una ruta la cambia en hasta 500 productos a la vez, todo o nada, para aplicar la clase sugerida por las ventas (UC-ORD-18); cada cambio se audita.
 - **UC-CAT-01 / 02 (implementación, ADR-0129):** filtrar por una categoría o marca que no existe, o que está oculta o inactiva, responde 400 con el mismo código. Las imágenes de variantes que no se venden no se muestran.
 
 ### 5.3 Pricing
@@ -276,6 +278,9 @@ Criterios de aceptación:
 | UC-INV-15 | Prestar existencias a otro almacén para mostrarlas | Staff (`inventory.transfer`; consultar con `inventory.read`) | BR-INV-16, BR-INV-17, ADR-0172 |
 | UC-INV-16 | Cerrar un préstamo con lo que regresó | Staff (`inventory.transfer`) | BR-INV-13, BR-INV-17, ADR-0172 |
 | UC-INV-17 | Registrar dónde está cada producto en cada almacén | Staff (`inventory.count`; consultar con `inventory.read`) | BR-INV-18, ADR-0173 |
+| UC-INV-18 | Abrir una hoja de conteo de un almacén | Staff (`inventory.write`; consultar con `inventory.read`) | BR-INV-19, ADR-0173 |
+| UC-INV-19 | Contar a ciegas las líneas de una hoja | Staff (`inventory.count`) | BR-INV-19, BR-INV-20, ADR-0173 |
+| UC-INV-20 | Revisar, aplicar o cancelar una hoja de conteo | Staff (`inventory.write`) | BR-INV-01, BR-INV-13, BR-INV-20, ADR-0173 |
 
 Criterios de aceptación:
 
@@ -295,6 +300,9 @@ Criterios de aceptación:
 - **UC-INV-16 (ADR-0172, versión 1.11):** con la versión leída y lo que regresó de cada línea del préstamo, todas una vez, de 0 a lo prestado; lo que regresó vuelve al origen con un traslado de regreso ligado al préstamo, que no se cancela, aunque el origen esté inactivo; lo demás se queda; se rechaza si el destino ya no tiene disponible lo que regresó; dos cierres a la vez dejan uno; lo cierra cualquiera con `inventory.transfer`; se audita.
 - **UC-INV-14 (ADR-0172, versión 1.11):** solo en los 10 minutos que siguen al registro y una vez; regresa las unidades al origen con movimientos contrarios, sin borrar los del traslado; se rechaza si el destino ya no tiene las unidades disponibles; exige la versión leída; lo cancela cualquiera con `inventory.transfer`; se audita.
 - **UC-INV-17 (ADR-0173, versión 1.12):** una ubicación opcional por variante y almacén, de 1 a 20 caracteres, en mayúsculas; se registra aunque la variante no tenga unidades ahí, y se quita; el listado de existencias filtra por ubicación exacta, por prefijo y por tener o no ubicación; un traslado no la cambia; cada cambio se audita.
+- **UC-INV-18 (ADR-0173, versión 1.12):** se abre para un almacén con una ubicación o un prefijo, una categoría, una clase (la C incluye a los productos sin clase), o con una lista de variantes; toma de 1 a 1,000 variantes, con existencia o con ubicación en ese almacén, ordenadas por ubicación y SKU; folio `C-` consecutivo; una variante que ya está en otra hoja abierta del almacén se rechaza y no se abre nada; se audita.
+- **UC-INV-19 (ADR-0173, versión 1.12):** de 0 a 100,000 por línea; guarda las físicas de ese momento para comparar; una variante que no estaba se agrega al final; quien no tiene `inventory.write` no ve lo esperado ni la diferencia; varias personas cuentan la misma hoja a la vez; no se audita.
+- **UC-INV-20 (ADR-0173, versión 1.12):** con la versión leída; recontar quita lo contado de una línea; aplicar exige `Idempotency-Key` y crea un ajuste `PHYSICAL_COUNT` ligado a la hoja por cada línea contada con diferencia, sobre las físicas de ahora; lo no contado no se toca; una línea que dejaría menos físicas que las apartadas no se aplica y se informa, y las demás sí; cancelar no ajusta nada; una hoja aplicada o cancelada ya no cambia; se audita.
 
 ### 5.5 Shopping
 
@@ -343,6 +351,7 @@ Criterios de aceptación:
 | UC-ORD-15 | Consultar los datos de la tienda para el ticket | Staff (`orders.read`) | BR-ORD-21, ADR-0163 |
 | UC-ORD-16 | Consultar el corte de caja de un local en un día | Staff (`cash-closings.read`) | BR-ORD-23, ADR-0171 |
 | UC-ORD-17 | Cerrar la caja de un local con el efectivo contado | Staff (`cash-closings.manage`) | BR-ORD-23, ADR-0171 |
+| UC-ORD-18 | Consultar la clase sugerida de cada producto por lo vendido en 90 días | Staff (`orders.read`) | BR-PRD-22, ADR-0173 |
 
 Criterios de aceptación:
 
@@ -375,6 +384,7 @@ Criterios de aceptación:
 - **UC-ORD-15 (ADR-0163):** responde el nombre, la dirección, el RFC, el teléfono y la leyenda de la tienda, de su configuración; los opcionales sin valor salen `null`, y la leyenda nunca falta. El detalle de la orden del staff dice de qué almacén salieron sus productos.
 - **UC-ORD-16 (ADR-0171):** para un almacén y un día de la Ciudad de México, responde las órdenes de la tienda física colocadas y canceladas, lo cobrado por método, los reembolsos, el efectivo esperado, el desglose por quien registró cada movimiento y las líneas de precio libre; un cobro o reembolso cuenta el día en que se registró. Con el cierre del día si lo tiene, y lo que llegó después de él.
 - **UC-ORD-17 (ADR-0171):** hoy o un día anterior, una vez por almacén y día; guarda las cifras de ese momento, el efectivo contado, el esperado y la diferencia; con diferencia exige una nota; el cierre no se edita ni se borra; se audita como `cash-closings.close` sin la nota. Los cierres se listan por almacén y días.
+- **UC-ORD-18 (ADR-0173, versión 1.12):** suma por producto lo vendido en los últimos 90 días, en línea y en la tienda, de las órdenes pagadas que no se cancelaron, vencieron ni reembolsaron, por el total de cada línea menos su descuento; `A` hasta el primer 80 % del importe, `B` el siguiente 15 % y `C` el resto; los productos sin ventas no aparecen y son `C`; responde también la clase actual de cada producto, para aplicarla con UC-CAT-19.
 - **UC-ORD-01 a 03 (implementación, ADR-0132):**
   - la cotización marca las líneas que no se pueden vender y suma solo las demás;
   - colocar la orden bloquea el carrito y revisa, en este orden, al comprador, el carrito, la dirección, que todo sea vendible, el total y el stock;
@@ -612,6 +622,7 @@ Todas las respuestas de error usan RFC 9457 con `application/problem+json` (ADR-
 | E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | 409 | UC-WRK-05 |
 | E-38 | Un cupón que no aplica: nadie tiene su código o no está vigente en el canal, no alcanza su compra mínima, no quita nada, no le quedan usos, el comprador ya lo usó, o es de una vez por cliente en una venta sin datos del comprador (ADR-0168) | 409 | UC-PRM-05 |
 | E-39 | El asistente de IA no está configurado o no respondió al pedir un borrador de descripción (ADR-0170) | 503 | UC-CAT-18 |
+| E-40 | Una variante que ya está en otra hoja de conteo abierta del mismo almacén, al abrir una hoja o al agregarle una variante (ADR-0173) | 409 | UC-INV-18, UC-INV-19 |
 
 ---
 
