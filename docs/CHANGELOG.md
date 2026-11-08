@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## 1.10.0 (2026-11-08)
 
 - Plan de la versión 1.10 (nuevo ADR-0171): servidor en red local, precio libre en la venta de mostrador y corte de caja.
 - Paso 0 de la versión 1.10: `npm audit` sin cambios desde la 1.9 (0 avisos en producción).
@@ -19,6 +19,7 @@
   - `POST /v1/admin/cash-closings`: el cierre del día con el efectivo contado y la diferencia, una vez por local y día, con nota obligatoria si no cuadra; `GET /v1/admin/cash-closings` y `GET /v1/admin/cash-closings/{closingId}`.
   - Tabla nueva `cash_closings`.
   - Permisos nuevos `cash-closings.read` y `cash-closings.manage`, para el Vendedor y el Administrador.
+- Versión 1.10.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.10.0` y un GitHub Release.
 
 ## 1.9.0 (2026-11-07)
 

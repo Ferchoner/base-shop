@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Versión 1.10 — Operación diaria de la tienda física (ADR-0171), desde el 2026-11-07; su plan está en el historial. La versión 1.9, borrador de descripción de producto con IA, se cerró el 2026-11-07 y se publicó como la 1.9.0.
+Ninguna. La versión 1.10, operación diaria de la tienda física, se cerró el 2026-11-08 y se publica como la 1.10.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -72,6 +72,49 @@ Versión 1.10 — Operación diaria de la tienda física (ADR-0171), desde el 20
 - Permisos `cash-closings.read` y `cash-closings.manage` para el Vendedor y el Administrador.
 - Límite conocido: las órdenes en línea pagadas en la tienda no tienen almacén y no entran al corte.
 - Pruebas: unitarias del cierre, del caso de uso y de los días de la Ciudad de México; `test/cash-closings.e2e-spec.ts` de punta a punta.
+
+**Fecha:** 2026-11-08. **Resultado:** objetivo cumplido. T-331, T-182 y T-183 están en DONE, el pipeline de CI está en verde en los tres pull requests, el backoffice ya usa las tres partes, y la versión se publica como la 1.10.0, con su tag y su GitHub Release (ADR-0159).
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0171 y paso 0 | DONE | Pull request #141 |
+| Servidor en red local: `docker-compose.server.yml`, `deploy/lan/`, `.env.server.example`, `TRUST_PROXY_HOPS` y `docs/LAN_SERVER.md` | DONE | T-331, pull request #141 |
+| Precio libre en la venta de mostrador: `openPrice`, `unitPrice` y `note` en las líneas, `orders.open-price` y `GET /v1/admin/orders/open-price-lines` | DONE | T-182, pull request #142 |
+| Corte de caja: resumen por almacén y día, cierre con el efectivo contado, listado y detalle; `cash-closings.read` y `cash-closings.manage` | DONE | T-183, pull request #143 |
+| Backoffice: local de cada equipo, artículo sin registrar en Vender en tienda y pantalla Corte de caja | DONE | base-ecomm-admin, pull requests #28 y #29 |
+| Contrato de `/v1`: 158 rutas, cinco nuevas; tres permisos nuevos, 27 en total; una tabla nueva, `cash_closings`, 49 en total | — | `API_SPEC.md`, `docs/openapi/v1.json`, `DATABASE.md` |
+| 171 ADR: 167 aceptados, 2 reemplazados y 2 reemplazados parcialmente; 1 nuevo en esta versión (ADR-0171) | — | `DECISIONS.md` |
+
+El trabajo se integró en tres pull requests apilados (#141, #142 y #143) y la publicación en otro. La CI de `main` no corre en un pull request cuya base es otra rama, así que la de #143 se lanzó a mano sobre su rama antes de fusionar. En el backoffice, el contrato se fijó primero a la rama de T-183 y, ya fusionada, a `main` en #29.
+
+#### Riesgos
+
+- **Resueltos en esta versión:** el uso sin nube que pedía la tienda: el servidor en su red con HTTPS y respaldo diario.
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews anteriores, entre ellos la validación legal de los datos que captura el staff y los 25 avisos de `npm audit` en dependencias de desarrollo.
+- **Nuevos:**
+  - **Un solo servidor en la tienda:** si el equipo se apaga, los dos locales se quedan sin sistema; el respaldo es diario, y la guía pide guardarlo en otro disco o en una carpeta sincronizada.
+  - **El certificado de la CA interna:** cada equipo debe confiar en él; si no, el navegador avisa en cada visita. La guía explica cómo instalarlo.
+  - **Precio libre:** es un precio que escribe el staff, sin promociones y con una nota; el listado de líneas de precio libre y el corte las muestran para revisarlas, y el permiso `orders.open-price` se puede quitar por rol.
+  - **Órdenes en línea pagadas en la tienda:** no tienen almacén y no entran al corte de ningún local.
+  - **El rol Vendedor no cobra:** no tiene `payments.manage`; si los ayudantes cobran, el dueño se lo da en los roles.
+
+#### Qué funcionó
+
+- **Un plan con la tienda real:** dos locales en la misma red y traslados casi instantáneos dejaron fuera la nube y ordenaron la versión: primero el día a día de la caja, después los traslados.
+- **El corte sobre lo que ya existía:** los cobros y reembolsos salen de Payments por su fachada, y el cierre guarda una copia del resumen, así que no se edita ni se descuadra después.
+- **El servidor probado completo en la sesión:** con Docker y Node 24 se levantó Caddy, la API, el backoffice y el respaldo, y se probó la restauración.
+
+#### Qué mejorar
+
+- **Los parámetros de ruta nuevos:** la prueba de contrato encontró `closingId` sin descripción; un parámetro nuevo va en `PATH_PARAMETERS` en el mismo commit que la ruta.
+- **Los conteos de las pruebas de integración:** la de la base cuenta las tablas y la de identidad los permisos del Vendedor; una tabla o un permiso nuevo las actualiza en el mismo commit.
+- **Pull requests apilados:** la CI no corre sola en los que no van a `main`; se lanza a mano o se espera a cambiar la base.
+
+#### Siguiente versión
+
+La 1.11, traslados entre locales (T-163), de un paso y con préstamos para mostrar; necesita su plan aprobado (ADR-0159).
 
 ### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
 
