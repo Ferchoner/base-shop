@@ -187,6 +187,8 @@ MVP cerrado el 2026-10-04 (ADR-0158) y publicado como la versión 1.0.0; el desa
 - [x] Versión 1.4.0: datos para el ticket, nota del pago y GTIN (paso 0, T-142, T-188 y T-197), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.5.0: carga masiva de productos y de existencias (paso 0 y T-146, en dos partes), cerrada el 2026-10-15; review en `SPRINT.md`
 - [x] Versión 1.6.0: servicios solo en tienda y órdenes de trabajo (paso 0 y T-189, en tres partes), cerrada el 2026-10-16; review en `SPRINT.md`
+- [ ] Versión 1.11: traslados entre almacenes (paso 0, T-163 y T-164), en curso; plan en `SPRINT.md`
+- [x] Paso 0 de la versión 1.11: `npm audit` sin cambios desde la 1.10 (0 en producción); las prácticas de la review de la 1.10 en `DEVELOPMENT_GUIDE.md` (ADR-0172)
 - [x] Versión 1.10.0: operación diaria de la tienda física (paso 0 con T-331, T-182 y T-183), cerrada el 2026-11-08; review en `SPRINT.md`
 - [x] T-183: corte de caja por local y día de la Ciudad de México: `GET /v1/admin/cash-closings/summary` con las órdenes de la tienda física, lo cobrado por método y por quien lo registró, los reembolsos, el efectivo esperado y el precio libre; cierre único por almacén y día con el efectivo contado, la diferencia y una nota si la hay, inmutable y auditado; `cash-closings.read` y `cash-closings.manage` para el Vendedor y el Administrador (ADR-0171)
 - [x] T-182: precio libre en la venta de mostrador: `openPrice` en los productos `storeOnly`, `unitPrice` y `note` en sus líneas de la cotización y la orden del staff, sin promociones; permiso `orders.open-price` para el Vendedor y el Administrador; `GET /v1/admin/orders/open-price-lines` (ADR-0171)
