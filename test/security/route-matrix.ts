@@ -233,6 +233,24 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/inventory/transfers/:transferId/close': {
     access: ['inventory.transfer'],
   },
+  // Count sheets: opened, reviewed and applied by those who manage the stock, counted blind by those who count it
+  // (ADR-0173).
+  'GET /v1/admin/inventory/counts': { access: ['inventory.read'] },
+  'POST /v1/admin/inventory/counts': { access: ['inventory.write'] },
+  'GET /v1/admin/inventory/counts/:countId': { access: ['inventory.read'] },
+  'PUT /v1/admin/inventory/counts/:countId/lines/:variantId': {
+    access: ['inventory.count'],
+  },
+  'POST /v1/admin/inventory/counts/:countId/lines/:variantId/recount': {
+    access: ['inventory.write'],
+  },
+  'POST /v1/admin/inventory/counts/:countId/apply': {
+    access: ['inventory.write'],
+    idempotent: 'user',
+  },
+  'POST /v1/admin/inventory/counts/:countId/cancel': {
+    access: ['inventory.write'],
+  },
   'GET /v1/admin/inventory/warehouses': { access: ['inventory.read'] },
   'POST /v1/admin/inventory/warehouses': { access: ['inventory.write'] },
   'PATCH /v1/admin/inventory/warehouses/:warehouseId': {

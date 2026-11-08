@@ -104,6 +104,8 @@ export interface StockMovement {
   readonly orderLineId: string | null;
   /** The transfer of a TRANSFER movement (ADR-0172); `null` for the others. */
   readonly transferId: string | null;
+  /** The count sheet of a PHYSICAL_COUNT adjustment it applied (ADR-0173); `null` for the others. */
+  readonly countId: string | null;
   /** The staff member who moved it, or `null` for the system. */
   readonly actorId: string | null;
   readonly createdAt: Date;
@@ -196,6 +198,8 @@ export class InvalidLocationError extends StockFieldError {
  *
  * @throws InvalidLocationError when it is blank or longer than 20 characters.
  */
+export function locationOf(location: string): string;
+export function locationOf(location: string | null): string | null;
 export function locationOf(location: string | null): string | null {
   if (location === null) return null;
   const normalized = location.trim().replace(/\s+/g, ' ').toUpperCase();

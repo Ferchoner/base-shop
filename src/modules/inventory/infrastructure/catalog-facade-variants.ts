@@ -5,6 +5,7 @@ import {
   type VariantLabel,
 } from '../application/catalog-variants.js';
 import type { VariantId } from '../domain/stock.js';
+import type { CountClass } from '../domain/stock-count.js';
 
 /**
  * Answers Inventory's `CatalogVariants` port with Catalog's facade (ADR-0005, ADR-0127): Inventory depends on
@@ -43,5 +44,12 @@ export class CatalogFacadeVariants extends CatalogVariants {
   ): Promise<ReadonlyMap<string, VariantId>> {
     const variants = await this.catalog.variantsBySku(skus);
     return new Map(variants.map(({ id, sku }) => [sku, id]));
+  }
+
+  async forCount(filter: {
+    readonly categoryId?: string;
+    readonly countClass?: CountClass;
+  }): Promise<VariantId[]> {
+    return (await this.catalog.variantsToCount(filter)).map(({ id }) => id);
   }
 }

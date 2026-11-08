@@ -283,6 +283,7 @@ describe('Restocks (e2e, T-161)', () => {
           orderId: id,
           orderLineId: shirtLine,
           transferId: null,
+          countId: null,
           actorId: stocker.id,
           createdAt: expect.any(String),
         },

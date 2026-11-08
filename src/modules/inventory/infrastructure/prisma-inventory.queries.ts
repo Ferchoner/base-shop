@@ -215,6 +215,7 @@ export class PrismaInventoryQueries extends InventoryQueries {
       orderId: row.orderId,
       orderLineId: row.orderLineId,
       transferId: row.transferId,
+      countId: row.countId,
       actorId: row.actorId,
       createdAt: row.createdAt,
     }));

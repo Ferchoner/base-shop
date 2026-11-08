@@ -32,6 +32,7 @@ export const PATH_PARAMETERS: Readonly<Record<string, PathParameter>> = {
   ),
   categoryId: uuid('ID de la categoría.'),
   closingId: uuid('ID del cierre de caja.'),
+  countId: uuid('ID de la hoja de conteo.'),
   deliveryId: uuid('ID de la entrega de un evento a su manejador.'),
   imageId: uuid('ID de la imagen.'),
   orderId: uuid('ID interno del pedido; quien compra usa el código público.'),

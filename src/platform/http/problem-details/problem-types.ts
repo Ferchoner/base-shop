@@ -195,6 +195,12 @@ export const PROBLEM_TYPES = {
     title: 'Cupón que no aplica',
     detail: 'El cupón no aplica a esta compra; `reason` dice por qué.',
   },
+  'variant-in-open-count': {
+    status: 409,
+    title: 'Variante en otra hoja de conteo',
+    detail:
+      'Alguna variante ya está en otra hoja de conteo abierta del almacén.',
+  },
   'idempotency-key-mismatch': {
     status: 422,
     title: 'Llave de idempotencia reutilizada',

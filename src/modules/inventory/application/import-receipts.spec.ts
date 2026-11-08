@@ -136,6 +136,10 @@ class InMemoryLedger extends StockLedgerRepository {
     throw new Error('not used');
   }
 
+  countAdjust(): never {
+    throw new Error('not used');
+  }
+
   restock(): never {
     throw new Error('not used');
   }
@@ -199,6 +203,10 @@ class FixedCatalog extends CatalogVariants {
   }
 
   findBySku(): never {
+    throw new Error('not used');
+  }
+
+  forCount(): never {
     throw new Error('not used');
   }
 }

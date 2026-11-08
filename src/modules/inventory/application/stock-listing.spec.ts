@@ -62,6 +62,10 @@ class FixedCatalog extends CatalogVariants {
     return Promise.reject(new Error('not used'));
   }
 
+  forCount(): Promise<VariantId[]> {
+    return Promise.reject(new Error('not used'));
+  }
+
   labels(ids: readonly VariantId[]): Promise<Map<VariantId, VariantLabel>> {
     this.asked.push('labels');
     return Promise.resolve(
@@ -372,6 +376,7 @@ describe('StockListing (UC-INV-04, ADR-0127)', () => {
       orderId: null,
       orderLineId: null,
       transferId: null,
+      countId: null,
       actorId: null,
       createdAt: new Date(Date.UTC(2026, 9, 1, 12, 0, 60 - n)),
     });

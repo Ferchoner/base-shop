@@ -1,4 +1,5 @@
 import type { VariantId } from '../domain/stock.js';
+import type { CountClass } from '../domain/stock-count.js';
 
 /** What the stock listing shows of a variant. */
 export interface VariantLabel {
@@ -32,4 +33,13 @@ export abstract class CatalogVariants {
   abstract findBySkus(
     skus: readonly string[],
   ): Promise<ReadonlyMap<string, VariantId>>;
+
+  /**
+   * The variants of the products directly in this category, of this class, or both, in any status, to open a
+   * count sheet (ADR-0173); class C includes the products without a class.
+   */
+  abstract forCount(filter: {
+    readonly categoryId?: string;
+    readonly countClass?: CountClass;
+  }): Promise<VariantId[]>;
 }

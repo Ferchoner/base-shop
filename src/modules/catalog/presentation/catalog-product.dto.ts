@@ -786,7 +786,10 @@ export class DescriptionDraftDto {
 
 /** One product of `PUT /v1/admin/catalog/count-classes` (ADR-0173). */
 export class CountClassItemDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiProperty({
+    format: 'uuid',
+    description: 'El producto, en cualquier estado; una vez por solicitud.',
+  })
   @IsUUID('all')
   productId: string;
 

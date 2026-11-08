@@ -12,6 +12,7 @@ import type {
 } from '../domain/stock.js';
 import {
   type ComputedReceipt,
+  type CountEntry,
   type RestockEntry,
   type RestockOrigin,
   type StockChange,
@@ -146,6 +147,30 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
     return stock === null
       ? null
       : this.record(stock, entry, 'ADJUSTMENT', entry.reasonCode);
+  }
+
+  async countAdjust(
+    entries: readonly CountEntry[],
+  ): Promise<{ movements: StockMovement[]; skipped: VariantId[] }> {
+    const ordered = await this.inItemOrder(entries);
+    const movements: StockMovement[] = [];
+    const skipped: VariantId[] = [];
+    for (const entry of ordered) {
+      const stock = await this.change(entry, true);
+      if (stock === null) {
+        skipped.push(entry.variantId);
+        continue;
+      }
+      const { movement } = await this.record(
+        stock,
+        entry,
+        'ADJUSTMENT',
+        'PHYSICAL_COUNT',
+        { countId: entry.countId },
+      );
+      movements.push(movement);
+    }
+    return { movements, skipped };
   }
 
   async transfer(
@@ -295,6 +320,7 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
       orderId?: string;
       orderLineId?: string;
       transferId?: string;
+      countId?: string;
     } = {},
   ): Promise<StockChange> {
     const movement: StockMovement = {
@@ -308,6 +334,7 @@ export class PrismaStockLedgerRepository extends StockLedgerRepository {
       orderId: links.orderId ?? null,
       orderLineId: links.orderLineId ?? null,
       transferId: links.transferId ?? null,
+      countId: links.countId ?? null,
       actorId: entry.actorId,
       createdAt: entry.at,
     };

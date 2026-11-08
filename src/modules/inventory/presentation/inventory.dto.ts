@@ -304,6 +304,10 @@ export class StockMovementDto {
   @ApiProperty({ ...NULLABLE_TEXT, format: 'uuid' })
   transferId: string | null;
 
+  /** La hoja de conteo de un ajuste `PHYSICAL_COUNT` que la aplicó (ADR-0173); `null` en los demás. */
+  @ApiProperty({ ...NULLABLE_TEXT, format: 'uuid' })
+  countId: string | null;
+
   @ApiProperty({
     ...NULLABLE_TEXT,
     format: 'uuid',

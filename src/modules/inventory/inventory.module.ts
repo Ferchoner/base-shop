@@ -5,6 +5,7 @@ import type { EnvironmentVariables } from '../../platform/config/environment.js'
 import { CatalogModule } from '../catalog/index.js';
 import { GeoModule } from '../geo/index.js';
 import { CatalogVariants } from './application/catalog-variants.js';
+import { CountQueries } from './application/count.queries.js';
 import { CreateWarehouse } from './application/create-warehouse.use-case.js';
 import { DeactivateWarehouse } from './application/deactivate-warehouse.use-case.js';
 import {
@@ -13,6 +14,7 @@ import {
 } from './application/inventory.facade.js';
 import { InventoryQueries } from './application/inventory.queries.js';
 import { ImportReceipts } from './application/import-receipts.use-case.js';
+import { StockCounts } from './application/stock-counts.use-case.js';
 import { StockEntries } from './application/stock-entries.use-case.js';
 import { StockLocations } from './application/stock-locations.use-case.js';
 import { StockListing } from './application/stock-listing.js';
@@ -22,6 +24,7 @@ import { UpdateWarehouse } from './application/update-warehouse.use-case.js';
 import { WarehouseLocations } from './application/warehouse-locations.js';
 import { ReservationRepository } from './domain/reservation.repository.js';
 import { ReceiptImportRepository } from './domain/receipt-import.repository.js';
+import { StockCountRepository } from './domain/stock-count.repository.js';
 import { StockLedgerRepository } from './domain/stock-ledger.repository.js';
 import { StockTransferRepository } from './domain/stock-transfer.repository.js';
 import { WarehouseRepository } from './domain/warehouse.repository.js';
@@ -30,12 +33,17 @@ import { GeoWarehouseLocations } from './infrastructure/geo-warehouse-locations.
 import { PrismaInventoryQueries } from './infrastructure/prisma-inventory.queries.js';
 import { PrismaReservationRepository } from './infrastructure/prisma-reservation.repository.js';
 import { PrismaReceiptImportRepository } from './infrastructure/prisma-receipt-import.repository.js';
+import {
+  PrismaCountQueries,
+  PrismaStockCountRepository,
+} from './infrastructure/prisma-stock-count.repository.js';
 import { PrismaStockLedgerRepository } from './infrastructure/prisma-stock-ledger.repository.js';
 import {
   PrismaStockTransferRepository,
   PrismaTransferQueries,
 } from './infrastructure/prisma-stock-transfer.repository.js';
 import { PrismaWarehouseRepository } from './infrastructure/prisma-warehouse.repository.js';
+import { AdminCountsController } from './presentation/admin-counts.controller.js';
 import { AdminReceiptImportsController } from './presentation/admin-receipt-imports.controller.js';
 import { AdminStockController } from './presentation/admin-stock.controller.js';
 import { AdminTransfersController } from './presentation/admin-transfers.controller.js';
@@ -51,6 +59,7 @@ import { AdminWarehousesController } from './presentation/admin-warehouses.contr
     AdminWarehousesController,
     AdminStockController,
     AdminTransfersController,
+    AdminCountsController,
     AdminReceiptImportsController,
   ],
   providers: [
@@ -68,6 +77,7 @@ import { AdminWarehousesController } from './presentation/admin-warehouses.contr
     StockLocations,
     StockListing,
     StockTransfers,
+    StockCounts,
     ImportReceipts,
     { provide: WarehouseRepository, useClass: PrismaWarehouseRepository },
     { provide: StockLedgerRepository, useClass: PrismaStockLedgerRepository },
@@ -76,6 +86,8 @@ import { AdminWarehousesController } from './presentation/admin-warehouses.contr
       useClass: PrismaStockTransferRepository,
     },
     { provide: TransferQueries, useClass: PrismaTransferQueries },
+    { provide: StockCountRepository, useClass: PrismaStockCountRepository },
+    { provide: CountQueries, useClass: PrismaCountQueries },
     {
       provide: ReceiptImportRepository,
       useClass: PrismaReceiptImportRepository,
