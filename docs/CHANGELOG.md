@@ -1,12 +1,15 @@
 # CHANGELOG
 
-## Unreleased
+## 1.12.0 (2026-11-08)
+
+Ubicación de cada producto y hojas de conteo (ADR-0173).
 
 - Plan de la versión 1.12 (nuevo ADR-0173): la ubicación de cada producto en cada almacén, hojas de conteo que ajustan las diferencias de una vez, y la clase A, B o C de cada producto, con una sugerida por las ventas de 90 días.
 - Paso 0 de la versión 1.12: `npm audit` sin cambios desde la 1.11 (0 avisos en producción); `DEVELOPMENT_GUIDE.md` con las prácticas de la review de la 1.11.
 - T-165: la ubicación de cada producto en cada almacén (`location` en `StockItem`), con `PUT /v1/admin/inventory/locations` y los filtros `location` (exacta o por prefijo con `*`) y `hasLocation`; permiso nuevo `inventory.count` para el Vendedor y el Administrador (ADR-0173).
 - T-166: hojas de conteo (`/v1/admin/inventory/counts`), con folio `C-`, abiertas por ubicación, categoría, clase o lista de variantes; captura a ciegas por línea con `inventory.count`; revisión, recuento, aplicación con `Idempotency-Key` y cancelación con `inventory.write`; `countId` en los movimientos y el problema nuevo `variant-in-open-count` (ADR-0173).
 - T-166: `countClass` A, B o C en el producto, con filtros, columna en la carga masiva y `PUT /v1/admin/catalog/count-classes`; `GET /v1/admin/orders/count-class-suggestions`, la clase sugerida por lo vendido en 90 días (ADR-0173).
+- Versión 1.12.0 (ADR-0159): la review de la versión queda en `SPRINT.md`, y se publica con el tag `v1.12.0` y un GitHub Release.
 
 ## 1.11.0 (2026-11-08)
 

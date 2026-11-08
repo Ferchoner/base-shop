@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Versión 1.12 — Ubicación de cada producto y hojas de conteo (ADR-0173), desde el 2026-11-08; su plan está en el historial. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y se publicó como la 1.11.0.
+Ninguna. La versión 1.12, ubicación de cada producto y hojas de conteo, se cerró el 2026-11-08 y se publica como la 1.12.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
 
 ---
 
@@ -65,6 +65,45 @@ Versión 1.12 — Ubicación de cada producto y hojas de conteo (ADR-0173), desd
 - **Base de datos:** el enum y la columna `products.count_class`; `stock_counts`, `stock_count_lines` y `stock_movements.count_id`, con sus `CHECK` y el índice único parcial que deja una variante en una sola hoja abierta por almacén (DATABASE.md §6.9 y §6.10). Ahora son 53 tablas.
 - **Problema nuevo:** `variant-in-open-count` (409, E-40), con las variantes y la hoja que ya las tiene.
 - **Decisiones de implementación:** la diferencia se aplica sobre las físicas de ahora, así que una venta entre la captura y la aplicación no se pierde; capturar no pide `version`, para que varias personas cuenten la misma hoja, pero cada captura sube la de la hoja, y aplicar exige la leída; la hoja a ciegas es una ayuda para contar, no un control de acceso (SECURITY.md).
+
+**Fecha:** 2026-11-08. **Resultado:** objetivo cumplido. T-165 y T-166 están en DONE, el pipeline de CI está en verde en los dos pull requests, el backoffice usa las dos partes, y la versión se publica como la 1.12.0, con su tag y su GitHub Release (ADR-0159).
+
+#### Entregables
+
+| Entregable | Estado | Referencia |
+|---|---|---|
+| Plan de la versión con el nuevo ADR-0173 y paso 0 | DONE | Pull request #151 |
+| Ubicación de cada existencia, sus filtros, la ruta para cambiarla y el permiso `inventory.count` | DONE | T-165, pull request #151 |
+| Hojas de conteo a ciegas con folio `C-`, recuento, aplicación de una vez y cancelación; clase A, B o C del producto y la sugerida por las ventas de 90 días | DONE | T-166, pull request #152 |
+| Backoffice: ubicación en Existencias, Trasladar, Vender en tienda y etiquetas; pestaña Conteos con el lector; hoja impresa y etiquetas de estante; clase en el producto y clases sugeridas; avisos en Inicio | DONE | base-ecomm-admin, pull request #31 |
+| Contrato de `/v1`: 173 rutas, diez nuevas; un permiso nuevo, 29 en total; un problema nuevo, `variant-in-open-count`; dos tablas nuevas, `stock_counts` y `stock_count_lines`, 53 en total | — | `API_SPEC.md`, `docs/openapi/v1.json`, `DATABASE.md` |
+| 173 ADR: 169 aceptados, 2 reemplazados y 2 reemplazados parcialmente; 1 nuevo en esta versión (ADR-0173) | — | `DECISIONS.md` |
+
+El trabajo se integró en dos pull requests apilados (#151 y #152) y la publicación en otro. La CI de #152 se lanzó a mano sobre su rama mientras su base era la de #151, como pide `DEVELOPMENT_GUIDE.md`; #152 se fusionó en la rama de #151 y las dos partes llegaron juntas a `main` con #151.
+
+#### Riesgos
+
+- **Heredados, siguen vigentes:** los del cierre del MVP y los de las reviews anteriores, entre ellos el único servidor de la tienda, los préstamos sin cerrar y los 25 avisos de `npm audit` en dependencias de desarrollo.
+- **Nuevos:**
+  - **El conteo a ciegas no es un control de acceso:** quien cuenta ve las existencias en su listado con `inventory.read`; lo que protege el inventario es que solo `inventory.write` aplica la hoja, y se audita.
+  - **Sin costo de producto:** las diferencias se ven en piezas, no en pesos; la merma en dinero espera a que el catálogo guarde el costo.
+  - **Hojas abiertas que nadie aplica:** sus productos no entran en otra hoja del mismo local hasta aplicarla o cancelarla; el backoffice las cuenta en Inicio.
+  - **La clase sugerida depende de lo vendido:** un producto nuevo o de temporada sale como C hasta que venda; por eso la sugerida se aplica a los que no tienen clase o a los elegidos, y no sola.
+
+#### Qué funcionó
+
+- **Guardar lo esperado al capturar:** la diferencia no depende de cuándo se aplica la hoja, y una venta durante el conteo no aparece como faltante.
+- **El índice único parcial con `ON CONFLICT … DO NOTHING`:** resolvió en la base las hojas que se abren a la vez con el mismo producto, sin bloqueos en el código.
+- **La sugerida en Ordering y la clase en Catalog:** Catalog sigue sin depender de las ventas; el backoffice une las dos.
+
+#### Qué mejorar
+
+- **Las tablas de resumen de `API_SPEC.md`:** la prueba de contrato las exige con cada ruta nueva; conviene agregarlas junto con el detalle de la ruta y no al final.
+- **Las descripciones de los DTO de entrada:** la misma prueba pide la descripción de cada campo; se revisa con `npm run test:e2e` antes de subir.
+
+#### Siguiente versión
+
+La 1.13, apartados con anticipo, compra de usados y consignas; necesita su plan aprobado (ADR-0159).
 
 ### Versión 1.11 — Traslados entre almacenes (2026-11-08)
 
