@@ -103,6 +103,14 @@ export class CheckoutQuoteLineDto {
   })
   taxAmount: MoneyDto | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Qué se vende, en una línea de precio libre de la tienda física (ADR-0171): `unitPrice` es entonces el que escribió el staff. `null` en las demás.',
+  })
+  note: string | null;
+
   /** Producto publicado, variante activa y precio vigente (BR-PRD-11). */
   sellable: boolean;
 

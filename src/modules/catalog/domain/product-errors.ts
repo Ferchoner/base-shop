@@ -47,6 +47,17 @@ abstract class FieldError extends DomainError {
   }
 }
 
+/** Only a product sold only in the physical store can be sold at an open price (ADR-0171). */
+export class OpenPriceNeedsStoreOnlyError extends FieldError {
+  constructor() {
+    super(
+      'openPrice',
+      'openPriceStoreOnly',
+      'Solo un producto que se vende solo en la tienda física puede tener precio libre.',
+    );
+  }
+}
+
 /**
  * Not the barcode of a manufacturer (ADR-0163): 8, 12, 13 or 14 digits (`gtin`), whose last one is the check digit
  * of the others (`gtinCheckDigit`).

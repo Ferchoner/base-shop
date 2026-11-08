@@ -111,6 +111,7 @@ export class AdminProductsController {
             ? undefined
             : toId<'Category'>(query.categoryId),
         storeOnly: query.storeOnly,
+        openPrice: query.openPrice,
       },
       toSortOrders<ProductSortField>(query.sort, '-updatedAt'),
       query,
@@ -144,6 +145,7 @@ export class AdminProductsController {
       brandId: brandIdOf(body.brandId) ?? null,
       categoryIds: categoryIdsOf(body.categoryIds) ?? [],
       storeOnly: body.storeOnly,
+      openPrice: body.openPrice,
     });
     response.setHeader('Location', `/v1/admin/catalog/products/${id}`);
     return this.read(id);
@@ -189,6 +191,7 @@ export class AdminProductsController {
       brandId: brandIdOf(body.brandId),
       categoryIds: categoryIdsOf(body.categoryIds),
       storeOnly: body.storeOnly,
+      openPrice: body.openPrice,
       version: body.version,
     });
     return this.read(id);

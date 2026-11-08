@@ -14,6 +14,7 @@ import {
 import {
   type AdminPaymentView,
   type PaymentFilter,
+  type PaymentMovements,
   type PaymentSettingsView,
   PaymentsQueries,
   type PaymentSortField,
@@ -50,6 +51,44 @@ export class PrismaPaymentsQueries extends PaymentsQueries {
     return new Map(
       rows.map((row) => [toId<'Order'>(row.orderId), toPaymentView(row)]),
     );
+  }
+
+  async movementsBetween(from: Date, to: Date): Promise<PaymentMovements> {
+    const captured = PAYMENT_FIELDS.include.attempts;
+    const [payments, refunds] = await Promise.all([
+      this.txHost.tx.payment.findMany({
+        where: { capturedAt: { gte: from, lt: to } },
+        include: { attempts: captured },
+        orderBy: [{ capturedAt: 'asc' }, { id: 'asc' }],
+      }),
+      this.txHost.tx.refund.findMany({
+        where: { status: 'COMPLETED', completedAt: { gte: from, lt: to } },
+        include: { payment: { include: { attempts: captured } } },
+        orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
+      }),
+    ]);
+    return {
+      captures: payments.map((row) => {
+        const attempt = capturedAttempt(row.attempts);
+        return {
+          orderId: toId<'Order'>(row.orderId),
+          provider: row.provider,
+          method: attempt?.method ?? null,
+          amount: Money.of(row.capturedAmount, row.currency as Currency),
+          // The query takes only captured payments.
+          capturedAt: row.capturedAt!,
+          registeredBy: attempt?.registeredBy ?? null,
+        };
+      }),
+      refunds: refunds.map((row) => ({
+        orderId: toId<'Order'>(row.payment.orderId),
+        amount: Money.of(row.amount, row.payment.currency as Currency),
+        // The query takes only completed refunds.
+        completedAt: row.completedAt!,
+        registeredBy: row.registeredBy,
+        paymentMethod: capturedAttempt(row.payment.attempts)?.method ?? null,
+      })),
+    };
   }
 
   async findSettings(): Promise<PaymentSettingsView> {
@@ -105,9 +144,16 @@ export class PrismaPaymentsQueries extends PaymentsQueries {
   }
 }
 
+/** The attempt that captured a payment: its method, note and staff member (ADR-0161). */
+function capturedAttempt<Attempt extends { readonly status: string }>(
+  attempts: readonly Attempt[],
+): Attempt | undefined {
+  return attempts.findLast(({ status }) => status === 'CAPTURED');
+}
+
 function toPaymentView(row: PaymentRow): PaymentView {
   const money = (amount: number) => Money.of(amount, row.currency as Currency);
-  const captured = row.attempts.findLast(({ status }) => status === 'CAPTURED');
+  const captured = capturedAttempt(row.attempts);
   return {
     id: toId<'Payment'>(row.id),
     orderId: toId<'Order'>(row.orderId),

@@ -16,6 +16,8 @@ import {
   type AdminOrderView,
   type CustomerOrderFilter,
   type CustomerOrderSortField,
+  type OpenPriceLineFilter,
+  type OpenPriceLineView,
   type OrderFilter,
   OrderingQueries,
   type OrderSortField,
@@ -121,6 +123,14 @@ export class OrderReader {
     return this.attachAll(
       await this.queries.listCustomerOrders(customerId, filter, sort, page),
     );
+  }
+
+  /** The lines sold at an open price (ADR-0171). */
+  openPriceLines(
+    filter: OpenPriceLineFilter,
+    page: PageRequest,
+  ): Promise<Page<OpenPriceLineView>> {
+    return this.queries.listOpenPriceLines(filter, page);
   }
 
   async orders(

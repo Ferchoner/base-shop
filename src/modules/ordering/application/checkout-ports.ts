@@ -40,6 +40,17 @@ export interface StockLine {
   readonly quantity: number;
 }
 
+/**
+ * A line of a sale in the physical store (ADR-0171): units of a variant and, only for a variant sold at an open price,
+ * the price the staff typed and what was sold.
+ */
+export interface SaleLine extends StockLine {
+  /** VAT included, in cents, from 1 to 10,000,000. */
+  readonly unitPrice?: number;
+  /** From 1 to 200 characters. */
+  readonly note?: string;
+}
+
 /** The carts of Shopping. */
 export abstract class CheckoutCarts {
   /**
@@ -66,6 +77,8 @@ export interface CheckoutVariant {
   readonly onSale: boolean;
   /** Its product is sold only in the physical store: never in an online order (BR-PRD-20, ADR-0165). */
   readonly storeOnly: boolean;
+  /** Sold at the price the staff types on each line (ADR-0171); only a product sold only in the store. */
+  readonly openPrice: boolean;
 }
 
 /** The variants of Catalog. */

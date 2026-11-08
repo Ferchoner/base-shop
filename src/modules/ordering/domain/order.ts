@@ -78,6 +78,11 @@ export interface PricedLine {
   readonly lineTotal: Money;
   /** What the promotion of the order takes off the line (ADR-0168); zero without one. */
   readonly discountAmount: Money;
+  /**
+   * What was sold, for a line at the price the staff typed (ADR-0171); missing or `null` for a line at the price of
+   * the catalog. Such a line gets no promotion.
+   */
+  readonly note?: string | null;
 }
 
 /** The total and the VAT of a line, with its price VAT included and no discount (ADR-0008, ADR-0094). */

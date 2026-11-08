@@ -62,11 +62,13 @@ import type {
 } from '../domain/order.js';
 import type { LocationProblem } from '../domain/ordering-errors.js';
 import {
+  type CaptureMovement,
   type OrderPayment,
   OrderPayments,
   type PaymentMethod,
   type PaymentProvider,
   type PaymentStart,
+  type RefundMovement,
 } from '../application/payment-ports.js';
 import {
   type CartCopy,
@@ -209,6 +211,7 @@ export class CatalogFacadeCheckoutCatalog extends CheckoutCatalog {
             variant.productStatus === 'PUBLISHED' &&
             variant.status === 'ACTIVE',
           storeOnly: variant.storeOnly,
+          openPrice: variant.openPrice,
         },
       ]),
     );
@@ -483,6 +486,37 @@ export class PaymentsFacadeOrderPayments extends OrderPayments {
 
   cancelPending(orderId: OrderId): Promise<void> {
     return this.payments.cancelPending(orderId);
+  }
+
+  async movementsBetween(
+    from: Date,
+    to: Date,
+  ): Promise<{
+    readonly captures: readonly CaptureMovement[];
+    readonly refunds: readonly RefundMovement[];
+  }> {
+    const { captures, refunds } = await this.payments.movementsBetween(
+      from,
+      to,
+    );
+    const staff = (id: string | null) =>
+      id === null ? null : toId<'User'>(id);
+    return {
+      captures: captures.map((capture) => ({
+        orderId: toId<'Order'>(capture.orderId),
+        method: capture.method,
+        amount: capture.amount,
+        capturedAt: capture.capturedAt,
+        registeredBy: staff(capture.registeredBy),
+      })),
+      refunds: refunds.map((refund) => ({
+        orderId: toId<'Order'>(refund.orderId),
+        amount: refund.amount,
+        completedAt: refund.completedAt,
+        registeredBy: staff(refund.registeredBy),
+        paymentMethod: refund.paymentMethod,
+      })),
+    };
   }
 
   async paymentsOf(

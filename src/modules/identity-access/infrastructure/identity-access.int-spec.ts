@@ -156,7 +156,7 @@ describe('Identity & Access persistence (T-130)', () => {
       );
     });
 
-    it('creates the Vendedor role, which places orders but does not record their payment, and attends work orders (ADR-0161, ADR-0165)', async () => {
+    it('creates the Vendedor role, which places orders but does not record their payment, attends work orders and sells at an open price and closes the cash (ADR-0161, ADR-0165, ADR-0171)', async () => {
       const [seller] = await roles.findByIds([SELLER]);
 
       expect(seller.snapshot()).toMatchObject({
@@ -165,9 +165,12 @@ describe('Identity & Access persistence (T-130)', () => {
       });
       expect([...seller.effectivePermissions()].sort()).toEqual(
         [
+          'cash-closings.manage',
+          'cash-closings.read',
           'catalog.read',
           'customers.read',
           'inventory.read',
+          'orders.open-price',
           'orders.place',
           'orders.read',
           'promotions.read',

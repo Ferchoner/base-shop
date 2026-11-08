@@ -77,7 +77,9 @@ function lineOf(line: NoticeOrder['lines'][number]): string {
   const options = Object.entries(line.variantOptions)
     .map(([name, value]) => `${name}: ${value}`)
     .join(', ');
-  return `- ${line.quantity} × ${line.productName}${options === '' ? '' : ` (${options})`}: ${inPesos(line.lineTotal)}`;
+  // The staff typed the note of a line at an open price (ADR-0171): quoted like any text of a person (ADR-0154).
+  const note = line.note === null ? '' : ` — ${emailSafeText(line.note)}`;
+  return `- ${line.quantity} × ${line.productName}${options === '' ? '' : ` (${options})`}${note}: ${inPesos(line.lineTotal)}`;
 }
 
 /**

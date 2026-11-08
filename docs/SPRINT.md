@@ -57,6 +57,22 @@ Versión 1.10 — Operación diaria de la tienda física (ADR-0171), desde el 20
   - guía para el dueño en `docs/LAN_SERVER.md`.
 - **Pruebas locales:** se levantó todo el servidor en la sesión, con Docker y Node 24; para construir las imágenes detrás del proxy de la sesión se usó una copia de los `Dockerfile` con su certificado, que no se incluye.
 
+#### Resultado de la parte 1 (T-182)
+
+- `openPrice` en los productos `storeOnly`, con su `CHECK` en la base; la línea de precio libre lleva su precio y su nota en la cotización y la orden del staff, sin promociones ni cupones; la nota queda en la línea, en las vistas y en el correo de la orden recibida.
+- Permiso `orders.open-price` para el Vendedor y el Administrador, revisado en el caso de uso; `GET /v1/admin/orders/open-price-lines` por almacén y fechas.
+- Decisión de implementación (ADR-0171, Estado): cada variante sigue una vez por orden, así que el producto de precio libre lleva una variante por tipo de artículo.
+- Pruebas: unitarias del dominio, del checkout del staff y del correo; `test/open-price.e2e-spec.ts` de punta a punta.
+
+#### Resultado de la parte 2 (T-183)
+
+- `GET /v1/admin/cash-closings/summary` por almacén y día de la Ciudad de México: las órdenes de la tienda física colocadas, sin pago y canceladas; lo cobrado por método; los reembolsos; el efectivo esperado; el desglose por quien registró cada movimiento y las líneas de precio libre.
+- `POST /v1/admin/cash-closings`: un cierre por almacén y día, con el efectivo contado, la diferencia y una nota si la hay; inmutable y auditado. Lo que llega después sale como posterior al cierre. `GET` del listado y de un cierre.
+- `PaymentsFacade.movementsBetween` para los cobros y reembolsos del día; Ordering sigue dependiendo de Payments y no al revés.
+- Permisos `cash-closings.read` y `cash-closings.manage` para el Vendedor y el Administrador.
+- Límite conocido: las órdenes en línea pagadas en la tienda no tienen almacén y no entran al corte.
+- Pruebas: unitarias del cierre, del caso de uso y de los días de la Ciudad de México; `test/cash-closings.e2e-spec.ts` de punta a punta.
+
 ### Versión 1.9 — Borrador de descripción de producto con IA (2026-11-05)
 
 **Goal:** Que el staff pida a la IA un primer texto de título, descripción y puntos destacados de un producto, a partir de los datos que el producto ya tiene, y lo revise antes de guardarlo; sin enviar datos personales al proveedor (ADR-0170). **Tareas:** T-147, en una parte, sin paso 0.

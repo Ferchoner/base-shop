@@ -245,6 +245,12 @@ export class AdminProductDto {
   /** Si solo se vende en la tienda física, como un servicio: nunca en línea (ADR-0165). */
   storeOnly: boolean;
 
+  /**
+   * Si se vende a precio libre: el staff escribe el precio y qué se vendió en cada línea de la venta de mostrador, en
+   * lugar de la lista de precios (ADR-0171). Solo un producto `storeOnly`.
+   */
+  openPrice: boolean;
+
   @ApiProperty({ type: () => [AdminVariantDto] })
   variants: AdminVariantDto[];
 
@@ -333,6 +339,15 @@ export class AdminProductListQueryDto extends PageQueryDto {
   @IsBoolean()
   storeOnly?: boolean;
 
+  /** `true`: solo los productos de precio libre (ADR-0171); `false`: solo los de precio de lista. */
+  @ApiPropertyOptional({ type: Boolean })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  openPrice?: boolean;
+
   /**
    * `updatedAt`, `title`, `createdAt` o `publishedAt`, con `-` para orden descendente; `-updatedAt` por
    * defecto.
@@ -395,6 +410,14 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   storeOnly?: boolean;
+
+  /**
+   * Si se vende a precio libre en la tienda física (ADR-0171); `false` por defecto. Exige `storeOnly`: si no, 400 en
+   * `openPrice` con código `openPriceStoreOnly`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  openPrice?: boolean;
 }
 
 export class UpdateProductDto {
@@ -446,6 +469,15 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   storeOnly?: boolean;
+
+  /**
+   * A precio libre, o al de la lista de precios (ADR-0171); se cambia también publicado. Exige que el producto quede
+   * `storeOnly`, y un producto de precio libre no deja de ser `storeOnly` sin quitárselo: si no, 400 en `openPrice` con
+   * código `openPriceStoreOnly`. En la misma solicitud, `storeOnly: false` con `openPrice: false` sí se acepta.
+   */
+  @IsOptional()
+  @IsBoolean()
+  openPrice?: boolean;
 
   /** Versión leída del producto (bloqueo optimista). */
   @IsInt()

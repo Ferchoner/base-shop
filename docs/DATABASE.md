@@ -46,7 +46,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Pricing | `price_lists`, `variant_prices`, `price_periods` |
 | Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports` |
 | Shopping | `carts`, `cart_lines` |
-| Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens` |
+| Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens`, `cash_closings` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
 | Shipping | `shipping_methods`, `shipments`, `shipment_items` |
 | Work Orders | `work_orders`, `work_order_status_history`, `work_order_sales` |
@@ -225,6 +225,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | published_at, archived_at | timestamptz(3) | Sí | `published_at` alimenta el orden "más recientes" (ADR-0060) |
 | first_published_at | timestamptz(3) | Sí | Se fija en la primera publicación y no cambia; mientras es `NULL`, SKU y opciones de sus variantes son editables (ADR-0068) |
 | store_only | boolean | No | Default `false`. Se vende solo en la tienda física, como un servicio, y nunca en línea (BR-PRD-20, ADR-0165) |
+| open_price | boolean | No | Default `false`. Se vende a precio libre en la tienda física (BR-PRD-21, ADR-0171); `CHECK (NOT open_price OR store_only)` (`products_open_price_store_only_check`) |
 | search_vector | tsvector | Sí | Título (peso A), marca (B) y categorías visibles (C) (ADR-0080); configuración `spanish` sobre el texto sin acentos (`unaccent`); lo recalcula la aplicación en la misma transacción al cambiar esos datos, incluida la visibilidad de sus categorías (ADR-0123) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
@@ -529,6 +530,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
   - la primera entrada de `order_status_history` lleva como actor a la cuenta de staff en una orden `STORE`.
 - **Implementado en T-200 parte b (ADR-0168):** la migración `20261017120000_ordering_promotions` agrega `promotion_id`, `promotion_name` y `order_lines.discount_amount`, con 0 y sin promoción para las órdenes existentes. `orders_amounts_check` limita ahora el IVA al total con el descuento, y el descuento al subtotal; `orders_discount_minimum_check` exige que con un descuento los productos sumen al menos $1 (`subtotal - discount_total >= 100`); `orders_promotion_check` exige la promoción con su nombre si y solo si hay descuento.
 - **Implementado en T-200 parte c (ADR-0168):** la migración `20261017150000_ordering_coupons` agrega `promotion_code`, con `orders_promotion_code_check`: el código solo con una promoción, y el índice parcial `orders_promotion_contact_idx`, con el que una orden cuenta si su email de contacto ya usó un cupón de una vez por cliente, entre sus órdenes que no están en `EXPIRED`, `CANCELLED` ni `REFUNDED`.
+- **Implementado en T-182 (ADR-0171):** la migración `20261107130000_ordering_order_line_note` agrega `order_lines.note`, en `NULL` para las órdenes existentes, con `order_lines_note_length_check`; la de Catalog, `20261107120000_catalog_product_open_price`, agrega `products.open_price` en `false` con `products_open_price_store_only_check`, y `20261107140000_identity_open_price_permission` da `orders.open-price` al Administrador y al Vendedor.
 - **Implementado en T-187 parte b (ADR-0161):** la migración `20261006170000_ordering_in_store_delivery` crea `order_fulfillment`, agrega `fulfillment` con `SHIPPING` para las órdenes existentes, deja opcionales la dirección y los días de entrega, agrega `orders_fulfillment_check` y reemplaza las restricciones del email y del aviso de privacidad.
 
 ### 8.2 `order_lines` (order_items)
@@ -548,6 +550,7 @@ Cada archivo de entradas cargado con `POST /v1/admin/inventory/receipt-imports`,
 | tax_amount | integer | IVA contenido en la línea menos su descuento, redondeado por línea (ADR-0008, ADR-0168); `CHECK (tax_amount BETWEEN 0 AND line_total - discount_amount)` |
 | line_total | integer | `CHECK (line_total = unit_price * quantity)`; antes del descuento |
 | discount_amount | integer | Default 0; lo que la promoción quita a la línea (ADR-0168); `CHECK (discount_amount BETWEEN 0 AND line_total)` |
+| note | text | Nullable. Qué se vendió en una línea de precio libre (BR-ORD-22, ADR-0171); `NULL` en las demás; `CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 200)` (`order_lines_note_length_check`) |
 
 - **Integridad:** inmutables tras colocar la orden (BR-ORD-03); `grand_total` y `subtotal` se validan contra la suma de líneas en la aplicación (sin trigger, para no duplicar la lógica del aggregate).
 
@@ -582,6 +585,27 @@ Enlaces de acceso a las órdenes de invitado de un email (UC-ORD-05, ADR-0148).
 - **Índices:** `UNIQUE (token_hash)`; `(contact_email)`.
 - **Concurrencia:** emitir un enlace y anonimizar al invitado toman primero `pg_advisory_xact_lock` de la clase `ORDA` (`0x4F524441`) con el `hashtext` del email.
 - **Retención:** la limpieza diaria borra los vencidos, usados o reemplazados; la anonimización del invitado borra los de su email.
+
+### 8.5 `cash_closings`
+
+El cierre de caja de un almacén en un día de la Ciudad de México (UC-ORD-17, BR-ORD-23, ADR-0171). Se inserta una vez y nunca se actualiza ni se borra.
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK |
+| warehouse_id | uuid | No | Referencia lógica a Inventory |
+| business_date | date | No | El día que cierra |
+| expected_cash | integer | No | Centavos: lo cobrado en efectivo menos lo reembolsado de pagos en efectivo; puede ser negativo |
+| counted_cash | integer | No | Centavos; `CHECK (counted_cash >= 0)` (`cash_closings_counted_cash_check`) |
+| difference | integer | No | `CHECK (difference = counted_cash - expected_cash)` (`cash_closings_difference_check`) |
+| note | text | Sí | De 1 a 500 caracteres, obligatoria si `difference` no es 0 (`cash_closings_note_check`) |
+| summary | jsonb | No | Las cifras del día al cerrar, como las responde `CashClosing.summary` en centavos |
+| closed_by | uuid | No | Cuenta de staff; sin FK |
+| closed_at | timestamptz(3) | No | — |
+
+- **Índices:** `UNIQUE (warehouse_id, business_date)`; `(business_date)`.
+- **Concurrencia:** el cierre se inserta con `ON CONFLICT (warehouse_id, business_date) DO NOTHING`; si no inserta, el día ya estaba cerrado y responde 409.
+- **Implementado en T-183 (ADR-0171):** la migración `20261108120000_ordering_cash_closings` crea la tabla con sus `CHECK`, y `20261108130000_identity_cash_closings_permissions` da `cash-closings.read` y `cash-closings.manage` al Administrador y al Vendedor. Las cifras del día se calculan al consultar, de `orders`, `order_lines` y de los pagos y reembolsos que da la fachada de Payments.
 
 ---
 

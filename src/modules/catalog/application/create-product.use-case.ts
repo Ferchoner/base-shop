@@ -45,6 +45,8 @@ export class CreateProduct {
     categoryIds: readonly CategoryId[];
     /** Sold only in the physical store (ADR-0165); online too without it. */
     storeOnly?: boolean;
+    /** At the price the staff types on each line; only with `storeOnly` (ADR-0171). */
+    openPrice?: boolean;
   }): Promise<ProductId> {
     return retryingGeneratedSlug(input.slug, () =>
       this.transactions.run(async () => {
@@ -65,6 +67,7 @@ export class CreateProduct {
           brandId: input.brandId,
           categoryIds: input.categoryIds,
           storeOnly: input.storeOnly,
+          openPrice: input.openPrice,
         });
         await this.products.save(product);
         await this.searchIndex.refreshProducts([product.id]);

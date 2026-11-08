@@ -31,6 +31,7 @@ export const PATH_PARAMETERS: Readonly<Record<string, PathParameter>> = {
     'ID del carrito de invitado; es la única credencial del carrito (ADR-0059).',
   ),
   categoryId: uuid('ID de la categoría.'),
+  closingId: uuid('ID del cierre de caja.'),
   deliveryId: uuid('ID de la entrega de un evento a su manejador.'),
   imageId: uuid('ID de la imagen.'),
   orderId: uuid('ID interno del pedido; quien compra usa el código público.'),

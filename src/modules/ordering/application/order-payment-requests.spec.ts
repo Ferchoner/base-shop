@@ -164,6 +164,9 @@ function setUp(order: Order, options: { enabled?: boolean } = {}) {
     paymentsOf: () => {
       throw new Error('Not used to pay');
     },
+    movementsBetween: () => {
+      throw new Error('Not used to pay');
+    },
   };
   const inline = {
     run: <T>(work: () => Promise<T>) => work(),

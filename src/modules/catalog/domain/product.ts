@@ -11,6 +11,7 @@ import type { CategoryId } from './category.js';
 import {
   FieldLockedError,
   NoActiveVariantError,
+  OpenPriceNeedsStoreOnlyError,
   OptionNamesMismatchError,
 } from './product-errors.js';
 import type { ProductId } from './product-id.js';
@@ -56,6 +57,11 @@ export interface ProductSnapshot {
   readonly firstPublishedAt: Date | null;
   /** Sold only in the physical store, such as a service: never online (ADR-0165). */
   readonly storeOnly: boolean;
+  /**
+   * Sold at the price the staff types on each line, for what is not in the catalog yet; only a product sold only in
+   * the store has it (ADR-0171).
+   */
+  readonly openPrice: boolean;
   readonly variants: readonly VariantSnapshot[];
   readonly version: number;
 }
@@ -106,7 +112,12 @@ export class Product {
     categoryIds: readonly CategoryId[];
     /** Sold online too unless said (ADR-0165). */
     storeOnly?: boolean;
+    /** At the price of the catalog unless said; only with `storeOnly` (ADR-0171). */
+    openPrice?: boolean;
   }): Product {
+    const storeOnly = props.storeOnly ?? false;
+    const openPrice = props.openPrice ?? false;
+    if (openPrice && !storeOnly) throw new OpenPriceNeedsStoreOnlyError();
     return new Product({
       id: props.id,
       title: validTitle(props.title),
@@ -118,7 +129,8 @@ export class Product {
       publishedAt: null,
       archivedAt: null,
       firstPublishedAt: null,
-      storeOnly: props.storeOnly ?? false,
+      storeOnly,
+      openPrice,
       variants: [],
       version: 1,
     });
@@ -186,6 +198,9 @@ export class Product {
   changeStoreOnly(storeOnly: boolean, now: Date): void {
     this.assertEditable();
     if (storeOnly === this.state.storeOnly) return;
+    if (!storeOnly && this.state.openPrice) {
+      throw new OpenPriceNeedsStoreOnlyError();
+    }
     this.state = { ...this.state, storeOnly };
     if (this.state.status === 'PUBLISHED') {
       this.events.push({
@@ -194,6 +209,19 @@ export class Product {
         storeOnly,
       });
     }
+  }
+
+  /**
+   * Sells the product at the price the staff types on each line, or at the price of the catalog again (ADR-0171), at
+   * any time but archived. Only a product sold only in the store has it, so it is never sold online.
+   */
+  changeOpenPrice(openPrice: boolean): void {
+    this.assertEditable();
+    if (openPrice === this.state.openPrice) return;
+    if (openPrice && !this.state.storeOnly) {
+      throw new OpenPriceNeedsStoreOnlyError();
+    }
+    this.state = { ...this.state, openPrice };
   }
 
   /**

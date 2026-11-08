@@ -29,9 +29,19 @@ import {
 } from '../domain/payment-errors.js';
 import { PaymentSettingsRepository } from '../domain/payment-settings.repository.js';
 import { PaymentRepository } from '../domain/payment.repository.js';
-import { PaymentsQueries, type PaymentView } from './payments.queries.js';
+import {
+  type PaymentMovements,
+  PaymentsQueries,
+  type PaymentView,
+} from './payments.queries.js';
 
-export type { PaymentView, RefundView } from './payments.queries.js';
+export type {
+  CaptureMovement,
+  PaymentMovements,
+  PaymentView,
+  RefundMovement,
+  RefundView,
+} from './payments.queries.js';
 
 /** What Ordering tells of the order a payment is for: its total is the amount (BR-PAY-02). */
 export interface PaymentRequest {
@@ -308,6 +318,11 @@ export class PaymentsFacade {
     orderIds: readonly string[],
   ): Promise<ReadonlyMap<OrderId, PaymentView>> {
     return this.queries.paymentsOf(orderIds as readonly OrderId[]);
+  }
+
+  /** The payments captured and the refunds completed from `from` to `to`, excluded, for the cash closing (ADR-0171). */
+  movementsBetween(from: Date, to: Date): Promise<PaymentMovements> {
+    return this.queries.movementsBetween(from, to);
   }
 
   private async started(

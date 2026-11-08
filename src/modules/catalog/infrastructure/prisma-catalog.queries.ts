@@ -66,6 +66,7 @@ const PRODUCT_FIELDS = {
   },
   status: true,
   storeOnly: true,
+  openPrice: true,
   variants: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
   images: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
   publishedAt: true,
@@ -176,6 +177,9 @@ export class PrismaCatalogQueries extends CatalogQueries {
       ...(filter.storeOnly === undefined
         ? {}
         : { storeOnly: filter.storeOnly }),
+      ...(filter.openPrice === undefined
+        ? {}
+        : { openPrice: filter.openPrice }),
     };
     const [rows, totalItems] = await Promise.all([
       this.txHost.tx.product.findMany({
@@ -363,7 +367,13 @@ export class PrismaCatalogQueries extends CatalogQueries {
       where,
       include: {
         product: {
-          select: { slug: true, title: true, status: true, storeOnly: true },
+          select: {
+            slug: true,
+            title: true,
+            status: true,
+            storeOnly: true,
+            openPrice: true,
+          },
         },
       },
       orderBy: { sku: 'asc' },
@@ -375,6 +385,7 @@ export class PrismaCatalogQueries extends CatalogQueries {
       productTitle: row.product.title,
       productStatus: row.product.status,
       storeOnly: row.product.storeOnly,
+      openPrice: row.product.openPrice,
       sku: row.sku,
       options: row.options as VariantOptions,
       status: row.status,
@@ -404,6 +415,7 @@ function toProductView(
     })),
     status: row.status,
     storeOnly: row.storeOnly,
+    openPrice: row.openPrice,
     variants: row.variants.map((variant) => ({
       id: toId<'Variant'>(variant.id),
       sku: variant.sku,

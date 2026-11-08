@@ -19,8 +19,16 @@ import type { VariantId, VariantSnapshot } from '../domain/variant.js';
 export function auditedProductFields(
   product: Product,
 ): Record<string, unknown> {
-  const { title, slug, description, brandId, categoryIds, status, storeOnly } =
-    product.snapshot();
+  const {
+    title,
+    slug,
+    description,
+    brandId,
+    categoryIds,
+    status,
+    storeOnly,
+    openPrice,
+  } = product.snapshot();
   return {
     title,
     slug,
@@ -29,6 +37,7 @@ export function auditedProductFields(
     categoryIds: [...categoryIds].sort(),
     status,
     storeOnly,
+    openPrice,
   };
 }
 

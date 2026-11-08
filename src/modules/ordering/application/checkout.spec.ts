@@ -95,6 +95,7 @@ const variant = (
   options: { talla: 'M' },
   onSale,
   storeOnly,
+  openPrice: false,
 });
 
 /**
@@ -762,6 +763,7 @@ describe('Checkout: quote (UC-ORD-01)', () => {
           discountAmount: mxn(0),
           taxRateBp: 1600,
           taxAmount: mxn(16_524),
+          note: null,
           sellable: true,
           canFulfill: true,
         },

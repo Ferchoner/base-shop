@@ -24,6 +24,7 @@ const ORDER: NoticeOrder = {
       variantOptions: {},
       quantity: 1,
       lineTotal: mxn(10_000),
+      note: null,
     },
   ],
   totals: {

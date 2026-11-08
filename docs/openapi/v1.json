@@ -45,6 +45,9 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
+                "cash-closings.read",
+                "cash-closings.manage",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -1088,6 +1091,11 @@
             ],
             "description": "Precio por cantidad, con IVA, antes del descuento."
           },
+          "note": {
+            "description": "Qué se vendió, en una línea de precio libre de la tienda física (ADR-0171); `null` en las demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "productName": {
             "description": "El nombre del producto al colocar la orden.",
             "example": "Camisa de lino",
@@ -1139,6 +1147,7 @@
           "taxAmount",
           "lineTotal",
           "discountAmount",
+          "note",
           "id",
           "lineNumber",
           "sku",
@@ -1785,6 +1794,10 @@
             },
             "type": "array"
           },
+          "openPrice": {
+            "description": "Si se vende a precio libre: el staff escribe el precio y qué se vendió en cada línea de la venta de mostrador, en\nlugar de la lista de precios (ADR-0171). Solo un producto `storeOnly`.",
+            "type": "boolean"
+          },
           "publishedAt": {
             "description": "Desde cuándo está publicado; `null` si no lo está.",
             "format": "date-time",
@@ -1853,6 +1866,7 @@
           "title",
           "slug",
           "storeOnly",
+          "openPrice",
           "version"
         ],
         "type": "object"
@@ -2105,6 +2119,51 @@
           "heightCm",
           "sku",
           "editableIdentity"
+        ],
+        "type": "object"
+      },
+      "AfterClosingDto": {
+        "properties": {
+          "cashAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "De ellos, en efectivo."
+          },
+          "cashRefundAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "De ellos, de pagos en efectivo."
+          },
+          "paymentAmount": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "paymentCount": {
+            "description": "Cobros posteriores al cierre.",
+            "example": 1,
+            "type": "number"
+          },
+          "refundAmount": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "refundCount": {
+            "description": "Reembolsos posteriores al cierre.",
+            "example": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "paymentAmount",
+          "cashAmount",
+          "refundAmount",
+          "cashRefundAmount",
+          "paymentCount",
+          "refundCount"
         ],
         "type": "object"
       },
@@ -2698,6 +2757,358 @@
         ],
         "type": "object"
       },
+      "CashClosingDto": {
+        "properties": {
+          "closedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "closedBy": {
+            "description": "La cuenta de staff que cerró.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "countedCash": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El efectivo que contó el staff."
+          },
+          "date": {
+            "description": "El día de la Ciudad de México que cierra.",
+            "example": "2026-11-07",
+            "type": "string"
+          },
+          "difference": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Contado menos esperado: negativo si falta efectivo."
+          },
+          "expectedCash": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El efectivo esperado al cerrar. Puede ser negativo."
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "description": "Por qué hay diferencia; siempre la hay si `difference` no es 0.",
+            "nullable": true,
+            "type": "string"
+          },
+          "summary": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CashDayDto"
+              }
+            ],
+            "description": "El resumen del día al cerrar."
+          },
+          "warehouseId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "warehouseId",
+          "expectedCash",
+          "countedCash",
+          "difference",
+          "note",
+          "summary",
+          "closedBy",
+          "closedAt",
+          "date"
+        ],
+        "type": "object"
+      },
+      "CashClosingListDto": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CashClosingDto"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "CashDayDto": {
+        "properties": {
+          "byStaff": {
+            "description": "Por quien registró cada cobro o reembolso; los que no registró nadie, al final.",
+            "items": {
+              "$ref": "#/components/schemas/StaffTotalDto"
+            },
+            "type": "array"
+          },
+          "cancelledCount": {
+            "description": "Órdenes de la tienda física canceladas ese día, cuando sea que se colocaron.",
+            "example": 0,
+            "type": "number"
+          },
+          "cashRefundAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo reembolsado de pagos cobrados en efectivo."
+          },
+          "expectedCash": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El efectivo esperado en la caja: lo cobrado en efectivo menos lo reembolsado de pagos en efectivo. Puede ser negativo."
+          },
+          "openPriceAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de esas líneas."
+          },
+          "openPriceLineCount": {
+            "description": "Líneas de precio libre de las órdenes colocadas ese día, sin las canceladas, reembolsadas o vencidas (ADR-0171).",
+            "example": 3,
+            "type": "number"
+          },
+          "paymentAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Todo lo cobrado ese día."
+          },
+          "payments": {
+            "description": "Lo cobrado ese día por método: `CASH`, `CARD_TERMINAL`, `TRANSFER` y sin método, siempre los cuatro y en ese orden.",
+            "items": {
+              "$ref": "#/components/schemas/MethodTotalDto"
+            },
+            "type": "array"
+          },
+          "pendingPaymentCount": {
+            "description": "De esas, las que siguen esperando su pago: vendidas sin cobrar.",
+            "example": 1,
+            "type": "number"
+          },
+          "placedAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de esas órdenes."
+          },
+          "placedCount": {
+            "description": "Órdenes de la tienda física colocadas ese día en el almacén.",
+            "example": 18,
+            "type": "number"
+          },
+          "refundAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo reembolsado ese día."
+          },
+          "refundCount": {
+            "description": "Reembolsos completados ese día.",
+            "example": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "placedAmount",
+          "payments",
+          "paymentAmount",
+          "refundAmount",
+          "cashRefundAmount",
+          "expectedCash",
+          "byStaff",
+          "openPriceAmount",
+          "placedCount",
+          "pendingPaymentCount",
+          "cancelledCount",
+          "refundCount",
+          "openPriceLineCount"
+        ],
+        "type": "object"
+      },
+      "CashSummaryDto": {
+        "properties": {
+          "afterClosing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AfterClosingDto"
+              }
+            ],
+            "description": "Lo que llegó después del cierre, que ya va en los totales del día; `null` sin cierre.",
+            "nullable": true,
+            "type": "object"
+          },
+          "byStaff": {
+            "description": "Por quien registró cada cobro o reembolso; los que no registró nadie, al final.",
+            "items": {
+              "$ref": "#/components/schemas/StaffTotalDto"
+            },
+            "type": "array"
+          },
+          "cancelledCount": {
+            "description": "Órdenes de la tienda física canceladas ese día, cuando sea que se colocaron.",
+            "example": 0,
+            "type": "number"
+          },
+          "cashRefundAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo reembolsado de pagos cobrados en efectivo."
+          },
+          "closing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CashClosingDto"
+              }
+            ],
+            "description": "El cierre del día; `null` mientras no lo tenga.",
+            "nullable": true,
+            "type": "object"
+          },
+          "date": {
+            "example": "2026-11-07",
+            "type": "string"
+          },
+          "expectedCash": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El efectivo esperado en la caja: lo cobrado en efectivo menos lo reembolsado de pagos en efectivo. Puede ser negativo."
+          },
+          "from": {
+            "description": "Cuándo empieza el día en la Ciudad de México.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "openPriceAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de esas líneas."
+          },
+          "openPriceLineCount": {
+            "description": "Líneas de precio libre de las órdenes colocadas ese día, sin las canceladas, reembolsadas o vencidas (ADR-0171).",
+            "example": 3,
+            "type": "number"
+          },
+          "paymentAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Todo lo cobrado ese día."
+          },
+          "payments": {
+            "description": "Lo cobrado ese día por método: `CASH`, `CARD_TERMINAL`, `TRANSFER` y sin método, siempre los cuatro y en ese orden.",
+            "items": {
+              "$ref": "#/components/schemas/MethodTotalDto"
+            },
+            "type": "array"
+          },
+          "pendingPaymentCount": {
+            "description": "De esas, las que siguen esperando su pago: vendidas sin cobrar.",
+            "example": 1,
+            "type": "number"
+          },
+          "placedAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El total de esas órdenes."
+          },
+          "placedCount": {
+            "description": "Órdenes de la tienda física colocadas ese día en el almacén.",
+            "example": 18,
+            "type": "number"
+          },
+          "refundAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo reembolsado ese día."
+          },
+          "refundCount": {
+            "description": "Reembolsos completados ese día.",
+            "example": 0,
+            "type": "number"
+          },
+          "to": {
+            "description": "Cuándo termina, sin incluirlo.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "warehouseId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "placedAmount",
+          "payments",
+          "paymentAmount",
+          "refundAmount",
+          "cashRefundAmount",
+          "expectedCash",
+          "byStaff",
+          "openPriceAmount",
+          "warehouseId",
+          "from",
+          "to",
+          "closing",
+          "afterClosing",
+          "date",
+          "placedCount",
+          "pendingPaymentCount",
+          "cancelledCount",
+          "refundCount",
+          "openPriceLineCount"
+        ],
+        "type": "object"
+      },
       "ChangeCartLineDto": {
         "properties": {
           "quantity": {
@@ -2922,6 +3333,11 @@
             "nullable": true,
             "type": "object"
           },
+          "note": {
+            "description": "Qué se vende, en una línea de precio libre de la tienda física (ADR-0171): `unitPrice` es entonces el que escribió el staff. `null` en las demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "options": {
             "additionalProperties": {
               "type": "string"
@@ -2987,11 +3403,46 @@
           "discountAmount",
           "taxRateBp",
           "taxAmount",
+          "note",
           "quantity",
           "sku",
           "productTitle",
           "sellable",
           "canFulfill"
+        ],
+        "type": "object"
+      },
+      "CloseCashDto": {
+        "properties": {
+          "countedCash": {
+            "description": "El efectivo contado en la caja, en centavos.",
+            "example": 352500,
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "number"
+          },
+          "date": {
+            "description": "El día de la Ciudad de México, `AAAA-MM-DD`.",
+            "example": "2026-11-07",
+            "type": "string"
+          },
+          "note": {
+            "description": "Hasta 500 caracteres; obligatoria si el contado no es el esperado.",
+            "example": "Faltan $20 de un cambio mal dado.",
+            "maxLength": 500,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "warehouseId": {
+            "description": "El almacén del local.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouseId",
+          "date",
+          "countedCash"
         ],
         "type": "object"
       },
@@ -3189,6 +3640,10 @@
             "nullable": true,
             "type": "string"
           },
+          "openPrice": {
+            "description": "Si se vende a precio libre en la tienda física (ADR-0171); `false` por defecto. Exige `storeOnly`: si no, 400 en\n`openPrice` con código `openPriceStoreOnly`.",
+            "type": "boolean"
+          },
           "slug": {
             "description": "Único y nunca reutilizado. Sin él, se genera del título y, si ya existe, se numera: `camisa-lino-2`.",
             "example": "camisa-lino",
@@ -3337,6 +3792,9 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
+                "cash-closings.read",
+                "cash-closings.manage",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -4260,6 +4718,34 @@
         ],
         "type": "object"
       },
+      "MethodTotalDto": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "count": {
+            "description": "Cobros.",
+            "example": 12,
+            "type": "number"
+          },
+          "method": {
+            "description": "Efectivo, terminal o transferencia; `null` para los cobros sin método: de un proveedor, o sin que el staff lo dijera.",
+            "enum": [
+              "CASH",
+              "CARD_TERMINAL",
+              "TRANSFER"
+            ],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "amount",
+          "count"
+        ],
+        "type": "object"
+      },
       "MoneyDto": {
         "properties": {
           "amount": {
@@ -4295,6 +4781,138 @@
         "required": [
           "id",
           "name"
+        ],
+        "type": "object"
+      },
+      "OpenPriceLineDto": {
+        "properties": {
+          "lineNumber": {
+            "description": "Desde 1.",
+            "type": "number"
+          },
+          "lineTotal": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Precio por cantidad, con IVA."
+          },
+          "note": {
+            "description": "Qué se vendió, como lo escribió el staff.",
+            "example": "Juego usado de carreras",
+            "type": "string"
+          },
+          "orderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "orderNumber": {
+            "description": "Número interno consecutivo (ADR-0049).",
+            "example": 1042,
+            "type": "number"
+          },
+          "placedAt": {
+            "description": "Cuándo se colocó la orden.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "placedBy": {
+            "description": "La cuenta de staff que colocó la venta.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "productName": {
+            "description": "El producto de precio libre.",
+            "example": "Artículo sin registrar",
+            "type": "string"
+          },
+          "publicCode": {
+            "example": "K7M4-Q9XA",
+            "type": "string"
+          },
+          "quantity": {
+            "example": 1,
+            "type": "number"
+          },
+          "sku": {
+            "example": "VARIOS-JUEGO",
+            "type": "string"
+          },
+          "status": {
+            "description": "El estado de la orden ahora: la lista incluye las canceladas y las vencidas.",
+            "enum": [
+              "PENDING_PAYMENT",
+              "PAID",
+              "AWAITING_MANUAL_FULFILLMENT",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELLED",
+              "EXPIRED",
+              "REFUNDED"
+            ],
+            "type": "string"
+          },
+          "unitPrice": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "El precio que escribió el staff, con IVA."
+          },
+          "variantOptions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Los valores de las opciones de la variante, por nombre.",
+            "example": {
+              "tipo": "Juego"
+            },
+            "type": "object"
+          },
+          "warehouseId": {
+            "description": "El almacén de la venta.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "orderId",
+          "status",
+          "warehouseId",
+          "placedBy",
+          "placedAt",
+          "variantOptions",
+          "unitPrice",
+          "lineTotal",
+          "publicCode",
+          "orderNumber",
+          "lineNumber",
+          "sku",
+          "productName",
+          "quantity",
+          "note"
+        ],
+        "type": "object"
+      },
+      "OpenPriceLineListDto": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OpenPriceLineDto"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ],
         "type": "object"
       },
@@ -4592,6 +5210,11 @@
             ],
             "description": "Precio por cantidad, con IVA, antes del descuento."
           },
+          "note": {
+            "description": "Qué se vendió, en una línea de precio libre de la tienda física (ADR-0171); `null` en las demás.",
+            "nullable": true,
+            "type": "string"
+          },
           "productName": {
             "description": "El nombre del producto al colocar la orden.",
             "example": "Camisa de lino",
@@ -4643,6 +5266,7 @@
           "taxAmount",
           "lineTotal",
           "discountAmount",
+          "note",
           "lineNumber",
           "sku",
           "productName",
@@ -7123,6 +7747,9 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
+                "cash-closings.read",
+                "cash-closings.manage",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -7493,10 +8120,24 @@
       },
       "StaffOrderLineDto": {
         "properties": {
+          "note": {
+            "description": "Qué se vendió, de 1 a 200 caracteres: solo y siempre en una variante de precio libre (ADR-0171). La orden la\nguarda en la línea.",
+            "example": "Juego usado: carreras para consola portátil",
+            "maxLength": 200,
+            "pattern": "\\S",
+            "type": "string"
+          },
           "quantity": {
             "description": "Unidades, de 1 a 30, como una línea del carrito (BR-CRT-02).",
             "example": 2,
             "maximum": 30,
+            "minimum": 1,
+            "type": "number"
+          },
+          "unitPrice": {
+            "description": "Precio unitario con IVA, en centavos, de 1 a 10,000,000: solo y siempre en una variante de precio libre, que lo\ncobra en lugar de la lista de precios (ADR-0171). Exige `orders.open-price`.",
+            "example": 35000,
+            "maximum": 10000000,
             "minimum": 1,
             "type": "number"
           },
@@ -7565,6 +8206,53 @@
         "required": [
           "id",
           "name"
+        ],
+        "type": "object"
+      },
+      "StaffTotalDto": {
+        "properties": {
+          "cashAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo que cobró en efectivo."
+          },
+          "paymentAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo que cobró."
+          },
+          "paymentCount": {
+            "description": "Cobros que registró.",
+            "example": 7,
+            "type": "number"
+          },
+          "refundAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDto"
+              }
+            ],
+            "description": "Lo que reembolsó."
+          },
+          "staffId": {
+            "description": "La cuenta de staff que registró los cobros y reembolsos; `null` para los que no registró nadie, como los de un proveedor.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "staffId",
+          "paymentAmount",
+          "cashAmount",
+          "refundAmount",
+          "paymentCount"
         ],
         "type": "object"
       },
@@ -8291,6 +8979,10 @@
             "nullable": true,
             "type": "string"
           },
+          "openPrice": {
+            "description": "A precio libre, o al de la lista de precios (ADR-0171); se cambia también publicado. Exige que el producto quede\n`storeOnly`, y un producto de precio libre no deja de ser `storeOnly` sin quitárselo: si no, 400 en `openPrice` con\ncódigo `openPriceStoreOnly`. En la misma solicitud, `storeOnly: false` con `openPrice: false` sí se acepta.",
+            "type": "boolean"
+          },
           "slug": {
             "description": "Solo mientras el producto nunca se ha publicado (ADR-0068).",
             "maxLength": 200,
@@ -8436,6 +9128,9 @@
                 "orders.manage",
                 "orders.read-blocked",
                 "orders.place",
+                "orders.open-price",
+                "cash-closings.read",
+                "cash-closings.manage",
                 "work-orders.read",
                 "work-orders.manage",
                 "work-orders.read-blocked",
@@ -9482,6 +10177,467 @@
         ],
         "x-required-permissions": [
           "audit.read"
+        ]
+      }
+    },
+    "/v1/admin/cash-closings": {
+      "get": {
+        "description": "Del día más reciente al más antiguo, de un almacén o de todos, entre dos días incluidos.",
+        "operationId": "AdminCashClosingsController_list_v1",
+        "parameters": [
+          {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Desde este día, incluido.",
+            "in": "query",
+            "name": "dateFrom",
+            "required": false,
+            "schema": {
+              "example": "2026-11-01",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Hasta este día, incluido.",
+            "in": "query",
+            "name": "dateTo",
+            "required": false,
+            "schema": {
+              "example": "2026-11-30",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Solo los cierres de este almacén.",
+            "in": "query",
+            "name": "warehouseId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashClosingListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar los cierres de caja",
+        "tags": [
+          "Administración: corte de caja"
+        ],
+        "x-required-permissions": [
+          "cash-closings.read"
+        ]
+      },
+      "post": {
+        "description": "Guarda el resumen del día en ese momento, el efectivo esperado, el contado (`countedCash`, en centavos) y la diferencia, contado menos esperado. El día es el de la Ciudad de México, `AAAA-MM-DD`. Cuenta solo las órdenes de la tienda física de ese almacén: las colocadas ese día con su total y las que siguen sin pago, las canceladas ese día, los cobros capturados ese día por método (`CASH`, `CARD_TERMINAL`, `TRANSFER` y sin método), los reembolsos completados ese día, lo que registró cada cuenta de staff y las líneas de precio libre. Un cobro o reembolso cuenta el día en que se registró, aunque la orden sea de otro día. Las órdenes en línea pagadas en la tienda no tienen almacén y no entran. El efectivo esperado es lo cobrado en efectivo menos lo reembolsado de pagos en efectivo. Si el contado no es el esperado, `note` es obligatoria (400 en `note` con `requiredWithDifference`). Hoy o un día anterior: un día por venir es 400 en `date` con `notFuture`. Un cierre por almacén y día, que nunca se edita ni se borra: el segundo es 409 `duplicate-value` en `date`. Lo que se cobre o reembolse después aparece en el resumen como posterior al cierre. Se audita como `cash-closings.close` con los montos, sin la nota.",
+        "operationId": "AdminCashClosingsController_close_v1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseCashDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashClosingDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`duplicate-value`: Valor duplicado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar la caja de un local",
+        "tags": [
+          "Administración: corte de caja"
+        ],
+        "x-required-permissions": [
+          "cash-closings.manage"
+        ]
+      }
+    },
+    "/v1/admin/cash-closings/summary": {
+      "get": {
+        "description": "El día es el de la Ciudad de México, `AAAA-MM-DD`. Cuenta solo las órdenes de la tienda física de ese almacén: las colocadas ese día con su total y las que siguen sin pago, las canceladas ese día, los cobros capturados ese día por método (`CASH`, `CARD_TERMINAL`, `TRANSFER` y sin método), los reembolsos completados ese día, lo que registró cada cuenta de staff y las líneas de precio libre. Un cobro o reembolso cuenta el día en que se registró, aunque la orden sea de otro día. Las órdenes en línea pagadas en la tienda no tienen almacén y no entran. El efectivo esperado es lo cobrado en efectivo menos lo reembolsado de pagos en efectivo. Con el cierre del día si lo tiene, y lo que llegó después de él (`afterClosing`), que ya va en los totales. Un almacén que no existe es 404.",
+        "operationId": "AdminCashClosingsController_summary_v1",
+        "parameters": [
+          {
+            "description": "El almacén del local.",
+            "in": "query",
+            "name": "warehouseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "El día de la Ciudad de México, `AAAA-MM-DD`.",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "example": "2026-11-07",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar el corte de caja de un local en un día",
+        "tags": [
+          "Administración: corte de caja"
+        ],
+        "x-required-permissions": [
+          "cash-closings.read"
+        ]
+      }
+    },
+    "/v1/admin/cash-closings/{closingId}": {
+      "get": {
+        "description": "Con el resumen del día como estaba al cerrar.",
+        "operationId": "AdminCashClosingsController_get_v1",
+        "parameters": [
+          {
+            "description": "ID del cierre de caja.",
+            "in": "path",
+            "name": "closingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashClosingDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`not-found`: No encontrado"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar un cierre de caja",
+        "tags": [
+          "Administración: corte de caja"
+        ],
+        "x-required-permissions": [
+          "cash-closings.read"
         ]
       }
     },
@@ -11009,6 +12165,15 @@
             "description": "`true`: solo los productos que se venden solo en la tienda física; `false`: solo los que se venden también en línea.",
             "in": "query",
             "name": "storeOnly",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`true`: solo los productos de precio libre (ADR-0171); `false`: solo los de precio de lista.",
+            "in": "query",
+            "name": "openPrice",
             "required": false,
             "schema": {
               "type": "boolean"
@@ -16838,7 +18003,7 @@
         ]
       },
       "post": {
-        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con `couponCode`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Se audita como `orders.place`.",
+        "description": "UC-ORD-13 (ADR-0161). Exige `Idempotency-Key`. Para un cliente registrado y activo, con el email verificado, cuyo contacto es el email de su cuenta; o para un invitado, con `contactEmail` y la versión del aviso de privacidad que el staff le presentó. Exactamente uno de `customerId` y `contactEmail`, y uno de `addressId` y `shippingAddress`; `addressId` solo con `customerId`. Recalcula todo sin cache; si el total difiere de `expectedTotal` responde 409 `total-mismatch` con `currentTotal`. Reserva todo el stock en el almacén `warehouseId` o nada, y crea la orden `STORE` en `PENDING_PAYMENT`, en una sola transacción; sin carrito, una orden vencida no regresa a ninguno. Con `couponCode`, el cupón se revisa y cuenta su uso en la misma transacción; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Si el almacén no existe o está inactivo, 404. Hasta 30 órdenes por cuenta de staff cada 10 minutos. Una línea de una variante de precio libre (ADR-0171) lleva `unitPrice` y `note`, y las demás no: si no, 400 en `lines[i].unitPrice` o `lines[i].note`. Esa línea se cobra al precio escrito, guarda la nota y no recibe promociones ni cupones, ni cuenta para su mínimo. Vender una variante de precio libre exige `orders.open-price`: sin él, 403. Se audita como `orders.place`.",
         "operationId": "AdminOrdersController_place_v1",
         "parameters": [
           {
@@ -16968,9 +18133,147 @@
         ]
       }
     },
+    "/v1/admin/orders/open-price-lines": {
+      "get": {
+        "description": "Las líneas de las ventas de la tienda física cobradas a precio libre (ADR-0171), con su nota y su orden, la más reciente primero y por número de línea, en cualquier estado de la orden: lo que se vende sin estar en el catálogo, para saber qué dar de alta primero. Por almacén y por fecha de la orden.",
+        "operationId": "AdminOrdersController_openPriceLines_v1",
+        "parameters": [
+          {
+            "description": "Página, de 1 a 1,000,000.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Resultados por página, de 1 a 100.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Solo las ventas de este almacén.",
+            "in": "query",
+            "name": "warehouseId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601 de la orden; incluida.",
+            "in": "query",
+            "name": "placedFrom",
+            "required": false,
+            "schema": {
+              "example": "2026-11-01",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fecha o fecha y hora ISO 8601 de la orden; incluida (una fecha sola incluye todo el día).",
+            "in": "query",
+            "name": "placedTo",
+            "required": false,
+            "schema": {
+              "example": "2026-11-30",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenPriceLineListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`validation-error`: Solicitud inválida"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unauthenticated`: No autenticado"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`forbidden`: Acceso denegado; `password-change-required`: Cambio de contraseña pendiente"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rate-limit-exceeded`: Demasiadas solicitudes"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`internal-error`: Error interno"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar las líneas vendidas a precio libre",
+        "tags": [
+          "Administración: pedidos"
+        ],
+        "x-required-permissions": [
+          "orders.read"
+        ]
+      }
+    },
     "/v1/admin/orders/quote": {
       "post": {
-        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404.",
+        "description": "UC-ORD-12 (ADR-0161). Sin efectos secundarios y sin cache: precios, IVA, envío y disponibilidad de ahora. Las líneas no vendibles o no surtibles no son un error: se marcan y `readyToPlace` queda en `false`. Los totales suman solo las líneas vendibles. Con `couponCode`, el cupón reemplaza a la promoción automática; si no aplica, 409 `coupon-not-applicable` con `reason`, y hasta 10 códigos que nadie tiene por IP cada 15 minutos. Las líneas vienen en la solicitud, sin carrito, y la disponibilidad es la del almacén `warehouseId`. Si el almacén no existe o está inactivo, o una variante no existe, 404. Una línea de una variante de precio libre (ADR-0171) lleva `unitPrice` y `note`, y las demás no: si no, 400 en `lines[i].unitPrice` o `lines[i].note`. Esa línea se cobra al precio escrito, guarda la nota y no recibe promociones ni cupones, ni cuenta para su mínimo. Vender una variante de precio libre exige `orders.open-price`: sin él, 403.",
         "operationId": "AdminOrdersController_quote_v1",
         "parameters": [],
         "requestBody": {

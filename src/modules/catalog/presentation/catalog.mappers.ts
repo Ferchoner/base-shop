@@ -91,6 +91,7 @@ export function toAdminProductDto(
     status: view.status,
     storeVisibility,
     storeOnly: view.storeOnly,
+    openPrice: view.openPrice,
     variants: view.variants.map((variant) => ({
       ...variant,
       options: { ...variant.options },

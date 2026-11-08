@@ -87,8 +87,12 @@ import { ShipmentDeliveredHandler } from './infrastructure/shipment-delivered.ev
 import { ShipmentDispatchedHandler } from './infrastructure/shipment-dispatched.event-handler.js';
 import { ShipmentReturnedHandler } from './infrastructure/shipment-returned.event-handler.js';
 import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
+import { CashClosings } from './application/cash-closings.use-case.js';
+import { CashClosingRepository } from './domain/cash-closing.repository.js';
+import { PrismaCashClosingRepository } from './infrastructure/prisma-cash-closing.repository.js';
 import { AdminOrdersController } from './presentation/admin-orders.controller.js';
 import { AdminStoreProfileController } from './presentation/admin-store-profile.controller.js';
+import { AdminCashClosingsController } from './presentation/admin-cash-closings.controller.js';
 import { CheckoutController } from './presentation/checkout.controller.js';
 import { MeCheckoutController } from './presentation/me-checkout.controller.js';
 import { MeOrdersController } from './presentation/me-orders.controller.js';
@@ -119,6 +123,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     MeOrdersController,
     AdminOrdersController,
     AdminStoreProfileController,
+    AdminCashClosingsController,
   ],
   providers: [
     {
@@ -166,6 +171,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderExpiryJob,
     OrderPaymentRequests,
     OrderReader,
+    CashClosings,
     OrderReorders,
     OrderRestocks,
     BlockedOrderData,
@@ -183,6 +189,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     PersonalDataRetention,
     PersonalDataRetentionJob,
     { provide: OrderRepository, useClass: PrismaOrderRepository },
+    { provide: CashClosingRepository, useClass: PrismaCashClosingRepository },
     {
       provide: OrderAccessTokenRepository,
       useClass: PrismaOrderAccessTokenRepository,

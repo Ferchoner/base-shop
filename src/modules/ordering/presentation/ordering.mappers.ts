@@ -1,5 +1,15 @@
 import type { PostalAddressDto } from '../../../platform/http/address.dto.js';
-import { toMoneyDto } from '../../../platform/http/money.dto.js';
+import { type MoneyDto, toMoneyDto } from '../../../platform/http/money.dto.js';
+import type {
+  CashClosing,
+  CashDay,
+  CashSummary,
+} from '../application/cash-closings.use-case.js';
+import type {
+  CashClosingDto,
+  CashDayDto,
+  CashSummaryDto,
+} from './cash-closing.dto.js';
 import type { BlockedOrderDataView } from '../application/blocked-order-data.js';
 import type { CheckoutQuote } from '../application/checkout.use-case.js';
 import type { OrderAccess } from '../application/order-access-links.js';
@@ -13,6 +23,7 @@ import {
 } from '../application/order-values.js';
 import type {
   AdminOrderSummaryView,
+  OpenPriceLineView,
   OrderLineView,
   OrderSummaryView,
   OrderView,
@@ -25,6 +36,7 @@ import type {
   AdminOrderDto,
   AdminOrderSummaryDto,
   BlockedOrderDataDto,
+  OpenPriceLineDto,
 } from './admin-order.dto.js';
 import type { CheckoutQuoteDto, EstimatedDeliveryDto } from './checkout.dto.js';
 import type {
@@ -58,6 +70,7 @@ export function toCheckoutQuoteDto(quote: CheckoutQuote): CheckoutQuoteDto {
         line.discountAmount === null ? null : toMoneyDto(line.discountAmount),
       taxRateBp: line.taxRateBp,
       taxAmount: line.taxAmount === null ? null : toMoneyDto(line.taxAmount),
+      note: line.note,
       sellable: line.sellable,
       canFulfill: line.canFulfill,
     })),
@@ -275,6 +288,7 @@ function toLineDto(line: OrderLineView): OrderLineDto {
     taxAmount: toMoneyDto(line.taxAmount),
     lineTotal: toMoneyDto(line.lineTotal),
     discountAmount: toMoneyDto(line.discountAmount),
+    note: line.note,
   };
 }
 
@@ -282,5 +296,100 @@ export function toReorderDto(copy: CartCopy): ReorderDto {
   return {
     cartId: copy.cartId,
     skippedVariantIds: [...copy.skippedVariantIds],
+  };
+}
+
+export function toOpenPriceLineDto(view: OpenPriceLineView): OpenPriceLineDto {
+  return {
+    orderId: view.orderId,
+    publicCode: formatPublicCode(view.publicCode),
+    orderNumber: view.orderNumber,
+    status: view.status,
+    warehouseId: view.warehouseId,
+    placedBy: view.placedBy,
+    placedAt: view.placedAt,
+    lineNumber: view.lineNumber,
+    sku: view.sku,
+    productName: view.productName,
+    variantOptions: { ...view.variantOptions },
+    unitPrice: toMoneyDto(view.unitPrice),
+    quantity: view.quantity,
+    lineTotal: toMoneyDto(view.lineTotal),
+    note: view.note,
+  };
+}
+
+/** Cents of the cash closing as `Money`: they may be negative, so not through the `Money` value (ADR-0171). */
+function cents(amount: number): MoneyDto {
+  return { amount, currency: 'MXN' };
+}
+
+function toCashDayDto(day: CashDay): CashDayDto {
+  return {
+    placedCount: day.placedCount,
+    placedAmount: cents(day.placedAmount),
+    pendingPaymentCount: day.pendingPaymentCount,
+    cancelledCount: day.cancelledCount,
+    payments: day.payments.map(({ method, count, amount }) => ({
+      method,
+      count,
+      amount: cents(amount),
+    })),
+    paymentAmount: cents(day.paymentAmount),
+    refundCount: day.refundCount,
+    refundAmount: cents(day.refundAmount),
+    cashRefundAmount: cents(day.cashRefundAmount),
+    expectedCash: cents(day.expectedCash),
+    byStaff: day.byStaff.map((staff) => ({
+      staffId: staff.staffId,
+      paymentCount: staff.paymentCount,
+      paymentAmount: cents(staff.paymentAmount),
+      cashAmount: cents(staff.cashAmount),
+      refundAmount: cents(staff.refundAmount),
+    })),
+    openPriceLineCount: day.openPriceLineCount,
+    openPriceAmount: cents(day.openPriceAmount),
+  };
+}
+
+/** `CashClosing` of API_SPEC.md §15.10 (ADR-0171). */
+export function toCashClosingDto(closing: CashClosing): CashClosingDto {
+  const c = closing.snapshot;
+  return {
+    id: c.id,
+    warehouseId: c.warehouseId,
+    date: c.date,
+    expectedCash: cents(c.expectedCash),
+    countedCash: cents(c.countedCash),
+    difference: cents(c.difference),
+    note: c.note,
+    summary: toCashDayDto(c.summary),
+    closedBy: c.closedBy,
+    closedAt: c.closedAt,
+  };
+}
+
+/** `CashSummary` of API_SPEC.md §15.10 (ADR-0171). */
+export function toCashSummaryDto(summary: CashSummary): CashSummaryDto {
+  const after = summary.afterClosing;
+  return {
+    ...toCashDayDto(summary),
+    warehouseId: summary.warehouseId,
+    date: summary.date,
+    from: summary.from,
+    to: summary.to,
+    closing:
+      summary.closing === null ? null : toCashClosingDto(summary.closing),
+    afterClosing:
+      after === null
+        ? null
+        : {
+            paymentCount: after.paymentCount,
+            paymentAmount: cents(after.paymentAmount),
+            cashAmount: cents(after.cashAmount),
+            refundCount: after.refundCount,
+            refundAmount: cents(after.refundAmount),
+            cashRefundAmount: cents(after.cashRefundAmount),
+          },
   };
 }

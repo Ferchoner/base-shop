@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, y `promotions.read` y `promotions.manage` de ADR-0168). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, y `orders.open-price`, `cash-closings.read` y `cash-closings.manage` de ADR-0171). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -494,7 +494,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 
 ```json
 {
-  "lines": [ { "variantId": "…", "quantity": 2, "sku": "…", "productTitle": "…", "options": {}, "unitPrice": {}, "lineTotal": {}, "discountAmount": {}, "taxRateBp": 1600, "taxAmount": {}, "sellable": true, "canFulfill": true } ],
+  "lines": [ { "variantId": "…", "quantity": 2, "sku": "…", "productTitle": "…", "options": {}, "unitPrice": {}, "lineTotal": {}, "discountAmount": {}, "taxRateBp": 1600, "taxAmount": {}, "note": null, "sellable": true, "canFulfill": true } ],
   "subtotal": { "amount": 119800, "currency": "MXN" },
   "taxTotal": { "amount": 17890, "currency": "MXN" },
   "shippingCost": { "amount": 9900, "currency": "MXN" },
@@ -521,6 +521,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - Una línea no vendible lleva `unitPrice`, `lineTotal`, `discountAmount`, `taxRateBp` y `taxAmount` en `null` y `canFulfill: false`; los totales suman solo las líneas vendibles (ADR-0132).
 - `freeShippingThreshold` es `null` si el envío nunca es gratis (ADR-0092).
 - En la cotización del staff con `fulfillment` `IN_STORE` (§15.7, ADR-0161), `shippingCost` y `shippingTaxAmount` son 0, y `freeShippingThreshold` y `estimatedDelivery` son `null`: la orden se entrega en la tienda.
+- `note` (desde T-182, ADR-0171): qué se vende en una línea de precio libre de la cotización del staff, cuyo `unitPrice` es el que escribió el staff (§15.7); `null` en las demás líneas y en la cotización de un carrito.
 
 ### 8.8 `Order` (vista de cliente)
 
@@ -529,7 +530,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
   "publicCode": "K7M4-Q9XA",
   "status": "PENDING_PAYMENT",
   "contactEmail": "cliente@example.com",
-  "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {}, "discountAmount": {} } ],
+  "lines": [ { "lineNumber": 1, "sku": "…", "productName": "…", "variantOptions": {}, "unitPrice": {}, "quantity": 2, "taxRateBp": 1600, "taxAmount": {}, "lineTotal": {}, "discountAmount": {}, "note": null } ],
   "subtotal": {}, "taxTotal": {}, "shippingCost": {}, "shippingTaxAmount": {}, "discountTotal": {}, "grandTotal": {},
   "fulfillment": "SHIPPING",
   "promotion": { "id": "0199a3e1-…", "name": "Buen Fin 10%", "code": null },
@@ -548,6 +549,7 @@ Implementado en T-140 parte c (ADR-0129): variantes de la más antigua a la más
 - `promotion` (ADR-0168): la promoción de su descuento, con el nombre que vio el cliente al colocarla, o `null` sin descuento. Cada línea guarda su `discountAmount`, y su `taxAmount` es el IVA de lo que queda; el listado no trae `promotion`.
 - `contactEmail` es `null` en una orden anonimizada (ADR-0067) o bloqueada (ADR-0151), que el comprador ya no ve: solo el staff, en `AdminOrder` (§8.9, ADR-0145). También es `null` en una venta de mostrador sin datos del comprador, sin que la orden esté anonimizada; el comprador no la consulta, porque no dio email (ADR-0161).
 - Una orden bloqueada (ADR-0151) tampoco la ve el comprador: no aparece en `GET /v1/me/orders` ni en el enlace de acceso, y su detalle, la consulta de invitado y la recompra responden 404, como una orden que no existe.
+- `note` de cada línea (desde T-182, ADR-0171): qué se vendió en una línea de precio libre de la tienda física, como lo escribió el staff; `null` en las demás.
 - `publicCode` se muestra con guion; las rutas lo aceptan con o sin guion y en mayúsculas o minúsculas (ADR-0132).
 - `paymentDueAt`: vencimiento de la reserva mientras la orden está en PENDING_PAYMENT; `null` en otros estados.
 - `fulfillment` (ADR-0161): `SHIPPING`, la orden se envía a `shippingAddress`; `IN_STORE`, el staff la entrega en la tienda física al pagarse. Una orden `IN_STORE` tiene `shippingAddress` y `estimatedDelivery` en `null`, `shippingCost` en 0, y nunca tiene `shipment`. Es la excepción acotada a ADR-0034 que decidió ADR-0161: los dos campos pueden ser `null` solo en órdenes `IN_STORE`, que coloca el staff.
@@ -937,6 +939,7 @@ Representación `AdminProduct`:
   "status": "PUBLISHED",
   "storeVisibility": "VISIBLE",
   "storeOnly": false,
+  "openPrice": false,
   "variants": [ { "id": "…", "sku": "…", "gtin": "7501055363063", "options": {}, "status": "ACTIVE", "weightGrams": 350, "lengthCm": 30.0, "widthCm": 20.0, "heightCm": 3.0, "editableIdentity": false } ],
   "images": [],
   "publishedAt": "…", "firstPublishedAt": "…", "archivedAt": null,
@@ -949,10 +952,10 @@ Representación `AdminProduct`:
 
 | Endpoint | Detalle |
 |---|---|
-| `GET /v1/admin/catalog/products` | `catalog.read`. Paginado. Filtros: `q` (título, SKU o GTIN), `status`, `brandId`, `categoryId`, `storeOnly` (`true` o `false`, ADR-0165). Orden: `updatedAt` (defecto `-updatedAt`), `title`, `createdAt`, `publishedAt`. Devuelve `AdminProduct` sin `description` |
-| `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [], "storeOnly" }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
+| `GET /v1/admin/catalog/products` | `catalog.read`. Paginado. Filtros: `q` (título, SKU o GTIN), `status`, `brandId`, `categoryId`, `storeOnly` (`true` o `false`, ADR-0165), `openPrice` (`true` o `false`, ADR-0171). Orden: `updatedAt` (defecto `-updatedAt`), `title`, `createdAt`, `publishedAt`. Devuelve `AdminProduct` sin `description` |
+| `POST /v1/admin/catalog/products` | `catalog.write`. Request `{ "title", "slug", "description", "brandId", "categoryIds": [], "storeOnly", "openPrice" }`. `title` 1–200; `slug` opcional (se genera del título), minúsculas, dígitos y guiones, 1–200; `description` hasta 10,000; `brandId` y `categoryIds` activos. Crea en DRAFT. 201 `AdminProduct`. Errores: 409 `duplicate-value` (`slug`) |
 | `GET /v1/admin/catalog/products/{productId}` | `catalog.read`. 200 `AdminProduct` |
-| `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `storeOnly`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
+| `PATCH /v1/admin/catalog/products/{productId}` | `catalog.write`. Request: `title`, `slug`, `description`, `brandId`, `categoryIds`, `storeOnly`, `openPrice`, `version`. `slug` editable solo sin `firstPublishedAt`. 200. Errores: 409 `field-locked`; 409 `duplicate-value`; 409 `invalid-state-transition` si está ARCHIVED |
 | `POST …/{productId}/description-draft` | `catalog.write` y 20 por cuenta de staff por hora. Request `{ "language": "es" \| "en", "tone"?: "neutral" \| "friendly" \| "formal" }` (`neutral` por defecto). Claude escribe un borrador con el título, la descripción actual y las opciones de las variantes; nunca datos personales. No guarda nada: el staff lo revisa y lo guarda con `PATCH`. 200 `{ "title", "description", "highlights": [string] }`. Errores: 404 `not-found`; 429 `rate-limit-exceeded`; 503 `ai-unavailable` sin `ANTHROPIC_API_KEY` o si el modelo no responde o rechaza la solicitud (ADR-0170) |
 | `POST …/{productId}/publish` | `catalog.write`. Request `{ "version" }`. Requiere al menos una variante activa (BR-PRD-04); no exige precio ni imagen (BR-PRD-05). Fija `firstPublishedAt` la primera vez. Invalida cache (ADR-0028). 200. Errores: 409 `invalid-state-transition` (ya publicado, archivado —se reactiva primero a DRAFT— o sin variante activa, con `detail` que lo explica) |
 | `POST …/{productId}/archive` | `catalog.write`. Request `{ "version" }`. Desde DRAFT o PUBLISHED. Invalida cache. 200. Errores: 409 `invalid-state-transition` |
@@ -977,6 +980,13 @@ Desde T-189 parte a (ADR-0165), `storeOnly`: el producto se vende solo en la tie
 - **En la tienda física se vende:** la venta de mostrador y los pedidos del staff lo aceptan (`POST /v1/admin/orders`, ADR-0161).
 - **Cache:** cambiar la marca de un producto publicado publica `ProductStoreOnlyChanged`, que vacía la cache pública; un borrador no está en la tienda.
 - **Existencias:** se cargan como las de cualquier variante; para un servicio, un número alto.
+
+Desde T-182 (ADR-0171), `openPrice`: el producto se vende a precio libre en la tienda física, para cobrar en el mostrador lo que aún no está en el catálogo (BR-PRD-21).
+
+- **Solo con `storeOnly`:** opcional en el `POST`, `false` por defecto, y en el `PATCH` se cambia en cualquier momento, también publicado. Un producto sin `storeOnly` no lo recibe, y uno con `openPrice` no deja de ser `storeOnly` sin quitárselo: 400 en `openPrice` con código `openPriceStoreOnly`. En la misma solicitud, `{ "storeOnly": false, "openPrice": false }` se acepta. Se audita con los demás datos.
+- **En la venta:** cada línea de sus variantes lleva el precio y la nota que escribe el staff (§15.7); la lista de precios no se usa para ellas, así que no necesitan precio.
+- **Existencias:** como un servicio, un número alto.
+- **Filtro:** `GET …/products?openPrice=true` lista los productos de precio libre. La carga masiva no lo marca: se marca en el `PATCH`.
 - **Alta:** responde 201 con `Location: /v1/admin/catalog/products/{id}`.
 - **Auditoría:** cada cambio se audita (`products.*`); uno sin efecto no se guarda ni se audita.
 
@@ -1361,6 +1371,7 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/orders/access-links` | Público | UC-ORD-05 |
 | POST | `/v1/orders/access` | Público | UC-ORD-05 |
 | GET | `/v1/admin/orders` | `orders.read` | UC-ORD-06 |
+| GET | `/v1/admin/orders/open-price-lines` | `orders.read` | ADR-0171 |
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/quote` | `orders.place` | UC-ORD-12 (ADR-0161) |
 | POST | `/v1/admin/orders` | `orders.place` + `Idempotency-Key` | UC-ORD-13 (ADR-0161) |
@@ -1371,8 +1382,12 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/admin/orders/{orderId}/manual-capture` | `payments.manage` | UC-PAY-02 (ADR-0134) |
 | POST | `/v1/admin/orders/{orderId}/blocked-data` | `orders.read-blocked` | UC-ORD-11 (ADR-0152) |
 | GET | `/v1/admin/store-profile` | `orders.read` | UC-ORD-15 (ADR-0163) |
+| GET | `/v1/admin/cash-closings/summary` | `cash-closings.read` | UC-ORD-16 (ADR-0171) |
+| POST | `/v1/admin/cash-closings` | `cash-closings.manage` | UC-ORD-17 (ADR-0171) |
+| GET | `/v1/admin/cash-closings` | `cash-closings.read` | UC-ORD-17 (ADR-0171) |
+| GET | `/v1/admin/cash-closings/{closingId}` | `cash-closings.read` | UC-ORD-17 (ADR-0171) |
 
-Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es). Los datos de la tienda para el ticket viven en `/v1/admin/store-profile` (§15.8).
+Las rutas de Orders viven en `/v1/admin/orders` (sin segmento de contexto adicional, porque "orders" ya lo es). Los datos de la tienda para el ticket viven en `/v1/admin/store-profile` (§15.8), y el corte de caja en `/v1/admin/cash-closings` (§15.9).
 
 ### 15.2 Cotizar (UC-ORD-01)
 
@@ -1500,12 +1515,23 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 
 **`GET /v1/admin/orders/{orderId}`** — `orders.read`. 200 `AdminOrder`.
 
+**`GET /v1/admin/orders/open-price-lines`** — `orders.read`. Paginado. Las líneas cobradas a precio libre en la tienda física (desde T-182, ADR-0171), para saber qué dar de alta primero en el catálogo.
+
+- Filtros: `warehouseId` y `placedFrom`, `placedTo` (fechas de la orden, como en el listado de órdenes).
+- Orden fijo: la orden más reciente primero, y por número de línea. Incluye las órdenes en cualquier estado, también canceladas o vencidas.
+- Cada elemento: `orderId`, `publicCode`, `orderNumber`, `status`, `warehouseId`, `placedBy`, `placedAt`, `lineNumber`, `sku`, `productName`, `variantOptions`, `unitPrice`, `quantity`, `lineTotal` y `note`.
+
 **`POST /v1/admin/orders/quote`** — `orders.place`. Cotiza un pedido en la tienda física (UC-ORD-12, ADR-0161).
 
-- Request: `{ "lines": [ { "variantId", "quantity" } ], "warehouseId", "fulfillment", "couponCode" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera. `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE`, la venta de mostrador, sin envío (§8.7).
+- Request: `{ "lines": [ { "variantId", "quantity", "unitPrice", "note" } ], "warehouseId", "fulfillment", "couponCode" }`. De 1 a 100 líneas, cada variante una sola vez y con 1 a 30 unidades, en el orden en que la orden las numera. `fulfillment`, opcional: `SHIPPING` (por defecto) o `IN_STORE`, la venta de mostrador, sin envío (§8.7).
+- **Precio libre (desde T-182, ADR-0171):** una línea de una variante de un producto `openPrice` (§11.6) lleva `unitPrice`, el precio unitario con IVA en centavos, de 1 a 10,000,000, y `note`, qué se vendió, de 1 a 200 caracteres sin contar los espacios de los extremos.
+  - Las dos son obligatorias en esa línea (`openPriceRequired`) y se rechazan en las demás (`notOpenPrice`), con 400 en `lines[i].unitPrice` o `lines[i].note`; `null` es como no enviarlas.
+  - La línea se cobra al precio escrito, no al de la lista de precios, y no recibe promociones ni cupones ni cuenta para su mínimo: la promoción y el cupón se calculan con las demás líneas.
+  - Vender una variante de precio libre exige además `orders.open-price`: sin él, 403 `forbidden`, en la cotización y en la orden.
+  - Como cada variante va una sola vez, dos artículos distintos de precio libre en la misma venta van en variantes distintas del producto (por ejemplo, una por tipo de artículo).
 - `couponCode`, opcional, como en la cotización de un carrito (§15.2), con los cupones del canal `STORE`. La cotización no sabe quién compra: la orden revisa si el comprador ya usó un cupón de una vez por cliente.
 - 200 `CheckoutQuote` (§8.7), como la cotización de un carrito; `canFulfill` dice si cada línea cabe con las demás en el almacén `warehouseId`.
-- Errores: 404 si el almacén no existe o está inactivo, o si una variante no existe; 409 `coupon-not-applicable` con `reason`; 400 `validation-error`; 429 con los códigos que nadie tiene (§7).
+- Errores: 404 si el almacén no existe o está inactivo, o si una variante no existe; 403 `forbidden` sin `orders.open-price` para una línea de precio libre; 409 `coupon-not-applicable` con `reason`; 400 `validation-error`; 429 con los códigos que nadie tiene (§7).
 
 **`POST /v1/admin/orders`** — `orders.place`. Coloca una orden en la tienda física, a nombre de un cliente presente (UC-ORD-13, ADR-0161). Exige `Idempotency-Key`, con el alcance de la cuenta de staff. Hasta 30 por cuenta de staff cada 10 minutos.
 
@@ -1516,12 +1542,12 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
   - Un cliente registrado debe estar activo y con el email verificado; su contacto es el email de su cuenta, y no envía `privacyNoticeVersion` (`onlyForGuest`), porque aceptó el aviso al crear su cuenta.
   - Un invitado envía `contactEmail` y la versión del aviso de privacidad que el staff le presentó (`privacyNoticeVersion`, 1–50 caracteres).
   - Exactamente uno de `addressId` y `shippingAddress` (`exactlyOneAddress`); `addressId`, una dirección guardada del cliente, solo con `customerId` (`onlyWithCustomer`).
-  - `lines` como en la cotización.
+  - `lines` como en la cotización, también las de precio libre; la orden guarda la `note` en su línea.
 - Recalcula todo sin cache, como el checkout. Reserva todo el stock en el almacén `warehouseId`, nunca en otro, o nada, y crea la orden `STORE` en PENDING_PAYMENT, con `placedBy`, en una sola transacción. La orden no tiene carrito: si vence, sus líneas no vuelven a ninguno, y la recompra del staff de una orden de invitado responde 409 `source-cart-unavailable`.
 - El pago tardío y el reintento de surtido reservan otra vez solo en ese almacén; si ya está inactivo, cuenta como falta de stock.
 - Una orden `IN_STORE` pagada no crea envío: el staff la entrega con `POST …/hand-over`.
 - 201 `AdminOrder`, con `Location: /v1/admin/orders/{orderId}`. Se audita como `orders.place`, solo con el estado, el canal y el almacén. Se publica `OrderPlaced`.
-- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 409 `variant-not-sellable` (un producto que se vende solo en la tienda física sí se vende aquí, ADR-0165), `total-mismatch` con `currentTotal`, `coupon-not-applicable` con `reason`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
+- Errores: 404 (cliente, almacén, dirección o variante); 403 `email-not-verified`; 403 `forbidden` sin `orders.open-price` para una línea de precio libre; 409 `variant-not-sellable` (un producto que se vende solo en la tienda física sí se vende aquí, ADR-0165), `total-mismatch` con `currentTotal`, `coupon-not-applicable` con `reason`, `insufficient-stock` con las líneas que le faltan al almacén; 400 `validation-error`; los de §4 y 429.
 
 **`POST /v1/admin/orders/{orderId}/hand-over`** — `orders.place`. Entrega en la tienda física una orden `IN_STORE` pagada (UC-ORD-14, ADR-0161).
 
@@ -1594,6 +1620,35 @@ Implementado en T-180 parte b (ADR-0133):
 - **`name`:** de 1 a 100 caracteres; obligatorio en producción, y "base-shop" en desarrollo.
 - **`address`, `taxId` y `phone`:** opcionales, `null` si no se configuraron. La dirección es una línea de hasta 300 caracteres; el RFC tiene 12 o 13 caracteres y sale en mayúsculas; el teléfono, hasta 30.
 - **`ticketFooter`:** hasta 500 caracteres. Por defecto, y si la variable queda vacía, "Este ticket no es un comprobante fiscal.": el ticket no tiene fines legales, y la factura CFDI sigue fuera (ADR-0027).
+
+### 15.9 Corte de caja (UC-ORD-16 y 17, ADR-0171)
+
+Una caja por local: el corte es de un almacén y un día de la Ciudad de México (`date`, `AAAA-MM-DD`, que debe existir en el calendario; si no, 400 en `date` con `isDate`). Los montos son `Money` en centavos; `expectedCash` y `difference` pueden ser negativos.
+
+**Qué cuenta el día** (BR-ORD-23):
+
+- las órdenes del canal `STORE` del almacén colocadas ese día (`placedCount`, `placedAmount` con su total y `pendingPaymentCount`, las que siguen sin pago) y las canceladas ese día (`cancelledCount`), cuando sea que se colocaron;
+- los cobros capturados ese día de las órdenes de la tienda física del almacén, aunque la orden sea de otro día, en `payments`: siempre cuatro grupos y en este orden, `CASH`, `CARD_TERMINAL`, `TRANSFER` y `null` (sin método: de un proveedor o sin que el staff lo dijera), cada uno con `count` y `amount`; `paymentAmount` es el total;
+- los reembolsos completados ese día de esas órdenes (`refundCount`, `refundAmount`) y, de ellos, los de pagos en efectivo (`cashRefundAmount`);
+- `expectedCash`: lo cobrado en efectivo menos lo reembolsado de pagos en efectivo;
+- `byStaff`: por la cuenta de staff que registró cada cobro o reembolso, `{ staffId, paymentCount, paymentAmount, cashAmount, refundAmount }`, en el orden en que aparecen; los que no registró nadie (`staffId` `null`) van al final;
+- `openPriceLineCount` y `openPriceAmount`: las líneas de precio libre (BR-ORD-22) de las órdenes colocadas ese día, sin las canceladas, reembolsadas o vencidas.
+
+Las órdenes en línea pagadas en la tienda no tienen almacén, así que no entran al corte de ningún local.
+
+**`GET /v1/admin/cash-closings/summary?warehouseId&date`** — `cash-closings.read`. Response 200 `CashSummary`: las cifras del día, calculadas al consultar, con `warehouseId`, `date`, `from` y `to` (el inicio y el fin del día, sin incluirlo), `closing` (el cierre del día o `null`) y `afterClosing`: lo que llegó después del cierre, que ya va en las cifras, `{ paymentCount, paymentAmount, cashAmount, refundCount, refundAmount, cashRefundAmount }`, o `null` sin cierre. 404 `not-found` si el almacén no existe.
+
+**`POST /v1/admin/cash-closings`** — `cash-closings.manage`. Request `{ "warehouseId", "date", "countedCash", "note" }`:
+
+- `countedCash`: el efectivo contado, en centavos, de 0 a 2,147,483,647 (el máximo de `Money`);
+- `note`: de 1 a 500 caracteres; obligatoria si lo contado no es lo esperado (400 en `note` con `requiredWithDifference`);
+- `date`: hoy o un día anterior; un día por venir es 400 en `date` con `notFuture`.
+
+Guarda las cifras del día en ese momento (`summary`), `expectedCash`, `countedCash`, `difference` (contado menos esperado: negativa si falta efectivo), `note`, `closedBy` y `closedAt`. Response 201 `CashClosing` con `Location`. Un cierre por almacén y día: el segundo, también si llegan a la vez, es 409 `duplicate-value` en `date`. Un cierre no se edita ni se borra. 404 `not-found` si el almacén no existe. Se audita `cash-closings.close` con el almacén, el día y los montos, sin la nota, que es texto libre del staff.
+
+**`GET /v1/admin/cash-closings`** — `cash-closings.read`. Paginado, del día más reciente al más antiguo. Filtros: `warehouseId`, `dateFrom` y `dateTo` (días incluidos).
+
+**`GET /v1/admin/cash-closings/{closingId}`** — `cash-closings.read`. El cierre, con las cifras del día como estaban al cerrar; 404 `not-found`.
 
 ---
 

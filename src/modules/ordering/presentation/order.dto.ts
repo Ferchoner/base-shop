@@ -254,6 +254,14 @@ export class OrderLineDto {
   /** Lo que la promoción de la orden quitó a la línea; 0 sin ella (ADR-0168). */
   @ApiProperty({ type: () => MoneyDto })
   discountAmount: MoneyDto;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Qué se vendió, en una línea de precio libre de la tienda física (ADR-0171); `null` en las demás.',
+  })
+  note: string | null;
 }
 
 /** The payment of an order, as the customer sees it (T-190). */

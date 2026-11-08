@@ -22,12 +22,14 @@ function order(changes: Partial<NoticeOrder> = {}): NoticeOrder {
         variantOptions: { talla: 'M', color: 'Azul' },
         quantity: 2,
         lineTotal: mxn(20_000),
+        note: null,
       },
       {
         productName: 'Gorra',
         variantOptions: {},
         quantity: 1,
         lineTotal: mxn(10_000),
+        note: null,
       },
     ],
     totals: {
@@ -111,6 +113,17 @@ describe('Order emails (UC-NTF-01, ADR-0074, ADR-0143)', () => {
     expect(email.text).not.toContain('Apartamos');
     expect(email.text).toContain('Lo enviaremos a:');
     expect(email.text).toContain('Plazo de entrega estimado');
+  });
+
+  it('quotes the note of a line at an open price after its product, on one line and without links (ADR-0171)', () => {
+    const [shirt, cap] = order().lines;
+    const sold = order({
+      lines: [shirt, { ...cap, note: 'Juego usado\nver juegos.example' }],
+    });
+
+    expect(orderPlacedEmail(sold, true).text).toContain(
+      '- 1 × Gorra — Juego usado ver juegos. example: $100.00',
+    );
   });
 
   it('tells an order handed over in the store where it is delivered, without a delivery time (ADR-0161)', () => {

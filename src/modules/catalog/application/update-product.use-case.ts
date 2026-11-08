@@ -54,6 +54,8 @@ export class UpdateProduct {
       categoryIds?: readonly CategoryId[];
       /** Sold only in the physical store (ADR-0165). */
       storeOnly?: boolean;
+      /** At the price the staff types on each line; only with `storeOnly` (ADR-0171). */
+      openPrice?: boolean;
       version: number;
     },
   ): Promise<void> {
@@ -76,9 +78,12 @@ export class UpdateProduct {
         await assertUsableCategories(this.categories, added);
       }
       product.editDetails(changes);
+      // Open price needs storeOnly: it goes off before storeOnly does, and on after storeOnly is (ADR-0171).
+      if (changes.openPrice === false) product.changeOpenPrice(false);
       if (changes.storeOnly !== undefined) {
         product.changeStoreOnly(changes.storeOnly, this.clock.now());
       }
+      if (changes.openPrice === true) product.changeOpenPrice(true);
       const audited = changesBetween(before, auditedProductFields(product), {
         personal: LONG_PRODUCT_FIELDS,
       });

@@ -11,6 +11,7 @@ import {
   FieldLockedError,
   InvalidGtinError,
   NoActiveVariantError,
+  OpenPriceNeedsStoreOnlyError,
   OptionNamesMismatchError,
 } from './product-errors.js';
 import type { VariantId } from './variant.js';
@@ -465,6 +466,59 @@ describe('Product (UC-CAT-04 to 10, ADR-0068, ADR-0076, ADR-0123)', () => {
         InvalidStateTransitionError,
       );
       expect(product.snapshot().storeOnly).toBe(false);
+    });
+  });
+
+  describe('sold at an open price (ADR-0171)', () => {
+    it('is sold at the price of the catalog unless created otherwise, and only a product sold only in the store has it', () => {
+      expect(draft().snapshot().openPrice).toBe(false);
+      expect(
+        draft({ storeOnly: true, openPrice: true }).snapshot().openPrice,
+      ).toBe(true);
+      expect(() => draft({ openPrice: true })).toThrow(
+        OpenPriceNeedsStoreOnlyError,
+      );
+    });
+
+    it('changes a draft or a published product sold only in the store, without an event, and back', () => {
+      const { product } = published();
+      product.changeStoreOnly(true, NOW);
+      product.pullEvents();
+
+      product.changeOpenPrice(true);
+      expect(product.snapshot().openPrice).toBe(true);
+      product.changeOpenPrice(false);
+
+      expect(product.snapshot().openPrice).toBe(false);
+      expect(product.pullEvents()).toEqual([]);
+    });
+
+    it('needs the product sold only in the store, which then cannot be sold online until it loses the open price', () => {
+      const product = draft();
+
+      expect(() => product.changeOpenPrice(true)).toThrow(
+        OpenPriceNeedsStoreOnlyError,
+      );
+      product.changeStoreOnly(true, NOW);
+      product.changeOpenPrice(true);
+      expect(() => product.changeStoreOnly(false, NOW)).toThrow(
+        OpenPriceNeedsStoreOnlyError,
+      );
+      product.changeOpenPrice(false);
+      product.changeStoreOnly(false, NOW);
+      expect(product.snapshot()).toMatchObject({
+        storeOnly: false,
+        openPrice: false,
+      });
+    });
+
+    it('does not change an archived product', () => {
+      const product = draft({ storeOnly: true });
+      product.archive(NOW);
+
+      expect(() => product.changeOpenPrice(true)).toThrow(
+        InvalidStateTransitionError,
+      );
     });
   });
 
