@@ -92,6 +92,8 @@ describe('Inventory: transfers between warehouses (T-163)', () => {
     await prisma.reservationLine.deleteMany();
     await prisma.reservation.deleteMany();
     await prisma.stockMovement.deleteMany();
+    // The returns of the loans first, which name them.
+    await prisma.stockTransfer.deleteMany({ where: { loanId: { not: null } } });
     await prisma.stockTransfer.deleteMany();
     await prisma.stockItem.deleteMany();
     await prisma.warehouse.deleteMany({ where: { id: { not: MAIN } } });
@@ -158,6 +160,31 @@ describe('Inventory: transfers between warehouses (T-163)', () => {
     );
   const cancel = (id: StockTransferId, version = 1) =>
     cls.run(() => transfers().cancel({ id, version, staffId: canceller }));
+  const lend = (
+    lines: { variantId: VariantId; quantity: number }[],
+    returnBy = new Date(current + 60 * 60_000),
+  ) =>
+    cls.run(() =>
+      transfers().record(
+        {
+          kind: 'LOAN',
+          fromWarehouseId: MAIN,
+          toWarehouseId: other,
+          reason: 'SHOW',
+          returnBy,
+          lines,
+        },
+        staffId,
+      ),
+    );
+  const close = (
+    id: StockTransferId,
+    lines: { variantId: VariantId; returned: number }[],
+    version = 1,
+  ) =>
+    cls.run(() =>
+      transfers().close({ id, version, lines, staffId: canceller }),
+    );
 
   const onHand = async (warehouseId: WarehouseId, variantId: VariantId) =>
     (
@@ -195,20 +222,39 @@ describe('Inventory: transfers between warehouses (T-163)', () => {
     expect(first).toEqual({
       id: first.id,
       folio: expect.stringMatching(/^T-\d{6,}$/),
+      kind: 'TRANSFER',
       fromWarehouseId: MAIN,
       toWarehouseId: other,
       reason: 'SALE',
       note: null,
       status: 'COMPLETED',
       lines: expect.arrayContaining([
-        { variantId: zelda, sku: 'ZELDA', productTitle: 'Juegos', quantity: 2 },
-        { variantId: mario, sku: 'MARIO', productTitle: 'Juegos', quantity: 2 },
+        {
+          variantId: zelda,
+          sku: 'ZELDA',
+          productTitle: 'Juegos',
+          quantity: 2,
+          returned: null,
+        },
+        {
+          variantId: mario,
+          sku: 'MARIO',
+          productTitle: 'Juegos',
+          quantity: 2,
+          returned: null,
+        },
       ]),
       createdBy: staffId,
       createdAt: expect.any(Date),
       cancellableUntil: new Date(first.createdAt.getTime() + 10 * 60_000),
       cancelledBy: null,
       cancelledAt: null,
+      returnBy: null,
+      overdue: false,
+      closedBy: null,
+      closedAt: null,
+      loanId: null,
+      returnTransferId: null,
       version: 1,
     });
     expect(Number(second.folio.slice(2))).toBe(
@@ -503,5 +549,229 @@ describe('Inventory: transfers between warehouses (T-163)', () => {
     expect((await list({ to: toOther.createdAt })).folios).toEqual([
       toOther.folio,
     ]);
+  });
+
+  describe('loans (T-164)', () => {
+    it('lends the units with a P- folio, and closes with what came back, which returns with a transfer of its own', async () => {
+      const [zelda, mario] = await createVariants('Juegos', 'ZELDA', 'MARIO');
+      await receiveIn(MAIN, zelda, 5);
+      await receiveIn(MAIN, mario, 5);
+
+      const loan = await lend([
+        { variantId: zelda, quantity: 2 },
+        { variantId: mario, quantity: 1 },
+      ]);
+      expect(loan).toMatchObject({
+        folio: expect.stringMatching(/^P-\d{6,}$/),
+        kind: 'LOAN',
+        reason: 'SHOW',
+        status: 'OPEN',
+        returnBy: new Date(loan.createdAt.getTime() + 60 * 60_000 - 1),
+        overdue: false,
+        returnTransferId: null,
+      });
+      expect([await onHand(MAIN, zelda), await onHand(other, zelda)]).toEqual([
+        3, 2,
+      ]);
+
+      // The customer bought one Zelda in the other store; the Mario came back.
+      const closed = await close(loan.id, [
+        { variantId: zelda, returned: 1 },
+        { variantId: mario, returned: 1 },
+      ]);
+      expect(closed).toMatchObject({
+        status: 'CLOSED',
+        closedBy: canceller,
+        cancellableUntil: null,
+        version: 2,
+        lines: expect.arrayContaining([
+          expect.objectContaining({
+            variantId: zelda,
+            quantity: 2,
+            returned: 1,
+          }),
+          expect.objectContaining({
+            variantId: mario,
+            quantity: 1,
+            returned: 1,
+          }),
+        ]),
+      });
+      const back = await cls.run(() =>
+        transfers().find(closed.returnTransferId!),
+      );
+      expect(back).toMatchObject({
+        folio: expect.stringMatching(/^T-\d{6,}$/),
+        kind: 'TRANSFER',
+        reason: 'LOAN_RETURN',
+        status: 'COMPLETED',
+        fromWarehouseId: other,
+        toWarehouseId: MAIN,
+        loanId: loan.id,
+        cancellableUntil: null,
+        lines: expect.arrayContaining([
+          expect.objectContaining({ variantId: zelda, quantity: 1 }),
+          expect.objectContaining({ variantId: mario, quantity: 1 }),
+        ]),
+      });
+      expect([
+        await onHand(MAIN, zelda),
+        await onHand(other, zelda),
+        await onHand(MAIN, mario),
+        await onHand(other, mario),
+      ]).toEqual([4, 1, 5, 0]);
+      await expectLedgerBalanced(zelda);
+      await expectLedgerBalanced(mario);
+      await expect(cancel(back.id)).rejects.toThrow(
+        InvalidStateTransitionError,
+      );
+      await expect(
+        close(
+          loan.id,
+          [
+            { variantId: zelda, returned: 0 },
+            { variantId: mario, returned: 0 },
+          ],
+          2,
+        ),
+      ).rejects.toThrow(InvalidStateTransitionError);
+      expect(
+        await prisma.auditLog.findFirstOrThrow({
+          where: { action: 'inventory.loan-close', resourceId: loan.id },
+        }),
+      ).toMatchObject({
+        changes: expect.objectContaining({
+          status: { from: 'OPEN', to: 'CLOSED' },
+          returnFolio: { from: null, to: back.folio },
+        }),
+      });
+    });
+
+    it('closes with nothing back without a return, and to an inactive origin', async () => {
+      const [zelda] = await createVariants('Juegos', 'ZELDA');
+      await receiveIn(other, zelda, 2);
+      const sold = await cls.run(() =>
+        transfers().record(
+          {
+            kind: 'LOAN',
+            fromWarehouseId: other,
+            toWarehouseId: MAIN,
+            reason: 'SHOW',
+            returnBy: new Date(current + 30 * 60_000),
+            lines: [{ variantId: zelda, quantity: 1 }],
+          },
+          staffId,
+        ),
+      );
+      const back = await cls.run(() =>
+        transfers().record(
+          {
+            kind: 'LOAN',
+            fromWarehouseId: other,
+            toWarehouseId: MAIN,
+            reason: 'SHOW',
+            returnBy: new Date(current + 30 * 60_000),
+            lines: [{ variantId: zelda, quantity: 1 }],
+          },
+          staffId,
+        ),
+      );
+      await cls.run(() => moduleRef.get(DeactivateWarehouse).execute(other));
+
+      const nothing = await close(sold.id, [{ variantId: zelda, returned: 0 }]);
+      const returned = await close(back.id, [
+        { variantId: zelda, returned: 1 },
+      ]);
+
+      expect(nothing).toMatchObject({
+        status: 'CLOSED',
+        returnTransferId: null,
+      });
+      expect(returned.returnTransferId).not.toBeNull();
+      expect([await onHand(other, zelda), await onHand(MAIN, zelda)]).toEqual([
+        1, 1,
+      ]);
+    });
+
+    it('does not close when the destination no longer has what came back, nor with lines that are not the loan', async () => {
+      const [zelda] = await createVariants('Juegos', 'ZELDA');
+      await receiveIn(MAIN, zelda, 2);
+      const loan = await lend([{ variantId: zelda, quantity: 2 }]);
+      await cls.run(() =>
+        moduleRef
+          .get(InventoryFacade)
+          .reserve(newId<'Order'>(), [{ variantId: zelda, quantity: 1 }]),
+      );
+
+      await expect(
+        close(loan.id, [{ variantId: zelda, returned: 2 }]),
+      ).rejects.toThrow(InsufficientStockError);
+      await expect(close(loan.id, [])).rejects.toMatchObject({
+        details: { errors: [expect.objectContaining({ code: 'loanLines' })] },
+      });
+      await expect(
+        close(loan.id, [{ variantId: zelda, returned: 1 }], 3),
+      ).rejects.toThrow(VersionConflictError);
+
+      expect(
+        await prisma.stockTransfer.findMany({
+          select: { kind: true, status: true, version: true },
+        }),
+      ).toEqual([{ kind: 'LOAN', status: 'OPEN', version: 1 }]);
+      await expect(
+        close(loan.id, [{ variantId: zelda, returned: 1 }]),
+      ).resolves.toMatchObject({ status: 'CLOSED' });
+    });
+
+    it('closes once when two close it at the same time', async () => {
+      const [zelda] = await createVariants('Juegos', 'ZELDA');
+      await receiveIn(MAIN, zelda, 2);
+      const loan = await lend([{ variantId: zelda, quantity: 2 }]);
+
+      const results = await Promise.allSettled([
+        close(loan.id, [{ variantId: zelda, returned: 2 }]),
+        close(loan.id, [{ variantId: zelda, returned: 2 }]),
+      ]);
+
+      expect(results.map(({ status }) => status).sort()).toEqual([
+        'fulfilled',
+        'rejected',
+      ]);
+      expect(
+        await prisma.stockTransfer.count({ where: { loanId: loan.id } }),
+      ).toBe(1);
+      expect([await onHand(MAIN, zelda), await onHand(other, zelda)]).toEqual([
+        2, 0,
+      ]);
+    });
+
+    it('lists the loans and the overdue ones, measured with the clock of the API', async () => {
+      const [zelda] = await createVariants('Juegos', 'ZELDA');
+      await receiveIn(MAIN, zelda, 5);
+      const soon = await lend(
+        [{ variantId: zelda, quantity: 1 }],
+        new Date(current + 5 * 60_000 + 1),
+      );
+      const later = await lend([{ variantId: zelda, quantity: 1 }]);
+      const moved = await transfer(MAIN, other, [
+        { variantId: zelda, quantity: 1 },
+      ]);
+      current += 20 * 60_000;
+      const list = (filter: Parameters<StockTransfers['list']>[0]) =>
+        cls
+          .run(() => transfers().list(filter, { page: 1, pageSize: 20 }))
+          .then(({ items }) => items.map(({ folio }) => folio));
+
+      expect(await list({ kind: 'LOAN' })).toEqual([later.folio, soon.folio]);
+      expect(await list({ kind: 'TRANSFER' })).toEqual([moved.folio]);
+      expect(await list({ overdue: true })).toEqual([soon.folio]);
+      expect(await list({ overdue: false })).toEqual([
+        moved.folio,
+        later.folio,
+      ]);
+      expect((await cls.run(() => transfers().find(soon.id))).overdue).toBe(
+        true,
+      );
+    });
   });
 });

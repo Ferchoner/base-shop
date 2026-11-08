@@ -30,16 +30,31 @@ enum StockTransferReason {
   SALE
   RESTOCK
   OTHER
+  /// A loan to show it in the other warehouse (T-164).
+  SHOW
+  /// What came back from a loan when it was closed (T-164).
+  LOAN_RETURN
 
   @@map("stock_transfer_reason")
 }
 
-/// A transfer is done when it is recorded, and cancelled only in its first minutes (ADR-0172).
+/// A transfer is done when it is recorded, and cancelled only in its first minutes; a loan is open until it is
+/// closed (ADR-0172).
 enum StockTransferStatus {
   COMPLETED
   CANCELLED
+  OPEN
+  CLOSED
 
   @@map("stock_transfer_status")
+}
+
+/// A transfer for good, or a loan to show the units that has a time to come back (ADR-0172).
+enum StockTransferKind {
+  TRANSFER
+  LOAN
+
+  @@map("stock_transfer_kind")
 }
 
 enum ReservationStatus {
@@ -163,8 +178,9 @@ model StockReceiptImport {
 /// destination in the same transaction. Never edited; cancelled only in its first 10 minutes.
 model StockTransfer {
   id              String              @id @db.Uuid
-  /// Consecutive number from a database sequence, shown as the folio `T-000123` (ADR-0172).
+  /// Consecutive number from a database sequence, shown as the folio `T-000123`, or `P-000123` for a loan (ADR-0172).
   number          BigInt              @unique @default(autoincrement())
+  kind            StockTransferKind   @default(TRANSFER)
   /// CHECK: not the destination (manual SQL).
   fromWarehouseId String              @map("from_warehouse_id") @db.Uuid
   toWarehouseId   String              @map("to_warehouse_id") @db.Uuid
@@ -178,6 +194,13 @@ model StockTransfer {
   /// CHECK: both present exactly when it is cancelled (manual SQL).
   cancelledBy     String?             @map("cancelled_by") @db.Uuid
   cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(3)
+  /// When a loan should come back. CHECK: exactly with LOAN, 5 minutes to 24 hours after it was recorded (manual SQL).
+  returnBy        DateTime?           @map("return_by") @db.Timestamptz(3)
+  /// Who closed a loan and when. CHECK: both present exactly when it is closed (manual SQL).
+  closedBy        String?             @map("closed_by") @db.Uuid
+  closedAt        DateTime?           @map("closed_at") @db.Timestamptz(3)
+  /// The loan this transfer brought back. CHECK: exactly with LOAN_RETURN (manual SQL).
+  loanId          String?             @unique @map("loan_id") @db.Uuid
   version         Int                 @default(1)
   updatedAt       DateTime            @map("updated_at") @db.Timestamptz(3)
 
@@ -185,8 +208,11 @@ model StockTransfer {
   toWarehouse   Warehouse           @relation("transfer_to", fields: [toWarehouseId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   lines         StockTransferLine[]
   movements     StockMovement[]
+  loan          StockTransfer?      @relation("loan_return", fields: [loanId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  returnOf      StockTransfer?      @relation("loan_return")
 
   @@index([createdAt])
+  @@index([kind, status, returnBy])
   @@index([fromWarehouseId, createdAt])
   @@index([toWarehouseId, createdAt])
   @@map("stock_transfers")
@@ -199,6 +225,8 @@ model StockTransferLine {
   variantId  String @map("variant_id") @db.Uuid
   /// CHECK: 1 to 100,000 (manual SQL).
   quantity   Int
+  /// The units of a loan line that came back when it was closed. CHECK: 0 to the quantity (manual SQL).
+  returned   Int?
 
   transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade, onUpdate: Restrict)
 

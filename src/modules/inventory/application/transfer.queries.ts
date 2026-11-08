@@ -3,13 +3,15 @@ import type { VariantId } from '../domain/stock.js';
 import type {
   StockTransferId,
   StockTransferSnapshot,
+  TransferKind,
   TransferReason,
   TransferStatus,
 } from '../domain/stock-transfer.js';
 import type { WarehouseId } from '../domain/warehouse.js';
 
-/** Transfers to list (ADR-0172). */
+/** Transfers and loans to list (ADR-0172). */
 export interface TransferFilter {
+  readonly kind?: TransferKind;
   /** Transfers that leave from or arrive at this warehouse. */
   readonly warehouseId?: WarehouseId;
   /** Transfers with a line of this variant. */
@@ -20,6 +22,10 @@ export interface TransferFilter {
   readonly from?: Date;
   /** Recorded at this moment or earlier. */
   readonly to?: Date;
+  /** `true`, only the open loans whose time to come back passed by `now`; `false`, every other one. */
+  readonly overdue?: boolean;
+  /** The moment `overdue` is measured at; the use case sets it from its clock. */
+  readonly now?: Date;
 }
 
 /**

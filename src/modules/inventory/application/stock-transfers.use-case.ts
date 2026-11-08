@@ -15,9 +15,11 @@ import type { TransferEntry } from '../domain/stock-ledger.repository.js';
 import { StockLedgerRepository } from '../domain/stock-ledger.repository.js';
 import {
   formatTransferFolio,
+  type ReturnedLine,
   StockTransfer,
   type StockTransferId,
   type StockTransferSnapshot,
+  type TransferKind,
   type TransferLine,
   type TransferReason,
   type TransferStatus,
@@ -29,10 +31,16 @@ import { CatalogVariants, type VariantLabel } from './catalog-variants.js';
 import { type TransferFilter, TransferQueries } from './transfer.queries.js';
 
 export {
+  MAX_LOAN_MS,
   MAX_TRANSFER_LINES,
+  MIN_LOAN_MS,
+  REQUESTED_TRANSFER_REASONS,
+  type ReturnedLine,
   type StockTransferId,
+  TRANSFER_KINDS,
   TRANSFER_REASONS,
   TRANSFER_STATUSES,
+  type TransferKind,
   type TransferReason,
   type TransferStatus,
 } from '../domain/stock-transfer.js';
@@ -42,12 +50,15 @@ export type { TransferFilter } from './transfer.queries.js';
 export interface TransferLineView extends TransferLine {
   readonly sku: string;
   readonly productTitle: string;
+  /** Units of a loan line that came back when it was closed; `null` until then, and always in a transfer. */
+  readonly returned: number | null;
 }
 
 /** `StockTransfer` of API_SPEC.md §13 (ADR-0172). */
 export interface TransferView {
   readonly id: StockTransferId;
   readonly folio: string;
+  readonly kind: TransferKind;
   readonly fromWarehouseId: WarehouseId;
   readonly toWarehouseId: WarehouseId;
   readonly reason: TransferReason;
@@ -60,11 +71,23 @@ export interface TransferView {
   readonly cancellableUntil: Date | null;
   readonly cancelledBy: string | null;
   readonly cancelledAt: Date | null;
+  /** When a loan should come back; `null` in a transfer. */
+  readonly returnBy: Date | null;
+  /** An open loan whose time to come back passed. */
+  readonly overdue: boolean;
+  readonly closedBy: string | null;
+  readonly closedAt: Date | null;
+  /** In the return of a loan, the loan. */
+  readonly loanId: StockTransferId | null;
+  /** In a closed loan, the transfer that brought back its units, if any came back. */
+  readonly returnTransferId: StockTransferId | null;
   readonly version: number;
 }
 
-/** A new transfer as the staff sends it. */
+/** A new transfer or loan as the staff sends it. */
 export interface TransferRequest {
+  readonly kind?: TransferKind;
+  readonly returnBy?: Date | null;
   readonly fromWarehouseId: WarehouseId;
   readonly toWarehouseId: WarehouseId;
   readonly reason: TransferReason;
@@ -77,7 +100,8 @@ export interface TransferRequest {
  * another in one transaction, with a folio. Only the units available move: the reserved ones stay for their orders.
  * The destination must be active; the origin may be inactive, to empty it. A transfer is cancelled only in its
  * first 10 minutes, and its units go back to the origin with movements of the opposite sign; the ledger is never
- * rewritten. Audited as `inventory.transfer` and `inventory.transfer-cancel`.
+ * rewritten. A loan (T-164) moves the units the same way to show them, with a time to come back, and is closed with
+ * what came back. Audited as `inventory.transfer`, `inventory.transfer-cancel` and `inventory.loan-close`.
  */
 @Injectable()
 export class StockTransfers {
@@ -140,11 +164,13 @@ export class StockTransfers {
         changes: changesBetween(
           {},
           {
-            folio: formatTransferFolio(saved),
+            folio: formatTransferFolio(saved, transfer.snapshot.kind),
+            kind: transfer.snapshot.kind,
             fromWarehouseId,
             toWarehouseId,
             reason: transfer.snapshot.reason,
             note: transfer.snapshot.note,
+            returnBy: transfer.snapshot.returnBy,
             lines: transfer.lines.map(({ variantId, quantity }) => ({
               variantId,
               quantity,
@@ -176,15 +202,67 @@ export class StockTransfers {
       }
       assertVersion(transfer.version, input.version);
       const now = this.clock.now();
+      const before = transfer.snapshot.status;
       transfer.cancel(input.staffId, now);
       await this.move(transfer, -1, input.staffId, now);
       await this.transfers.save(transfer, now);
       await this.audit.record({
         action: 'inventory.transfer-cancel',
         resource: { type: 'stock-transfer', id: transfer.id },
+        changes: changesBetween({ status: before }, { status: 'CANCELLED' }),
+      });
+    });
+    return this.find(input.id);
+  }
+
+  /**
+   * Closes an open loan (T-164) with the units of each line that came back: those go back to the origin with a
+   * transfer `LOAN_RETURN` linked to the loan, and the rest stays in the destination. The origin may be inactive by
+   * then; the units go back to it anyway, like a restock (ADR-0160).
+   *
+   * @throws NotFoundError; VersionConflictError; InvalidStateTransitionError when it is not an open loan;
+   *   TransferFieldError for lines that are not every line of the loan once, or units out of range;
+   *   InsufficientStockError when the destination no longer has the units that came back available.
+   */
+  async close(input: {
+    id: StockTransferId;
+    version: number;
+    lines: readonly ReturnedLine[];
+    staffId: string;
+  }): Promise<TransferView> {
+    await this.transactions.run(async () => {
+      const loan = await this.transfers.lock(input.id);
+      if (loan === null) throw new NotFoundError('StockTransfer', input.id);
+      assertVersion(loan.version, input.version);
+      const now = this.clock.now();
+      loan.close(input.lines, input.staffId, now);
+      await this.transfers.save(loan, now);
+      let returnFolio: string | null = null;
+      if (loan.lines.some(({ returned }) => (returned ?? 0) > 0)) {
+        const back = StockTransfer.returnOf(loan, {
+          id: newId<'StockTransfer'>(),
+          staffId: input.staffId,
+          now,
+        });
+        returnFolio = formatTransferFolio(
+          await this.transfers.insert(back, now),
+        );
+        await this.move(back, 1, input.staffId, now);
+      }
+      await this.audit.record({
+        action: 'inventory.loan-close',
+        resource: { type: 'stock-transfer', id: loan.id },
         changes: changesBetween(
-          { status: 'COMPLETED' },
-          { status: 'CANCELLED' },
+          { status: 'OPEN' },
+          {
+            status: 'CLOSED',
+            returnFolio,
+            lines: loan.lines.map(({ variantId, quantity, returned }) => ({
+              variantId,
+              quantity,
+              returned,
+            })),
+          },
         ),
       });
     });
@@ -198,14 +276,15 @@ export class StockTransfers {
     const labels = await this.variants.labels(
       found.lines.map(({ variantId }) => variantId),
     );
-    return viewOf(found, labels);
+    return viewOf(found, labels, this.clock.now());
   }
 
   async list(
     filter: TransferFilter,
     page: PageRequest,
   ): Promise<Page<TransferView>> {
-    const found = await this.queries.pageOfTransfers(filter, page);
+    const now = this.clock.now();
+    const found = await this.queries.pageOfTransfers({ ...filter, now }, page);
     const labels = await this.variants.labels([
       ...new Set(
         found.items.flatMap(({ lines }) =>
@@ -214,7 +293,7 @@ export class StockTransfers {
       ),
     ]);
     return {
-      items: found.items.map((transfer) => viewOf(transfer, labels)),
+      items: found.items.map((transfer) => viewOf(transfer, labels, now)),
       totalItems: found.totalItems,
     };
   }
@@ -264,6 +343,7 @@ export class StockTransfers {
 function viewOf(
   transfer: StockTransferSnapshot,
   labels: ReadonlyMap<VariantId, VariantLabel>,
+  now: Date,
 ): TransferView {
   if (transfer.number === null) {
     throw new Error(`Transfer ${transfer.id} has no number`);
@@ -271,7 +351,8 @@ function viewOf(
   const restored = StockTransfer.restore(transfer);
   return {
     id: transfer.id,
-    folio: formatTransferFolio(transfer.number),
+    folio: formatTransferFolio(transfer.number, transfer.kind),
+    kind: transfer.kind,
     fromWarehouseId: transfer.fromWarehouseId,
     toWarehouseId: transfer.toWarehouseId,
     reason: transfer.reason,
@@ -287,10 +368,15 @@ function viewOf(
     }),
     createdBy: transfer.createdBy,
     createdAt: transfer.createdAt,
-    cancellableUntil:
-      transfer.status === 'COMPLETED' ? restored.cancellableUntil : null,
+    cancellableUntil: restored.isCancellable ? restored.cancellableUntil : null,
     cancelledBy: transfer.cancelledBy,
     cancelledAt: transfer.cancelledAt,
+    returnBy: transfer.returnBy,
+    overdue: restored.isOverdue(now),
+    closedBy: transfer.closedBy,
+    closedAt: transfer.closedAt,
+    loanId: transfer.loanId,
+    returnTransferId: transfer.returnTransferId,
     version: transfer.version,
   };
 }

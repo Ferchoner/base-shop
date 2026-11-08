@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -25,8 +26,11 @@ import {
 } from '../application/inventory-limits.js';
 import {
   MAX_TRANSFER_LINES,
+  REQUESTED_TRANSFER_REASONS,
+  TRANSFER_KINDS,
   TRANSFER_REASONS,
   TRANSFER_STATUSES,
+  type TransferKind,
   type TransferReason,
   type TransferStatus,
 } from '../application/stock-transfers.use-case.js';
@@ -52,6 +56,16 @@ export class TransferLineInputDto {
 
 /** Request of `POST /v1/admin/inventory/transfers` (ADR-0172). */
 export class CreateTransferDto {
+  @ApiPropertyOptional({
+    enum: TRANSFER_KINDS,
+    default: 'TRANSFER',
+    description:
+      '`TRANSFER`, un traslado definitivo, o `LOAN`, un préstamo para mostrar, con `returnBy` (T-164).',
+  })
+  @IsOptional()
+  @IsIn(TRANSFER_KINDS)
+  kind?: TransferKind;
+
   /** El almacén de donde salen las unidades, en cualquier estado. */
   @IsUUID()
   fromWarehouseId: string;
@@ -61,11 +75,11 @@ export class CreateTransferDto {
   toWarehouseId: string;
 
   @ApiProperty({
-    enum: TRANSFER_REASONS,
+    enum: REQUESTED_TRANSFER_REASONS,
     description:
-      '`SALE` para venderlo en el destino, `RESTOCK` para surtirlo, `OTHER` con `note` obligatoria.',
+      'En un traslado, `SALE` para venderlo en el destino, `RESTOCK` para surtirlo u `OTHER` con `note` obligatoria; en un préstamo, `SHOW`.',
   })
-  @IsIn(TRANSFER_REASONS)
+  @IsIn(REQUESTED_TRANSFER_REASONS)
   reason: TransferReason;
 
   /** Hasta 500 caracteres; obligatoria con `OTHER`. */
@@ -88,6 +102,16 @@ export class CreateTransferDto {
   @ValidateNested({ each: true })
   @Type(() => TransferLineInputDto)
   lines: TransferLineInputDto[];
+
+  @ApiPropertyOptional({
+    ...DATE_TIME,
+    example: '2026-11-08T19:00:00.000Z',
+    description:
+      'Solo en un préstamo, y obligatoria: cuándo debe regresar, de 5 minutos a 24 horas después de registrarlo.',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  returnBy?: string;
 }
 
 /** Request of `POST …/transfers/{transferId}/cancel` (ADR-0172). */
@@ -96,6 +120,38 @@ export class CancelTransferDto {
   @IsInt()
   @Min(1)
   version: number;
+}
+
+/** What came back of a loan line. */
+export class ReturnedLineInputDto {
+  /** Una línea del préstamo, una vez. */
+  @IsUUID()
+  variantId: string;
+
+  /** Unidades que regresaron, de 0 a las prestadas. @example 1 */
+  @IsInt()
+  @Min(0)
+  @Max(MAX_STOCK_QUANTITY)
+  returned: number;
+}
+
+/** Request of `POST …/transfers/{transferId}/close` (T-164, ADR-0172). */
+export class CloseLoanDto {
+  /** Versión leída del préstamo (bloqueo optimista). */
+  @IsInt()
+  @Min(1)
+  version: number;
+
+  @ApiProperty({
+    type: () => [ReturnedLineInputDto],
+    description: 'Cada línea del préstamo, una vez, con lo que regresó.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_TRANSFER_LINES)
+  @ValidateNested({ each: true })
+  @Type(() => ReturnedLineInputDto)
+  lines: ReturnedLineInputDto[];
 }
 
 /** A line of a transfer as the API answers it. */
@@ -111,6 +167,14 @@ export class TransferLineDto {
 
   /** Unidades trasladadas. @example 2 */
   quantity: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'En un préstamo cerrado, las unidades que regresaron; `null` mientras está abierto, y siempre en un traslado.',
+  })
+  returned: number | null;
 }
 
 /** `StockTransfer` of API_SPEC.md §13 (ADR-0172). */
@@ -118,8 +182,11 @@ export class TransferDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  /** El folio del traslado, consecutivo. @example 'T-000123' */
+  /** El folio, consecutivo: `T-` en un traslado y `P-` en un préstamo. @example 'T-000123' */
   folio: string;
+
+  @ApiProperty({ enum: TRANSFER_KINDS })
+  kind: string;
 
   @ApiProperty({ format: 'uuid' })
   fromWarehouseId: string;
@@ -137,7 +204,7 @@ export class TransferDto {
   @ApiProperty({
     enum: TRANSFER_STATUSES,
     description:
-      '`COMPLETED` al registrarse; `CANCELLED` si se canceló en sus primeros 10 minutos.',
+      'Un traslado está `COMPLETED` al registrarse; un préstamo, `OPEN` hasta que se cierra (`CLOSED`). `CANCELLED` si se canceló en sus primeros 10 minutos.',
   })
   status: string;
 
@@ -160,7 +227,7 @@ export class TransferDto {
     ...DATE_TIME,
     nullable: true,
     description:
-      'Hasta cuándo se puede cancelar: 10 minutos después de registrarse; `null` si ya se canceló.',
+      'Hasta cuándo se puede cancelar: 10 minutos después de registrarse; `null` si ya no se puede por su estado (cancelado, préstamo cerrado o regreso de un préstamo).',
   })
   cancellableUntil: Date | null;
 
@@ -174,7 +241,43 @@ export class TransferDto {
   @ApiProperty({ ...DATE_TIME, nullable: true })
   cancelledAt: Date | null;
 
-  /** Versión para cancelarlo (bloqueo optimista). @example 1 */
+  @ApiProperty({
+    ...DATE_TIME,
+    nullable: true,
+    description: 'En un préstamo, cuándo debe regresar; `null` en un traslado.',
+  })
+  returnBy: Date | null;
+
+  /** Un préstamo abierto cuya hora de regreso ya pasó. */
+  overdue: boolean;
+
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    format: 'uuid',
+    description:
+      'La cuenta de staff que cerró el préstamo; `null` si no se ha cerrado.',
+  })
+  closedBy: string | null;
+
+  @ApiProperty({ ...DATE_TIME, nullable: true })
+  closedAt: Date | null;
+
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    format: 'uuid',
+    description: 'En el regreso de un préstamo (`LOAN_RETURN`), el préstamo.',
+  })
+  loanId: string | null;
+
+  @ApiProperty({
+    ...NULLABLE_TEXT,
+    format: 'uuid',
+    description:
+      'En un préstamo cerrado, el traslado que regresó sus unidades; `null` si no regresó ninguna o no se ha cerrado.',
+  })
+  returnTransferId: string | null;
+
+  /** Versión para cancelarlo o cerrarlo (bloqueo optimista). @example 1 */
   version: number;
 }
 
@@ -191,6 +294,23 @@ export class TransferListDto {
 
 /** Query of `GET /v1/admin/inventory/transfers` (ADR-0172). */
 export class TransferListQueryDto extends PageQueryDto {
+  @ApiPropertyOptional({
+    enum: TRANSFER_KINDS,
+    description: 'Solo los traslados o solo los préstamos.',
+  })
+  @IsOptional()
+  @IsIn(TRANSFER_KINDS)
+  kind?: TransferKind;
+
+  /** `true`, solo los préstamos abiertos cuya hora de regreso ya pasó; `false`, todos los demás. */
+  @ApiPropertyOptional({ type: Boolean })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  overdue?: boolean;
+
   /** Los que salen de este almacén o llegan a él. */
   @IsOptional()
   @IsUUID('all')

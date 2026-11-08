@@ -51,6 +51,8 @@ describe('Stock transfers (e2e, T-163)', () => {
 
   afterEach(async () => {
     await prisma.stockMovement.deleteMany();
+    // The returns of the loans first, which name them.
+    await prisma.stockTransfer.deleteMany({ where: { loanId: { not: null } } });
     await prisma.stockTransfer.deleteMany();
     await prisma.idempotencyKey.deleteMany();
     await prisma.stockItem.deleteMany();
@@ -145,6 +147,7 @@ describe('Stock transfers (e2e, T-163)', () => {
     expect(created.body).toEqual({
       id: expect.any(String),
       folio: expect.stringMatching(/^T-\d{6,}$/),
+      kind: 'TRANSFER',
       fromWarehouseId: MAIN,
       toWarehouseId: other,
       reason: 'SALE',
@@ -156,6 +159,7 @@ describe('Stock transfers (e2e, T-163)', () => {
           sku: 'JUE-ZELDA-SW',
           productTitle: 'The Legend of Zelda',
           quantity: 2,
+          returned: null,
         },
       ],
       createdBy: staffId,
@@ -165,6 +169,12 @@ describe('Stock transfers (e2e, T-163)', () => {
       ).toISOString(),
       cancelledBy: null,
       cancelledAt: null,
+      returnBy: null,
+      overdue: false,
+      closedBy: null,
+      closedAt: null,
+      loanId: null,
+      returnTransferId: null,
       version: 1,
     });
     expect(replayed.body).toEqual(created.body);
@@ -277,7 +287,20 @@ describe('Stock transfers (e2e, T-163)', () => {
   it.each([
     [{ toWarehouseId: MAIN }, 'toWarehouseId', 'differentWarehouse'],
     [{ reason: 'OTHER' }, 'note', 'isNotEmpty'],
-    [{ reason: 'LOAN' }, 'reason', 'isIn'],
+    [{ reason: 'LOAN_RETURN' }, 'reason', 'isIn'],
+    [{ reason: 'SHOW' }, 'reason', 'reasonKind'],
+    [{ kind: 'LOAN' }, 'reason', 'reasonKind'],
+    [{ kind: 'LOAN', reason: 'SHOW' }, 'returnBy', 'loanRange'],
+    [
+      { kind: 'LOAN', reason: 'SHOW', returnBy: '2020-01-01T00:00:00.000Z' },
+      'returnBy',
+      'loanRange',
+    ],
+    [
+      { reason: 'SALE', returnBy: '2099-01-01T00:00:00.000Z' },
+      'returnBy',
+      'isEmpty',
+    ],
     [{ lines: [] }, 'lines', 'arrayMinSize'],
     [{ lines: [{ quantity: 0 }] }, 'lines[0].quantity', 'min'],
     [{ lines: [{}, {}] }, 'lines[1].variantId', 'duplicateVariant'],
@@ -344,5 +367,138 @@ describe('Stock transfers (e2e, T-163)', () => {
       })
       .expect(400);
     expect(await prisma.stockTransfer.count()).toBe(0);
+  });
+
+  describe('loans (T-164)', () => {
+    const lend = (variantId: string, quantity: number, minutes = 60) =>
+      transfer({
+        kind: 'LOAN',
+        reason: 'SHOW',
+        returnBy: new Date(Date.now() + minutes * 60_000).toISOString(),
+        lines: [{ variantId, quantity }],
+      });
+
+    it('lends to show, lists the open and overdue loans, and closes with what came back', async () => {
+      const zelda = await variant('JUE-ZELDA-SW', 5);
+      const loan = await lend(zelda, 2).expect(201);
+      const overdue = await lend(zelda, 1).expect(201);
+      // It was recorded two hours ago, to come back one hour ago.
+      await prisma.$executeRaw`
+        UPDATE stock_transfers
+           SET created_at = now() - interval '2 hours', return_by = now() - interval '1 hour'
+         WHERE id = ${overdue.body.id}::uuid`;
+
+      const open = await http()
+        .get(`${TRANSFERS}?kind=LOAN&status=OPEN&warehouseId=${other}`)
+        .set(reader())
+        .expect(200);
+      const late = await http()
+        .get(`${TRANSFERS}?overdue=true`)
+        .set(reader())
+        .expect(200);
+      const closed = await http()
+        .post(`${TRANSFERS}/${loan.body.id}/close`)
+        .set(seller())
+        .send({ version: 1, lines: [{ variantId: zelda, returned: 1 }] })
+        .expect(200);
+      const again = await http()
+        .post(`${TRANSFERS}/${loan.body.id}/close`)
+        .set(seller())
+        .send({ version: 2, lines: [{ variantId: zelda, returned: 1 }] })
+        .expect(409);
+      const back = await http()
+        .get(`${TRANSFERS}/${closed.body.returnTransferId}`)
+        .set(reader())
+        .expect(200);
+
+      expect(loan.body).toMatchObject({
+        folio: expect.stringMatching(/^P-\d{6,}$/),
+        kind: 'LOAN',
+        reason: 'SHOW',
+        status: 'OPEN',
+        returnBy: expect.any(String),
+        overdue: false,
+        cancellableUntil: expect.any(String),
+      });
+      expect(open.body.data.map(({ id }: { id: string }) => id).sort()).toEqual(
+        [loan.body.id, overdue.body.id].sort(),
+      );
+      expect(late.body.data).toEqual([
+        expect.objectContaining({ id: overdue.body.id, overdue: true }),
+      ]);
+      expect(closed.body).toMatchObject({
+        status: 'CLOSED',
+        closedBy: staffId,
+        closedAt: expect.any(String),
+        cancellableUntil: null,
+        lines: [expect.objectContaining({ quantity: 2, returned: 1 })],
+        version: 2,
+      });
+      expect(again.body).toMatchObject({
+        type: '/problems/invalid-state-transition',
+        currentStatus: 'CLOSED',
+      });
+      expect(back.body).toMatchObject({
+        folio: expect.stringMatching(/^T-\d{6,}$/),
+        reason: 'LOAN_RETURN',
+        fromWarehouseId: other,
+        toWarehouseId: MAIN,
+        loanId: loan.body.id,
+        cancellableUntil: null,
+        lines: [expect.objectContaining({ quantity: 1, returned: null })],
+      });
+      // 5 - 2 - 1 + 1 in the store 204, and 1 + 1 still in the other.
+      expect(await stockOf(zelda)).toEqual([3, 2]);
+    });
+
+    it('answers 400 for lines that are not the loan, 409 for closing a transfer, and 403 without inventory.transfer', async () => {
+      const zelda = await variant('JUE-ZELDA-SW', 5);
+      const loan = await lend(zelda, 2).expect(201);
+      const moved = await transfer({
+        reason: 'SALE',
+        lines: [{ variantId: zelda, quantity: 1 }],
+      }).expect(201);
+      const close = (
+        id: string,
+        body: Record<string, unknown>,
+        as = seller(),
+      ) => http().post(`${TRANSFERS}/${id}/close`).set(as).send(body);
+
+      const missing = await close(loan.body.id, {
+        version: 1,
+        lines: [{ variantId: newId(), returned: 0 }],
+      }).expect(400);
+      const beyond = await close(loan.body.id, {
+        version: 1,
+        lines: [{ variantId: zelda, returned: 3 }],
+      }).expect(400);
+      const notLoan = await close(moved.body.id, {
+        version: 1,
+        lines: [{ variantId: zelda, returned: 1 }],
+      }).expect(409);
+      await close(
+        loan.body.id,
+        { version: 1, lines: [{ variantId: zelda, returned: 2 }] },
+        reader(),
+      ).expect(403);
+      await close(newId(), {
+        version: 1,
+        lines: [{ variantId: zelda, returned: 2 }],
+      }).expect(404);
+
+      expect(missing.body.errors).toEqual([
+        expect.objectContaining({
+          field: 'lines[0].variantId',
+          code: 'loanLines',
+        }),
+      ]);
+      expect(beyond.body.errors).toEqual([
+        expect.objectContaining({ field: 'lines[0].returned', code: 'range' }),
+      ]);
+      expect(notLoan.body).toMatchObject({
+        type: '/problems/invalid-state-transition',
+        currentStatus: 'COMPLETED',
+      });
+    });
   });
 });

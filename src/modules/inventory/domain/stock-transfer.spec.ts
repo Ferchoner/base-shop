@@ -55,19 +55,25 @@ describe('StockTransfer (T-163, ADR-0172)', () => {
     expect(transfer.snapshot).toEqual({
       id: transfer.id,
       number: null,
+      kind: 'TRANSFER',
       fromWarehouseId: from,
       toWarehouseId: to,
       reason: 'SALE',
       note: 'Para el cliente de la mañana',
       status: 'COMPLETED',
       lines: [
-        { variantId: game, quantity: 2 },
-        { variantId: console, quantity: 1 },
+        { variantId: game, quantity: 2, returned: null },
+        { variantId: console, quantity: 1, returned: null },
       ],
       createdBy: 'staff-1',
       createdAt: now,
       cancelledBy: null,
       cancelledAt: null,
+      returnBy: null,
+      closedBy: null,
+      closedAt: null,
+      loanId: null,
+      returnTransferId: null,
       version: 1,
     });
     expect(transfer.cancellableUntil).toEqual(
@@ -125,7 +131,7 @@ describe('StockTransfer (T-163, ADR-0172)', () => {
     });
     expect(
       record({ lines: [{ variantId: game, quantity: 100_000 }] }).lines,
-    ).toEqual([{ variantId: game, quantity: 100_000 }]);
+    ).toEqual([{ variantId: game, quantity: 100_000, returned: null }]);
   });
 
   describe('cancel', () => {
@@ -169,10 +175,172 @@ describe('StockTransfer (T-163, ADR-0172)', () => {
     });
   });
 
+  describe('loan (T-164)', () => {
+    const inAnHour = new Date('2026-11-08T19:00:00.000Z');
+    const loan = (overrides: Parameters<typeof record>[0] = {}) =>
+      record({
+        kind: 'LOAN',
+        reason: 'SHOW',
+        returnBy: inAnHour,
+        lines: [
+          { variantId: game, quantity: 2 },
+          { variantId: console, quantity: 1 },
+        ],
+        ...overrides,
+      });
+
+    it('is open until it comes back, from 5 minutes to 24 hours later, and overdue after that', () => {
+      const open = loan();
+
+      expect(open.snapshot).toMatchObject({
+        kind: 'LOAN',
+        reason: 'SHOW',
+        status: 'OPEN',
+        returnBy: inAnHour,
+      });
+      expect(open.isCancellable).toBe(true);
+      expect(open.isOverdue(inAnHour)).toBe(false);
+      expect(open.isOverdue(new Date(inAnHour.getTime() + 1))).toBe(true);
+      expect(
+        loan({ returnBy: new Date('2026-11-08T18:05:00.000Z') }).snapshot
+          .status,
+      ).toBe('OPEN');
+      expect(
+        loan({ returnBy: new Date('2026-11-09T18:00:00.000Z') }).snapshot
+          .status,
+      ).toBe('OPEN');
+      for (const returnBy of [
+        null,
+        new Date('2026-11-08T18:04:59.999Z'),
+        new Date('2026-11-09T18:00:00.001Z'),
+      ]) {
+        expect(fieldOf(() => loan({ returnBy }))).toMatchObject({
+          errors: [{ field: 'returnBy', code: 'loanRange' }],
+        });
+      }
+    });
+
+    it('goes with SHOW, and a transfer neither with SHOW, LOAN_RETURN nor a time to come back', () => {
+      expect(fieldOf(() => loan({ reason: 'SALE' }))).toMatchObject({
+        errors: [{ field: 'reason', code: 'reasonKind' }],
+      });
+      expect(fieldOf(() => record({ reason: 'SHOW' }))).toMatchObject({
+        errors: [{ field: 'reason', code: 'reasonKind' }],
+      });
+      expect(fieldOf(() => record({ reason: 'LOAN_RETURN' }))).toMatchObject({
+        errors: [{ field: 'reason', code: 'reasonKind' }],
+      });
+      expect(fieldOf(() => record({ returnBy: inAnHour }))).toMatchObject({
+        errors: [{ field: 'returnBy', code: 'isEmpty' }],
+      });
+    });
+
+    it('closes with what came back of each line, and its return brings back only that', () => {
+      const open = loan();
+      const at = new Date('2026-11-08T18:30:00.000Z');
+
+      open.close(
+        [
+          { variantId: console, returned: 0 },
+          { variantId: game, returned: 1 },
+        ],
+        'staff-2',
+        at,
+      );
+      const back = StockTransfer.returnOf(open, {
+        id: newId<'StockTransfer'>(),
+        staffId: 'staff-2',
+        now: at,
+      });
+
+      expect(open.snapshot).toMatchObject({
+        status: 'CLOSED',
+        closedBy: 'staff-2',
+        closedAt: at,
+        lines: [
+          { variantId: game, quantity: 2, returned: 1 },
+          { variantId: console, quantity: 1, returned: 0 },
+        ],
+      });
+      expect(open.isCancellable).toBe(false);
+      expect(open.isOverdue(new Date('2026-11-10T00:00:00.000Z'))).toBe(false);
+      expect(back.snapshot).toMatchObject({
+        kind: 'TRANSFER',
+        reason: 'LOAN_RETURN',
+        status: 'COMPLETED',
+        fromWarehouseId: to,
+        toWarehouseId: from,
+        loanId: open.id,
+        returnBy: null,
+        lines: [{ variantId: game, quantity: 1, returned: null }],
+      });
+      expect(back.isCancellable).toBe(false);
+      expect(() => back.cancel('staff-2', at)).toThrow(
+        InvalidStateTransitionError,
+      );
+      expect(() => open.close([], 'staff-2', at)).toThrow(
+        InvalidStateTransitionError,
+      );
+    });
+
+    it('closes with every line of the loan once, and 0 to the units it took', () => {
+      const close = (lines: { variantId: typeof game; returned: number }[]) =>
+        fieldOf(() => loan().close(lines, 'staff-2', now));
+
+      expect(close([{ variantId: game, returned: 2 }])).toMatchObject({
+        errors: [{ field: 'lines', code: 'loanLines' }],
+      });
+      expect(
+        close([
+          { variantId: game, returned: 2 },
+          { variantId: game, returned: 2 },
+        ]),
+      ).toMatchObject({
+        errors: [{ field: 'lines[1].variantId', code: 'loanLines' }],
+      });
+      expect(
+        close([
+          { variantId: game, returned: 0 },
+          { variantId: newId<'Variant'>(), returned: 0 },
+        ]),
+      ).toMatchObject({
+        errors: [{ field: 'lines[1].variantId', code: 'loanLines' }],
+      });
+      expect(
+        close([
+          { variantId: game, returned: 3 },
+          { variantId: console, returned: 0 },
+        ]),
+      ).toMatchObject({
+        errors: [{ field: 'lines[0].returned', code: 'range' }],
+      });
+      expect(() => record().close([], 'staff-2', now)).toThrow(
+        InvalidStateTransitionError,
+      );
+    });
+
+    it('is cancelled like a transfer, only while it is open', () => {
+      const open = loan();
+      open.cancel('staff-2', now);
+      expect(open.snapshot.status).toBe('CANCELLED');
+
+      const late = loan();
+      expect(() =>
+        late.cancel('staff-2', new Date('2026-11-08T18:10:00.001Z')),
+      ).toThrow(
+        expect.objectContaining({
+          details: { currentStatus: 'OPEN', reason: 'cancel-window-passed' },
+        }),
+      );
+    });
+  });
+
   describe('folio', () => {
     it('is T- and at least six digits, and reads the ways the staff types it', () => {
       expect(formatTransferFolio(123)).toBe('T-000123');
       expect(formatTransferFolio(1_234_567)).toBe('T-1234567');
+      expect(formatTransferFolio(123, 'LOAN')).toBe('P-000123');
+      expect(parseTransferFolio('p-000123')).toBe(123);
       expect(parseTransferFolio('T-000123')).toBe(123);
       expect(parseTransferFolio(' t-123 ')).toBe(123);
       expect(parseTransferFolio('T123')).toBe(123);
