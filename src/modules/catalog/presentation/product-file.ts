@@ -62,6 +62,7 @@ export function readProductFile(
     widthCm: cells.widthCm,
     heightCm: cells.heightCm,
     storeOnly: cells.storeOnly,
+    countClass: cells.countClass,
     options: prefixed,
   }));
 }

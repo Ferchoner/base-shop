@@ -5,6 +5,8 @@ import {
   AdjustmentNoteRequiredError,
   checkAdjustment,
   InsufficientStockError,
+  InvalidLocationError,
+  locationOf,
   MAX_STOCK_QUANTITY,
   noteOf,
   receiptQuantity,
@@ -95,6 +97,34 @@ describe('Stock rules (UC-INV-02, UC-INV-03, ADR-0069)', () => {
       code: 'insufficient-stock',
       category: 'conflict',
       details: { lines: [{ variantId, canFulfill: false }] },
+    });
+  });
+
+  describe('location (ADR-0173)', () => {
+    it('keeps a location trimmed, with single spaces and in upper case', () => {
+      expect(locationOf(' vitrina   1 ')).toBe('VITRINA 1');
+      expect(locationOf('a1')).toBe('A1');
+      expect(locationOf('Bodega\tAtrás')).toBe('BODEGA ATRÁS');
+      expect(locationOf('X'.repeat(20))).toBe('X'.repeat(20));
+    });
+
+    it('clears it with null', () => {
+      expect(locationOf(null)).toBeNull();
+    });
+
+    it.each(['', '   ', 'X'.repeat(21), ' '.repeat(3) + 'Y'.repeat(21)])(
+      'rejects %j as a validation error of location',
+      (location) => {
+        expect(() => locationOf(location)).toThrow(InvalidLocationError);
+      },
+    );
+
+    it('answers it on the location field', () => {
+      expect(new InvalidLocationError().details).toEqual({
+        errors: [
+          expect.objectContaining({ field: 'location', code: 'isLength' }),
+        ],
+      });
     });
   });
 });

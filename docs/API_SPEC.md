@@ -154,7 +154,7 @@ Reglas:
 
 ### 3.3 Permisos
 
-Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, `orders.open-price`, `cash-closings.read` y `cash-closings.manage` de ADR-0171, e `inventory.transfer` de ADR-0172). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
+Catálogo de ADR-0043 y ADR-0075 (`catalog.read`, `catalog.write`, `pricing.read`, `pricing.write`, `inventory.read`, `inventory.write`, `orders.read`, `orders.manage`, `payments.manage`, `shipping.manage`, `shipping.configure`, `customers.read`, `customers.manage`, `staff.manage`, `audit.read`, `events.manage` de ADR-0150, `orders.read-blocked` de ADR-0152, `orders.place` de ADR-0161, `payments.configure` de ADR-0162, que solo tiene el rol superadministrador, `work-orders.read` y `work-orders.manage` de ADR-0165, `work-orders.read-blocked` de ADR-0167, `promotions.read` y `promotions.manage` de ADR-0168, `orders.open-price`, `cash-closings.read` y `cash-closings.manage` de ADR-0171, `inventory.transfer` de ADR-0172, e `inventory.count` de ADR-0173). Cada endpoint administrativo indica el permiso requerido; cuando requiere dos, se indican ambos.
 
 ---
 
@@ -300,6 +300,7 @@ Error de validación:
 | `source-cart-unavailable` | 409 | E-34 | Recompra del staff para un invitado cuyo carrito original ya no existe (ADR-0082) | — |
 | `sale-not-linkable` | 409 | E-37 | Ligar a una orden de trabajo una venta vencida, cancelada o reembolsada (ADR-0167) | `saleStatus`: el estado de la venta |
 | `coupon-not-applicable` | 409 | E-38 | Un cupón que no aplica a la cotización o a la orden (ADR-0168) | `reason`: `unavailable`, `minimumNotMet`, `noEligibleLines`, `exhausted`, `alreadyUsed` o `buyerRequired` (§26.8) |
+| `variant-in-open-count` | 409 | E-40 | Una variante que ya está en otra hoja de conteo abierta del mismo almacén (ADR-0173) | `lines` (`variantId`, `countId`, `folio`) |
 | `idempotency-key-mismatch` | 422 | E-25 | Llave reutilizada con otro contenido | — |
 | `payload-too-large` | 413 | E-22 | Imagen de más de 5 MB | `maxBytes` |
 | `unsupported-media-type` | 415 | E-22 | Formato de imagen o `Content-Type` no admitido | — |
@@ -307,7 +308,7 @@ Error de validación:
 | `internal-error` | 500 | — | Error no controlado; solo `correlationId`, sin detalles | — |
 | `ai-unavailable` | 503 | E-39 | Borrador de descripción con IA sin `ANTHROPIC_API_KEY`, o el modelo no respondió o rechazó la solicitud (ADR-0170) | — |
 
-E-27 a E-39 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
+E-27 a E-40 son derivados de reglas existentes y están en el catálogo de `REQUIREMENTS.md`.
 
 ### 6.3 Errores comunes (no se repiten en cada endpoint)
 
@@ -868,6 +869,7 @@ Datos de referencia; se pueden cachear con el TTL de ADR-0028 (ADR-0071). Implem
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/discontinue` | `catalog.write` | UC-CAT-08 |
 | POST | `/v1/admin/catalog/products/{productId}/variants/{variantId}/reactivate` | `catalog.write` | UC-CAT-08 |
 | GET | `/v1/admin/catalog/variants/lookup` | `catalog.read` | UC-CAT-15 (ADR-0163) |
+| PUT | `/v1/admin/catalog/count-classes` | `catalog.write` | UC-CAT-19 (ADR-0173) |
 | POST | `/v1/admin/catalog/product-imports` | `catalog.write` | UC-CAT-16 (ADR-0164) |
 | POST | `/v1/admin/catalog/products/{productId}/images` | `catalog.write` | UC-CAT-11 |
 | PATCH, DELETE | `/v1/admin/catalog/products/{productId}/images/{imageId}` | `catalog.write` | UC-CAT-11 |
@@ -990,6 +992,13 @@ Desde T-182 (ADR-0171), `openPrice`: el producto se vende a precio libre en la t
 - **Alta:** responde 201 con `Location: /v1/admin/catalog/products/{id}`.
 - **Auditoría:** cada cambio se audita (`products.*`); uno sin efecto no se guarda ni se audita.
 
+Desde T-166 (ADR-0173, versión 1.12), `countClass`: la clase del producto para contarlo, `A`, `B` o `C`, o `null` sin clase (UC-CAT-19, BR-PRD-22).
+
+- **Alta y edición:** opcional en el `POST` y en el `PATCH`; `null` la quita. Se cambia en cualquier estado del producto, también archivado, porque no cambia lo que se vende. Se audita con los demás datos.
+- **Filtros del listado:** `countClass` (`A`, `B` o `C`) y `hasCountClass` (`true` o `false`). `countClass=C` trae solo los de clase C; la hoja de conteo, en cambio, cuenta como C a los que no tienen clase (§13).
+- **Carga masiva:** la columna `countClass` (§11.11).
+- **`PUT /v1/admin/catalog/count-classes`** — `catalog.write`. Para aplicar la clase sugerida por las ventas (§15.7) a los productos que se elijan. Request `{ "items": [{ "productId", "countClass": "A" }] }`, de 1 a 500 productos, cada uno una vez (400 `duplicateProduct` en `items`); `countClass` puede ser `null`. Todo o nada: un producto que no existe es 404 y no cambia ninguno. Sin `version`: solo cambia la clase, y la `version` de cada producto que cambia sube. 200 `{ "updated": 3 }`, los que cambiaron. Cada producto que cambia se audita como `products.update`.
+
 ### 11.7 Variantes (UC-CAT-06 a 08)
 
 | Endpoint | Detalle |
@@ -1100,7 +1109,7 @@ Implementado en T-150 (ADR-0120):
 
 - **Archivo:** CSV en UTF-8 (con o sin BOM), separado por comas y con encabezado; hasta 5,000 filas y 5 MB. Las columnas van en cualquier orden, sin distinguir mayúsculas, cada una una vez:
   - obligatorias: `slug`, `title` y `sku`;
-  - opcionales: `description`, `brand`, `categories`, `gtin`, `weightGrams`, `lengthCm`, `widthCm`, `heightCm` y, desde T-189, `storeOnly`;
+  - opcionales: `description`, `brand`, `categories`, `gtin`, `weightGrams`, `lengthCm`, `widthCm`, `heightCm`, desde T-189 `storeOnly` y desde T-166 `countClass`;
   - una `option:<nombre>` por opción, con un nombre de 1 a 30 caracteres, como `option:talla`; el nombre se guarda en minúsculas.
 
   ```
@@ -1110,7 +1119,7 @@ Implementado en T-150 (ADR-0120):
   gorra,Gorra azul,,accesorios,GORRA-AZUL,,120
   ```
 
-- **Una fila por variante:** las filas con el mismo `slug` forman un producto, que queda en `DRAFT`. Sus datos (`title`, `description`, `brand`, `categories` y `storeOnly`) van en su primera fila; las siguientes los dejan vacíos o los repiten iguales.
+- **Una fila por variante:** las filas con el mismo `slug` forman un producto, que queda en `DRAFT`. Sus datos (`title`, `description`, `brand`, `categories`, `storeOnly` y `countClass`) van en su primera fila; las siguientes los dejan vacíos o los repiten iguales.
 - **Valores:**
   - `slug`: minúsculas, dígitos y guiones, hasta 200 caracteres; no debe existir, aunque el producto esté archivado;
   - `title`, de 1 a 200 caracteres, obligatorio en la primera fila del producto; `description`, hasta 10,000;
@@ -1119,10 +1128,11 @@ Implementado en T-150 (ADR-0120):
   - `gtin`: 8, 12, 13 o 14 dígitos con su dígito verificador; ninguna variante activa debe tenerlo (BR-PRD-19);
   - las opciones: hasta 3 por producto, con valores de 1 a 50 caracteres. Todas las variantes de un producto llenan las mismas columnas de opción, y cada una con otra combinación (BR-PRD-02); un producto sin opciones lleva una sola variante;
   - `weightGrams`: gramos enteros mayores que 0; `lengthCm`, `widthCm` y `heightCm`: centímetros mayores que 0 con punto decimal y hasta un decimal (`30.5`);
-  - `storeOnly`: `true` o `false`, sin distinguir mayúsculas; vacía es `false` (ADR-0165).
+  - `storeOnly`: `true` o `false`, sin distinguir mayúsculas; vacía es `false` (ADR-0165);
+  - `countClass`: `A`, `B` o `C`, sin distinguir mayúsculas; vacía es sin clase (ADR-0173).
 - **Solo crea:** no edita productos existentes. Repetir un archivo ya cargado no cambia nada: sus slugs ya existen.
 - **Todo o nada:** se revisan todas las filas, entre sí y contra el catálogo, antes de guardar. Con cualquier error no se importa nada. Responde 400 `validation-error` con los primeros 100 errores ordenados por línea, en `rows[<línea>].<columna>`; el encabezado es la línea 1, `rows[<línea>]` sola indica que faltan o sobran valores, y `rows[<línea>].options` es un error de las opciones en conjunto.
-  - Códigos de fila: `isNotEmpty`, `slug`, `maxLength`, `arrayMaxSize`, `matches`, `gtinCheckDigit`, `grams`, `centimeters`, `isBoolean`, `options`, `optionNames`, `differsFromProduct`, `repeated` (otra fila del archivo ya lo tiene), `taken` (el catálogo ya lo tiene), `unknownBrand`, `inactiveBrand`, `unknownCategories`, `inactiveCategories` y `columnCount`.
+  - Códigos de fila: `isNotEmpty`, `slug`, `maxLength`, `arrayMaxSize`, `matches`, `gtinCheckDigit`, `grams`, `centimeters`, `isBoolean`, `isIn`, `options`, `optionNames`, `differsFromProduct`, `repeated` (otra fila del archivo ya lo tiene), `taken` (el catálogo ya lo tiene), `unknownBrand`, `inactiveBrand`, `unknownCategories`, `inactiveCategories` y `columnCount`.
   - Errores del archivo, en `file`: `isDefined`, `utf8`, `csv`, `columns` (una columna que falta, que no reconoce o que se repite, o el nombre de una opción de más de 30 caracteres), `emptyFile` y `tooManyRows`.
 - **Response 200:** `{ "rows": 3, "products": 2, "variants": 3, "dryRun": false }`.
 - **Errores:** 413 `payload-too-large` con `maxBytes` para un archivo de más de 5 MB; 409 `duplicate-value` con `field` si otro cambio toma un slug, SKU o GTIN del archivo entre la revisión y el guardado, y entonces no se guarda nada.
@@ -1206,6 +1216,7 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | POST | `/v1/admin/inventory/warehouses/{warehouseId}/deactivate` | `inventory.write` | UC-INV-11 |
 | GET | `/v1/admin/inventory/stock-items` | `inventory.read` | UC-INV-04 |
 | GET | `/v1/admin/inventory/stock-items/{stockItemId}/movements` | `inventory.read` | UC-INV-04 |
+| PUT | `/v1/admin/inventory/locations` | `inventory.count` | UC-INV-17 (ADR-0173) |
 | POST | `/v1/admin/inventory/receipts` | `inventory.write` | UC-INV-02 |
 | POST | `/v1/admin/inventory/adjustments` | `inventory.write` | UC-INV-03 |
 | POST | `/v1/admin/inventory/receipt-imports` | `inventory.write` | UC-INV-12 (ADR-0164) |
@@ -1214,6 +1225,13 @@ Implementado en T-145 (ADR-0125, ADR-0126):
 | GET | `/v1/admin/inventory/transfers/{transferId}` | `inventory.read` | UC-INV-13 (ADR-0172) |
 | POST | `/v1/admin/inventory/transfers/{transferId}/cancel` | `inventory.transfer` | UC-INV-14 (ADR-0172) |
 | POST | `/v1/admin/inventory/transfers/{transferId}/close` | `inventory.transfer` | UC-INV-16 (ADR-0172) |
+| GET | `/v1/admin/inventory/counts` | `inventory.read` | UC-INV-18 (ADR-0173) |
+| POST | `/v1/admin/inventory/counts` | `inventory.write` | UC-INV-18 (ADR-0173) |
+| GET | `/v1/admin/inventory/counts/{countId}` | `inventory.read` | UC-INV-18, UC-INV-19 (ADR-0173) |
+| PUT | `/v1/admin/inventory/counts/{countId}/lines/{variantId}` | `inventory.count` | UC-INV-19 (ADR-0173) |
+| POST | `/v1/admin/inventory/counts/{countId}/lines/{variantId}/recount` | `inventory.write` | UC-INV-20 (ADR-0173) |
+| POST | `/v1/admin/inventory/counts/{countId}/apply` | `inventory.write` + `Idempotency-Key` | UC-INV-20 (ADR-0173) |
+| POST | `/v1/admin/inventory/counts/{countId}/cancel` | `inventory.write` | UC-INV-20 (ADR-0173) |
 
 El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo atiende Ordering, que conoce la orden y sus líneas (P-73, ADR-0132).
 
@@ -1223,9 +1241,20 @@ El reintegro de stock de una orden (UC-INV-09) está en la sección 15.7: lo ati
 
 **`POST …/warehouses/{warehouseId}/deactivate`** (UC-INV-11, ADR-0076, ADR-0160) — Sin cuerpo. Para siempre: el almacén deja de vender, reservar y recibir mercancía, y conserva su stock. 200 `Warehouse`. Errores: 404; 409 `resource-in-use` si tiene unidades reservadas; 409 `invalid-state-transition` si ya está inactivo, o si es el último activo, con `reason: last-active-warehouse`. Se audita como `warehouses.deactivate`.
 
-**`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, updatedAt }` (`available = onHand − reserved`). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas). Orden: `sku` (defecto), `available`, `updatedAt`.
+**`GET …/stock-items`** — Paginado. `StockItem { id, variantId, sku, productTitle, warehouseId, onHand, reserved, available, location, updatedAt }` (`available = onHand − reserved`; `location`, dónde está en el almacén, o `null`, desde la 1.12). Filtros: `variantId`, `sku` (hasta 64 caracteres), `warehouseId`, `q` (SKU o título, hasta 100 caracteres), `availableMax` (entero de 0 a 2,147,483,647, para detectar existencias bajas), `location` y `hasLocation` (ADR-0173, abajo). Orden: `sku` (defecto), `available`, `updatedAt`.
 
-**`GET …/stock-items/{stockItemId}/movements`** — Paginación por cursor. `StockMovement { id, type, quantity, onHandAfter, reasonCode, note, orderId, orderLineId, transferId, actorId, createdAt }`; `transferId` liga un movimiento `TRANSFER` con su traslado (ADR-0172) y es `null` en los demás. Filtros: `type`, `from`, `to`. Orden fijo: más reciente primero.
+**Ubicación de cada producto** (UC-INV-17, ADR-0173, versión 1.12). Cada existencia, una variante en un almacén, tiene una ubicación opcional: un texto libre, sin catálogo de ubicaciones, como `A1`, `VITRINA 1` o `BODEGA`. Implementado en T-165.
+
+- **`PUT …/locations`** — `inventory.count`. Request `{ "variantId", "warehouseId", "location": "vitrina 1" }`; los tres obligatorios, y `location` puede ser `null`. 200 `StockItem`.
+  - `location` se guarda sin espacios alrededor, con un solo espacio entre palabras y en mayúsculas (`VITRINA 1`), y queda de 1 a 20 caracteres; vacía o más larga, 400 `validation-error` con `isLength` en `location`. `null` la quita.
+  - Sirve antes de la primera entrada: si la variante no tiene existencia en ese almacén, la crea con 0 unidades, sin movimiento. Quitar la ubicación donde no hay existencia es 404.
+  - La variante puede estar en cualquier estado y el almacén, inactivo, como en un ajuste; una variante o un almacén que no existe, 404.
+  - Una ubicación no es un movimiento: no cambia `onHand` ni deja historial de existencias. `updatedAt` cambia solo si la ubicación cambia.
+  - Un traslado no cambia la ubicación de ninguna de sus dos existencias; la que crea en el destino nace sin ubicación.
+  - Se audita como `inventory.location` sobre el `stock-item`, con la ubicación de antes y la de después, solo cuando cambia.
+- **Filtros del listado:** `location` exacta, sin distinguir mayúsculas y con los espacios normalizados como al guardarla; con `*` al final, las que empiezan así (`A*` trae `A1` y `A12`); hasta 20 caracteres antes del `*`, y nada antes del `*` es 400 `isLength`. `hasLocation=true` trae solo las existencias con ubicación, y `false`, solo las que no tienen.
+
+**`GET …/stock-items/{stockItemId}/movements`** — Paginación por cursor. `StockMovement { id, type, quantity, onHandAfter, reasonCode, note, orderId, orderLineId, transferId, countId, actorId, createdAt }`; `transferId` liga un movimiento `TRANSFER` con su traslado (ADR-0172), y `countId`, desde la 1.12, un ajuste `PHYSICAL_COUNT` con la hoja de conteo que lo aplicó (ADR-0173); los dos son `null` en los demás. Filtros: `type`, `from`, `to`. Orden fijo: más reciente primero.
 
 **`POST …/receipts`** — Entrada de mercancía.
 
@@ -1340,6 +1369,65 @@ Implementado en T-160 parte b (ADR-0128): la fachada `InventoryFacade` reserva t
 
 **Bloqueos:** registrar comparte el bloqueo de los dos almacenes, en orden de ID, así que el destino no se desactiva mientras las unidades llegan (ADR-0160). Registrar y cancelar cambian las existencias en orden ascendente de ID (BR-INV-14), así que dos traslados en sentidos contrarios no se bloquean entre sí. Cancelar y cerrar bloquean el traslado o el préstamo, y dos a la vez dejan uno solo; no bloquean los almacenes, porque las unidades vuelven a un origen que puede estar inactivo.
 
+**Hojas de conteo** (UC-INV-18 a UC-INV-20, ADR-0173, versión 1.12). Una hoja es una lista de variantes de un almacén que se cuenta a ciegas, se revisa y se ajusta de una vez, sin cerrar la tienda. Implementado en T-166.
+
+`StockCount { id, folio, warehouseId, filter, note, status, blind, lineCount, countedCount, lines: [CountLine], createdBy, createdAt, closedBy, closedAt, version }`:
+
+- `folio`: `C-` y el número consecutivo con al menos seis dígitos (`C-000123`).
+- `filter`: con lo que se abrió, `{ location?, categoryId?, countClass?, variantIds? }`.
+- `status`: `OPEN` mientras se cuenta; `APPLIED` o `CANCELLED`, y entonces ya no cambia. `closedBy` y `closedAt` dicen quién y cuándo.
+- `blind`: `true` para quien no tiene `inventory.write`; entonces `expected` y `difference` son `null` en todas las líneas.
+- `version`: sube con cada captura, cada recuento pedido, al aplicar y al cancelar, así que se revisa y se aplica justo lo que se leyó.
+
+`CountLine { variantId, sku, productTitle, position, location, counted, countedBy, countedAt, recount, expected, difference, outcome, movementId }`:
+
+- `position`: su orden en la hoja, desde 1; `location`, la ubicación de la existencia al tomar la línea.
+- `counted`, `countedBy` y `countedAt`: lo contado, quién y cuándo; `null` mientras no se cuenta.
+- `expected`: las físicas en el momento de contarla; `difference` es `counted − expected`. Así, lo vendido antes o después de contar no sale como faltante.
+- `recount`: se pidió volver a contarla.
+- `outcome`: lo que hizo aplicar la hoja, o `null` mientras está abierta: `ADJUSTED` (con `movementId`, su ajuste), `NO_DIFFERENCE`, `NOT_COUNTED` o `SKIPPED_RESERVED`.
+
+**`POST …/counts`** — `inventory.write`. Abre una hoja (UC-INV-18).
+
+- Request `{ "warehouseId", "location": "A*", "categoryId", "countClass": "A", "variantIds": [], "note" }`. `warehouseId`, cualquier almacén, también inactivo; un almacén que no existe es 404.
+- Un filtro al menos, o 400 `countFilter` en `location`:
+  - `location`, exacta o, con `*` al final, por prefijo, normalizada como en el listado de existencias;
+  - `categoryId`, los productos que están directamente en esa categoría;
+  - `countClass`, los productos de esa clase; `C` incluye a los que no tienen clase;
+  - varios a la vez se combinan;
+  - o `variantIds`, de 1 a 1,000, cada una una vez (400 `duplicateVariant`), y sin otro filtro (400 `variantIdsAlone`). Una variante que no existe es 404.
+- Con un filtro toma las variantes con existencia (`onHand > 0`) o con ubicación en ese almacén; con `variantIds`, exactamente esas, tengan o no existencia. Ninguna línea es 400 `noLines`, y más de 1,000, 400 `tooManyLines`, en el primer filtro enviado.
+- Las líneas van por ubicación (las que no tienen, al final) y luego por SKU.
+- Una variante va en una sola hoja abierta por almacén; puede haber varias hojas abiertas en el mismo almacén. Si alguna ya está en otra, 409 `variant-in-open-count` con `lines: [{ variantId, countId, folio }]`, y no se abre nada. Dos hojas que se abren a la vez con la misma variante dejan una.
+- 201 `StockCount` con `Location`. Se audita como `inventory.count-open`, con el folio, el filtro y cuántas líneas tomó.
+
+**`GET …/counts`** — `inventory.read`. Paginado, de la más reciente a la más antigua. Filtros: `warehouseId` y `status`. Responde `{ "data": [StockCount sin lines ni blind], "meta" }`.
+
+**`GET …/counts/{countId}`** — `inventory.read`. 200 `StockCount`, a ciegas sin `inventory.write`.
+
+**`PUT …/counts/{countId}/lines/{variantId}`** — `inventory.count`. Captura lo contado (UC-INV-19).
+
+- Request `{ "counted": 7 }`, de 0 a 100,000.
+- Guarda las físicas de ese momento en `expected`. Volver a capturar reemplaza lo anterior y quita `recount`.
+- Una variante que no está en la hoja se agrega al final, con la ubicación de su existencia, por ejemplo una que apareció en el estante; debe existir (404), y si está en otra hoja abierta del almacén, 409 `variant-in-open-count`.
+- Sin `version`: varias personas cuentan la misma hoja a la vez. Cada captura sube la `version` de la hoja.
+- 200 `CountLine`, a ciegas sin `inventory.write`. No se audita, como una venta.
+- Errores: 404; 409 `invalid-state-transition` si la hoja no está abierta.
+
+**`POST …/counts/{countId}/lines/{variantId}/recount`** — `inventory.write`. Request `{ "version" }`. Quita lo contado de la línea y la marca con `recount` (UC-INV-20). 200 `StockCount`. Errores: 404 si la línea no está en la hoja; 409 `version-conflict`; 409 `invalid-state-transition` si la hoja no está abierta.
+
+**`POST …/counts/{countId}/apply`** — `inventory.write`. Exige `Idempotency-Key`. Request `{ "version" }` (UC-INV-20).
+
+- Cada línea contada con diferencia crea un ajuste `ADJUSTMENT` con `PHYSICAL_COUNT`, el `countId` y la nota `Conteo C-000123`, por la diferencia, sobre las físicas de ahora: `ADJUSTED`. Una sin diferencia queda `NO_DIFFERENCE`, y una sin contar, `NOT_COUNTED`, sin tocarse.
+- Una línea que dejaría menos físicas que las apartadas no se aplica y queda `SKIPPED_RESERVED`; las demás sí. Las existencias cambian en orden ascendente de ID (BR-INV-14).
+- La hoja queda `APPLIED` y sus variantes pueden ir en otra.
+- 200 `StockCount`. Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` si no está abierta.
+- Se audita como `inventory.count-apply`, con cuántas líneas se ajustaron, cuántas no tenían diferencia, cuántas no se contaron y las variantes que no se aplicaron.
+
+**`POST …/counts/{countId}/cancel`** — `inventory.write`. Request `{ "version" }`. Sin ajustar nada; sus variantes pueden ir en otra hoja. 200 `StockCount`, `CANCELLED`. Errores: 404; 409 `version-conflict`; 409 `invalid-state-transition` si no está abierta. Se audita como `inventory.count-cancel`.
+
+**Bloqueos de las hojas:** cada cambio de una hoja (capturar, recontar, aplicar, cancelar) bloquea su fila primero, así que una captura no entra en una hoja que se está aplicando. Que una variante esté en una sola hoja abierta por almacén lo garantiza un índice único parcial de la base de datos.
+
 ---
 
 ## 14. Endpoints — Shopping
@@ -1427,6 +1515,7 @@ Implementado en T-181 parte b (ADR-0139):
 | POST | `/v1/orders/access` | Público | UC-ORD-05 |
 | GET | `/v1/admin/orders` | `orders.read` | UC-ORD-06 |
 | GET | `/v1/admin/orders/open-price-lines` | `orders.read` | ADR-0171 |
+| GET | `/v1/admin/orders/count-class-suggestions` | `orders.read` | UC-ORD-18 (ADR-0173) |
 | GET | `/v1/admin/orders/{orderId}` | `orders.read` | UC-ORD-06 |
 | POST | `/v1/admin/orders/quote` | `orders.place` | UC-ORD-12 (ADR-0161) |
 | POST | `/v1/admin/orders` | `orders.place` + `Idempotency-Key` | UC-ORD-13 (ADR-0161) |
@@ -1575,6 +1664,12 @@ Orden: `placedAt` (defecto `-placedAt`), `orderNumber`, `grandTotal`. Response: 
 - Filtros: `warehouseId` y `placedFrom`, `placedTo` (fechas de la orden, como en el listado de órdenes).
 - Orden fijo: la orden más reciente primero, y por número de línea. Incluye las órdenes en cualquier estado, también canceladas o vencidas.
 - Cada elemento: `orderId`, `publicCode`, `orderNumber`, `status`, `warehouseId`, `placedBy`, `placedAt`, `lineNumber`, `sku`, `productName`, `variantOptions`, `unitPrice`, `quantity`, `lineTotal` y `note`.
+
+**`GET /v1/admin/orders/count-class-suggestions`** — `orders.read`. La clase sugerida de cada producto por lo vendido en los últimos 90 días (UC-ORD-18, desde T-166, ADR-0173), para aplicarla en Catálogo con `PUT /v1/admin/catalog/count-classes` (§11.6).
+
+- Lo vendido: las líneas de las órdenes colocadas en esos 90 días, en línea y en la tienda física, que se pagaron y no se cancelaron, vencieron ni reembolsaron, cada una por su total menos su descuento.
+- La clase: de mayor a menor importe, `A` mientras lo vendido antes del producto no llega al 80 % del total (así, el que pasa del 80 % todavía es `A`), `B` mientras no llega al 95 % y `C` el resto; un empate va por ID del producto. Los productos sin ventas no aparecen: son `C`.
+- Sin paginación. Responde `{ "data": [{ "productId", "productTitle", "countClass", "sales": Money, "units", "suggestedClass" }], "meta": { "from", "to", "days": 90, "total": Money } }`, con `countClass` la clase que tiene hoy, o `null`.
 
 **`POST /v1/admin/orders/quote`** — `orders.place`. Cotiza un pedido en la tienda física (UC-ORD-12, ADR-0161).
 

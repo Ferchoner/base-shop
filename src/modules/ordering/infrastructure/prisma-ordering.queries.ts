@@ -30,6 +30,7 @@ import {
   type OrderAddress,
   type OrderId,
   type ShippingAddress,
+  type VariantId,
   type VariantOptions,
   type WarehouseId,
   withoutIdentifyingFields,
@@ -207,6 +208,30 @@ export class PrismaOrderingQueries extends OrderingQueries {
       _sum: { lineTotal: true },
     });
     return { count: totals._count._all, amount: totals._sum.lineTotal ?? 0 };
+  }
+
+  async salesByVariant(
+    from: Date,
+    to: Date,
+  ): Promise<
+    readonly { variantId: VariantId; amount: number; units: number }[]
+  > {
+    const rows = await this.txHost.tx.$queryRaw<
+      { variant_id: string; amount: number; units: number }[]
+    >`
+      SELECT line.variant_id,
+             sum(line.line_total - line.discount_amount)::int AS amount,
+             sum(line.quantity)::int AS units
+        FROM order_lines AS line
+        JOIN orders ON orders.id = line.order_id
+       WHERE orders.placed_at >= ${from} AND orders.placed_at < ${to}
+         AND orders.status NOT IN ('PENDING_PAYMENT', 'CANCELLED', 'EXPIRED', 'REFUNDED')
+       GROUP BY line.variant_id`;
+    return rows.map(({ variant_id, amount, units }) => ({
+      variantId: toId<'Variant'>(variant_id),
+      amount,
+      units,
+    }));
   }
 
   async listGuestOrders(

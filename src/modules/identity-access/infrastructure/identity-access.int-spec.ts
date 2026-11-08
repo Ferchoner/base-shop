@@ -170,6 +170,7 @@ describe('Identity & Access persistence (T-130)', () => {
           'catalog.read',
           'customers.read',
           'inventory.read',
+          'inventory.count',
           'inventory.transfer',
           'orders.open-price',
           'orders.place',

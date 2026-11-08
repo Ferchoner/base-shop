@@ -43,6 +43,12 @@ export interface StockFilter {
   readonly warehouseId?: WarehouseId;
   /** At most this many available units, to find what is running out. */
   readonly availableMax?: number;
+  /** Exactly this location, already in upper case (ADR-0173). */
+  readonly location?: string;
+  /** Locations that start with this, already in upper case. */
+  readonly locationPrefix?: string;
+  /** Only those with a location, or only those without one. */
+  readonly hasLocation?: boolean;
 }
 
 export type StockSortField = 'sku' | 'available' | 'updatedAt';

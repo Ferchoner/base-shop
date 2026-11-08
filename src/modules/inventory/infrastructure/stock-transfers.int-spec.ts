@@ -20,6 +20,7 @@ import { CreateWarehouse } from '../application/create-warehouse.use-case.js';
 import { DeactivateWarehouse } from '../application/deactivate-warehouse.use-case.js';
 import { InventoryFacade } from '../application/inventory.facade.js';
 import { StockEntries } from '../application/stock-entries.use-case.js';
+import { StockLocations } from '../application/stock-locations.use-case.js';
 import {
   type StockTransferId,
   StockTransfers,
@@ -360,6 +361,39 @@ describe('Inventory: transfers between warehouses (T-163)', () => {
     expect([await onHand(other, zelda), await onHand(MAIN, zelda)]).toEqual([
       0, 2,
     ]);
+  });
+
+  it('changes the location of neither stock item, and leaves a new one in the destination without one (ADR-0173)', async () => {
+    const [zelda, mario] = await createVariants('Juegos', 'ZELDA', 'MARIO');
+    await receiveIn(MAIN, zelda, 3);
+    await receiveIn(MAIN, mario, 3);
+    await receiveIn(other, zelda, 1);
+    const locations = moduleRef.get(StockLocations);
+    for (const [warehouseId, variantId, location] of [
+      [MAIN, zelda, 'A1'],
+      [other, zelda, 'VITRINA'],
+      [MAIN, mario, 'B2'],
+    ] as const) {
+      await cls.run(() => locations.set({ variantId, warehouseId, location }));
+    }
+
+    await transfer(MAIN, other, [
+      { variantId: zelda, quantity: 1 },
+      { variantId: mario, quantity: 1 },
+    ]);
+
+    const locationOf = async (warehouseId: WarehouseId, variantId: VariantId) =>
+      (
+        await prisma.stockItem.findUniqueOrThrow({
+          where: { variantId_warehouseId: { variantId, warehouseId } },
+        })
+      ).location;
+    expect([
+      await locationOf(MAIN, zelda),
+      await locationOf(other, zelda),
+      await locationOf(MAIN, mario),
+      await locationOf(other, mario),
+    ]).toEqual(['A1', 'VITRINA', 'B2', null]);
   });
 
   describe('cancel (ADR-0172)', () => {

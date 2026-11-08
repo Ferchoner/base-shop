@@ -6,11 +6,12 @@ import {
   type PageRequest,
   type SortOrder,
 } from '../../../shared-kernel/index.js';
-import type {
-  StockItemId,
-  StockLevel,
-  StockMovement,
-  VariantId,
+import {
+  locationOf,
+  type StockItemId,
+  type StockLevel,
+  type StockMovement,
+  type VariantId,
 } from '../domain/stock.js';
 import type { WarehouseId } from '../domain/warehouse.js';
 import { CatalogVariants, type VariantLabel } from './catalog-variants.js';
@@ -49,6 +50,9 @@ export interface StockListFilter {
   readonly q?: string;
   readonly warehouseId?: WarehouseId;
   readonly availableMax?: number;
+  /** A location, whatever its case, or with `*` at the end the locations that start with it (ADR-0173). */
+  readonly location?: string;
+  readonly hasLocation?: boolean;
 }
 
 const intersect = (
@@ -82,6 +86,8 @@ export class StockListing {
       variantIds,
       warehouseId: filter.warehouseId,
       availableMax: filter.availableMax,
+      hasLocation: filter.hasLocation,
+      ...locationFilter(filter.location),
     };
     if (sort.some(({ field }) => field === 'sku')) {
       const all = await this.queries.allStock(stockFilter);
@@ -152,6 +158,21 @@ export class StockListing {
     }
     return ids;
   }
+}
+
+/**
+ * `location` as Inventory filters it: exact, or a prefix when it ends with `*`, normalized like a location is kept.
+ *
+ * @throws InvalidLocationError when what comes before the `*` is blank or longer than 20 characters.
+ */
+function locationFilter(location: string | undefined): {
+  location?: string;
+  locationPrefix?: string;
+} {
+  if (location === undefined) return {};
+  return location.endsWith('*')
+    ? { locationPrefix: locationOf(location.slice(0, -1)) ?? undefined }
+    : { location: locationOf(location) ?? undefined };
 }
 
 /** Sorts by the requested fields, SKUs in Catalog's order, and by ID last so pages never overlap. */

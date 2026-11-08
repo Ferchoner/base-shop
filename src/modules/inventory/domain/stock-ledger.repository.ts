@@ -44,6 +44,11 @@ export interface TransferEntry extends StockEntry {
   readonly transferId: string;
 }
 
+/** A PHYSICAL_COUNT adjustment of a line of a count sheet (ADR-0173), linked to the sheet. */
+export interface CountEntry extends StockEntry {
+  readonly countId: string;
+}
+
 /** The stock of a variant in a warehouse. */
 export interface StockKey {
   readonly variantId: VariantId;
@@ -96,12 +101,33 @@ export abstract class StockLedgerRepository {
   ): Promise<void>;
 
   /**
+   * Sets where the stock of a variant is in a warehouse (ADR-0173), locking its stock item until the transaction
+   * ends. A location creates the stock item, with no units, when it does not exist; `null` clears it, and answers
+   * `null`, with nothing written, when there is no stock item. `updatedAt` only moves when the location changes.
+   */
+  abstract setLocation(
+    key: StockKey,
+    location: string | null,
+    at: Date,
+  ): Promise<{ stock: StockLevel; before: string | null } | null>;
+
+  /**
    * Applies an adjustment (UC-INV-03), creating the stock item if needed; `null`, with nothing written, when
    * it would leave `onHand` below `reserved` or zero (BR-INV-01).
    */
   abstract adjust(
     entry: StockEntry & { readonly reasonCode: AdjustmentReason },
   ): Promise<StockChange | null>;
+
+  /**
+   * Applies the differences of a count sheet (ADR-0173): one ADJUSTMENT movement with PHYSICAL_COUNT and the sheet
+   * per entry, updating the stock items in ascending ID order, like reservations (BR-INV-14), and creating them
+   * when needed. An entry applies only while `onHand` stays at or above `reserved`; the variants of those that do
+   * not apply are answered, with nothing written for them, and the others stay applied.
+   */
+  abstract countAdjust(
+    entries: readonly CountEntry[],
+  ): Promise<{ movements: StockMovement[]; skipped: VariantId[] }>;
 
   /**
    * Writes both sides of a transfer (ADR-0172): one TRANSFER movement per entry, in the warehouse of the entry,

@@ -36,6 +36,7 @@ Las filas con el mismo `slug` forman un producto. Sus datos (`title`, `descripti
 | `weightGrams` | No | Gramos enteros, mayores que 0. |
 | `lengthCm`, `widthCm`, `heightCm` | No | Centímetros con punto decimal y hasta un decimal, como `30.5`. |
 | `storeOnly` | No | `true` si se vende solo en la tienda física, como un servicio; `false` o vacía, también en línea (ADR-0165). Es dato del producto, como `title`. |
+| `countClass` | No | Cada cuándo se cuenta: `A` cada semana, `B` cada mes, `C` cada trimestre, sin distinguir mayúsculas; vacía, sin clase, que se cuenta como `C` (ADR-0173). Es dato del producto, como `title`. |
 
 La plantilla incluye un servicio, `revision-equipo`, que se vende solo en la tienda física. Su existencia, en `stock.csv`, es un número alto, porque un servicio no se agota.
 

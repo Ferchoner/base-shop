@@ -31,6 +31,7 @@ import {
 } from '../application/inventory.queries.js';
 import { StockEntries } from '../application/stock-entries.use-case.js';
 import { StockListing } from '../application/stock-listing.js';
+import { StockLocations } from '../application/stock-locations.use-case.js';
 import {
   UpdateWarehouse,
   type WarehouseAddressInput,
@@ -40,6 +41,7 @@ import {
   AdjustmentNoteRequiredError,
   type AdjustmentReason,
   InsufficientStockError,
+  InvalidLocationError,
   type StockItemId,
   type VariantId,
 } from '../domain/stock.js';
@@ -970,6 +972,156 @@ describe('Inventory: warehouse and stock (T-160 part a)', () => {
       expect(skus(byAvailable)).toEqual(['CAM-LINO-M']);
       expect(byAvailable.totalItems).toBe(3);
       expect(byAvailable.items[0].variantId).toBe(shirtM);
+    });
+  });
+
+  describe('locations (T-165, ADR-0173)', () => {
+    const setLocation = (
+      variantId: VariantId,
+      location: string | null,
+      warehouseId: WarehouseId = MAIN,
+    ) =>
+      cls.run(() =>
+        moduleRef.get(StockLocations).set({ variantId, warehouseId, location }),
+      );
+
+    it('sets a location before any units, creating the stock item with none, in upper case, and audits each change', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+
+      const set = await setLocation(shirt, '  vitrina   1 ');
+      const again = await setLocation(shirt, 'VITRINA 1');
+      await receive(shirt, 5);
+      const moved = await setLocation(shirt, 'a1');
+      const cleared = await setLocation(shirt, null);
+
+      expect(set).toMatchObject({
+        variantId: shirt,
+        warehouseId: MAIN,
+        sku: 'CAM-LINO-M',
+        productTitle: 'Camisa de lino',
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        location: 'VITRINA 1',
+      });
+      // The same location changes nothing.
+      expect(again.updatedAt).toEqual(set.updatedAt);
+      expect(moved).toMatchObject({ id: set.id, onHand: 5, location: 'A1' });
+      expect(cleared.location).toBeNull();
+      expect((await stockOf(shirt)).location).toBeNull();
+      // A location is not a movement.
+      await expectLedgerBalanced(shirt);
+      expect(
+        await prisma.stockMovement.count({ where: { stockItemId: set.id } }),
+      ).toBe(1);
+      const changes = (await audited('inventory.location')).map(
+        ({ resourceType, resourceId, changes }) => {
+          expect([resourceType, resourceId]).toEqual(['stock-item', set.id]);
+          return changes;
+        },
+      );
+      expect(changes).toHaveLength(3);
+      expect(changes).toEqual(
+        expect.arrayContaining([
+          { location: { from: null, to: 'VITRINA 1' } },
+          { location: { from: 'VITRINA 1', to: 'A1' } },
+          { location: { from: 'A1', to: null } },
+        ]),
+      );
+    });
+
+    it('answers a missing variant or warehouse, or clearing where there is no stock, as not found, and a bad one as invalid, writing nothing', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+
+      await expect(setLocation(newId<'Variant'>(), 'A1')).rejects.toThrow(
+        NotFoundError,
+      );
+      await expect(
+        setLocation(shirt, 'A1', newId<'Warehouse'>()),
+      ).rejects.toThrow(NotFoundError);
+      await expect(setLocation(shirt, null)).rejects.toThrow(NotFoundError);
+      await expect(setLocation(shirt, '   ')).rejects.toThrow(
+        InvalidLocationError,
+      );
+      await expect(setLocation(shirt, 'X'.repeat(21))).rejects.toThrow(
+        InvalidLocationError,
+      );
+
+      expect(await prisma.stockItem.count()).toBe(0);
+      expect(await audited('inventory.location')).toEqual([]);
+    });
+
+    it('sets it in an inactive warehouse, separately in each warehouse', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+      const north = await cls.run(() =>
+        moduleRef.get(CreateWarehouse).execute({
+          code: 'NORTE',
+          name: 'Norte',
+          address: null,
+          priority: 2,
+        }),
+      );
+      await cls.run(() => moduleRef.get(DeactivateWarehouse).execute(north));
+
+      await setLocation(shirt, 'A1');
+      const there = await setLocation(shirt, 'BODEGA', north);
+
+      expect(there).toMatchObject({
+        warehouseId: north,
+        location: 'BODEGA',
+      });
+      expect((await stockOf(shirt)).location).toBe('A1');
+    });
+
+    it('creates the stock item once for two first locations at the same time', async () => {
+      const [shirt] = await createVariants('Camisa de lino', 'CAM-LINO-M');
+
+      const both = await Promise.all([
+        setLocation(shirt, 'A1'),
+        setLocation(shirt, 'B2'),
+      ]);
+
+      expect(both[0].id).toBe(both[1].id);
+      expect(await prisma.stockItem.count()).toBe(1);
+      expect(['A1', 'B2']).toContain((await stockOf(shirt)).location);
+    });
+
+    it('filters the listing by a location, whatever its case, by a prefix with *, and by having one', async () => {
+      const [a1, a12, b1, none] = await createVariants(
+        'Juegos',
+        'ZELDA',
+        'MARIO',
+        'SONIC',
+        'KIRBY',
+      );
+      await setLocation(a1, 'A1');
+      await setLocation(a12, 'A12');
+      await setLocation(b1, 'B1');
+      await receive(none, 1);
+      const list = (filter: Parameters<StockListing['list']>[0]) =>
+        moduleRef
+          .get(StockListing)
+          .list(filter, [{ field: 'sku', direction: 'asc' }], {
+            page: 1,
+            pageSize: 20,
+          });
+      const skus = async (filter: Parameters<StockListing['list']>[0]) =>
+        (await list(filter)).items.map(({ sku }) => sku);
+
+      expect(await skus({ location: 'a1' })).toEqual(['ZELDA']);
+      expect(await skus({ location: 'a1*' })).toEqual(['MARIO', 'ZELDA']);
+      expect(await skus({ location: 'A*', q: 'mario' })).toEqual(['MARIO']);
+      expect(await skus({ location: 'C*' })).toEqual([]);
+      expect(await skus({ hasLocation: true })).toEqual([
+        'MARIO',
+        'SONIC',
+        'ZELDA',
+      ]);
+      expect(await skus({ hasLocation: false })).toEqual(['KIRBY']);
+      expect((await list({ location: 'B1' })).items[0]).toMatchObject({
+        location: 'B1',
+        onHand: 0,
+      });
     });
   });
 

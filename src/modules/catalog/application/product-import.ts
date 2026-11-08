@@ -25,6 +25,7 @@ export const OPTIONAL_PRODUCT_COLUMNS = [
   'widthCm',
   'heightCm',
   'storeOnly',
+  'countClass',
 ] as const;
 
 /** Prefix of the column of each option, such as `option:talla` (ADR-0164). */
@@ -54,6 +55,8 @@ export interface ProductImportRow {
   readonly heightCm: string;
   /** `true` or `false`, whatever its case: sold only in the physical store (ADR-0165); '' is `false`. */
   readonly storeOnly: string;
+  /** `A`, `B` or `C`, whatever its case: how often it is counted (ADR-0173); '' is without one. */
+  readonly countClass: string;
   /** The cell of each option column, by the name of the option in lowercase; '' when the variant has not it. */
   readonly options: Readonly<Record<string, string>>;
 }

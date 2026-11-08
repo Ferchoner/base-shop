@@ -11,6 +11,7 @@ import type { BrandId } from '../domain/brand.js';
 import { BrandRepository } from '../domain/brand.repository.js';
 import type { CategoryId } from '../domain/category.js';
 import { CategoryRepository } from '../domain/category.repository.js';
+import type { CountClass } from '../domain/product.js';
 import type { ProductId } from '../domain/product-id.js';
 import { ProductRepository } from '../domain/product.repository.js';
 import { ProductSearchIndex } from './product-search-index.js';
@@ -56,6 +57,8 @@ export class UpdateProduct {
       storeOnly?: boolean;
       /** At the price the staff types on each line; only with `storeOnly` (ADR-0171). */
       openPrice?: boolean;
+      /** How often it is counted (ADR-0173); `null` clears it. */
+      countClass?: CountClass | null;
       version: number;
     },
   ): Promise<void> {
@@ -84,6 +87,9 @@ export class UpdateProduct {
         product.changeStoreOnly(changes.storeOnly, this.clock.now());
       }
       if (changes.openPrice === true) product.changeOpenPrice(true);
+      if (changes.countClass !== undefined) {
+        product.changeCountClass(changes.countClass);
+      }
       const audited = changesBetween(before, auditedProductFields(product), {
         personal: LONG_PRODUCT_FIELDS,
       });

@@ -58,6 +58,13 @@ export class OpenPriceNeedsStoreOnlyError extends FieldError {
   }
 }
 
+/** A product comes twice in one request that classifies several (ADR-0173). */
+export class DuplicateProductError extends FieldError {
+  constructor() {
+    super('items', 'duplicateProduct', 'Cada producto va una sola vez.');
+  }
+}
+
 /**
  * Not the barcode of a manufacturer (ADR-0163): 8, 12, 13 or 14 digits (`gtin`), whose last one is the check digit
  * of the others (`gtinCheckDigit`).

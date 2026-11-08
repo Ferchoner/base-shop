@@ -60,6 +60,7 @@ import { OrderAccessTokenRepository } from './domain/order-access-token.js';
 import { OrderRepository } from './domain/order.repository.js';
 import {
   CatalogFacadeCheckoutCatalog,
+  CatalogFacadeSalesCatalog,
   GeoShippingLocations,
   IdentityFacadeCheckoutCustomers,
   InventoryFacadeOrderStock,
@@ -88,6 +89,10 @@ import { ShipmentDispatchedHandler } from './infrastructure/shipment-dispatched.
 import { ShipmentReturnedHandler } from './infrastructure/shipment-returned.event-handler.js';
 import { PrismaOrderingQueries } from './infrastructure/prisma-ordering.queries.js';
 import { CashClosings } from './application/cash-closings.use-case.js';
+import {
+  CountClassSuggester,
+  SalesCatalog,
+} from './application/count-class-suggestions.js';
 import { CashClosingRepository } from './domain/cash-closing.repository.js';
 import { PrismaCashClosingRepository } from './infrastructure/prisma-cash-closing.repository.js';
 import { AdminOrdersController } from './presentation/admin-orders.controller.js';
@@ -172,6 +177,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     OrderPaymentRequests,
     OrderReader,
     CashClosings,
+    CountClassSuggester,
     OrderReorders,
     OrderRestocks,
     BlockedOrderData,
@@ -198,6 +204,7 @@ import { OrdersController } from './presentation/orders.controller.js';
     { provide: OrderingQueries, useClass: PrismaOrderingQueries },
     { provide: CheckoutCarts, useClass: ShoppingFacadeCheckoutCarts },
     { provide: CheckoutCatalog, useClass: CatalogFacadeCheckoutCatalog },
+    { provide: SalesCatalog, useClass: CatalogFacadeSalesCatalog },
     { provide: CheckoutPrices, useClass: PricingFacadeCheckoutPrices },
     {
       provide: CheckoutPromotions,

@@ -27,14 +27,14 @@ describe('Database schema (T-110)', () => {
     await client.query('ROLLBACK');
   });
 
-  it('creates the 51 tables of the data model, with order_access_tokens of ADR-0148, the outbox of ADR-0150, payment_settings of ADR-0162, stock_receipt_imports of ADR-0164, the work orders of ADR-0166 and ADR-0167, the promotions of ADR-0168 the cash closings of ADR-0171 and the transfers of ADR-0172', async () => {
+  it('creates the 53 tables of the data model, with order_access_tokens of ADR-0148, the outbox of ADR-0150, payment_settings of ADR-0162, stock_receipt_imports of ADR-0164, the work orders of ADR-0166 and ADR-0167, the promotions of ADR-0168 the cash closings of ADR-0171, the transfers of ADR-0172 and the count sheets of ADR-0173', async () => {
     const { rows } = await client.query<{ tables: string }>(
       `SELECT count(*) AS tables
          FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name <> '_prisma_migrations'`,
     );
 
-    expect(Number(rows[0].tables)).toBe(51);
+    expect(Number(rows[0].tables)).toBe(53);
   });
 
   it('matches the Prisma schema, so Prisma will not try to drop the manual SQL objects (DATABASE.md §13)', () => {
@@ -73,6 +73,75 @@ describe('Database schema (T-110)', () => {
         [randomUUID(), randomUUID(), warehouseId],
       ),
     ).rejects.toThrow(/stock_items_reserved_check/);
+  });
+
+  it.each(['', ' A1', 'A1 ', 'X'.repeat(21)])(
+    'rejects the stock location %j: trimmed, 1 to 20 characters (ADR-0173)',
+    async (location) => {
+      const warehouseId = await insertWarehouse('INACTIVE');
+
+      await expect(
+        client.query(
+          `INSERT INTO stock_items (id, variant_id, warehouse_id, on_hand, reserved, location, updated_at)
+           VALUES ($1, $2, $3, 0, 0, $4, now())`,
+          [randomUUID(), randomUUID(), warehouseId, location],
+        ),
+      ).rejects.toThrow(/stock_items_location_check|value too long/);
+    },
+  );
+
+  it('keeps a variant in one open count sheet per warehouse, and each line counted with its units then, who and when (ADR-0173)', async () => {
+    const warehouseId = await insertWarehouse('INACTIVE');
+    const insertCount = async () => {
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO stock_counts (id, warehouse_id, filter, status, created_by, created_at, updated_at)
+         VALUES ($1, $2, '{}', 'OPEN', $3, now(), now())`,
+        [id, warehouseId, randomUUID()],
+      );
+      return id;
+    };
+    const first = await insertCount();
+    const second = await insertCount();
+    const variantId = randomUUID();
+    const insertLine = (countId: string, open = true) =>
+      client.query(
+        `INSERT INTO stock_count_lines (count_id, variant_id, warehouse_id, position, open, outcome)
+         VALUES ($1, $2, $3, 1, $4, $5)`,
+        [countId, variantId, warehouseId, open, open ? null : 'NOT_COUNTED'],
+      );
+    await insertLine(first);
+
+    await client.query('SAVEPOINT open');
+    await expect(insertLine(second)).rejects.toThrow(
+      /stock_count_lines_open_variant_key/,
+    );
+    await client.query('ROLLBACK TO SAVEPOINT open');
+    await expect(insertLine(second, false)).resolves.toBeDefined();
+
+    await client.query('SAVEPOINT capture');
+    await expect(
+      client.query(
+        'UPDATE stock_count_lines SET counted = 3 WHERE count_id = $1',
+        [first],
+      ),
+    ).rejects.toThrow(/stock_count_lines_capture_check/);
+    await client.query('ROLLBACK TO SAVEPOINT capture');
+
+    await client.query('SAVEPOINT movement');
+    await expect(
+      client.query(
+        "UPDATE stock_count_lines SET open = false, outcome = 'ADJUSTED' WHERE count_id = $1",
+        [first],
+      ),
+    ).rejects.toThrow(/stock_count_lines_movement_check/);
+    await client.query('ROLLBACK TO SAVEPOINT movement');
+
+    await expect(
+      client.query("UPDATE stock_counts SET status = 'APPLIED' WHERE id = $1", [
+        first,
+      ]),
+    ).rejects.toThrow(/stock_counts_closed_check/);
   });
 
   it('rejects an event delivery marked delivered without its date, or with fewer than zero attempts (ADR-0150)', async () => {

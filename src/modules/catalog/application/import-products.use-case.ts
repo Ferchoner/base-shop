@@ -12,6 +12,8 @@ import { BrandRepository } from '../domain/brand.repository.js';
 import type { CategoryId } from '../domain/category.js';
 import { CategoryRepository } from '../domain/category.repository.js';
 import {
+  COUNT_CLASSES,
+  type CountClass,
   MAX_CATEGORIES_PER_PRODUCT,
   MAX_DESCRIPTION_LENGTH,
   MAX_TITLE_LENGTH,
@@ -51,6 +53,8 @@ interface RowValues {
   readonly categories: readonly string[] | undefined;
   /** Sold only in the physical store (ADR-0165); `false` when the cell is empty. */
   readonly storeOnly: boolean | undefined;
+  /** How often it is counted (ADR-0173); `null` when the cell is empty. */
+  readonly countClass: CountClass | null | undefined;
   /** In uppercase, as SKUs are stored (BR-PRD-09). */
   readonly sku: string | undefined;
   readonly gtin: string | null | undefined;
@@ -76,6 +80,7 @@ const PRODUCT_COLUMNS = [
   'brand',
   'categories',
   'storeOnly',
+  'countClass',
 ] as const;
 
 const REQUIRED = 'Es obligatorio.';
@@ -356,6 +361,7 @@ function parseRow(
     brand: row.brand.toLowerCase(),
     categories,
     storeOnly: storeOnlyOf(row.storeOnly, fail),
+    countClass: countClassOf(row.countClass, fail),
     sku,
     gtin: gtinOf(row.gtin, fail),
     weightGrams: measureOf(row.weightGrams, gramsFrom, () =>
@@ -391,6 +397,19 @@ function storeOnlyOf(
   if (value === '' || value === 'false') return false;
   if (value === 'true') return true;
   return fail('storeOnly', 'isBoolean', 'Debe ser true o false.');
+}
+
+/** How often the product is counted (ADR-0173): `A`, `B` or `C` whatever its case, and empty is without one. */
+function countClassOf(
+  text: string,
+  fail: (column: string, code: string, message: string) => undefined,
+): CountClass | null | undefined {
+  const value = text.toUpperCase();
+  if (value === '') return null;
+  return (
+    COUNT_CLASSES.find((countClass) => countClass === value) ??
+    fail('countClass', 'isIn', 'Debe ser A, B o C.')
+  );
 }
 
 /** A GTIN with its check digit (ADR-0163), `null` when empty. */
@@ -488,8 +507,8 @@ function productsOf(
 }
 
 /**
- * Two cells of a product column say the same: slugs and `storeOnly` whatever their case, an empty `storeOnly` as
- * `false`, and categories in any order.
+ * Two cells of a product column say the same: slugs, `storeOnly` and `countClass` whatever their case, an empty
+ * `storeOnly` as `false`, and categories in any order.
  */
 function sameCell(
   column: (typeof PRODUCT_COLUMNS)[number],
@@ -505,6 +524,9 @@ function sameCell(
       (a.storeOnly.toLowerCase() || 'false') ===
       (b.storeOnly.toLowerCase() || 'false')
     );
+  }
+  if (column === 'countClass') {
+    return a.countClass.toUpperCase() === b.countClass.toUpperCase();
   }
   if (column === 'categories') {
     return (
@@ -566,7 +588,8 @@ function build(
     first.title === '' ||
     first.description === undefined ||
     first.categories === undefined ||
-    first.storeOnly === undefined
+    first.storeOnly === undefined ||
+    first.countClass === undefined
   ) {
     return null;
   }
@@ -581,6 +604,7 @@ function build(
       return id === undefined ? [] : [id];
     }),
     storeOnly: first.storeOnly,
+    countClass: first.countClass,
   });
   for (const row of rows) {
     if (errors.hasAny(row.line)) continue;

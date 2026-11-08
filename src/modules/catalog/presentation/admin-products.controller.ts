@@ -112,6 +112,8 @@ export class AdminProductsController {
             : toId<'Category'>(query.categoryId),
         storeOnly: query.storeOnly,
         openPrice: query.openPrice,
+        countClass: query.countClass,
+        hasCountClass: query.hasCountClass,
       },
       toSortOrders<ProductSortField>(query.sort, '-updatedAt'),
       query,
@@ -146,6 +148,7 @@ export class AdminProductsController {
       categoryIds: categoryIdsOf(body.categoryIds) ?? [],
       storeOnly: body.storeOnly,
       openPrice: body.openPrice,
+      countClass: body.countClass,
     });
     response.setHeader('Location', `/v1/admin/catalog/products/${id}`);
     return this.read(id);
@@ -192,6 +195,7 @@ export class AdminProductsController {
       categoryIds: categoryIdsOf(body.categoryIds),
       storeOnly: body.storeOnly,
       openPrice: body.openPrice,
+      countClass: body.countClass,
       version: body.version,
     });
     return this.read(id);

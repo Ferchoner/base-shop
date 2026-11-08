@@ -108,6 +108,7 @@ class InMemoryLedger extends StockLedgerRepository {
         variantId,
         warehouseId,
         onHand: this.onHand[`${variantId}/${warehouseId}`] ?? 0,
+        location: null,
         reserved: 0,
         updatedAt: at,
       })),
@@ -128,6 +129,14 @@ class InMemoryLedger extends StockLedgerRepository {
   }
 
   transfer(): never {
+    throw new Error('not used');
+  }
+
+  setLocation(): never {
+    throw new Error('not used');
+  }
+
+  countAdjust(): never {
     throw new Error('not used');
   }
 
@@ -194,6 +203,10 @@ class FixedCatalog extends CatalogVariants {
   }
 
   findBySku(): never {
+    throw new Error('not used');
+  }
+
+  forCount(): never {
     throw new Error('not used');
   }
 }

@@ -177,6 +177,7 @@ const EMPTY: Omit<ProductImportRow, 'line'> = {
   widthCm: '',
   heightCm: '',
   storeOnly: '',
+  countClass: '',
   options: {},
 };
 
@@ -320,6 +321,7 @@ describe('ImportProducts (UC-CAT-16, ADR-0164)', () => {
       firstPublishedAt: null,
       storeOnly: false,
       openPrice: false,
+      countClass: null,
       version: 1,
       variants: [
         {
@@ -535,6 +537,67 @@ describe('ImportProducts (UC-CAT-16, ADR-0164)', () => {
       ['revision', true],
       ['gorra', false],
       ['camisa', false],
+    ]);
+  });
+
+  it('takes the count class A, B or C whatever its case, repeated or empty in the next rows, and none when empty (ADR-0173)', async () => {
+    const { importProducts, products } = setUp();
+
+    await importProducts.execute(
+      [
+        row(2, {
+          slug: 'zelda',
+          title: 'Zelda',
+          sku: 'Z-1',
+          countClass: 'a',
+          options: { ed: 'Normal' },
+        }),
+        row(3, {
+          slug: 'zelda',
+          sku: 'Z-2',
+          countClass: 'A',
+          options: { ed: 'Coleccionista' },
+        }),
+        row(4, { slug: 'zelda', sku: 'Z-3', options: { ed: 'Digital' } }),
+        row(5, { slug: 'gorra', title: 'Gorra', sku: 'G-1', countClass: 'C' }),
+        row(6, { slug: 'camisa', title: 'Camisa', sku: 'C-1' }),
+      ],
+      { dryRun: false },
+    );
+
+    expect(
+      products.inserted.map((created) => [
+        created.snapshot().slug,
+        created.snapshot().countClass,
+      ]),
+    ).toEqual([
+      ['zelda', 'A'],
+      ['gorra', 'C'],
+      ['camisa', null],
+    ]);
+  });
+
+  it('answers a count class that is not A, B or C, or that differs from the first row (ADR-0173)', async () => {
+    expect(
+      await fieldsOf([
+        row(2, { slug: 'gorra', title: 'Gorra', sku: 'G-1', countClass: 'D' }),
+        row(3, {
+          slug: 'camisa',
+          title: 'Camisa',
+          sku: 'C-1',
+          countClass: 'B',
+          options: { talla: 'M' },
+        }),
+        row(4, {
+          slug: 'camisa',
+          sku: 'C-2',
+          countClass: 'A',
+          options: { talla: 'G' },
+        }),
+      ]),
+    ).toEqual([
+      'rows[2].countClass isIn',
+      'rows[4].countClass differsFromProduct',
     ]);
   });
 

@@ -46,6 +46,10 @@ import {
   type StockLine,
   type StockReservation,
 } from '../application/checkout-ports.js';
+import {
+  type ProductOfVariant,
+  SalesCatalog,
+} from '../application/count-class-suggestions.js';
 import type {
   CartId,
   CustomerId,
@@ -212,6 +216,30 @@ export class CatalogFacadeCheckoutCatalog extends CheckoutCatalog {
             variant.status === 'ACTIVE',
           storeOnly: variant.storeOnly,
           openPrice: variant.openPrice,
+        },
+      ]),
+    );
+  }
+}
+
+/** The products of the variants sold, for the count class suggestion (ADR-0173). */
+@Injectable()
+export class CatalogFacadeSalesCatalog extends SalesCatalog {
+  constructor(private readonly catalog: CatalogFacade) {
+    super();
+  }
+
+  async productsOf(
+    variantIds: readonly VariantId[],
+  ): Promise<ReadonlyMap<VariantId, ProductOfVariant>> {
+    const variants = await this.catalog.variants(variantIds);
+    return new Map(
+      variants.map((variant) => [
+        variant.id,
+        {
+          productId: variant.productId,
+          productTitle: variant.productTitle,
+          countClass: variant.countClass,
         },
       ]),
     );

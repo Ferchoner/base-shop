@@ -31,6 +31,7 @@ interface StockRow {
   warehouse_id: string;
   on_hand: number;
   reserved: number;
+  location: string | null;
   updated_at: Date;
 }
 
@@ -46,6 +47,7 @@ function toStockLevel(row: StockRow): StockLevel {
     warehouseId: toId<'Warehouse'>(row.warehouse_id),
     onHand: row.on_hand,
     reserved: row.reserved,
+    location: row.location,
     updatedAt: row.updated_at,
   };
 }
@@ -62,6 +64,17 @@ function stockWhere(filter: StockFilter): Prisma.Sql {
     filter.availableMax === undefined
       ? null
       : Prisma.sql`on_hand - reserved <= ${filter.availableMax}::int`,
+    filter.location === undefined
+      ? null
+      : Prisma.sql`location = ${filter.location}`,
+    filter.locationPrefix === undefined
+      ? null
+      : Prisma.sql`starts_with(location, ${filter.locationPrefix})`,
+    filter.hasLocation === undefined
+      ? null
+      : filter.hasLocation
+        ? Prisma.sql`location IS NOT NULL`
+        : Prisma.sql`location IS NULL`,
   ].filter((condition) => condition !== null);
   return conditions.length === 0
     ? Prisma.empty
@@ -107,7 +120,7 @@ export class PrismaInventoryQueries extends InventoryQueries {
     );
     const [rows, [{ count }]] = await Promise.all([
       this.txHost.tx.$queryRaw<StockRow[]>`
-        SELECT id, variant_id, warehouse_id, on_hand, reserved, updated_at
+        SELECT id, variant_id, warehouse_id, on_hand, reserved, location, updated_at
           FROM stock_items ${where}
          ORDER BY ${order}
          LIMIT ${page.pageSize} OFFSET ${pageOffset(page)}`,
@@ -119,7 +132,7 @@ export class PrismaInventoryQueries extends InventoryQueries {
 
   async allStock(filter: StockFilter): Promise<StockLevel[]> {
     const rows = await this.txHost.tx.$queryRaw<StockRow[]>`
-      SELECT id, variant_id, warehouse_id, on_hand, reserved, updated_at
+      SELECT id, variant_id, warehouse_id, on_hand, reserved, location, updated_at
         FROM stock_items ${stockWhere(filter)}`;
     return rows.map(toStockLevel);
   }
@@ -134,6 +147,7 @@ export class PrismaInventoryQueries extends InventoryQueries {
           warehouse_id: row.warehouseId,
           on_hand: row.onHand,
           reserved: row.reserved,
+          location: row.location,
           updated_at: row.updatedAt,
         });
   }
@@ -201,6 +215,7 @@ export class PrismaInventoryQueries extends InventoryQueries {
       orderId: row.orderId,
       orderLineId: row.orderLineId,
       transferId: row.transferId,
+      countId: row.countId,
       actorId: row.actorId,
       createdAt: row.createdAt,
     }));

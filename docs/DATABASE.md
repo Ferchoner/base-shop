@@ -44,7 +44,7 @@ Fuentes: `REQUIREMENTS.md`, `BUSINESS_RULES.md`, `DOMAIN_MODEL.md`, ADR-0001 a A
 | Identity & Access | `users`, `roles`, `user_roles`, `role_permissions`, `customer_addresses`, `refresh_tokens`, `email_verification_tokens`, `password_reset_tokens` |
 | Catalog | `brands`, `categories`, `products`, `product_categories`, `product_variants`, `product_images` |
 | Pricing | `price_lists`, `variant_prices`, `price_periods` |
-| Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports`, `stock_transfers`, `stock_transfer_lines` |
+| Inventory | `warehouses`, `stock_items`, `stock_movements`, `reservations`, `reservation_lines`, `stock_receipt_imports`, `stock_transfers`, `stock_transfer_lines`, `stock_counts`, `stock_count_lines` |
 | Shopping | `carts`, `cart_lines` |
 | Ordering | `orders`, `order_lines`, `order_status_history`, `order_access_tokens`, `cash_closings` |
 | Payments | `payments`, `payment_attempts`, `refunds`, `processed_webhook_events`, `payment_settings` |
@@ -226,6 +226,7 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | first_published_at | timestamptz(3) | Sí | Se fija en la primera publicación y no cambia; mientras es `NULL`, SKU y opciones de sus variantes son editables (ADR-0068) |
 | store_only | boolean | No | Default `false`. Se vende solo en la tienda física, como un servicio, y nunca en línea (BR-PRD-20, ADR-0165) |
 | open_price | boolean | No | Default `false`. Se vende a precio libre en la tienda física (BR-PRD-21, ADR-0171); `CHECK (NOT open_price OR store_only)` (`products_open_price_store_only_check`) |
+| count_class | enum `product_count_class` (A, B, C) | Sí | La clase para contarlo (BR-PRD-22, ADR-0173); `NULL` sin clase, que se cuenta como C. Migración `20261108170000_catalog_product_count_class` |
 | search_vector | tsvector | Sí | Título (peso A), marca (B) y categorías visibles (C) (ADR-0080); configuración `spanish` sobre el texto sin acentos (`unaccent`); lo recalcula la aplicación en la misma transacción al cambiar esos datos, incluida la visibilidad de sus categorías (ADR-0123) |
 | version | integer | No | — |
 | created_at, updated_at | timestamptz(3) | No | — |
@@ -363,10 +364,11 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT` |
 | on_hand | integer | No | Default 0 |
 | reserved | integer | No | Default 0 |
+| location | varchar(20) | Sí | Dónde está en el almacén (T-165, ADR-0173, BR-INV-18): de 1 a 20 caracteres, sin espacios alrededor; la API la guarda en mayúsculas. Migración `20261108160000_inventory_stock_location` |
 | created_at, updated_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01).
-- **Índices:** el único cubre la búsqueda por variante.
+- **Restricciones:** `UNIQUE (variant_id, warehouse_id)`; `CHECK (reserved >= 0 AND reserved <= on_hand)` (BR-INV-01); `stock_items_location_check`: `CHECK (location IS NULL OR (location = btrim(location) AND char_length(location) BETWEEN 1 AND 20))`. El `CHECK` no exige mayúsculas porque algunas letras no pasan igual a mayúsculas en JavaScript y en la base.
+- **Índices:** el único cubre la búsqueda por variante; `(warehouse_id, location)`, para las existencias de una ubicación en un almacén.
 - **Concurrencia:** sin columna `version`; se actualiza con sentencias condicionales atómicas (sección 12). La fila se crea en el primer cambio de la variante con `INSERT … ON CONFLICT DO NOTHING` (ADR-0127).
 
 ### 6.3 `stock_movements` (inventory_movements)
@@ -385,11 +387,12 @@ Todos guardan solo el hash del token (ADR-0023, ADR-0056). Son append-only salvo
 | order_id | uuid | Sí | Referencia lógica a Ordering (SALE, RESTOCK) |
 | order_line_id | uuid | Sí | Referencia lógica a Ordering (RESTOCK) |
 | transfer_id | uuid | Sí | FK → `stock_transfers.id` `RESTRICT`; solo en TRANSFER (ADR-0172) |
+| count_id | uuid | Sí | FK → `stock_counts.id` `RESTRICT`; el ajuste PHYSICAL_COUNT que aplicó una hoja de conteo (ADR-0173) |
 | actor_id | uuid | Sí | Staff o `NULL` si es el sistema |
 | created_at | timestamptz(3) | No | — |
 
-- **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER','WAREHOUSE_TRANSFER'))` (`WAREHOUSE_TRANSFER` desde las migraciones `20261006130000` y `20261006130100`, ADR-0160); `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`; `stock_movements_transfer_check`: `CHECK ((type = 'TRANSFER') = (transfer_id IS NOT NULL) AND (type <> 'TRANSFER' OR quantity <> 0))` (ADR-0172). El valor `TRANSFER` llegó en la migración `20261108140000`, aparte de la que lo usa.
-- **Índices:** `(stock_item_id, created_at)`; `(order_line_id) WHERE type = 'RESTOCK'` (tope de reintegro, sección 12); `(transfer_id)`, para los movimientos de un traslado.
+- **Restricciones:** `CHECK ((type IN ('ADJUSTMENT','RESTOCK')) = (reason_code IS NOT NULL))`; `CHECK (type <> 'ADJUSTMENT' OR reason_code IN ('PHYSICAL_COUNT','DAMAGED','LOSS_OR_THEFT','INTERNAL_USE','DATA_ENTRY_ERROR','OTHER','WAREHOUSE_TRANSFER'))` (`WAREHOUSE_TRANSFER` desde las migraciones `20261006130000` y `20261006130100`, ADR-0160); `CHECK (type <> 'RESTOCK' OR reason_code IN ('ORDER_CANCELLED','SHIPMENT_RETURNED'))`; `CHECK (reason_code NOT IN ('DAMAGED','LOSS_OR_THEFT','INTERNAL_USE') OR quantity < 0)`; `CHECK (reason_code <> 'OTHER' OR note IS NOT NULL)`; `CHECK (type <> 'RECEIPT' OR quantity > 0)`; `CHECK (type <> 'SALE' OR quantity < 0)`; `CHECK (type <> 'RESTOCK' OR (quantity > 0 AND order_id IS NOT NULL AND order_line_id IS NOT NULL))`; `stock_movements_transfer_check`: `CHECK ((type = 'TRANSFER') = (transfer_id IS NOT NULL) AND (type <> 'TRANSFER' OR quantity <> 0))` (ADR-0172). El valor `TRANSFER` llegó en la migración `20261108140000`, aparte de la que lo usa. `stock_movements_count_check`: `CHECK (count_id IS NULL OR (type = 'ADJUSTMENT' AND reason_code = 'PHYSICAL_COUNT'))` (ADR-0173).
+- **Índices:** `(stock_item_id, created_at)`; `(order_line_id) WHERE type = 'RESTOCK'` (tope de reintegro, sección 12); `(transfer_id)`, para los movimientos de un traslado; `(count_id)`, para los de una hoja de conteo.
 - **Integridad:** nunca se modifica ni se borra (ADR-0038).
 - **Implementado en T-161 (ADR-0142):** un reintegro escribe un RESTOCK por línea con motivo, orden, línea, nota y actor. Antes suma los RESTOCK de cada `order_line_id`, con el índice parcial, y lo vendido cuenta solo si la orden tiene una reserva COMMITTED. Sin migración.
 
@@ -470,6 +473,50 @@ Cada traslado de existencias entre dos almacenes (T-163, ADR-0172, BR-INV-16), y
 | returned | integer | Lo que regresó de una línea de un préstamo al cerrarlo; `NULL` hasta entonces y en un traslado; `CHECK (returned IS NULL OR returned BETWEEN 0 AND quantity)` |
 
 - **Índices:** `(variant_id)`, para el filtro por variante.
+
+### 6.9 `stock_counts`
+
+Cada hoja de conteo de un almacén (T-166, ADR-0173, BR-INV-19). Migración `20261108170100_inventory_stock_counts`, que crea también `stock_count_lines` y `stock_movements.count_id`.
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| id | uuid | No | PK |
+| number | bigserial | No | `UNIQUE`; el número del folio `C-000123`, consecutivo; una transacción que falla deja un hueco |
+| warehouse_id | uuid | No | FK → `warehouses.id` `RESTRICT`; cualquier almacén, también inactivo |
+| filter | jsonb | No | Con lo que se abrió: `location`, `categoryId`, `countClass` o `variantIds` |
+| note | text | Sí | De 1 a 500 caracteres |
+| status | enum `stock_count_status` (OPEN, APPLIED, CANCELLED) | No | OPEN al abrirse |
+| created_by | uuid | No | Referencia lógica a `users` |
+| created_at | timestamptz(3) | No | Lo escribe el reloj de la API |
+| closed_by | uuid | Sí | Quién la aplicó o la canceló; referencia lógica a `users` |
+| closed_at | timestamptz(3) | Sí | — |
+| version | integer | No | 1 al abrirse; sube con cada captura, recuento pedido, al aplicar y al cancelar |
+| updated_at | timestamptz(3) | No | — |
+
+- **Restricciones:** `stock_counts_note_check`: `CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 500)`; `stock_counts_closed_check`: `CHECK ((status = 'OPEN') = (closed_by IS NULL) AND (closed_by IS NULL) = (closed_at IS NULL))`; `stock_counts_version_check`: `CHECK (version >= 1)`.
+- **Índices:** `(status, created_at)` y `(warehouse_id, created_at)`, para el listado y sus filtros.
+- **Integridad:** nunca se borra. Cada cambio bloquea la fila (`FOR UPDATE`) antes de tocar sus líneas, y las acciones del staff la guardan solo sobre la versión leída.
+
+### 6.10 `stock_count_lines`
+
+| Campo | Tipo | Nulo | Notas |
+|---|---|---|---|
+| count_id | uuid | No | PK compuesta; FK → `stock_counts.id` `CASCADE` |
+| variant_id | uuid | No | PK compuesta; referencia lógica a Catalog |
+| warehouse_id | uuid | No | El almacén de su hoja, para el índice único parcial |
+| open | boolean | No | Default `true`; `false` cuando su hoja se aplica o se cancela |
+| position | integer | No | Su orden en la hoja; `CHECK (position >= 1)` |
+| location | varchar(20) | Sí | La ubicación de la existencia al tomar la línea; `CHECK` como `stock_items.location` |
+| counted | integer | Sí | Lo contado; `CHECK (counted IS NULL OR counted BETWEEN 0 AND 100000)` |
+| expected | integer | Sí | Las físicas al contarla; `CHECK (expected IS NULL OR expected >= 0)` |
+| counted_by | uuid | Sí | Referencia lógica a `users` |
+| counted_at | timestamptz(3) | Sí | — |
+| recount | boolean | No | Default `false`; se pidió volver a contarla |
+| outcome | enum `stock_count_outcome` (ADJUSTED, NO_DIFFERENCE, NOT_COUNTED, SKIPPED_RESERVED) | Sí | Lo que hizo aplicar la hoja; `NULL` mientras está abierta |
+| movement_id | uuid | Sí | `UNIQUE`; el ajuste de una línea ADJUSTED |
+
+- **Restricciones:** `stock_count_lines_capture_check`: `counted`, `expected`, `counted_by` y `counted_at` van juntos o ninguno; `stock_count_lines_outcome_check`: `CHECK (NOT open OR outcome IS NULL)`; `stock_count_lines_movement_check`: `CHECK ((outcome IS NOT DISTINCT FROM 'ADJUSTED') = (movement_id IS NOT NULL))`; además `counted_check`, `expected_check`, `location_check` y `position_check`.
+- **Índices:** `stock_count_lines_open_variant_key`: `UNIQUE (warehouse_id, variant_id) WHERE open`, una variante en una sola hoja abierta por almacén (BR-INV-19). La API agrega las líneas con `ON CONFLICT … DO NOTHING` sobre él, en orden de variante, así que dos hojas que se abren a la vez con la misma variante dejan una y la otra informa cuál la tiene.
 
 ---
 
@@ -917,6 +964,7 @@ El outbox de los eventos de dominio (ADR-0150): cada evento se guarda en la tran
 - **Permisos de las órdenes de trabajo:** la migración `20261015150000_identity_work_orders_permissions` (T-189 parte b, ADR-0165) da `work-orders.read` y `work-orders.manage` a los roles Administrador y Vendedor, por su ID; `20261016130000_identity_work_orders_read_blocked_permission` (T-189 parte c2, ADR-0167) da `work-orders.read-blocked` al Administrador.
 - **Permisos de las promociones:** la migración `20261016150000_identity_promotions_permissions` (T-200 parte a, ADR-0168) da `promotions.read` y `promotions.manage` al Administrador, y `promotions.read` al Vendedor, por su ID.
 - **Permiso de los traslados:** la migración `20261108140200_identity_transfer_permission` (T-163, ADR-0172) da `inventory.transfer` al Administrador y al Vendedor, por su ID.
+- **Permiso de las ubicaciones y los conteos:** la migración `20261108160100_identity_count_permission` (T-165, ADR-0173) da `inventory.count` al Administrador y al Vendedor, por su ID.
 - **Roles iniciales:** la migración `20260928120000_identity_initial_roles` (T-130, ADR-0111) crea Superadministrador (permisos implícitos, sin filas en `role_permissions`), Administrador y Operador con los permisos de ADR-0043. La migración `20261006150000_identity_orders_place_permission` (T-187, ADR-0161) da `orders.place` al Administrador y crea el rol Vendedor, sin tocar un rol con ese nombre que ya exista.
 - **Datos iniciales (seed):** roles iniciales con sus permisos (ADR-0043), lista de precios predeterminada, almacén predeterminado y método de envío "Envío Estándar" (costo fijo de $99.00 con IVA incluido, envío gratis desde $1,500.00 y plazo estimado de 3 a 7 días hábiles; ADR-0083, ADR-0092). El seed crea el método solo si no existe, así que nunca sobrescribe los valores que configure el administrador. Sin usuarios: el primer superadministrador se crea con su script (ADR-0043) y el catálogo geográfico con el suyo (ADR-0057).
 - **Primera migración:** `20260927000000_init` (T-110): el modelo completo, 38 tablas, con los cambios de ADR-0076, ADR-0078, ADR-0079, ADR-0081 y ADR-0083. No incluye datos iniciales: cada tarea crea los suyos (roles en T-130, lista de precios en T-145, almacén en T-160 y método de envío en T-196).
@@ -989,6 +1037,10 @@ erDiagram
     stock_transfers ||--o{ stock_movements : mueve
     stock_transfers |o--o| stock_transfers : "regreso de"
     product_variants ||..o{ stock_transfer_lines : "variante de"
+    warehouses ||--o{ stock_counts : cuenta
+    stock_counts ||--o{ stock_count_lines : lista
+    stock_counts ||--o{ stock_movements : ajusta
+    product_variants ||..o{ stock_count_lines : "variante de"
     reservations ||--o{ reservation_lines : reserva
     stock_items ||--o{ reservation_lines : aparta
     product_variants ||..o{ stock_items : "stock de"

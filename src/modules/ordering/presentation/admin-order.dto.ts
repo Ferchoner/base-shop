@@ -775,3 +775,67 @@ export class BlockedOrderDataDto {
   })
   shipmentDestination: PostalAddressDto | null;
 }
+
+const COUNT_CLASS_VALUES = ['A', 'B', 'C'];
+
+/** A product of `GET /v1/admin/orders/count-class-suggestions` (ADR-0173). */
+export class CountClassSuggestionDto {
+  @ApiProperty({ format: 'uuid' })
+  productId: string;
+
+  /** El título del producto hoy. @example 'Zelda: Tears of the Kingdom' */
+  productTitle: string;
+
+  @ApiProperty({
+    enum: COUNT_CLASS_VALUES,
+    nullable: true,
+    description: 'La clase que tiene hoy; `null` sin clase.',
+  })
+  countClass: string | null;
+
+  @ApiProperty({
+    type: () => MoneyDto,
+    description: 'Lo vendido: el total de sus líneas menos sus descuentos.',
+  })
+  sales: MoneyDto;
+
+  /** Unidades vendidas. @example 14 */
+  units: number;
+
+  @ApiProperty({
+    enum: COUNT_CLASS_VALUES,
+    description:
+      'La clase por sus ventas: `A`, los productos que suman el primer 80 % de lo vendido; `B`, el siguiente 15 %; `C`, el resto.',
+  })
+  suggestedClass: string;
+}
+
+export class CountClassSuggestionsMetaDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  from: Date;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    description: 'Sin incluirlo: el momento de la consulta.',
+  })
+  to: Date;
+
+  /** Días de ventas que cuenta. @example 90 */
+  days: number;
+
+  @ApiProperty({ type: () => MoneyDto, description: 'Lo vendido en total.' })
+  total: MoneyDto;
+}
+
+export class CountClassSuggestionListDto {
+  @ApiProperty({
+    type: () => [CountClassSuggestionDto],
+    description:
+      'Del producto que más vendió al que menos; los que no vendieron nada no aparecen y son `C`.',
+  })
+  data: CountClassSuggestionDto[];
+
+  @ApiProperty({ type: () => CountClassSuggestionsMetaDto })
+  meta: CountClassSuggestionsMetaDto;
+}

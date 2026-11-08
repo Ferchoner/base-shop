@@ -16,6 +16,9 @@ export const MAX_STOCK_QUANTITY = 100_000;
 /** Longest note of a movement (API_SPEC.md §13). */
 export const MAX_NOTE_LENGTH = 500;
 
+/** Longest location of a stock item (ADR-0173). */
+export const MAX_LOCATION_LENGTH = 20;
+
 /** `TRANSFER` is one side of a transfer between warehouses, signed and linked to it (ADR-0172). */
 export type StockMovementType =
   'RECEIPT' | 'ADJUSTMENT' | 'SALE' | 'RESTOCK' | 'TRANSFER';
@@ -82,6 +85,8 @@ export interface StockLevel {
   readonly warehouseId: WarehouseId;
   readonly onHand: number;
   readonly reserved: number;
+  /** Where it is in the warehouse (ADR-0173), upper case; `null` without one. */
+  readonly location: string | null;
   readonly updatedAt: Date;
 }
 
@@ -99,6 +104,8 @@ export interface StockMovement {
   readonly orderLineId: string | null;
   /** The transfer of a TRANSFER movement (ADR-0172); `null` for the others. */
   readonly transferId: string | null;
+  /** The count sheet of a PHYSICAL_COUNT adjustment it applied (ADR-0173); `null` for the others. */
+  readonly countId: string | null;
   /** The staff member who moved it, or `null` for the system. */
   readonly actorId: string | null;
   readonly createdAt: Date;
@@ -172,6 +179,34 @@ export class RestockLimitError extends DomainError {
       lines: lines.map((line) => ({ ...line })),
     });
   }
+}
+
+/** A location is 1 to 20 characters (ADR-0173). */
+export class InvalidLocationError extends StockFieldError {
+  constructor() {
+    super(
+      'location',
+      'isLength',
+      `De 1 a ${MAX_LOCATION_LENGTH} caracteres, o null para quitarla.`,
+    );
+  }
+}
+
+/**
+ * A location as it is kept (ADR-0173): trimmed, with its inner spaces collapsed into one, and in upper case, so
+ * `a1` and ` A1 ` are the same place; `null` clears it.
+ *
+ * @throws InvalidLocationError when it is blank or longer than 20 characters.
+ */
+export function locationOf(location: string): string;
+export function locationOf(location: string | null): string | null;
+export function locationOf(location: string | null): string | null {
+  if (location === null) return null;
+  const normalized = location.trim().replace(/\s+/g, ' ').toUpperCase();
+  if (normalized === '' || normalized.length > MAX_LOCATION_LENGTH) {
+    throw new InvalidLocationError();
+  }
+  return normalized;
 }
 
 /** A note trimmed, and `null` when it says nothing. */

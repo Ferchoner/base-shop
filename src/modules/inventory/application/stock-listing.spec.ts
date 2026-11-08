@@ -6,7 +6,12 @@ import {
   type SortOrder,
 } from '../../../shared-kernel/index.js';
 import type { WarehouseStock } from '../domain/allocation.js';
-import type { StockLevel, StockMovement, VariantId } from '../domain/stock.js';
+import {
+  InvalidLocationError,
+  type StockLevel,
+  type StockMovement,
+  type VariantId,
+} from '../domain/stock.js';
 import { CatalogVariants, type VariantLabel } from './catalog-variants.js';
 import {
   InventoryQueries,
@@ -30,6 +35,7 @@ function stock(
     warehouseId,
     onHand,
     reserved,
+    location: null,
     updatedAt: new Date(updatedAt),
   };
 }
@@ -53,6 +59,10 @@ class FixedCatalog extends CatalogVariants {
   }
 
   findBySkus(): Promise<Map<string, VariantId>> {
+    return Promise.reject(new Error('not used'));
+  }
+
+  forCount(): Promise<VariantId[]> {
     return Promise.reject(new Error('not used'));
   }
 
@@ -313,6 +323,46 @@ describe('StockListing (UC-INV-04, ADR-0127)', () => {
     expect(queries.asked).toEqual([]);
   });
 
+  it('passes the location to the database in upper case, exact or as a prefix with *, and hasLocation as is (ADR-0173)', async () => {
+    const queries = new FixedStock(items);
+    const listing = new StockListing(queries, catalog());
+    const byUpdate = [
+      { field: 'updatedAt' as const, direction: 'asc' as const },
+    ];
+
+    await listing.list({ location: ' a1 ' }, byUpdate, page(1));
+    await listing.list(
+      { location: 'vitrina*', hasLocation: true },
+      byUpdate,
+      page(1),
+    );
+    await listing.list({ hasLocation: false }, byUpdate, page(1));
+
+    expect(queries.asked.map(({ filter }) => filter)).toEqual([
+      expect.objectContaining({ location: 'A1' }),
+      expect.objectContaining({ locationPrefix: 'VITRINA', hasLocation: true }),
+      expect.objectContaining({ hasLocation: false }),
+    ]);
+    expect(queries.asked[0].filter).not.toHaveProperty('locationPrefix');
+    expect(queries.asked[2].filter).not.toHaveProperty('location');
+  });
+
+  it.each(['*', '  *', 'X'.repeat(21)])(
+    'rejects the location filter %j before reading the stock',
+    async (location) => {
+      const queries = new FixedStock(items);
+
+      await expect(
+        new StockListing(queries, catalog()).list(
+          { location },
+          [{ field: 'sku', direction: 'asc' }],
+          page(1),
+        ),
+      ).rejects.toThrow(InvalidLocationError);
+      expect(queries.asked).toEqual([]);
+    },
+  );
+
   describe('movements', () => {
     const [item] = items;
     const movement = (n: number): StockMovement => ({
@@ -326,6 +376,7 @@ describe('StockListing (UC-INV-04, ADR-0127)', () => {
       orderId: null,
       orderLineId: null,
       transferId: null,
+      countId: null,
       actorId: null,
       createdAt: new Date(Date.UTC(2026, 9, 1, 12, 0, 60 - n)),
     });

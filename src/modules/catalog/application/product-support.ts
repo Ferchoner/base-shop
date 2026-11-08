@@ -28,6 +28,7 @@ export function auditedProductFields(
     status,
     storeOnly,
     openPrice,
+    countClass,
   } = product.snapshot();
   return {
     title,
@@ -38,6 +39,7 @@ export function auditedProductFields(
     status,
     storeOnly,
     openPrice,
+    countClass,
   };
 }
 

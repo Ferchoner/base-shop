@@ -124,6 +124,8 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   },
   'GET /v1/admin/catalog/variants/lookup': { access: ['catalog.read'] },
   'POST /v1/admin/catalog/product-imports': { access: ['catalog.write'] },
+  // The count class of several products at once, as the sales suggest it (ADR-0173).
+  'PUT /v1/admin/catalog/count-classes': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products': { access: ['catalog.read'] },
   'POST /v1/admin/catalog/products': { access: ['catalog.write'] },
   'GET /v1/admin/catalog/products/:productId': { access: ['catalog.read'] },
@@ -210,6 +212,8 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/inventory/adjustments': { access: ['inventory.write'] },
   'POST /v1/admin/inventory/receipts': { access: ['inventory.write'] },
   'GET /v1/admin/inventory/stock-items': { access: ['inventory.read'] },
+  // Where each product is in a warehouse, set by those who put it on the shelves and count it (ADR-0173).
+  'PUT /v1/admin/inventory/locations': { access: ['inventory.count'] },
   'GET /v1/admin/inventory/stock-items/:stockItemId/movements': {
     access: ['inventory.read'],
   },
@@ -229,6 +233,24 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'POST /v1/admin/inventory/transfers/:transferId/close': {
     access: ['inventory.transfer'],
   },
+  // Count sheets: opened, reviewed and applied by those who manage the stock, counted blind by those who count it
+  // (ADR-0173).
+  'GET /v1/admin/inventory/counts': { access: ['inventory.read'] },
+  'POST /v1/admin/inventory/counts': { access: ['inventory.write'] },
+  'GET /v1/admin/inventory/counts/:countId': { access: ['inventory.read'] },
+  'PUT /v1/admin/inventory/counts/:countId/lines/:variantId': {
+    access: ['inventory.count'],
+  },
+  'POST /v1/admin/inventory/counts/:countId/lines/:variantId/recount': {
+    access: ['inventory.write'],
+  },
+  'POST /v1/admin/inventory/counts/:countId/apply': {
+    access: ['inventory.write'],
+    idempotent: 'user',
+  },
+  'POST /v1/admin/inventory/counts/:countId/cancel': {
+    access: ['inventory.write'],
+  },
   'GET /v1/admin/inventory/warehouses': { access: ['inventory.read'] },
   'POST /v1/admin/inventory/warehouses': { access: ['inventory.write'] },
   'PATCH /v1/admin/inventory/warehouses/:warehouseId': {
@@ -247,6 +269,8 @@ export const ROUTE_MATRIX: Record<string, RouteSecurity> = {
   'GET /v1/admin/cash-closings/:closingId': { access: ['cash-closings.read'] },
   'GET /v1/admin/orders': { access: ['orders.read'] },
   // The lines sold at an open price, to know what to add to the catalog (ADR-0171).
+  // The count class of each product by its sales of the last 90 days (ADR-0173).
+  'GET /v1/admin/orders/count-class-suggestions': { access: ['orders.read'] },
   'GET /v1/admin/orders/open-price-lines': { access: ['orders.read'] },
   'POST /v1/admin/orders': {
     access: ['orders.place'],

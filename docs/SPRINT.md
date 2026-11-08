@@ -6,7 +6,7 @@ Ninguno. El proyecto se cerró como MVP el 2026-10-04, en la review del Sprint 9
 
 ## Versión en curso
 
-Ninguna. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y se publica como la 1.11.0; su review está en el historial. La siguiente necesita un plan aprobado (ADR-0159).
+Versión 1.12 — Ubicación de cada producto y hojas de conteo (ADR-0173), desde el 2026-11-08; su plan está en el historial. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y se publicó como la 1.11.0.
 
 ---
 
@@ -32,6 +32,39 @@ Ninguna. La versión 1.11, traslados entre almacenes, se cerró el 2026-11-08 y 
 ---
 
 ## Historial
+
+### Versión 1.12 — Ubicación de cada producto y hojas de conteo (2026-11-08)
+
+**Goal:** Que cada producto tenga su lugar registrado en cada local, y que el inventario se revise por partes, sin cerrar la tienda: una hoja de conteo que se cuenta a ciegas y ajusta todas las diferencias de una vez, con clases A, B y C para decidir qué contar y cuándo (ADR-0173). **Tareas:** paso 0, T-165 y T-166, en ese orden.
+
+**Plan** (aprobado por el usuario el 2026-11-08, con las recomendaciones y la clase sugerida por las ventas de 90 días):
+
+- **Paso 0:** revisión de `npm audit` y las prácticas de la review de la 1.11 en `DEVELOPMENT_GUIDE.md`. Sin cambios en `/v1`.
+- **Parte 1, T-165:** la ubicación de cada existencia, sus filtros, la ruta para cambiarla y el permiso `inventory.count`.
+- **Parte 2, T-166:** la hoja de conteo, la clase A, B o C del producto y la clase sugerida por las ventas.
+- **Backoffice:** la ubicación en Existencias, Traslados y Vender en tienda, las pantallas Conteos y Contar, la hoja impresa, las etiquetas y los avisos de Inicio, en base-ecomm-admin.
+- **Siguiente, fuera de esta versión:** apartados con anticipo, compra de usados y consignas, en la 1.13.
+
+#### Resultado del paso 0
+
+- **Dependencias:** `npm audit` sigue con los 25 avisos de la review de la 1.9 (24 moderados y 1 bajo), todos en dependencias de desarrollo y bajo el umbral de la CI; 0 en producción. Siguen esperando a que termine la pausa de Dependabot (ADR-0158).
+- **Guía de desarrollo:** la práctica de la review de la 1.11 sobre los mensajes sin scope queda en `DEVELOPMENT_GUIDE.md`; la de `IdempotencyModule` ya estaba desde T-163.
+
+#### Resultado de la parte 1 (T-165)
+
+- **API:** `location` en `StockItem`, los filtros `location` y `hasLocation` del listado de existencias, y `PUT /v1/admin/inventory/locations`, que registra o quita la ubicación por variante y almacén, aunque no haya unidades (API_SPEC.md §13).
+- **Base de datos:** `location` en `stock_items`, con su `CHECK` y un índice por almacén y ubicación (DATABASE.md §6.2); el permiso `inventory.count` para el Vendedor y el Administrador, en otra migración. Sin tablas nuevas.
+- **Traslados:** no cambian la ubicación; la existencia que un traslado crea en el destino nace sin ubicación, y la prueba de integración lo comprueba.
+- **Para la parte 2:** el índice por almacén y ubicación es el que usará la hoja de conteo para tomar las existencias de una ubicación o de un prefijo.
+
+#### Resultado de la parte 2 (T-166)
+
+- **Clase del producto:** `countClass` A, B o C en el alta, la edición, la vista y el listado (`countClass` y `hasCountClass`), en cualquier estado del producto; la columna `countClass` de la carga masiva, y `PUT /v1/admin/catalog/count-classes` para hasta 500 productos a la vez, todo o nada (API_SPEC.md §11.6).
+- **Clase sugerida:** `GET /v1/admin/orders/count-class-suggestions` suma lo vendido por producto en los últimos 90 días, en línea y en la tienda, y sugiere A hasta el 80 % del importe, B hasta el 95 % y C el resto; la regla vive en el dominio de Ordering y Catalog no depende de Ordering (§15.7).
+- **Hojas de conteo:** `/v1/admin/inventory/counts` abre una hoja por ubicación o prefijo, categoría, clase o lista de variantes, de 1 a 1,000 líneas por ubicación y SKU; se captura a ciegas por línea con `inventory.count`, guardando las físicas de ese momento; se revisa, se recuenta, se aplica con `Idempotency-Key` o se cancela con `inventory.write` (§13).
+- **Base de datos:** el enum y la columna `products.count_class`; `stock_counts`, `stock_count_lines` y `stock_movements.count_id`, con sus `CHECK` y el índice único parcial que deja una variante en una sola hoja abierta por almacén (DATABASE.md §6.9 y §6.10). Ahora son 53 tablas.
+- **Problema nuevo:** `variant-in-open-count` (409, E-40), con las variantes y la hoja que ya las tiene.
+- **Decisiones de implementación:** la diferencia se aplica sobre las físicas de ahora, así que una venta entre la captura y la aplicación no se pierde; capturar no pide `version`, para que varias personas cuenten la misma hoja, pero cada captura sube la de la hoja, y aplicar exige la leída; la hoja a ciegas es una ayuda para contar, no un control de acceso (SECURITY.md).
 
 ### Versión 1.11 — Traslados entre almacenes (2026-11-08)
 
